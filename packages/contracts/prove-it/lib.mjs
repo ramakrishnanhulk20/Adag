@@ -114,7 +114,29 @@ export const m3fAbi = parseAbi([
   'struct Result { bool success; bytes returnData; }',
   'function aggregate3(Call3[] calls) returns (Result[] returnData)',
 ]);
-export const oracleAbi = parseAbi(['function price() view returns (uint256)']);
+export const oracleAbi = parseAbi([
+  'function price() view returns (uint256)',
+  'function BASE_FEED_1() view returns (address)',
+  'function QUOTE_FEED_1() view returns (address)',
+]);
+
+// Arc's native balance is the USDC balance (18 decimals); this gives a simulated address some, nothing else.
+export const nativeBalance = (address, wei) => ({ [address]: { balance: toHex(wei) } });
+
+const mockOracleUrl = new URL('../../../reference/rnd/option-a/MockOracle.json', import.meta.url);
+// Simulation only: runtime code for the R&D MockOracle with its three sentinels patched to a fixed price and
+// the real oracle's feeds, so Adag's freshness check still reads the real Chainlink feeds.
+export function mockOracleCode(price, baseFeed, quoteFeed) {
+  const swap = (code, sentinel, value) => {
+    if (code.split(sentinel).length !== 2) throw new Error(`MockOracle sentinel ${sentinel.slice(0, 8)} not found exactly once.`);
+    return code.replace(sentinel, value);
+  };
+  let code = JSON.parse(readFileSync(mockOracleUrl, 'utf8')).deployedBytecode.toLowerCase();
+  code = swap(code, '5eed'.repeat(16), price.toString(16).padStart(64, '0'));
+  code = swap(code, 'b0'.repeat(20), baseFeed.slice(2).toLowerCase());
+  code = swap(code, 'c0'.repeat(20), quoteFeed.slice(2).toLowerCase());
+  return code;
+}
 
 export const enc = (abi, functionName, args = []) => encodeFunctionData({ abi, functionName, args });
 
@@ -194,12 +216,19 @@ async function drpc(method, params) {
 
 export const simChainId = async () => Number(await drpc('eth_chainId', []));
 
-// blocks: [{ time, calls: [{ from, to, data }] }]. When `inject` is set, AdagBills' runtime code is placed at
-// the placeholder address in the first block and stays there for the rest of the request.
+// dRPC's own latest block, so a simulation pinned to it is sure to exist on the node that runs it.
+export async function simHead() {
+  const blk = await drpc('eth_getBlockByNumber', ['latest', false]);
+  return { number: BigInt(blk.number), timestamp: BigInt(blk.timestamp) };
+}
+
+// blocks: [{ time, overrides?, calls: [{ from, to, data }] }]. When `inject` is set, AdagBills' runtime code is
+// placed at the placeholder address in the first block. Any override lasts for the rest of the request.
 export async function simulate(blocks, atBlock, inject) {
   const blockStateCalls = blocks.map((b, i) => {
     const out = { blockOverrides: { time: toHex(b.time) }, calls: b.calls.map((c) => ({ from: c.from, to: c.to, data: c.data })) };
-    if (i === 0 && inject) out.stateOverrides = { [inject.address]: { code: inject.code } };
+    const overrides = { ...(i === 0 && inject ? { [inject.address]: { code: inject.code } } : {}), ...(b.overrides || {}) };
+    if (Object.keys(overrides).length) out.stateOverrides = overrides;
     return out;
   });
   const result = await drpc('eth_simulateV1', [{ blockStateCalls, validation: false, traceTransfers: false }, toHex(atBlock)]);

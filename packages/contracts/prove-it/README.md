@@ -80,6 +80,27 @@ All in, about 0.014 USDC of gas without `--close` and 0.018 USDC with it. On top
   stops before sending anything unless the payer holds about 1.15 USDC or more (the repayment, the fee
   top-up and 0.1 USDC for gas).
 
+## Try to break it
+
+```
+node packages/contracts/prove-it/attack.mjs
+```
+
+This runs every attack from the threat model against the live AdagBills and the demo wallet's real Morpho
+loan, each in its own eth_simulateV1 run from dRPC's latest block. Nothing is signed or sent, and it reads
+only the two public addresses from `.env`. The attacks: paying a paid bill again, repaying and re-borrowing the
+same share count against less cirBTC, new debt past 40%, self-payment, fake currencies, zero amounts, long
+references, voids by a stranger or of a paid bill, and paying without an allowance. It also shows the one
+named gap: debt taken after the Adag step in the same batch gets through once, and the next payment is then
+refused. A simulated 25% price drop shows a cash payment still goes through while any new debt is refused.
+Last, it runs prove-it with a stubbed RPC that reports the wrong chain and shows prove-it stops. It prints a
+table of each attack, what should stop it and the decoded revert, appends the same table to
+`packages/contracts/deployments/attacks-<date>.md`, and exits 0 only if every row passes.
+
+The only state overrides are native USDC for a simulated stranger, fresh bills written by the payee in an
+earlier simulated block, and the mock oracle for the labelled price drop. Adag and Morpho state are never
+changed.
+
 ## What it does not cover
 
 - It proves one bill in USDC. The EURC market, several bills in one batch, voiding a bill and the revert
