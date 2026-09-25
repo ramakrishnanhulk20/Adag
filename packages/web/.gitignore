@@ -1,8 +1,8 @@
 /node_modules
-/.next/
-/.next-verify/
+/.next*/
 /out/
 *.tsbuildinfo
 next-env.d.ts
 .env*
 .vercel
+/.source/

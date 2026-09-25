@@ -1,0 +1,342 @@
+/* The "Try to break it" page. Colours come only from tokens.css. */
+
+.bk-page {
+  position: relative;
+  isolation: isolate;
+  min-height: 100svh;
+  background-color: var(--bg);
+}
+/* A low gold light behind the tally, the page's only decoration. */
+.bk-page::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 110svh;
+  z-index: -1;
+  pointer-events: none;
+  background-image: radial-gradient(42% 46% at 78% 34%, color-mix(in srgb, var(--gold-fill) 13%, transparent), transparent 100%);
+}
+
+.bk-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  height: 56px;
+  padding: 0 20px;
+}
+
+.bk-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+  padding: 40px 20px 56px;
+}
+.bk-title {
+  margin-top: 20px;
+  color: var(--text);
+}
+.bk-lead {
+  margin-top: 22px;
+  max-width: 34rem;
+  color: color-mix(in srgb, var(--text) 88%, transparent);
+}
+.bk-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+  margin-top: 30px;
+}
+.bk-status {
+  max-width: 34rem;
+  min-height: 2.6em;
+}
+
+.bk-tally {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.bk-tally-number {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: clamp(6rem, 18vw, 13.3125rem);
+  line-height: 0.85;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  color: var(--gold);
+}
+.bk-tally-of {
+  font-size: 0.34em;
+  letter-spacing: -0.01em;
+  color: var(--muted);
+}
+
+.bk-state {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 20px 48px;
+  padding: 16px 18px;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background-color: var(--surface);
+}
+.bk-state .type-address {
+  overflow-wrap: anywhere;
+}
+
+.bk-ledger {
+  display: flex;
+  flex-direction: column;
+  gap: 56px;
+  padding: 0 20px;
+}
+.bk-rows {
+  margin-top: 18px;
+  list-style: none;
+  border-top: 1px solid var(--rule);
+}
+.bk-row {
+  display: grid;
+  grid-template-columns: 3.25rem 1fr;
+  grid-template-areas:
+    "id verdict"
+    "body body";
+  gap: 10px 16px;
+  padding: 20px 0;
+  border-bottom: 1px solid var(--rule);
+  transition: border-color 250ms var(--ease-film);
+}
+.bk-row:hover {
+  border-bottom-color: var(--gold);
+}
+.bk-id {
+  grid-area: id;
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  color: var(--gold);
+  padding-top: 4px;
+}
+.bk-body {
+  grid-area: body;
+  min-width: 0;
+}
+.bk-verdict {
+  grid-area: verdict;
+  justify-self: end;
+}
+.bk-row:not(.is-landed):not(.is-running) .bk-attack {
+  color: var(--muted);
+}
+.bk-attack {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.375rem;
+  line-height: 1.2;
+  letter-spacing: -0.005em;
+  color: var(--text);
+  transition: color 300ms var(--ease-film);
+}
+.bk-tag {
+  display: inline-block;
+  margin-bottom: 8px;
+  padding: 3px 8px;
+  border: 1px solid var(--pending);
+  border-radius: 2px;
+  color: var(--pending);
+}
+.bk-reason {
+  margin-top: 12px;
+  max-width: 66ch;
+  font-size: 1rem;
+  line-height: 1.55;
+}
+
+.bk-details {
+  margin-top: 10px;
+}
+.bk-details summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  list-style: none;
+  color: var(--muted);
+  transition: color 180ms var(--ease-film);
+}
+.bk-details summary::-webkit-details-marker {
+  display: none;
+}
+.bk-details summary::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  background-color: var(--gold);
+  clip-path: polygon(0 0, 100% 50%, 0 100%);
+  transition: rotate 200ms var(--ease-film);
+}
+.bk-details[open] summary::before {
+  rotate: 90deg;
+}
+.bk-details summary:hover {
+  color: var(--gold);
+}
+.bk-details summary:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 3px;
+}
+.bk-raw {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 14px;
+  margin-top: 10px;
+  padding: 12px 14px;
+  border-left: 2px solid var(--rule-strong);
+  background-color: var(--surface);
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+.bk-raw dt {
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 0.75rem;
+}
+.bk-raw dd {
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.bk-stamp {
+  font-size: 0.8125rem;
+  white-space: nowrap;
+}
+.bk-stamp-quiet {
+  --stamp-ink: var(--rule-strong);
+}
+
+.bk-summary {
+  margin: 56px 20px 0;
+  max-width: 40rem;
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: clamp(1.625rem, 1.1rem + 1.6vw, 2.375rem);
+  line-height: 1.15;
+  color: var(--text);
+}
+
+.bk-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 72px;
+  padding: 24px 20px 40px;
+  border-top: 1px solid var(--rule);
+  color: var(--muted);
+}
+
+@media (width >= 48rem) {
+  .bk-nav {
+    height: 72px;
+    padding: 0 6vw;
+  }
+  .bk-hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+    align-items: end;
+    gap: 6vw;
+    min-height: calc(86svh - 72px);
+    padding: 6svh 6vw 10svh;
+  }
+  .bk-tally {
+    align-items: flex-end;
+    text-align: right;
+  }
+  .bk-actions {
+    flex-direction: row;
+    align-items: center;
+    gap: 22px;
+  }
+  .bk-state {
+    margin: 0 6vw 72px;
+    padding: 18px 22px;
+  }
+  .bk-ledger {
+    padding: 0 6vw;
+    gap: 72px;
+  }
+  .bk-row {
+    grid-template-columns: 5rem minmax(0, 1fr) 11rem;
+    grid-template-areas: "id body verdict";
+    gap: 0 28px;
+    padding: 26px 0;
+    align-items: start;
+  }
+  .bk-attack {
+    font-size: 1.625rem;
+  }
+  .bk-summary {
+    margin: 80px 6vw 0;
+  }
+  .bk-footer {
+    flex-direction: row;
+    justify-content: space-between;
+    margin-top: 96px;
+    padding: 28px 6vw 48px;
+  }
+}
+
+/* The hero enters with CSS keyframes on the server-rendered markup, so its words never wait for JavaScript. */
+@keyframes bk-rise-lg {
+  from {
+    opacity: 0;
+    transform: translateY(40px);
+  }
+}
+@keyframes bk-rise-sm {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+}
+@keyframes bk-fade {
+  from {
+    opacity: 0;
+  }
+}
+.bk-line-1 {
+  animation: bk-rise-lg 900ms var(--ease-film) 60ms both;
+}
+.bk-line-2 {
+  animation: bk-rise-lg 900ms var(--ease-film) 140ms both;
+}
+.bk-in-1 {
+  animation: bk-rise-sm 600ms var(--ease-film) 100ms both;
+}
+.bk-in-2 {
+  animation: bk-rise-sm 600ms var(--ease-film) 300ms both;
+}
+.bk-in-3 {
+  animation: bk-rise-sm 600ms var(--ease-film) 420ms both;
+}
+.bk-in-late {
+  animation: bk-fade 900ms ease-out 300ms both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bk-line-1,
+  .bk-line-2,
+  .bk-in {
+    animation: bk-fade 200ms ease-out both;
+  }
+  .bk-row,
+  .bk-attack,
+  .bk-details summary::before {
+    transition: none;
+  }
+}
