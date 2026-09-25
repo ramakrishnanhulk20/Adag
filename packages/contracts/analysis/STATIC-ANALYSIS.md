@@ -156,3 +156,7 @@ The rule now records each payer's borrow shares and collateral per market, and r
 - **New, solhint:** gas-indexed-events on the new `collateral` field of `DebtRecorded`, line 141. False positive for the same reason as H6: two of the three index slots are taken by the payer and the market, and nobody searches by an exact collateral amount.
 - **Renamed only, slither S4:** unused-return now points at `_recordPosition`, line 384, which reads both borrow shares and collateral from `position` and still skips supply shares on purpose. Same verdict.
 - **Moved only:** the other slither rows, lint L1 to L3 (now 398:13, 431:36, 431:68) and solhint H7 (431, 461, 472) shifted with the longer NatSpec. No verdict changed.
+
+## After the comment trim (25 September)
+
+Ram asked for almost no comments in the contract: only where needed, short and plain. All NatSpec was removed from `src/`; seven one-line comments remain where a reader would otherwise misread the code. solhint's NatSpec rules now fire on every function, constant and event. Verdict for all of them: accepted by design, Ram's rule. slither is unchanged at 13 results, lint at 3. Behaviour is unchanged: 73 of 73 tests pass, and the deploy dry run reports the same gas.

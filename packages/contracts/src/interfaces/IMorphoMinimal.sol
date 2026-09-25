@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.30;
 
-/// @dev Same layout as morpho-blue MarketParams (IMorpho.sol). Morpho hashes these five words into the market id.
 struct MarketParams {
     address loanToken;
     address collateralToken;
@@ -10,7 +9,6 @@ struct MarketParams {
     uint256 lltv;
 }
 
-/// @notice The parts of Morpho Blue v1 that Adag reads or calls. Morpho's `Id` type is a bytes32 in the ABI.
 interface IMorphoMinimal {
     function idToMarketParams(bytes32 id)
         external
