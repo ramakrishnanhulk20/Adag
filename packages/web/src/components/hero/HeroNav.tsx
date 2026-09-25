@@ -6,7 +6,7 @@ import { ThemeControl } from "@/components/ThemeControl";
 import { HeroAction } from "./HeroAction";
 
 const LINKS = [
-  { label: "How it works", href: "#how-it-works" },
+  { label: "How it works", href: "#how" },
   { label: "Safety", href: "#safety" },
   { label: "Docs", href: "#docs" },
 ];

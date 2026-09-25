@@ -36,6 +36,36 @@ export type PriceStatus = {
   ageSeconds: number;
 };
 
+// Dollars per whole cirBTC from the USDC market's oracle. Display only, never a transaction input (C18).
+export type BtcPrice = {
+  usdPerCirbtc: number;
+};
+
+export type BillTx = { txHash: string; logIndex: number; explorerUrl: string };
+
+export type LedgerBill = {
+  id: number;
+  payee: string;
+  currency: "USDC" | "EURC";
+  amountBaseUnits: string;
+  // 1 Open, 2 Paid, 3 Void, as AdagBills stores it.
+  status: 1 | 2 | 3;
+  due: number;
+  createdAt: number;
+  paidAt: number;
+  // The reference exactly as stored: raw bytes as hex. Only the display layer turns it into text (C14).
+  refHex: string;
+  // Paid bills link their BillPaid transaction; open or void ones link the BillCreated transaction.
+  tx: BillTx | null;
+  txKind: "paid" | "created";
+  txNote: "found" | "not-found" | "unavailable";
+};
+
+export type LatestBills = {
+  billCount: number;
+  bills: LedgerBill[];
+};
+
 export type LiveSnapshot = {
   fetchedAt: string;
   chainId: number;
@@ -45,4 +75,6 @@ export type LiveSnapshot = {
   loanCap: Cell<LoanCap>;
   paid: Cell<PaidThroughAdag>;
   price: Cell<PriceStatus>;
+  btcPrice: Cell<BtcPrice>;
+  latestBills: Cell<LatestBills>;
 };

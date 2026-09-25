@@ -1,0 +1,90 @@
+/* Styles only the landing sections use. Colours come from tokens.css; nothing here holds a colour value. */
+
+.landing-section {
+  position: relative;
+  isolation: isolate;
+}
+
+/* Section 2: the pledge-hands film still. The layer is scaled, never cropped, so percentages keep tracking the photo. */
+.still-frame {
+  container-type: inline-size;
+}
+.still-layer-move {
+  position: absolute;
+  inset: 0;
+  transform-origin: 50% 50%;
+  will-change: transform;
+}
+/*
+  The paper ticket carries AI lettering that is not real Tamil. Measured on the 1792x2400 file: writing at 62 to 88%
+  across and 56 to 66% down, stamp to 71% down, paper tilted about 13 degrees. A tilted soft ellipse blurs it into old
+  handwriting; the blur is in container units so it scales with the photo.
+*/
+.ticket-soften {
+  position: absolute;
+  left: 58.5%;
+  top: 54%;
+  width: 33%;
+  height: 19.5%;
+  transform: rotate(-13deg);
+  backdrop-filter: blur(max(1px, 0.34cqw)) sepia(0.25);
+  background-color: rgb(var(--ink-rgb) / 0.12);
+  mask-image: radial-gradient(closest-side, black 62%, transparent 100%);
+  pointer-events: none;
+}
+
+/* Section 4: the receipt. Each line lights as it reaches the reading line of the screen. */
+.receipt-line {
+  transition:
+    color 450ms var(--ease-film),
+    opacity 450ms var(--ease-film);
+  opacity: 0.38;
+}
+.receipt-line[data-lit="true"] {
+  opacity: 1;
+}
+.receipt-line[data-lit="true"] .receipt-step {
+  color: var(--gold);
+}
+.receipt-rule {
+  background-image: linear-gradient(90deg, var(--rule-strong) 50%, transparent 50%);
+  background-size: 8px 1px;
+  background-repeat: repeat-x;
+  height: 1px;
+}
+
+/* Section 5: the gauge. Fill and markers are placed by --v, a fraction from 0 to 1. */
+.gauge-track {
+  position: relative;
+  height: 10px;
+  background-color: var(--surface);
+  border: 1px solid var(--rule-strong);
+}
+.gauge-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: calc(var(--v) * 100%);
+  background-image: linear-gradient(90deg, var(--coin-lo), var(--gold-fill));
+}
+.gauge-mark {
+  position: absolute;
+  top: -10px;
+  bottom: -10px;
+  left: calc(var(--v) * 100%);
+  width: 2px;
+  transform: translateX(-1px);
+}
+
+/* Section 8: the Tamil word, in a system font that ships with each OS, so no font is downloaded for one word. */
+.tamil-word {
+  font-family: "Nirmala UI", "Tamil Sangam MN", "Noto Sans Tamil", serif;
+  font-weight: 600;
+  line-height: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .receipt-line {
+    transition: none;
+    opacity: 1;
+  }
+}

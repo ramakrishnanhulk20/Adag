@@ -162,6 +162,9 @@ export default function LabPage() {
           <Link href="/lab/hero" className="link-draw type-micro text-muted hover:text-gold">
             Hero
           </Link>
+          <Link href="/lab/landing" className="link-draw type-micro text-muted hover:text-gold">
+            Landing
+          </Link>
           <ThemeControl variant="cycle" />
         </div>
       </header>
