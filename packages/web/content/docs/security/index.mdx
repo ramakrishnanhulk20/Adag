@@ -1,0 +1,58 @@
+---
+title: Security overview
+description: What Adag protects, how it does it, and the risks it deliberately leaves to you or to others.
+---
+
+Adag moves real money for people who cannot read what they sign: a wallet shows a batch of calls as a blob of hex. So the design starts from one question. If the page, the link or the RPC is wrong, what is the worst that can happen? The answer we built to is that the worst case is a transaction that reverts, never one that loses money.
+
+The full list of rules is the [threat model](/docs/security/threat-model), written before any contract code and used as the definition of done. This page is the short version.
+
+## What is protected, and how
+
+### Your bitcoin cannot be taken by Adag
+
+cirBTC is pledged to Morpho in your own name. AdagBills has no function that moves cirBTC, no owner and no upgrade path. The only token movement Adag can cause is the exact bill amount, from the payer, to that bill's supplier, in that bill's currency, inside the call that marks the bill paid.
+
+### A bill is paid once, and only when the money really arrived
+
+The contract marks a bill paid only if the supplier's balance rose by at least the bill amount within the same call, measured before and after the transfer. A second payment of the same bill reverts. Paying your own bill is refused. A cancelled bill can never be paid.
+
+### A payment never pushes your loan past 40%
+
+The check runs inside the contract on live Morpho and oracle state, whenever a payment adds debt or leaves the loan riskier than the last position Adag accepted. It needs a fresh price. If any read it needs fails, the payment reverts: unreadable means over the limit. See [the new-debt rule](/docs/how-it-works#the-new-debt-rule).
+
+### Bills are what they say
+
+A bill's supplier is always the wallet that wrote it, so nobody can write a bill in someone else's name. A bill must be USDC or EURC, above zero, with a reference of at most 140 bytes.
+
+### The page cannot be steered by a link
+
+From a link the app reads one thing, a bill number. Every other value (supplier, amount, currency) is read from the contract. Every call the app builds targets an address fixed at build time, every approval is exact and goes only to Morpho or AdagBills, and every call must succeed or the whole batch undoes itself. The app builds nothing unless your wallet is on Arc.
+
+### What you are shown is what the contract will use
+
+The supplier and the amount on the bill page are decoded from the same record the payment reads. Addresses are shown in full and checksummed. References are shown as plain text only: never a link, never formatted, with direction-changing characters removed.
+
+### Status comes only from Adag
+
+"Paid" on any Adag screen comes from AdagBills' storage or its own `BillPaid` event, never from a Memo event, which anyone can emit. A read that fails shows "unavailable", never zero and never paid.
+
+## What Adag does not defend against
+
+These are named on purpose, so nobody assumes otherwise.
+
+- **Who a supplier really is.** A bill from someone pretending to be your landlord is a valid bill. Adag shows exactly who and how much; judging who is your job.
+- **Morpho, the oracles or the token contracts being wrong,** paused, blocklisting or upgraded. Adag fails closed on their reverts and zeros, nothing more.
+- **A compromised wallet, browser or operating system.**
+- **A compromised page build or hosting.** Pinned dependencies and no third-party scripts reduce the odds; they do not remove them. A payer signing a batch cannot detect a compromised page.
+- **Watching your loan after payment.** Interest accrues, prices move, and Morpho liquidates at 86%. Adag checks the line once, at payment.
+- **A payer going above 40% by using Morpho directly.** The line applies to payments made through Adag.
+- **Privacy.** Every bill, amount, reference and payer is public on chain.
+- **Front-running.** Adag's flows have no slippage to extract.
+- **Availability** of the public RPC, Morpho's API or the hosting.
+- **How other explorers display Memo data.**
+- **Due dates.** A due date is shown, not enforced.
+
+## How it was checked
+
+Self-audited, with the evidence published: 73 tests including fuzzing and invariants, static analysis with no real bugs, two separate reviews, an 18-attack suite run against the live contract, and source verification on two services. The details, and the one bypass a review found and how it was closed, are on [Audit status](/docs/security/audit-status).

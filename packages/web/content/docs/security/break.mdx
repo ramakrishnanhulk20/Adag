@@ -1,0 +1,29 @@
+---
+title: Try to break it
+description: Run sixteen real attacks against the live contract in one click, and see why each one is refused.
+---
+
+Reading that a contract refuses something is one thing. Watching it refuse is better.
+
+[The break page](/break) runs sixteen real attacks against the live AdagBills, simulated on Arc mainnet's current state. Nothing is signed or sent. For each attack it shows what was tried, the rule that should stop it with its number in the [threat model](/docs/security/threat-model), and the contract's actual answer. The attacks include:
+
+- paying a bill that is already paid;
+- closing the loan and re-borrowing the same shares against less bitcoin;
+- borrowing past 40% in the same batch as a payment;
+- a supplier paying its own bill;
+- writing a bill in cirBTC, WETH, a made-up token, for zero, or with an over-long reference;
+- cancelling someone else's bill, or a bill that was already paid;
+- paying without an allowance;
+- a simulated 25% bitcoin price drop, where a cash payment still goes through and any new debt is refused.
+
+<Callout type="idea" title="Why this exists">
+  The 40% line lives in the contract, not in this website. These attacks go straight to the contract, the way someone building transactions by hand would, so the website's own checks play no part.
+</Callout>
+
+## The full suite, from the repository
+
+```bash
+node packages/contracts/prove-it/attack.mjs
+```
+
+It runs the same attacks plus two more that point the proof script at a lying RPC, 18 in all, and prints each one, what should stop it and the decoded revert. The latest results are on [Audit status](/docs/security/audit-status#the-attack-suite-on-live-state).

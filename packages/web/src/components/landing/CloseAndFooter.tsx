@@ -1,4 +1,5 @@
 import "./landing.css";
+import Link from "next/link";
 import { ThemeControl } from "@/components/ThemeControl";
 import { HeroAction } from "@/components/hero/HeroAction";
 import { ADAG_BILLS } from "@/lib/arc/constants";
@@ -41,9 +42,9 @@ export function CloseAndFooter({ pending }: { pending: boolean }) {
             <p className="type-micro text-muted">Powered by Morpho · on Arc mainnet</p>
           </div>
           <nav aria-label="Footer" className="type-label flex flex-wrap gap-x-8 gap-y-3 text-text/88">
-            <PendingLink href="/docs" pending={pending} className="hover:text-gold">
+            <Link href="/docs" className="link-draw hover:text-gold">
               Docs
-            </PendingLink>
+            </Link>
             <PendingLink href="/terms" pending={pending} className="hover:text-gold">
               Terms of Use
             </PendingLink>

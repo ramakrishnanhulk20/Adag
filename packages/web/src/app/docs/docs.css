@@ -1,0 +1,314 @@
+/*
+  Fumadocs restyled as Adag, loaded only on /docs. Tailwind's reset already comes from globals.css, so only the
+  theme and utility layers are pulled in here. Every colour below is a token from src/styles/tokens.css.
+*/
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+
+/* Fumadocs writes dark: for a .dark class; Adag's theme lives in data-theme, set by the head script and ThemeControl. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+@import "fumadocs-ui/css/preset.css";
+
+/* inline, so each Fumadocs utility reads our variable where it is used and follows the theme without a reload. */
+@theme inline {
+  --color-fd-background: var(--bg);
+  --color-fd-foreground: var(--text);
+  --color-fd-muted: var(--surface);
+  --color-fd-muted-foreground: var(--muted);
+  --color-fd-popover: var(--raised);
+  --color-fd-popover-foreground: var(--text);
+  --color-fd-card: var(--surface);
+  --color-fd-card-foreground: var(--text);
+  --color-fd-border: var(--rule);
+  --color-fd-primary: var(--gold);
+  --color-fd-primary-foreground: var(--on-gold);
+  --color-fd-secondary: var(--surface);
+  --color-fd-secondary-foreground: var(--text);
+  --color-fd-accent: color-mix(in srgb, var(--gold) 12%, transparent);
+  --color-fd-accent-foreground: var(--text);
+  --color-fd-ring: var(--gold);
+  --color-fd-overlay: color-mix(in srgb, var(--bg) 70%, transparent);
+  --color-fd-info: var(--pending);
+  --color-fd-warning: var(--gold);
+  --color-fd-error: var(--danger);
+  --color-fd-success: var(--success);
+  --color-fd-idea: var(--gold);
+  --color-fd-diff-remove: color-mix(in srgb, var(--danger) 12%, transparent);
+  --color-fd-diff-remove-symbol: var(--danger);
+  --color-fd-diff-add: color-mix(in srgb, var(--success) 12%, transparent);
+  --color-fd-diff-add-symbol: var(--success);
+
+  --font-sans: var(--font-dm-sans), "DM Sans", system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), "IBM Plex Mono", ui-monospace, monospace;
+}
+
+#nd-docs-layout {
+  font-family: var(--font-dm-sans), "DM Sans", system-ui, sans-serif;
+  font-optical-sizing: auto;
+}
+
+/* Headings in the display face; body stays DM Sans at 16px and 1.6, the site's body setting. */
+#nd-page h1,
+.prose :where(h1, h2, h3) {
+  font-family: var(--font-bodoni), "Bodoni Moda", serif;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+#nd-page > h1,
+#nd-page h1:first-of-type {
+  font-size: clamp(2.5rem, 1.6rem + 2.6vw, 3.75rem);
+  line-height: 1.02;
+  letter-spacing: -0.015em;
+}
+.prose h2 {
+  font-size: clamp(1.75rem, 1.4rem + 1vw, 2.25rem);
+  line-height: 1.1;
+}
+.prose h3 {
+  font-size: 1.5rem;
+  line-height: 1.2;
+}
+.prose {
+  --tw-prose-body: var(--text);
+  --tw-prose-headings: var(--text);
+  --tw-prose-links: var(--gold);
+  --tw-prose-bold: var(--text);
+  --tw-prose-counters: var(--gold);
+  --tw-prose-quotes: var(--text);
+  --tw-prose-quote-borders: var(--gold);
+  --tw-prose-code: var(--text);
+  --tw-prose-th-borders: var(--rule-strong);
+  --tw-prose-td-borders: var(--rule);
+  line-height: 1.6;
+}
+.prose a {
+  text-decoration-color: color-mix(in srgb, var(--gold) 45%, transparent);
+  text-underline-offset: 3px;
+  transition: text-decoration-color 200ms var(--ease-film);
+}
+.prose a:hover {
+  text-decoration-color: var(--gold);
+}
+
+/* The hallmark's 6px chamfered square replaces the round bullet (SPEC section 3). */
+.prose ul {
+  list-style: none;
+  padding-inline-start: 0.25em;
+}
+.prose ul > li {
+  position: relative;
+  padding-inline-start: 1.4em;
+}
+.prose ul > li::before {
+  content: "";
+  position: absolute;
+  left: 0.15em;
+  top: 0.68em;
+  width: 6px;
+  height: 6px;
+  background-color: var(--gold);
+  clip-path: polygon(30% 0, 70% 0, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0 70%, 0 30%);
+}
+.prose ul > li::marker {
+  content: none;
+}
+
+/* Code: plain text in Plex Mono on the surface tone, since syntax colours are switched off. */
+.prose :where(code):not(:where(pre code)) {
+  font-family: var(--font-plex-mono), monospace;
+  font-size: 0.875em;
+  padding: 0.15em 0.4em;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background-color: var(--surface);
+  overflow-wrap: anywhere;
+}
+.prose :where(code)::before,
+.prose :where(code)::after {
+  content: none;
+}
+.prose pre,
+figure.shiki {
+  font-family: var(--font-plex-mono), monospace;
+  background-color: var(--surface);
+  color: var(--text);
+}
+[data-theme="dark"] .shiki:not(.not-fumadocs-codeblock *) code span,
+[data-theme="dark"] code.shiki:not(.not-fumadocs-code *) span {
+  color: var(--shiki-dark);
+  font-style: var(--shiki-dark-font-style);
+}
+
+/* Tables read like the site's ledger: hairline rules, mono labels. */
+.prose table {
+  font-size: 0.9375rem;
+}
+.prose thead th {
+  font-family: var(--font-plex-mono), monospace;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* Diagrams sit on the page ground in a 1px rule, fitted to the column so the whole shape shows; "Open full size" is for reading. */
+.docs-mermaid {
+  margin: 1.75rem 0;
+  padding: 1.25rem;
+  border: 1px solid var(--rule);
+  background-color: var(--bg);
+  overflow-x: auto;
+}
+.docs-mermaid-svg svg {
+  display: block;
+  margin: 0 auto;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+}
+.docs-mermaid-dialog .docs-mermaid-svg svg {
+  width: auto;
+  max-width: none;
+}
+.docs-mermaid-open,
+.docs-mermaid-close {
+  margin-top: 1rem;
+  padding: 0.45rem 0.8rem;
+  border: 1px solid var(--rule-strong);
+  border-radius: 8px;
+  font-family: var(--font-plex-mono), monospace;
+  font-size: 0.75rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text);
+  background-color: transparent;
+  cursor: pointer;
+  transition: border-color 200ms var(--ease-film), color 200ms var(--ease-film);
+}
+.docs-mermaid-open:hover,
+.docs-mermaid-close:hover {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+.docs-mermaid-dialog {
+  width: 96vw;
+  max-width: none;
+  height: 92vh;
+  max-height: none;
+  margin: auto;
+  padding: 1.5rem;
+  overflow: auto;
+  border: 1px solid var(--rule-strong);
+  background-color: var(--bg);
+  color: var(--text);
+}
+.docs-mermaid-dialog::backdrop {
+  background-color: color-mix(in srgb, var(--bg) 80%, transparent);
+  backdrop-filter: blur(6px);
+}
+.docs-mermaid-dialog .docs-mermaid-close {
+  position: sticky;
+  top: 0;
+  left: 0;
+  margin: 0 0 1rem;
+  background-color: var(--bg);
+}
+
+/* Callouts are hallmarks: a chamfered 1px edge (outer layer) round a --surface panel (inner layer). */
+.docs-callout {
+  --cut: 12px;
+  position: relative;
+  isolation: isolate;
+  padding: 1.1rem 1.35rem 1.2rem;
+  background-color: var(--callout-edge);
+  clip-path: polygon(var(--cut) 0, calc(100% - var(--cut)) 0, 100% var(--cut), 100% calc(100% - var(--cut)), calc(100% - var(--cut)) 100%, var(--cut) 100%, 0 calc(100% - var(--cut)), 0 var(--cut));
+}
+.docs-callout::before {
+  --inner: calc(var(--cut) - 0.41px);
+  content: "";
+  position: absolute;
+  inset: 1px;
+  z-index: -1;
+  background-color: var(--surface);
+  clip-path: polygon(var(--inner) 0, calc(100% - var(--inner)) 0, 100% var(--inner), 100% calc(100% - var(--inner)), calc(100% - var(--inner)) 100%, var(--inner) 100%, 0 calc(100% - var(--inner)), 0 var(--inner));
+}
+.docs-callout-label {
+  margin: 0 0 0.5rem;
+  font-family: var(--font-plex-mono), monospace;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--callout-edge);
+}
+.docs-callout-body {
+  color: var(--text);
+  font-size: 0.9375rem;
+  line-height: 1.6;
+}
+.docs-callout-body > * + * {
+  margin-top: 0.6rem;
+}
+.docs-callout-body a {
+  color: var(--gold);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.docs-callout-body code {
+  font-family: var(--font-plex-mono), monospace;
+  font-size: 0.875em;
+}
+
+/*
+  Sidebar group labels (Fumadocs renders each as a <p> in #nd-sidebar) wear the hallmark from SPEC section 3: mono,
+  uppercase, gold, in a chamfered 1px frame drawn as two clip-path layers. The inner layer matches the sidebar's
+  --surface, or the frame would fill in.
+*/
+#nd-sidebar p {
+  --hm-cut: 0.35em;
+  position: relative;
+  isolation: isolate;
+  display: inline-flex;
+  align-self: flex-start;
+  width: fit-content !important;
+  margin-inline-start: 0.5rem;
+  padding: 0.5em 0.85em 0.45em !important;
+  font-family: var(--font-plex-mono), monospace;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gold);
+  background-color: var(--gold);
+  clip-path: polygon(
+    var(--hm-cut) 0,
+    calc(100% - var(--hm-cut)) 0,
+    100% var(--hm-cut),
+    100% calc(100% - var(--hm-cut)),
+    calc(100% - var(--hm-cut)) 100%,
+    var(--hm-cut) 100%,
+    0 calc(100% - var(--hm-cut)),
+    0 var(--hm-cut)
+  );
+}
+#nd-sidebar p::before {
+  --hm-inner-cut: calc(var(--hm-cut) - 0.41px);
+  content: "";
+  position: absolute;
+  inset: 1px;
+  z-index: -1;
+  background-color: var(--surface);
+  clip-path: polygon(
+    var(--hm-inner-cut) 0,
+    calc(100% - var(--hm-inner-cut)) 0,
+    100% var(--hm-inner-cut),
+    100% calc(100% - var(--hm-inner-cut)),
+    calc(100% - var(--hm-inner-cut)) 100%,
+    var(--hm-inner-cut) 100%,
+    0 calc(100% - var(--hm-inner-cut)),
+    0 var(--hm-inner-cut)
+  );
+}

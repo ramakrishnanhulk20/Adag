@@ -1,0 +1,14 @@
+{
+  "pages": [
+    "---Start here---",
+    "index",
+    "how-it-works",
+    "getting-started",
+    "---Reference---",
+    "contracts",
+    "---Security---",
+    "...security",
+    "---Help---",
+    "faq"
+  ]
+}

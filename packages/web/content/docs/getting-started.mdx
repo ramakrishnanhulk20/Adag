@@ -1,0 +1,55 @@
+---
+title: Getting started
+description: Pay a bill from your balance or your bitcoin, or write one and get paid in USDC or EURC.
+---
+
+## What you need
+
+- A plain wallet such as MetaMask or Rabby. Smart-contract wallets (Safe, ERC-4337 accounts, Circle's smart wallets) cannot pay through Adag, because Arc's batching acts as the wallet that signed the transaction, and a smart wallet does not sign its own transactions. A wallet upgraded under EIP-7702 works as long as it sends its own transaction (tested on a mainnet fork).
+- Arc mainnet in that wallet: chain id `5042`, RPC `https://rpc.mainnet.arc.io`, explorer `https://explorer.arc.io`. Arc's gas token is USDC.
+- A little USDC for fees. A bitcoin-backed payment costs about 0.008 USDC in gas.
+- To pay from bitcoin: cirBTC in your wallet. To pay from a balance: the bill's currency, USDC or EURC.
+
+## Pay a bill
+
+1. Open the link your supplier sent, or go to [Pay a bill](/pay) and type the bill number.
+2. Check the bill. Adag reads it straight from Arc and shows who it pays (the full, checksummed address), the amount and currency, the reference exactly as written, and whether it is still open. Nothing on this screen comes from the link except the bill number.
+3. Connect your wallet. If it is on another network, the app asks you to switch to Arc and builds nothing until you do.
+4. Choose how to pay.
+   - **From your balance** if you hold enough USDC or EURC. Two calls: approve, then pay.
+   - **From bitcoin** if you want to keep your stablecoins. The app shows the cirBTC it will pledge (what the contract asks for, plus a 5% margin), the loan it will take, and where your loan will sit against the 40% line and Morpho's 86%.
+5. The first time you borrow through Adag, read and accept Morpho's disclaimer.
+6. Sign once. The app shows each step as Arc confirms it.
+7. When the bill turns Paid, you get a link to the payment on the explorer. The supplier sees the same thing on their side.
+
+<Callout type="info" title="If new loans are paused">
+  If the bitcoin price feed is older than 26 hours, the contract will not accept new debt, and the app says so before you sign. Paying from your balance still works.
+</Callout>
+
+### Your loan afterwards
+
+The loan is an ordinary Morpho loan in your own name. Adag checks the 40% line once, at payment, and does not watch it after that. Interest accrues slowly, and if bitcoin falls far enough, Morpho can liquidate at 86%. To take your bitcoin back, repay the loan and withdraw the collateral. Until Adag's own dashboard ships, you can do that on [Morpho's page for the USDC market](https://app.morpho.org/arc/market/0xc2db905f174e5defcce01d321b09f15f78856a36a21b90cc7e1abbc29225815d), or the [EURC market](https://app.morpho.org/arc/market/0x6ea1ea96a1cc671615f3a3bdf51481c5b79e362a8b634396e680d1070137daf4). Repay by your full share count, not by an amount, or a tiny remainder of debt blocks the withdrawal.
+
+## Write a bill
+
+A bill is a record on Arc: who is paid (always the wallet that wrote it), the currency, the amount, an optional due date and a reference of up to 140 bytes, such as your invoice number.
+
+The Write a bill screen is the next part of the app to ship. Until then, a supplier writes a bill from the contract's page on the explorer:
+
+1. Open [AdagBills on explorer.arc.io](https://explorer.arc.io/address/0x6F2199e0A04e5e8ba67c89C467b6DF168b01137E?tab=write_contract) and connect your wallet.
+2. Call `createBill` with:
+   - `currency`: USDC `0x3600000000000000000000000000000000000000` or EURC `0xbEf5f6d51CB62b58e6A8f77868681825C6fe21c1`. Any other token is refused.
+   - `amount`: in base units, six decimals. 125.50 USDC is `125500000`.
+   - `due`: a Unix timestamp, or `0` for none. It is shown to the payer, not enforced.
+   - `ref`: your reference as hex bytes, at most 140 bytes.
+3. Your bill number is in the `BillCreated` event of the transaction. Share `/bill/` followed by that number on this site.
+
+Writing a bill costs about 0.004 USDC in gas.
+
+### After it is paid
+
+You receive the amount in USDC or EURC in the same transaction that marks the bill paid, and the contract checks your balance rose by exactly that amount. The payment carries your reference in its Memo.
+
+### Cancelling
+
+While a bill is open, only you can cancel it, from the bill's page. A cancelled bill can never be paid. A paid bill cannot be cancelled.

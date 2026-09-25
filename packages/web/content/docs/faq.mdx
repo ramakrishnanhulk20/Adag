@@ -1,0 +1,71 @@
+---
+title: FAQ
+description: Straight answers about bitcoin price drops, custody, the 40% cap, wallets, costs, audits, Arc and stale prices.
+---
+
+## What if bitcoin falls?
+
+Nothing happens to your payment: the supplier was paid in full the moment the transaction landed. What changes is your loan's size against your bitcoin.
+
+Adag lets a payment take the loan up to 40% of the bitcoin's value. Morpho only liquidates at 86%. A loan taken at exactly 40% would need bitcoin to fall about 53.5% before Morpho could liquidate it. In practice the app pledges 5% more than the minimum, so a fresh loan usually sits nearer 38%, and bitcoin would have to fall about 55.8%.
+
+After the payment, the loan is an ordinary Morpho loan in your name. Adag does not watch it. Interest adds to it slowly. If bitcoin falls a long way, you can repay some of the loan or pledge more cirBTC to move away from Morpho's line.
+
+## Can Adag take my bitcoin?
+
+No. Your cirBTC is pledged to Morpho, in your own name, and only you can withdraw it. AdagBills has no function that moves cirBTC, no owner, no admin key and no upgrade path. The only token movement the contract can cause is the exact bill amount, from you, to that bill's supplier, inside the call that marks the bill paid.
+
+The one thing to be aware of is the page itself. Your wallet signs a batch built by this website, and a compromised website could build a harmful batch. That risk is named in the [security overview](/docs/security), and it is why every address the app uses is fixed at build time and published on [Contracts and addresses](/docs/contracts).
+
+## Why a 40% cap when Morpho allows 86%?
+
+Because paying a bill should not be a leveraged bet. At 86% a small price move can liquidate you. At 40%, bitcoin has to fall by more than half before Morpho's line is reached. The cap is a constant in the contract, not a setting, and it applies to every payment that adds debt, however the transaction was built.
+
+## Which wallets work?
+
+Plain wallets that sign their own transactions, such as MetaMask and Rabby. Arc's batching runs each call as the wallet that signed the transaction, which is what lets one signature pledge, borrow and pay.
+
+Smart-contract wallets (Safe, ERC-4337 accounts, Circle's smart wallets) cannot pay through Adag, and neither can sponsored or relayed transactions. A wallet upgraded under EIP-7702 can pay as long as it sends its own transaction, which was tested on a mainnet fork. When you connect, the app reads your wallet's code on Arc and tells you plainly if it cannot pay.
+
+## What does it cost?
+
+Adag charges no fee: the contract has no way to take one. You pay Arc's network fee, in USDC, and Morpho's interest on the loan.
+
+| Action | Network fee at Arc's 20 gwei floor |
+| --- | ---: |
+| Write a bill | about 0.004 USDC |
+| Pay from your balance | about 0.004 USDC |
+| Pay from bitcoin | about 0.008 USDC |
+| Pay three bills in one signature | about 0.017 USDC |
+| Close a loan in full | about 0.003 USDC |
+| Cancel a bill | about 0.0006 USDC |
+
+Morpho's borrow rate moves with demand. The live rate, read from the chain, is on the landing page.
+
+## Is it audited?
+
+Not by an outside firm. It is self-audited, with the evidence published: 73 tests including fuzzing and invariants, three static analysis tools with no real bugs, two separate reviews by a reviewer who did not write the code (one found a bypass that was fixed before deploy), an 18-attack suite run against the live contract, and source verification on Sourcify and explorer.arc.io. See [Audit status](/docs/security/audit-status).
+
+## Why Arc?
+
+Because one signature needs things only Arc has together. Its batching contract runs every call as your own wallet, so Morpho sees you borrowing for yourself and no smart wallet is needed. Its Memo contract attaches the supplier's invoice number to the payment. Fees are paid in USDC, the bill's own currency, and cost under a cent. And Morpho Blue runs live USDC and EURC markets against cirBTC on Arc, with Chainlink prices. More on [How it works](/docs/how-it-works#why-this-only-works-on-arc).
+
+## What happens if the price feed is stale?
+
+A new loan needs a fresh price. If the BTC/USD feed is older than 26 hours (or EUR/USD older than 96 hours, for the euro market), the contract refuses any payment that adds debt. The app checks this before you sign and says that new loans are paused until the price updates. Paying from a USDC or EURC balance still works, because it adds no debt.
+
+## Can a bill be paid twice?
+
+No. A bill is marked paid before any money moves, and only an open bill can be paid, so a second attempt reverts. The live attack suite tries it every run.
+
+## What if the supplier is not who they say?
+
+Adag cannot know that. A bill from someone pretending to be your landlord is a valid bill. What Adag guarantees is that the screen shows exactly who the bill pays, in full, and exactly how much, read from the same record the payment uses. Check the address with the person who sent you the link.
+
+## Can I pay in euros?
+
+Yes. A supplier can bill in EURC, and you can pay from an EURC balance or from bitcoin through Morpho's EURC market. The same 40% line applies, measured in that market.
+
+## Is anything private?
+
+No. Every bill, amount, reference and payer is public on Arc. Do not put anything in a reference that you would not print on a public invoice.

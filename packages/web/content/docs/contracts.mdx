@@ -1,0 +1,74 @@
+---
+title: Contracts and addresses
+description: Every address Adag uses on Arc mainnet, the deployment, the live proof and how to rerun it yourself.
+---
+
+Everything below is on Arc mainnet, chain `5042`. Explorer: [explorer.arc.io](https://explorer.arc.io). Every address is fixed in the app when it is built, and nothing read from the chain or a link can replace one.
+
+## AdagBills
+
+| | |
+| --- | --- |
+| Address | [`0x6F2199e0A04e5e8ba67c89C467b6DF168b01137E`](https://explorer.arc.io/address/0x6F2199e0A04e5e8ba67c89C467b6DF168b01137E) |
+| Source | Verified with an exact match on [Sourcify](https://repo.sourcify.dev/5042/0x6F2199e0A04e5e8ba67c89C467b6DF168b01137E) and on [explorer.arc.io](https://explorer.arc.io/address/0x6F2199e0A04e5e8ba67c89C467b6DF168b01137E?tab=contract) |
+| Deployed | Transaction [`0x758e...6e50`](https://explorer.arc.io/tx/0x758e4463ec738c675e4d9615aff67d9864359c7a30b3a77bd7b2689d30a66e50), block 22,727,688 |
+| Compiler | solc 0.8.30, optimizer 200 runs, EVM prague |
+| Owner | None. No admin, no upgrade, no pause |
+
+## Arc and Morpho contracts Adag uses
+
+| What | Address |
+| --- | --- |
+| Multicall3From | [`0x522fAf9A91c41c443c66765030741e4AaCe147D0`](https://explorer.arc.io/address/0x522fAf9A91c41c443c66765030741e4AaCe147D0) |
+| Memo | [`0x5294E9927c3306DcBaDb03fe70b92e01cCede505`](https://explorer.arc.io/address/0x5294E9927c3306DcBaDb03fe70b92e01cCede505) |
+| CallFrom precompile (the app never calls it directly) | [`0x1800000000000000000000000000000000000003`](https://explorer.arc.io/address/0x1800000000000000000000000000000000000003) |
+| Morpho Blue | [`0x34CD04070dD72b14E241112F6d83812Df5Af7fCD`](https://explorer.arc.io/address/0x34CD04070dD72b14E241112F6d83812Df5Af7fCD) |
+| USDC, ERC-20 interface, 6 decimals | [`0x3600000000000000000000000000000000000000`](https://explorer.arc.io/address/0x3600000000000000000000000000000000000000) |
+| EURC, 6 decimals | [`0xbEf5f6d51CB62b58e6A8f77868681825C6fe21c1`](https://explorer.arc.io/address/0xbEf5f6d51CB62b58e6A8f77868681825C6fe21c1) |
+| cirBTC, 8 decimals | [`0x171A4217b86A807A64eB94757Db6849fb4bDbAA0`](https://explorer.arc.io/address/0x171A4217b86A807A64eB94757Db6849fb4bDbAA0) |
+| Oracle, USDC market | [`0x2AA87fF48933Ce6aBA240BEE916Fc2e6Ec1e51Ab`](https://explorer.arc.io/address/0x2AA87fF48933Ce6aBA240BEE916Fc2e6Ec1e51Ab) |
+| Oracle, EURC market | [`0x6945246777DfdF4744D957323857F797Ec19Ca1e`](https://explorer.arc.io/address/0x6945246777DfdF4744D957323857F797Ec19Ca1e) |
+| Interest rate model, both markets | [`0xF02615d094Fc02fC031C35fe705e175aA4653f20`](https://explorer.arc.io/address/0xF02615d094Fc02fC031C35fe705e175aA4653f20) |
+| Chainlink BTC/USD | [`0x7777547914e03BCbB04Ae034942765a0dbb26aE3`](https://explorer.arc.io/address/0x7777547914e03BCbB04Ae034942765a0dbb26aE3) |
+| Chainlink EUR/USD | [`0xa4266689D107aF71c7dBE975cfB92aB40E7b4EFE`](https://explorer.arc.io/address/0xa4266689D107aF71c7dBE975cfB92aB40E7b4EFE) |
+
+## The two Morpho markets
+
+| Market | Id | Liquidates at |
+| --- | --- | --- |
+| USDC lent against cirBTC | [`0xc2db905f...225815d`](https://app.morpho.org/arc/market/0xc2db905f174e5defcce01d321b09f15f78856a36a21b90cc7e1abbc29225815d) | 86% |
+| EURC lent against cirBTC | [`0x6ea1ea96...137daf4`](https://app.morpho.org/arc/market/0x6ea1ea96a1cc671615f3a3bdf51481c5b79e362a8b634396e680d1070137daf4) | 86% |
+
+A second, smaller USDC/cirBTC market exists on Arc with a different oracle. Adag never uses it: market details must hash to one of the two ids above before anything is signed.
+
+## The live proof
+
+One command proves the whole promise on Arc mainnet: a supplier bills 1 USDC, and the payer settles it from bitcoin in one signature, with the bitcoin pledged and not sold.
+
+```bash
+node packages/contracts/prove-it/prove-it.mjs
+```
+
+That is a dry run: every step is simulated from a real mainnet block with `eth_simulateV1`, so balances, the Morpho market and the price feed are live, and nothing is signed or sent. The same script with `--broadcast` sends it for real. It checks the chain id is 5042 before anything else, and it exits 0 only if every check passes: the supplier's USDC rose by exactly the bill, `BillPaid` came from AdagBills, the Memo carried the right bill and reference, and the payer's bitcoin, in the wallet plus pledged, did not change.
+
+It was first run for real on 25 September 2026:
+
+| Step | Transaction | Gas | Fee |
+| --- | --- | ---: | ---: |
+| Payer sends the supplier 0.05 USDC for its own fees | [`0x6b42...c069`](https://explorer.arc.io/tx/0x6b428797c59d4ed3de9516182b967f6e72e8ba8ec292a44f760961a268b0c069) | 73,938 | 0.001553 USDC |
+| Supplier writes bill #1: 1.00 USDC, reference ADAG-PROOF-0001 | [`0x13fb...f888`](https://explorer.arc.io/tx/0x13fb435c909476dc6e1da618d43fc3f81b856e3d97c52cdb1f948904d20af888) | 196,734 | 0.004131 USDC |
+| Payer pledges 0.00003133 cirBTC, borrows 1.00 USDC and pays bill #1 through Memo, in one signature | [`0x6987...2292`](https://explorer.arc.io/tx/0x6987964bddd7f8a8fe2a59d6de9baaa6ac37b8a720aae5900d8cb9af0eaf2292) | 406,167 | 0.008530 USDC |
+
+Read back from the chain afterwards: bill #1 is Paid, the supplier's USDC rose by exactly 1.000000, and the payer's Morpho loan sits at 38.08% of the bitcoin's value, exactly the position Adag recorded. The loan was left open on purpose, so the app has a real bitcoin-backed position to show.
+
+## The attack suite
+
+```bash
+node packages/contracts/prove-it/attack.mjs
+```
+
+This tries to break the live contract, with the demo wallet's real Morpho loan, in 18 simulated attacks: paying a paid bill again, re-borrowing the same shares against less bitcoin, new debt past 40%, paying your own bill, fake currencies, zero amounts, over-long references, cancelling someone else's bill, paying without an allowance, a 25% price drop, and a lying RPC. Nothing is signed or sent. It prints each attack, what should stop it and the decoded revert, and exits 0 only if every row behaves as the threat model says. The full results are on [Audit status](/docs/security/audit-status), and you can [try some yourself](/docs/security/break).
+
+## Reading Adag from your own code
+
+The ABI is in the repository at `packages/contracts/deployments/AdagBills.abi.json`. Amounts are integers in base units: 6 decimals for USDC and EURC, 8 for cirBTC. A bill's status is `0` None, `1` Open, `2` Paid, `3` Void. Treat a bill as paid only from `bill(id).status`, or from a `BillPaid` event emitted by AdagBills' address. A `Memo` event on its own proves nothing.
