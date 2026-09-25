@@ -1,0 +1,77 @@
+solhint: 6.2.4
+
+src/AdagBills.sol
+   19:1   warning  Missing @author tag in contract 'AdagBills'                                                                            use-natspec
+   41:5   warning  GC: For [ FeedRead ] struct, packing seems inefficient. Try rearranging to achieve 32bytes slots                       gas-struct-packing
+   47:5   warning  Missing @notice tag in variable 'MORPHO'                                                                               use-natspec
+   49:5   warning  Missing @notice tag in variable 'USDC'                                                                                 use-natspec
+   50:5   warning  Missing @notice tag in variable 'EURC'                                                                                 use-natspec
+   51:5   warning  Missing @notice tag in variable 'CIRBTC'                                                                               use-natspec
+   52:5   warning  Missing @notice tag in variable 'MARKET_USDC'                                                                          use-natspec
+   53:5   warning  Missing @notice tag in variable 'MARKET_EURC'                                                                          use-natspec
+   55:5   warning  Missing @notice tag in variable 'MAX_LTV_WAD'                                                                          use-natspec
+   57:5   warning  Missing @notice tag in variable 'BTC_USD_MAX_AGE'                                                                      use-natspec
+   59:5   warning  Missing @notice tag in variable 'EUR_USD_MAX_AGE'                                                                      use-natspec
+   60:5   warning  Missing @notice tag in variable 'MAX_REFERENCE_BYTES'                                                                  use-natspec
+   63:5   warning  Missing @notice tag in variable 'MAX_PAGE'                                                                             use-natspec
+   79:5   warning  Missing @notice tag in event 'BillCreated'                                                                             use-natspec
+   79:5   warning  Missing @param tag in event 'BillCreated'                                                                              use-natspec
+   79:5   warning  Mismatch in @param names for event 'BillCreated'. Expected: [id, payee, currency, amount, due, ref], Found: []         use-natspec
+   82:5   warning  Missing @notice tag in event 'BillVoided'                                                                              use-natspec
+   82:5   warning  Missing @param tag in event 'BillVoided'                                                                               use-natspec
+   82:5   warning  Mismatch in @param names for event 'BillVoided'. Expected: [id, payee], Found: []                                      use-natspec
+   83:5   warning  Missing @notice tag in event 'BillPaid'                                                                                use-natspec
+   83:5   warning  Missing @param tag in event 'BillPaid'                                                                                 use-natspec
+   83:5   warning  Mismatch in @param names for event 'BillPaid'. Expected: [id, payer, payee, currency, amount, loanChecked], Found: []  use-natspec
+   91:5   warning  Missing @notice tag in event 'DebtRecorded'                                                                            use-natspec
+   91:5   warning  Missing @param tag in event 'DebtRecorded'                                                                             use-natspec
+   91:5   warning  Mismatch in @param names for event 'DebtRecorded'. Expected: [payer, marketId, borrowShares, checked], Found: []       use-natspec
+   91:5   warning  GC: [borrowShares] on Event [DebtRecorded] could be Indexed                                                            gas-indexed-events
+   91:5   warning  GC: [checked] on Event [DebtRecorded] could be Indexed                                                                 gas-indexed-events
+  252:5   warning  Missing @return tag in function 'loanToValue'                                                                          use-natspec
+  252:5   warning  Mismatch in @return names for function 'loanToValue'. Expected: [ltvWad], Found: []                                    use-natspec
+  269:5   warning  Missing @return tag in function 'collateralNeeded'                                                                     use-natspec
+  269:5   warning  Mismatch in @return names for function 'collateralNeeded'. Expected: [extraCollateral], Found: []                      use-natspec
+  358:36  warning  GC: Non strict inequality found. Try converting to a strict one                                                        gas-strict-inequalities
+  358:68  warning  GC: Non strict inequality found. Try converting to a strict one                                                        gas-strict-inequalities
+  388:20  warning  GC: Non strict inequality found. Try converting to a strict one                                                        gas-strict-inequalities
+  399:13  warning  GC: Non strict inequality found. Try converting to a strict one                                                        gas-strict-inequalities
+
+src/interfaces/IOracleMinimal.sol
+   6:1  warning  Missing @title tag in contract 'IOracleMinimal'   use-natspec
+   6:1  warning  Missing @author tag in contract 'IOracleMinimal'  use-natspec
+   8:5  warning  Missing @notice tag in function 'price'           use-natspec
+  10:5  warning  Missing @notice tag in function 'BASE_FEED_1'     use-natspec
+  12:5  warning  Missing @notice tag in function 'QUOTE_FEED_1'    use-natspec
+
+src/interfaces/IMorphoMinimal.sol
+  14:1  warning  Missing @title tag in contract 'IMorphoMinimal'                                                                                                                      use-natspec
+  14:1  warning  Missing @author tag in contract 'IMorphoMinimal'                                                                                                                     use-natspec
+  15:5  warning  Missing @notice tag in function 'idToMarketParams'                                                                                                                   use-natspec
+  15:5  warning  Missing @param tag in function 'idToMarketParams'                                                                                                                    use-natspec
+  15:5  warning  Mismatch in @param names for function 'idToMarketParams'. Expected: [id], Found: []                                                                                  use-natspec
+  15:5  warning  Missing @return tag in function 'idToMarketParams'                                                                                                                   use-natspec
+  15:5  warning  Mismatch in @return names for function 'idToMarketParams'. Expected: [loanToken, collateralToken, oracle, irm, lltv], Found: []                                      use-natspec
+  20:5  warning  Missing @notice tag in function 'position'                                                                                                                           use-natspec
+  20:5  warning  Missing @param tag in function 'position'                                                                                                                            use-natspec
+  20:5  warning  Mismatch in @param names for function 'position'. Expected: [id, user], Found: []                                                                                    use-natspec
+  20:5  warning  Missing @return tag in function 'position'                                                                                                                           use-natspec
+  20:5  warning  Mismatch in @return names for function 'position'. Expected: [supplyShares, borrowShares, collateral], Found: []                                                     use-natspec
+  25:5  warning  Missing @notice tag in function 'market'                                                                                                                             use-natspec
+  25:5  warning  Missing @param tag in function 'market'                                                                                                                              use-natspec
+  25:5  warning  Mismatch in @param names for function 'market'. Expected: [id], Found: []                                                                                            use-natspec
+  25:5  warning  Missing @return tag in function 'market'                                                                                                                             use-natspec
+  25:5  warning  Mismatch in @return names for function 'market'. Expected: [totalSupplyAssets, totalSupplyShares, totalBorrowAssets, totalBorrowShares, lastUpdate, fee], Found: []  use-natspec
+  37:5  warning  Missing @notice tag in function 'accrueInterest'                                                                                                                     use-natspec
+  37:5  warning  Missing @param tag in function 'accrueInterest'                                                                                                                      use-natspec
+  37:5  warning  Mismatch in @param names for function 'accrueInterest'. Expected: [marketParams], Found: []                                                                          use-natspec
+
+src/interfaces/IChainlinkFeed.sol
+  5:1  warning  Missing @title tag in contract 'IChainlinkFeed'                                                                                          use-natspec
+  5:1  warning  Missing @author tag in contract 'IChainlinkFeed'                                                                                         use-natspec
+  6:5  warning  Missing @notice tag in function 'latestRoundData'                                                                                        use-natspec
+  6:5  warning  Missing @return tag in function 'latestRoundData'                                                                                        use-natspec
+  6:5  warning  Mismatch in @return names for function 'latestRoundData'. Expected: [roundId, answer, startedAt, updatedAt, answeredInRound], Found: []  use-natspec
+
+✖ 65 problems (0 errors, 65 warnings)
+
