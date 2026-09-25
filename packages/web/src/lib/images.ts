@@ -1,9 +1,9 @@
-import heroDark from "../../public/images/hero-dark.png";
-import heroDarkMobile from "../../public/images/hero-dark-mobile.png";
-import heroLight from "../../public/images/hero-light.png";
-import heroLightMobile from "../../public/images/hero-light-mobile.png";
-import pledgeHands from "../../public/images/pledge-hands.png";
-import vaultCoin from "../../public/images/vault-coin.png";
+import heroDark from "../../public/images/hero-dark.jpg";
+import heroDarkMobile from "../../public/images/hero-dark-mobile.jpg";
+import heroLight from "../../public/images/hero-light.jpg";
+import heroLightMobile from "../../public/images/hero-light-mobile.jpg";
+import pledgeHands from "../../public/images/pledge-hands.jpg";
+import vaultCoin from "../../public/images/vault-coin.jpg";
 
 export const images = {
   heroDark,

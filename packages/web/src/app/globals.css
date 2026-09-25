@@ -286,6 +286,10 @@ html.theme-switching *::after {
       border-color 180ms var(--ease-film),
       color 180ms var(--ease-film);
   }
+  .btn-sm {
+    height: 40px;
+    padding: 0 16px;
+  }
   .btn:focus-visible,
   .btn.is-focus {
     outline: 2px solid var(--gold);
@@ -325,6 +329,35 @@ html.theme-switching *::after {
   .btn-secondary:disabled,
   .btn-secondary[aria-disabled="true"] {
     background-color: transparent;
+  }
+
+  .link-draw {
+    background-image: linear-gradient(currentColor, currentColor);
+    background-position: 0 100%;
+    background-repeat: no-repeat;
+    background-size: 0% 1px;
+    padding-bottom: 2px;
+    transition:
+      background-size 200ms var(--ease-film),
+      color 200ms var(--ease-film);
+  }
+  .link-draw:hover,
+  .link-draw:focus-visible {
+    background-size: 100% 1px;
+  }
+
+  /* The loading hairline: a gold glint crossing a faint rule, so a waiting cell never looks empty or zero. */
+  .live-shimmer {
+    background-image: linear-gradient(
+      90deg,
+      var(--rule) 0%,
+      var(--rule) 35%,
+      var(--gold) 50%,
+      var(--rule) 65%,
+      var(--rule) 100%
+    );
+    background-size: 250% 100%;
+    animation: live-shimmer 1.6s linear infinite;
   }
 
   .grain {
@@ -415,6 +448,15 @@ html.theme-switching *::after {
   }
 }
 
+@keyframes live-shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -150% 0;
+  }
+}
+
 @keyframes grain-jitter {
   0% {
     background-position: 0 0;
@@ -443,7 +485,8 @@ html.theme-switching *::after {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .grain {
+  .grain,
+  .live-shimmer {
     animation: none;
   }
   .btn {

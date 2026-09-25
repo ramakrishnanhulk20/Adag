@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Image, { type StaticImageData } from "next/image";
+import Link from "next/link";
 import { ColourTokens } from "./_components/ColourTokens";
 import { FiguresCheck } from "./_components/FiguresCheck";
 import { HeroSentence } from "./_components/HeroSentence";
@@ -157,7 +158,12 @@ export default function LabPage() {
             Lab
           </Hallmark>
         </div>
-        <ThemeControl variant="cycle" />
+        <div className="flex items-center gap-5">
+          <Link href="/lab/hero" className="link-draw type-micro text-muted hover:text-gold">
+            Hero
+          </Link>
+          <ThemeControl variant="cycle" />
+        </div>
       </header>
 
       <main>

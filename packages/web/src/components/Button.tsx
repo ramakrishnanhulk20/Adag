@@ -5,6 +5,8 @@ type Variant = "primary" | "secondary";
 
 type CommonProps = {
   variant?: Variant;
+  // "sm" is the 40px nav size; everything else is 48px.
+  size?: "md" | "sm";
   children: ReactNode;
   className?: string;
   // Only the lab uses this, to show a hover or focus state without a pointer or keyboard.
@@ -16,8 +18,8 @@ type AsLink = CommonProps & { href: string; disabled?: boolean; external?: boole
 
 export type ButtonProps = AsButton | AsLink;
 
-function classNames({ variant = "primary", className = "", forceState }: CommonProps) {
-  return ["btn", `btn-${variant}`, forceState === "hover" && "is-hover", forceState === "focus" && "is-focus", className]
+function classNames({ variant = "primary", size = "md", className = "", forceState }: CommonProps) {
+  return ["btn", `btn-${variant}`, size === "sm" && "btn-sm", forceState === "hover" && "is-hover", forceState === "focus" && "is-focus", className]
     .filter(Boolean)
     .join(" ");
 }
@@ -47,7 +49,7 @@ export function Button(props: ButtonProps) {
     );
   }
 
-  const { variant: _variant, className: _className, forceState: _forceState, children, type = "button", ...rest } = props;
+  const { variant: _variant, size: _size, className: _className, forceState: _forceState, children, type = "button", ...rest } = props;
   return (
     <button type={type} className={classNames(props)} {...rest}>
       {children}

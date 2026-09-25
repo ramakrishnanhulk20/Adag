@@ -12,8 +12,6 @@ import { THEME_COOKIE, parseThemeChoice, serverResolvedTheme, themeHeadScript } 
 export const metadata: Metadata = {
   title: "Adag",
   description: "Pay the bill. Keep the bitcoin. Adag pays suppliers in USDC or EURC against bitcoin pledged on Morpho, on Arc.",
-  // Until the hallmark favicon lands, an empty icon stops the browser asking for a favicon that does not exist.
-  icons: { icon: "data:," },
 };
 
 export const viewport: Viewport = {
