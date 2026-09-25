@@ -268,6 +268,81 @@ abstract contract AdagFixture is Test {
         }
     }
 
+    /// @dev Approve and pledge only, no borrow.
+    function pledgeCalls(address payer, bytes32 marketId, uint256 collateral)
+        internal
+        view
+        returns (IMulticall3From.Call3[] memory calls)
+    {
+        MarketParams memory params = paramsOf(marketId);
+        calls = new IMulticall3From.Call3[](2);
+        calls[0] = call3(ArcMainnet.CIRBTC, abi.encodeCall(IERC20.approve, (ArcMainnet.MORPHO, collateral)));
+        calls[1] = call3(ArcMainnet.MORPHO, abi.encodeCall(IMorphoBorrow.supplyCollateral, (params, collateral, payer, "")));
+    }
+
+    /// @dev Borrow only, against collateral already pledged.
+    function borrowCalls(address payer, bytes32 marketId, uint256 borrow)
+        internal
+        view
+        returns (IMulticall3From.Call3[] memory calls)
+    {
+        calls = new IMulticall3From.Call3[](1);
+        calls[0] = call3(
+            ArcMainnet.MORPHO, abi.encodeCall(IMorphoBorrow.borrow, (paramsOf(marketId), borrow, 0, payer, payer))
+        );
+    }
+
+    /// @dev The batch repayShares sends, built apart so a caller can try it without reverting.
+    function repaySharesCalls(address payer, bytes32 marketId, uint256 shares)
+        internal
+        view
+        returns (IMulticall3From.Call3[] memory calls)
+    {
+        MarketParams memory params = paramsOf(marketId);
+        calls = new IMulticall3From.Call3[](3);
+        calls[0] = call3(params.loanToken, abi.encodeCall(IERC20.approve, (ArcMainnet.MORPHO, withMargin(assetsOf(marketId, shares)))));
+        calls[1] = call3(ArcMainnet.MORPHO, abi.encodeCall(IMorphoBorrow.repay, (params, 0, shares, payer, "")));
+        calls[2] = call3(params.loanToken, abi.encodeCall(IERC20.approve, (ArcMainnet.MORPHO, 0)));
+    }
+
+    // The three helpers below restate Morpho's formulas in plain integer maths, written apart from AdagBills, so
+    // tests can judge Adag's answers against something that does not share its code.
+
+    /// @dev A user's debt from the stored market totals, rounded up (Morpho's toAssetsUp).
+    function independentDebt(bytes32 marketId, address user) internal view returns (uint256) {
+        (, uint128 shares,) = MORPHO.position(marketId, user);
+        (,, uint128 totalAssets, uint128 totalShares,,) = MORPHO.market(marketId);
+        uint256 denominator = uint256(totalShares) + 1e6;
+        return (uint256(shares) * (uint256(totalAssets) + 1) + denominator - 1) / denominator;
+    }
+
+    /// @dev 40% of a user's collateral value at the oracle's current price, both steps rounded down.
+    function independentLine(bytes32 marketId, address user) internal view returns (uint256) {
+        (,, uint128 collateral) = MORPHO.position(marketId, user);
+        return independentLineFor(marketId, collateral);
+    }
+
+    function independentLineFor(bytes32 marketId, uint256 collateral) internal view returns (uint256) {
+        uint256 price = IOracleMinimal(paramsOf(marketId).oracle).price();
+        return collateral * price / 1e36 * 4 / 10;
+    }
+
+    /// @dev The user's debt right after Morpho lends `assets` more, in a block where interest is already accrued:
+    /// Morpho mints shares rounding up, then the whole position converts back rounding up on the new totals.
+    function independentDebtAfterBorrow(bytes32 marketId, address user, uint256 assets)
+        internal
+        view
+        returns (uint256 debt, uint256 newShares)
+    {
+        (, uint128 shares,) = MORPHO.position(marketId, user);
+        (,, uint128 totalAssets, uint128 totalShares,,) = MORPHO.market(marketId);
+        uint256 a = uint256(totalAssets) + 1;
+        uint256 s = uint256(totalShares) + 1e6;
+        newShares = (assets * s + a - 1) / a;
+        uint256 denominator = s + newShares;
+        debt = ((uint256(shares) + newShares) * (a + assets) + denominator - 1) / denominator;
+    }
+
     function assertAdagHoldsNothing() internal view {
         assertEq(USDC.balanceOf(address(adag)), 0, "Adag holds USDC");
         assertEq(EURC.balanceOf(address(adag)), 0, "Adag holds EURC");
