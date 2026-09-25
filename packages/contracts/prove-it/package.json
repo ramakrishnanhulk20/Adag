@@ -1,0 +1,15 @@
+{
+  "name": "adag-prove-it",
+  "version": "1.0.0",
+  "private": true,
+  "description": "One command that proves an Adag bill paid from pledged cirBTC on Arc mainnet, as a dry run or for real",
+  "type": "module",
+  "scripts": {
+    "dry-run": "node prove-it.mjs",
+    "broadcast": "node prove-it.mjs --broadcast"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "viem": "2.56.9"
+  }
+}
