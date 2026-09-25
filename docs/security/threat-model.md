@@ -1,0 +1,280 @@
+# Adag threat model
+
+Written at the architecture gate on 25 September 2026, before any contract code, and kept current as the code lands. Method: a pre-implementation design review, run from a plain functional description of the system, with security deliberately left out of that description so the review had to reason from scratch. Section C is the definition of done: the implementation is complete only when every invariant in it is shown to hold, each with the file and function that upholds it and a test that attacks it.
+
+What Adag is, in one paragraph: a web app and smart contracts on Arc mainnet. A person holding cirBTC pays a bill in USDC or EURC in one signed transaction. That transaction pledges cirBTC on Morpho Blue, borrows the bill amount, and pays the person who issued the bill, with the bill's reference attached through Arc's Memo contract. The transaction is refused if the loan would pass 40% of the bitcoin's value (Morpho liquidates at 86%). Each bill can be paid once. Bills can also be paid from an existing USDC or EURC balance.
+
+---
+
+## A) App-class risk profile
+
+### What kind of system this is
+
+In security terms, Adag is three systems sharing one name, plus an optional fourth.
+
+1. **A blind transaction builder.** A web page assembles a batch of calls, and a person's wallet signs the batch once. The wallet shows a hex blob for Multicall3From, so the payer cannot check what they sign. Whatever the page builds, the payer's money does.
+2. **A public, permissionless record book.** Strangers write records (bills), other strangers act on them (pay), and anyone reads them. There is no login. The record is the only thing that connects the person who ships goods to the person who pays.
+3. **A renderer of untrusted content to people about to make a payment decision.** Bill links, reference text, addresses and amounts arrive from URLs, from chain storage and from event logs. The page shows them to the payer as "this is who you are paying and how much".
+4. **Optionally, a small custodial service:** a hot wallet that spends its own USDC on fees for strangers.
+
+### Vulnerability categories that bite this class, tied to Adag's data flows
+
+1. **Calldata construction and blind signing.** This applies, and it is the largest risk. When paying from bitcoin, the payer signs one Multicall3From transaction carrying approve, supplyCollateral, borrow, a Memo-wrapped payment and the Adag step. A bug in how the app picks a target address, a receiver, an approval amount or an allowFailure flag is a direct loss of the payer's cirBTC or stablecoins. A compromised page (a dependency, the hosting, DNS) has the same power. The wallet cannot save the payer here.
+2. **Replay and double-pay of records.** This applies. A bill id must mean one bill and one payment. Under the link model, a signed bill can be presented twice: by two customers, on another contract, or after a redeploy. Under both models, a batch can list the same id twice. A second customer paying an already-paid bill loses money unless the contract refuses.
+3. **Forged or ambiguous authorship.** This applies. The create form asks the payee for "their own address". If the contract accepts a payee address from the form instead of taking the sender, anyone can write bills that name a victim as payee, filling the victim's dashboard with bills they never issued. Under the link model, the payee is whoever the signature recovers to, so several things become authorship bugs: a zero-address recovery, a malleable signature, and a contract-wallet payee that cannot sign.
+4. **Phishing through shareable links.** This applies. A bill link carries a payee address and a reference that says "Rent, March". Nothing in Adag can say whether that address belongs to the landlord. This is partly a non-goal, but the rendering rules below shrink it: the page shows exactly what will be paid, to exactly which address, from the same bytes the transaction uses.
+5. **Content injection.** This applies. The reference is 140 free bytes written by a stranger. It is rendered on the bill page and both dashboards, and copied into the Memo event's data, where explorers and indexers pick it up. HTML, script, right-to-left overrides, unicode look-alikes of addresses, and invalid UTF-8 are all valid 140-byte strings.
+6. **Parameter injection through the URL.** This applies under the link model, where the URL is the bill. Any query parameter the app turns into a contract address, token address, chain id or receiver is a drain path: the attacker's link makes the payer approve the attacker's contract.
+7. **Numeric and oracle errors in the loan check.** This applies. The Adag step reads the payer's Morpho position (in shares), the market totals and the oracle price, then compares debt to 40% of collateral value. There are four places to be off by a power of ten: share-to-asset rounding, interest not yet accrued, cirBTC's 8 decimals against the stablecoins' 6, and the oracle's scale factor. Wrong in one direction, every payment reverts. Wrong in the other, the payer borrows past the line the product promised.
+8. **Trust in sibling calls.** This applies. The Adag step is the last call in a batch the payer composed, and the payer chooses which calls run and in what order. A design where Adag remembers a balance from an earlier call and compares it later can be spoofed. The payer runs the earlier call in a different transaction, waits for the payee's balance to rise for another reason, then runs the later call.
+9. **Fake proof of payment in logs.** This applies. The Memo contract is public, and anyone can emit a Memo event carrying any bill id. A dashboard that counts Memo events with a given bill id as payments is counting attacker output.
+10. **Untrusted upstream data.** This applies. The public RPC, Morpho's GraphQL API and any indexer feed the UI and the pledge-size calculation. A wrong or malicious answer produces one of two failures. A wrong pledge size is caught by the on-chain check, so the payment reverts. A wrong paid or unpaid display is worse: the payer may pay twice, and only the contract's refusal saves them.
+11. **Hot wallet drain and fee griefing.** This applies only if the fee sponsor ships. Attackers send the sponsor transactions that revert, or thousands of tiny valid ones, and the sponsor pays the fee for each. A replayed or over-broad signed authorization lets the sponsor, or someone who steals its key, move the payer's tokens somewhere other than the bill.
+12. **Admin key compromise.** This applies only under the owner option. An owner who can change the market ids or the 40% limit can point Adag at a market with a friendly oracle or a fake loan token. Payments would then "succeed" in a worthless currency.
+13. **Reentrancy.** The risk is low. Adag holds no funds and the tokens have no transfer hooks. It still applies as discipline: the paid flag is set before any external call, so nobody can observe "unpaid" after money has moved.
+14. **Issuer controls on the tokens (blocklist, pause).** This applies as a fail-closed case, not a loss. A blocklisted payer or payee makes the transfer revert, and the whole batch undoes itself. The UI must explain the revert, and no one may be able to mark a bill paid when the transfer reverted.
+
+### Categories that do not apply, and why
+
+- **Server-side request forgery:** the app fetches fixed endpoints (the Arc RPC and Morpho's GraphQL), never a URL a user supplies.
+- **SQL or query injection:** there is no database and no user-driven query. An indexer, if built, only appends from chain logs.
+- **Authentication and session bugs:** there are no accounts, passwords or sessions. The wallet signature is the only authority.
+- **Classic CSRF:** no server holds state that a forged request could change.
+- **Multi-tenant data isolation:** every bill is public on chain by design, so there is no private data to leak between users. Privacy is a named non-goal.
+- **File upload and path traversal:** there are no files.
+
+---
+
+## B) Threat model
+
+### Trust boundaries
+
+1. **URL to page.** Every character after the domain is attacker-written.
+2. **Page to wallet.** The page hands the wallet calldata to sign. The wallet trusts the page because the payer clicked; the payer cannot read the calldata.
+3. **Payee's form to the bill record.** Under on-chain storage, the boundary is the create transaction. Under the link model, it is the typed-data signature, and the record stays off-chain and unverified until the pay transaction.
+4. **Chain to page.** RPC responses, event logs and Morpho's GraphQL are inputs the page renders and computes with. The RPC is a third-party server.
+5. **Payer's batch to Adag.** Through Arc's CallFrom, the sender Adag sees is the payer's wallet. Every argument, and every earlier call in the batch, is chosen by the payer.
+6. **Adag to Morpho, the oracle and the token contracts.** Their return values are Adag's inputs. Adag trusts them to be honest (a non-goal) but not to be well-formed: a zero price or a reverting read is still an input.
+7. **Adag to its own events, then to indexers, explorers and dashboards.** Everything emitted becomes someone else's input.
+8. **Internet to the sponsor service, to the hot wallet, to the chain.** The sponsor is the only place a private key sits on a server.
+9. **Build pipeline and hosting to the JavaScript served.** Dependencies, Vercel and DNS.
+10. **The wallet's current chain to the page's assumption of chain 5042.**
+
+### Attacker-controlled inputs
+
+Direct:
+- **Bill fields:** payee address, currency, amount, due date, reference bytes, and the salt or nonce. Under the link model, also the signature bytes and the full struct.
+- **Bill link parameters:** their length and encoding, and any parameter the app was not expecting.
+- **The bill id** passed to the pay step, and the batch of bills (its length, order and duplicates).
+- **Every argument of every call in the batch:** amounts, receiver and onBehalf addresses, market params passed to Morpho, the allowFailure flag on each call, and the target address of each call.
+- **The sender's identity:** any wallet. That includes the payee's own wallet paying its own bill, and a wallet that already holds Morpho positions Adag did not create.
+- **Sponsor API bodies:** transactions to sponsor, signed authorizations, EIP-7702 delegation signatures, and claimed sender addresses.
+- **The wallet's chain id and selected account** at the moment of signing.
+
+Indirect:
+- **The oracle price at execution time.** It can differ from what the page computed with, and it can be zero, huge, or revert.
+- **The payer's Morpho position and the market totals.** The payer can change them in the same transaction before the Adag step: supply, repay, borrow more, withdraw.
+- **Token balances of the payee,** which other senders can change in the same block.
+- **Stored data read back later:** bill data (reference, payee, amount, currency) stored earlier, and any stored snapshot read in a later call.
+- **Memo events** from any sender, with any bill id and any data.
+- **Third-party answers:** RPC responses (malicious or merely broken), GraphQL responses, indexer output, and swap quotes from App Kit or Uniswap.
+- **Token contract state:** the blocklist, pause, and any upgrade the issuer performs.
+- **The payer's account code** under an EIP-7702 delegation.
+- **The block timestamp,** if the due date is ever compared to it.
+- **Recovered signer addresses.** They depend on attacker-supplied signature bytes and can be address zero.
+
+### Privileged position and assets
+
+- **The Adag contract.** It holds no tokens, but it holds two valuable things: a momentary token allowance from the payer during the pay call, and the paid flag, which is the truth a payee ships goods against.
+- **The web page.** It writes what the wallet signs. If the page is wrong or compromised, it can spend everything in the payer's wallet, because the payer signs a blob.
+- **The sponsor.** It holds a private key and a USDC balance, and it can submit transactions that carry other people's signed authorizations.
+- **The operator.** It holds:
+  - the deploy key, used once and then irrelevant if there is no admin;
+  - the Vercel account and DNS;
+  - the environment variables;
+  - under the owner option, a live key that can repoint the contract.
+- **The indexer.** It holds what the dashboards show, and it can lie by omission.
+- **The loan check.** Adag does not hold the position, but its arithmetic decides how close the payer is pushed toward Morpho's 86% liquidation line.
+
+### Attacker goals, highest value first
+
+1. **Drain the payer through the transaction builder.** Enabled by the pay, batch, repay and sponsor flows:
+   - a URL parameter that becomes a target or token address;
+   - an approval to the wrong spender, or for more than the amount;
+   - a receiver that is neither the payer nor the payee;
+   - an EIP-7702 delegation to attacker code;
+   - a compromised page.
+2. **Get a bill marked paid without paying.** Enabled by any of:
+   - the Adag step trusting sibling calls, for example a stale snapshot;
+   - allowFailure set on the transfer;
+   - a zero-amount bill;
+   - a bill whose currency is a worthless token;
+   - a rounding path where the amount moved is less than the bill;
+   - a dashboard that treats Memo events as payment.
+3. **Get paid twice, or get someone else's payment.** Enabled by any of:
+   - replaying a signed bill;
+   - an id collision;
+   - an edited link whose displayed payee differs from the signed payee;
+   - a redeploy that reuses ids;
+   - a batch listing one bill twice.
+4. **Phish through a link.** A bill names the attacker as payee, and either carries a reference that impersonates a merchant or one that renders as HTML or as a fake address.
+5. **Push the payer past 40%, or block every payment.** Enabled by errors in the loan check: the oracle scale, share rounding, interest not yet accrued, a decimals mismatch, or checking the wrong market.
+6. **Drain the sponsor.** Enabled by reverting transactions, sheer volume, replayed authorizations, or theft of its key.
+7. **Under the owner option, steal the owner key** and repoint the markets, the tokens or the limit.
+
+---
+
+## C) Defensive-programming standards (definition of done)
+
+Each invariant is an outcome, not a step. A work order cites it by number. The builder names the file and function that upholds it, and a test shows it holding under attack. Where the design had an open choice, a "Choice" line says which option makes the invariant easier or harder.
+
+### Money movement
+
+**C1.** A bill is marked paid only when the payee's balance of the bill's currency rose by at least the bill amount within the same call that marks it paid. Both readings come from the token contract, one before the transfer and one after. No reading stored by another call or another transaction counts. A payer who is also the payee produces a zero rise and is refused.
+Choice: easy if the loan goes to the payer and Adag then moves the amount, since Adag does the transfer and measures it in one function. Hard if the loan goes straight to the payee, which needs a snapshot from an earlier call. That is only safe in transient storage that dies with the transaction; a stored snapshot can be spoofed.
+
+**C2.** The only token movement Adag can cause is the exact bill amount, from the sender, to that bill's payee, in that bill's currency, within the call that marks that bill paid. Adag never holds tokens between calls, has no function that moves tokens for any other reason, and never needs an allowance larger than the amount in flight.
+Choice: trivially true if the loan goes straight to the payee, since Adag moves nothing. If the loan goes to the payer, it is the scope of Adag's single transfer.
+
+**C3.** Every call in a batch the app builds follows these rules. No address, chain id, selector or amount in any call is taken from the URL or from any upstream response.
+- It targets one of the addresses fixed at build time: Adag, Morpho, Memo, Multicall3From, or the three tokens.
+- Every approval goes to Morpho or Adag only, for exactly the amount that batch uses.
+- Every allowFailure is false.
+- Every onBehalf and receiver is the payer. The one exception is a borrow receiver that is the payee read from the verified bill.
+- From a link, the app reads exactly one thing: a bill id, or a signed bill and its signature.
+
+Choice: on-chain bills make the link a single id, the smallest surface. Signed links carry the whole bill, so the bill must be verified before any field is used.
+
+**C4.** The app builds no transaction and requests no signature unless the wallet reports chain id 5042. Every typed-data domain names chain 5042 and the deployed Adag address. A bill signed for another chain or another Adag deployment cannot be paid here.
+
+### Bill identity and replay
+
+**C5.** A bill id is computed from the full bill content, the payee, a fresh nonce or salt, chain id 5042 and the Adag address, by one encoder that the contract owns. The UI shows only ids it recomputed from content with that same encoding, never an id it received in a link.
+Choice: with on-chain bills the contract assigns the id and the UI only reads it, which is easiest. With signed links, the id is the typed-data hash, and the UI's encoder must match the contract's byte for byte.
+
+**C6.** A bill is marked paid at most once, through any entry point: single pay, batch pay, or the sponsor path.
+- The paid flag is written before any external call.
+- A batch that lists the same id twice reverts as a whole.
+- A paid signed bill cannot be paid again: not with the same signature, a differently encoded signature, or a re-signed copy of the same content.
+
+Choice: the same under both storage models: one set of paid ids on chain.
+
+**C7.** A bill's payee is the account that wrote it: the sender for an on-chain create, the strictly recovered signer for a signed bill. The payment is refused if the recovery yields address zero, the signature has a high s value, the signature is not exactly 65 bytes, or the bill's typed-data domain differs from Adag's. Recovery uses the standard library's strict recovery, never raw ecrecover.
+Choice: with on-chain bills, "payee is the sender" is one line. With signed links, it needs strict signature checks, and a contract wallet cannot be a payee unless contract-signature support (EIP-1271) is added on purpose.
+
+**C8.** No payable bill can exist with any of these:
+- an amount of zero;
+- a currency that is not the loan token of one of the two fixed Adag markets;
+- a payee of address zero;
+- a reference longer than 140 bytes.
+
+The contract enforces this at the moment it matters: at creation for on-chain bills, at payment for signed links. The form's own validation is a courtesy, not the guard.
+
+**C9.** Only a bill's payee can void an unpaid bill, and a voided bill can never be paid. Without a void, a mistaken bill stays payable forever.
+Choice: with on-chain bills, a state flag. With signed links, an on-chain set of voided ids; otherwise a signed bill can never be recalled.
+
+### Loan safety
+
+**C10.** After the payment step, the payer's debt is at or under 40% of their collateral value, in the market whose loan token is the bill's currency.
+- **Debt** is borrow shares converted to assets, rounding up, after interest is accrued in the same transaction.
+- **Collateral value** is collateral times the oracle price divided by the oracle scale, rounding down.
+- The comparison is done in integers with no intermediate overflow.
+- The check reads live Morpho and oracle state. Nothing the caller passes in can substitute for it.
+
+Choice: with no admin, the 40% and the market ids are constants, which is easiest. With an owner, they are storage, and every change must emit an event and take effect only after a delay.
+Open point: whether the check also runs when paying from balance. If it does, a payer whose own direct Morpho position is above 40% cannot pay with their own USDC. This is decided at the architecture gate and written down. C10 governs whenever the check runs.
+
+**C11.** The payment step reverts if any read the check needs reverts, if collateral value computes to zero while debt is above zero, or if a fixed market id does not resolve to the expected loan and collateral tokens. Unreadable means over the limit.
+
+**C12.** The market params Adag passes to Morpho are exactly the ones Morpho returns for the fixed market ids. No argument from the caller can select, alter or substitute a market.
+
+**C13.** The pledge size the app proposes is a suggestion with a stated margin; the contract's check in C10 is the guard. If the price moves between page load and the block, the transaction reverts. That is never a loss and never a silent over-borrow.
+
+### Rendering and outputs
+
+**C14.** The reference is stored, emitted and rendered as opaque bytes shown as plain text.
+- It is never HTML, markdown, a link, or anything clickable.
+- Bidirectional control characters are stripped or escaped for display.
+- Invalid UTF-8 renders as replacement characters and never breaks the page.
+
+This holds on the bill page, both dashboards, the Memo data the app writes, and any indexer output. The contract enforces the 140-byte cap, counted in bytes.
+
+**C15.** The payee address and amount the payer sees on the bill page are decoded, by the same code, from the same bytes the transaction will use: the on-chain record, or the verified signed bill.
+- Amounts stay integers in base units end to end, and are formatted for display with the token's decimals.
+- A decimal typed into a form is parsed once, at creation, and never re-parsed.
+- Addresses are shown in full and checksummed.
+
+**C16.** Payment status, and "paid by which transaction", come only from Adag's own storage or Adag's own event. The event is filtered by Adag's address and event signature, and tied to a transaction hash and log index. Memo events, GraphQL figures, and indexer rows that cannot be traced to an Adag event are decoration, never proof.
+
+**C17.** Every value Adag emits in an event (id, payee, currency, amount, payer) has already passed C7, C8 and C10. A downstream consumer acting on the event cannot be fed a value the contract did not accept.
+
+### Upstream data
+
+**C18.** Values from the public RPC, Morpho's GraphQL, an indexer or a swap quote are used only to display and to propose a pledge size. None is ever placed into a transaction as an address, selector, chain id or receiver. A wrong upstream value can cause a revert (C10, C1), never a loss.
+
+**C19.** Every upstream fetch has an explicit timeout and a response size cap. Log queries are paged within the RPC's 10,000-block window, with a bounded page count. A failed or malformed response renders as "unavailable", never as zero, unpaid or paid.
+
+### Batch and limits
+
+**C20.** The batch pay function enforces an on-chain maximum number of bills. Any single failure inside a batch reverts the whole batch, so no bill in a batch can end up paid while another in the same batch is not.
+
+### Fee sponsor (only if built)
+
+**C21.** The sponsor's hot wallet submits only transactions it decoded itself: a call to Adag or Multicall3From carrying a valid, unpaid bill, for which it holds the payer's signed authorization.
+- It simulates before sending, and takes its fee in the same transaction.
+- Each authorization binds the bill id, payee, currency, amount, the sponsor's address and a deadline, and can be used once.
+- Per-address and global rate limits cap the sponsor's worst-hour loss at a written number of USDC.
+- The payer's tokens can move only to the bill's payee and to the sponsor's fee address, in the amounts signed.
+
+**C22.** Under EIP-7702, the delegation the app asks a payer to sign points only to an implementation fixed at build time, whose code cannot move funds except as C2 allows. The app never requests a delegation to an address from a URL or an upstream response. Before this path is offered, a fork test verifies whether a delegated account still counts as a plain wallet for Arc's CallFrom.
+
+### Admin (only if built)
+
+**C23.** No owner-settable value can redirect funds, mark a bill paid, change an existing bill's payee or currency, or weaken the limit for a payment already in flight. Owner changes emit an event and take effect after a delay long enough for payers to see them.
+Choice: with no admin this holds by having nothing to set. An owner makes C10, C12 and C23 depend on storage, and adds a key to steal.
+
+### General standards
+
+1. **Primitives over lists.**
+   - **Currency validity** means "equals the loan token of one of the two fixed market ids, as returned by Morpho", not a hand-kept token list. Covers fake tokens, cirBTC as a currency, and tokens added later. Does not cover an issuer upgrading a real token's behaviour.
+   - **Signature validity** means the standard library's strict recovery, which rejects address zero, high s values and wrong lengths. Covers malleability and garbage signatures. Does not cover a payee whose key is stolen.
+   - **Reference validity** means byte length, enforced on chain. Covers oversize. Does not cover meaning: phishing text is valid bytes, and C14 handles display.
+   - **Address display** uses the library checksum. Covers transcription errors. Does not cover look-alike addresses with vanity prefixes.
+   - **Target validity** in the builder means "equals one of the build-time constants". This is a list by nature, but a list of our own deployments, not of the world. It is tested by asserting that no other address can appear in the calldata the app builds.
+2. **Normalize before you compare.**
+   - The bill id comes from one encoding owned by the contract. The UI recomputes it with the same encoding and checks equality before showing it (C5).
+   - Amounts are integers in base units from creation to event. Display only formats; it never parses (C15).
+   - The payee shown is decoded from the same bytes the contract hashes (C15).
+   - The loan check compares debt and collateral value in the same units, after the same conversions. The UI's preview uses the same formula as the contract, read from the contract where possible (C10, C13).
+3. **Validate outputs like inputs.** Events (C17), Memo data (C14), links the app generates (C3, C5) and indexer rows (C16) are each treated as live input to whatever reads them next.
+4. **Fail closed.**
+   - Unreadable state reverts (C11).
+   - A chain mismatch means no transaction (C4).
+   - Batches have a cap and revert whole (C20).
+   - Approvals are exact, and go to two spenders only (C3).
+   - allowFailure is always false (C3).
+   - An upstream failure renders "unavailable" (C19).
+   - A void beats a pay (C9).
+   - Reads and pages are bounded (C19).
+5. **Named non-goals.** Adag does not defend against:
+   - **The identity of a payee.** A bill from an attacker who claims to be your landlord is a valid bill. Adag shows exactly who and how much; judging the who is the payer's job.
+   - **Morpho, the oracles or the token contracts being wrong,** paused, blocklisting or upgraded. Adag fails closed on their reverts and zeros, nothing more.
+   - **A compromised wallet, browser or operating system.**
+   - **A compromised page build or hosting.** Pinned dependencies, a strict content security policy, no third-party scripts and no runtime-loaded code reduce the odds; they do not remove them. A payer signing a Multicall3From blob cannot detect a compromised page.
+   - **Watching the position after payment.** Interest accrues, prices move, and Morpho liquidates at 86%. Adag checks the line once, at payment, and never again.
+   - **A payer who goes above 40% by using Morpho directly.** Adag's line applies to payments made through Adag.
+   - **Privacy.** Every bill, amount, reference and payer is public on chain and in every link.
+   - **Front-running or MEV.** Adag's flows have no slippage to extract. The swap flow inherits Uniswap's or App Kit's own behaviour.
+   - **Availability** of the public RPC, Morpho's API or Vercel.
+   - **How third-party explorers render Memo data.**
+   - **Enforcing due dates.** The due date is information unless a later decision makes it a rule.
+
+---
+
+## Notes on the review's open questions (head chef, 25 September)
+
+The review listed four facts to confirm. Status:
+1. **USDC decimals.** Confirmed: native USDC uses 18 decimals and the ERC-20 interface uses 6, over one balance. Arc's docs say so, and our deploy wallet reads 5 on both views (block 22,705,889). Adag only ever uses the 6-decimal token interface.
+2. **Morpho borrowing through Arc's batching.** Confirmed in a mainnet simulation. Borrowing with the payer as onBehalf works through Multicall3From and Memo without a separate Morpho authorization, because the sender Morpho sees is the payer (`reference/probes/PROBES-2026-09-25.md`).
+3. **Transient storage.** Arc runs the Osaka baseline, which includes transient storage. Only relevant if the loan goes straight to the payee. To be confirmed by a fork test if that option is picked.
+4. **EIP-7702-delegated wallets and Arc's batching.** Open. The R&D brief is checking the precompile's rules. It only matters for the optional fee sponsor.
