@@ -55,6 +55,10 @@ export const erc20Abi = parseAbi([
 
 export const oracleAbi = parseAbi(["function price() view returns (uint256)"]);
 
+const marketState =
+  "(uint128 totalSupplyAssets, uint128 totalSupplyShares, uint128 totalBorrowAssets, uint128 totalBorrowShares, uint128 lastUpdate, uint128 fee)";
+export const irmAbi = parseAbi([`function borrowRateView(${mp} marketParams, ${marketState} market) view returns (uint256)`]);
+
 export const memoAbi = parseAbi([
   "function memo(address target, bytes data, bytes32 memoId, bytes memoData)",
   "event Memo(address indexed sender, address indexed target, bytes32 callDataHash, bytes32 indexed memoId, bytes memo, uint256 memoIndex)",

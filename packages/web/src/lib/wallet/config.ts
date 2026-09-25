@@ -4,8 +4,11 @@ import { walletConnect } from "wagmi/connectors/walletConnect";
 import { arc } from "viem/chains";
 import { RPC_MAX_RESPONSE_BYTES, RPC_TIMEOUT_MS } from "@/lib/arc/constants";
 
-export const ARC_RPC = "https://rpc.mainnet.arc.io";
-export const ARC_RPC_FALLBACK = "https://rpc.drpc.mainnet.arc.io";
+// The override exists for the end-to-end tests, which point a separate build at a local Arc fork. When it is set,
+// it is the only endpoint, so a test can never fall through to mainnet.
+const RPC_OVERRIDE = process.env.NEXT_PUBLIC_ARC_RPC_URL;
+export const ARC_RPC = RPC_OVERRIDE || "https://rpc.mainnet.arc.io";
+export const ARC_RPC_FALLBACK = RPC_OVERRIDE || "https://rpc.drpc.mainnet.arc.io";
 
 const transportOptions = {
   timeout: RPC_TIMEOUT_MS,
@@ -40,7 +43,10 @@ export const wagmiConfig = createConfig({
   ssr: true,
   multiInjectedProviderDiscovery: true,
   transports: {
-    [arc.id]: fallback([http(ARC_RPC, transportOptions), http(ARC_RPC_FALLBACK, transportOptions)], { rank: false, retryCount: 0 }),
+    [arc.id]: RPC_OVERRIDE
+      ? // A fresh fork fetches mainnet state on first touch, which can take longer than the production timeout.
+        http(RPC_OVERRIDE, { ...transportOptions, timeout: 30_000 })
+      : fallback([http(ARC_RPC, transportOptions), http(ARC_RPC_FALLBACK, transportOptions)], { rank: false, retryCount: 0 }),
   },
 });
 

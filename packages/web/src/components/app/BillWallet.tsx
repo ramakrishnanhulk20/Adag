@@ -1,15 +1,14 @@
 "use client";
 
-import { useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { motion } from "motion/react";
 import { isAddressEqual, type Address } from "viem";
 import { arc } from "viem/chains";
-import { useReadContracts } from "wagmi";
-import { Button } from "@/components/Button";
+import { useBlock, useReadContract, useReadContracts } from "wagmi";
 import { Hallmark } from "@/components/Hallmark";
-import { adagAbi, erc20Abi, morphoAbi, oracleAbi } from "@/lib/pay/abi";
+import { adagAbi, erc20Abi, irmAbi, morphoAbi, oracleAbi } from "@/lib/pay/abi";
 import { billFromJson, type BillJson } from "@/lib/pay/billJson";
-import { suggestPledge } from "@/lib/pay/build";
+import type { Bill } from "@/lib/pay/build";
 import {
   ADAG_BILLS,
   BILL_STATUS,
@@ -20,45 +19,35 @@ import {
   EURC_MARKET_ORACLE,
   MARKET_EURC,
   MARKET_USDC,
-  MAX_LTV_WAD,
   MORPHO,
   USDC,
   USDC_MARKET_ORACLE,
   type Currency,
 } from "@/lib/pay/constants";
 import { formatPercentWad, formatUnitsExact } from "@/lib/pay/format";
-import { debtFromShares, liquidationDropWad, ltvWad } from "@/lib/pay/loan";
+import { debtFromShares, liquidationDropWad } from "@/lib/pay/loan";
 import { currencyOf } from "@/lib/pay/market";
-import { useWallet } from "@/lib/wallet/useWallet";
-
-const PENDING = "Wired in the next step";
+import { readyToSign, useWallet, type WalletState } from "@/lib/wallet/useWallet";
+import { Value, rise, type Cell } from "./cells";
+import { ConnectButton } from "./ConnectButton";
+import { PayActions } from "./PayActions";
+import { VoidAction } from "./VoidAction";
+import { SMART_ACCOUNT_SENTENCE } from "./WalletNotice";
 
 type Read = { status: "success"; result: unknown } | { status: "failure"; error: Error };
-type Cell<T> = { state: "loading" } | { state: "unavailable" } | { state: "ok"; value: T };
+type Position = readonly [bigint, bigint, bigint];
+type MarketState = readonly [bigint, bigint, bigint, bigint, bigint, bigint];
 
-const reveal = {
-  initial: { opacity: 0, y: 24 },
-  whileInView: { opacity: 1, y: 0 },
-  viewport: { once: true, amount: 0.2 },
-};
-const rise = (i: number) => ({ ...reveal, transition: { duration: 0.7, delay: i * 0.08, ease: [0.16, 1, 0.3, 1] as const } });
+const SECONDS_PER_YEAR = 31_536_000;
 
-function Value<T>({ cell, render, className = "" }: { cell: Cell<T>; render: (v: T) => React.ReactNode; className?: string }) {
-  if (cell.state === "loading") return <span aria-label="Loading" className="live-shimmer inline-block h-[0.9em] w-24 rounded-[2px] align-middle" />;
-  // C19: a failed read says so. It never falls back to zero.
-  if (cell.state === "unavailable") return <span className="type-label text-muted">unavailable</span>;
-  return <span className={className}>{render(cell.value)}</span>;
-}
-
-function PendingAction({ children, variant = "secondary" }: { children: React.ReactNode; variant?: "primary" | "secondary" }) {
-  return (
-    <span className="flex flex-col gap-2">
-      <Button variant={variant} disabled className="w-full md:w-auto">
-        {children}
-      </Button>
-      <span className="type-micro text-muted">{PENDING}</span>
-    </span>
-  );
+// Why this wallet cannot sign right now, in words. null means it can (C4 and the plain-wallet rule).
+function blockedReason(wallet: WalletState): string | null {
+  if (readyToSign(wallet)) return null;
+  if (wallet.status !== "connected") return "Connect a wallet to continue.";
+  if (!wallet.onArc) return "Your wallet is on another network. Switch it to Arc to continue; nothing is built until then.";
+  if (wallet.kind === "smart") return SMART_ACCOUNT_SENTENCE;
+  if (wallet.kind === "unavailable") return "Could not check this wallet's type on Arc. Reload to try again.";
+  return "Checking your wallet on Arc.";
 }
 
 export function BillWallet({ bill: json }: { bill: BillJson }) {
@@ -72,25 +61,23 @@ export function BillWallet({ bill: json }: { bill: BillJson }) {
       <section className="px-5 pb-20 md:px-[6vw] md:pb-28" aria-label="Pay this bill">
         <motion.div {...rise(0)} className="app-panel flex flex-col gap-6 p-6 md:flex-row md:items-center md:justify-between md:p-8">
           <p className="type-lead max-w-[36rem] text-text">
-            Connect a wallet to see your balances and exactly what paying from bitcoin would do to your loan.
+            Connect a wallet to pay this bill from your balance, or from a loan against your cirBTC, in one signature.
           </p>
-          <div className="flex flex-col gap-3 md:flex-row">
-            <PendingAction variant="primary">Pay from balance</PendingAction>
-            <PendingAction>Pay from bitcoin</PendingAction>
-          </div>
+          <ConnectButton />
         </motion.div>
       </section>
     );
   }
 
-  return <ConnectedWallet address={wallet.address} bill={bill} />;
+  return <ConnectedWallet address={wallet.address} bill={bill} wallet={wallet} />;
 }
 
-function ConnectedWallet({ address, bill }: { address: Address; bill: ReturnType<typeof billFromJson> }) {
+function ConnectedWallet({ address, bill, wallet }: { address: Address; bill: Bill; wallet: WalletState }) {
   const currency = currencyOf(bill.currency);
   const isPayee = isAddressEqual(address, bill.payee);
   const open = bill.status === BILL_STATUS.Open;
   const m = currency?.marketId ?? MARKET_USDC;
+  const reason = blockedReason(wallet);
 
   const reads = useReadContracts({
     allowFailure: true,
@@ -111,6 +98,8 @@ function ConnectedWallet({ address, bill }: { address: Address; bill: ReturnType
     ],
     query: { refetchInterval: 30_000 },
   });
+  // Price age is measured on the chain's own clock, which a test fork can move forward.
+  const head = useBlock({ chainId: arc.id, query: { refetchInterval: 30_000 } });
 
   function cell<T>(i: number): Cell<T> {
     if (reads.isPending) return { state: "loading" };
@@ -119,8 +108,6 @@ function ConnectedWallet({ address, bill }: { address: Address; bill: ReturnType
     return { state: "ok", value: r.result as T };
   }
 
-  type Position = readonly [bigint, bigint, bigint];
-  type MarketState = readonly [bigint, bigint, bigint, bigint, bigint, bigint];
   const balances = [cell<bigint>(0), cell<bigint>(1), cell<bigint>(2)] as const;
   const markets = [
     { currency: CURRENCIES[0]!, position: cell<Position>(3), market: cell<MarketState>(4), ltv: cell<bigint>(7), price: cell<bigint>(10) },
@@ -131,30 +118,88 @@ function ConnectedWallet({ address, bill }: { address: Address; bill: ReturnType
   const billMarket = markets.find((x) => x.currency.marketId === m)!;
   const billBalance = currency?.symbol === "EURC" ? balances[1] : balances[0];
 
+  // Display only (C18): the fixed params and the live market state, through Morpho's own rate model.
+  const marketNow = billMarket.market.state === "ok" ? billMarket.market.value : null;
+  const rate = useReadContract({
+    chainId: arc.id,
+    address: currency?.params.irm,
+    abi: irmAbi,
+    functionName: "borrowRateView",
+    args:
+      currency && marketNow
+        ? [
+            currency.params,
+            {
+              totalSupplyAssets: marketNow[0],
+              totalSupplyShares: marketNow[1],
+              totalBorrowAssets: marketNow[2],
+              totalBorrowShares: marketNow[3],
+              lastUpdate: marketNow[4],
+              fee: marketNow[5],
+            },
+          ]
+        : undefined,
+    query: { enabled: Boolean(currency && marketNow) },
+  });
+  const apy = rate.data !== undefined ? Math.expm1((Number(rate.data) * SECONDS_PER_YEAR) / 1e18) : null;
+  const borrowApy: Cell<number> =
+    rate.isError || (rate.data !== undefined && (apy === null || !Number.isFinite(apy) || apy < 0))
+      ? { state: "unavailable" }
+      : apy === null
+        ? billMarket.market.state === "unavailable"
+          ? { state: "unavailable" }
+          : { state: "loading" }
+        : { state: "ok", value: apy };
+
+  // Once this wallet pays here, its receipt card stays on screen after the page refresh reports the bill as paid.
+  const [actedHere, setActedHere] = useState(false);
+  const refetch = reads.refetch;
+  const onSettled = useCallback(() => {
+    setActedHere(true);
+    void refetch();
+  }, [refetch]);
+
   return (
     <section className="px-5 pb-20 md:px-[6vw] md:pb-28" aria-labelledby="wallet-title">
       <motion.div {...rise(0)} className="flex flex-wrap items-center gap-4 border-t border-rule pt-10">
         <Hallmark tone="quiet">Your wallet</Hallmark>
         <span className="type-address break-all text-muted">{address}</span>
         <h2 id="wallet-title" className="type-h2 mt-2 w-full text-text">
-          {open && !isPayee ? "What paying would do." : "Your position on Arc."}
+          {open && !isPayee ? "Pay it in one signature." : "Your position on Arc."}
         </h2>
       </motion.div>
 
       <div className="mt-10 grid gap-5 md:grid-cols-12 md:gap-6">
-        <motion.div {...rise(1)} className="md:col-span-5">
+        <motion.div {...rise(1)} className="md:col-span-6">
           {isPayee ? (
-            <PayeePanel open={open} />
-          ) : open && currency ? (
-            <PledgePanel
-              currency={currency}
-              amount={bill.amount}
-              needed={needed}
-              priceStatus={priceStatus}
-              cirBtc={balances[2]}
-              balance={billBalance}
-              market={billMarket}
-            />
+            <VoidAction bill={bill} address={address} canSign={reason === null} blockedReason={reason} />
+          ) : (open || actedHere) && currency ? (
+            reason === null || actedHere ? (
+              <PayActions
+                bill={bill}
+                address={address}
+                currency={currency}
+                balance={billBalance}
+                cirBtc={balances[2]}
+                position={billMarket.position}
+                market={billMarket.market}
+                price={billMarket.price}
+                priceStatus={priceStatus}
+                needed={needed}
+                borrowApy={borrowApy}
+                onSettled={onSettled}
+              />
+            ) : (
+              <div className="app-panel p-6 md:p-8" data-blocked="true">
+                <p className="type-label text-muted">Pay this bill</p>
+                <p className="type-lead mt-4 text-text">{reason}</p>
+                {wallet.status === "connected" && !wallet.onArc && (
+                  <div className="mt-6">
+                    <ConnectButton />
+                  </div>
+                )}
+              </div>
+            )
           ) : (
             <div className="app-panel p-6 md:p-8">
               <p className="type-label text-muted">This bill</p>
@@ -165,7 +210,7 @@ function ConnectedWallet({ address, bill }: { address: Address; bill: ReturnType
           )}
         </motion.div>
 
-        <div className="grid gap-5 md:col-span-7 md:gap-6">
+        <div className="grid content-start gap-5 md:col-span-6 md:gap-6">
           <motion.div {...rise(2)} className="app-panel p-6 md:p-8">
             <p className="type-label text-muted">In this wallet</p>
             <dl className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-3">
@@ -192,32 +237,16 @@ function ConnectedWallet({ address, bill }: { address: Address; bill: ReturnType
       </div>
 
       <motion.div {...rise(4)} className="mt-6">
-        <PriceLine priceStatus={priceStatus} symbol={currency?.symbol ?? "USDC"} />
+        <PriceLine priceStatus={priceStatus} symbol={currency?.symbol ?? "USDC"} chainNow={head.data?.timestamp ?? null} />
       </motion.div>
     </section>
   );
 }
 
-function PayeePanel({ open }: { open: boolean }) {
-  return (
-    <div className="app-panel h-full p-6 md:p-8">
-      <p className="type-label text-gold">You wrote this bill</p>
-      <p className="type-lead mt-4 text-text">
-        {open ? "Share this page's link with whoever owes it. You can cancel it until someone pays." : "It is closed. Nothing more to do here."}
-      </p>
-      {open && (
-        <div className="mt-8">
-          <PendingAction>Void this bill</PendingAction>
-        </div>
-      )}
-    </div>
-  );
-}
-
 type MarketCardProps = {
   currency: Currency;
-  position: Cell<readonly [bigint, bigint, bigint]>;
-  market: Cell<readonly [bigint, bigint, bigint, bigint, bigint, bigint]>;
+  position: Cell<Position>;
+  market: Cell<MarketState>;
   ltv: Cell<bigint>;
 };
 
@@ -231,118 +260,28 @@ function MarketCard({ currency, position, market, ltv }: MarketCardProps) {
   const pledged: Cell<bigint> = position.state === "ok" ? { state: "ok", value: position.value[2] } : position;
   const drop: Cell<bigint> = ltv.state === "ok" ? { state: "ok", value: liquidationDropWad(ltv.value, currency.params.lltv) } : ltv;
 
+  const rows: [string, React.ReactNode][] = [
+    ["Pledged", <Value key="p" cell={pledged} render={(v) => `${formatUnitsExact(v, CIRBTC_DECIMALS)} cirBTC`} />],
+    ["Loan", <Value key="l" cell={debt} render={(v) => `${formatUnitsExact(v, currency.decimals)} ${currency.symbol}`} />],
+    ["Loan-to-value", <Value key="v" cell={ltv} render={(v) => formatPercentWad(v)} />],
+    ["BTC can fall", <Value key="f" cell={drop} render={(v) => (ltv.state === "ok" && ltv.value === 0n ? "no loan" : formatPercentWad(v))} />],
+  ];
   return (
     <div className="border-l border-rule pl-4">
       <p className="type-micro text-text">{currency.symbol} against cirBTC</p>
       <dl className="mt-3 space-y-2">
-        <div className="flex items-baseline justify-between gap-3">
-          <dt className="type-body text-muted">Pledged</dt>
-          <dd className="type-body tabular-nums text-text">
-            <Value cell={pledged} render={(v) => `${formatUnitsExact(v, CIRBTC_DECIMALS)} cirBTC`} />
-          </dd>
-        </div>
-        <div className="flex items-baseline justify-between gap-3">
-          <dt className="type-body text-muted">Loan</dt>
-          <dd className="type-body tabular-nums text-text">
-            <Value cell={debt} render={(v) => `${formatUnitsExact(v, currency.decimals)} ${currency.symbol}`} />
-          </dd>
-        </div>
-        <div className="flex items-baseline justify-between gap-3">
-          <dt className="type-body text-muted">Loan-to-value</dt>
-          <dd className="type-body tabular-nums text-text">
-            <Value cell={ltv} render={(v) => formatPercentWad(v)} />
-          </dd>
-        </div>
-        <div className="flex items-baseline justify-between gap-3">
-          <dt className="type-body text-muted">BTC can fall</dt>
-          <dd className="type-body tabular-nums text-text">
-            <Value cell={drop} render={(v) => (ltv.state === "ok" && ltv.value === 0n ? "no loan" : formatPercentWad(v))} />
-          </dd>
-        </div>
+        {rows.map(([label, value]) => (
+          <div key={label} className="flex items-baseline justify-between gap-3">
+            <dt className="type-body text-muted">{label}</dt>
+            <dd className="type-body tabular-nums text-text">{value}</dd>
+          </div>
+        ))}
       </dl>
     </div>
   );
 }
 
-type PledgePanelProps = {
-  currency: Currency;
-  amount: bigint;
-  needed: Cell<bigint>;
-  priceStatus: Cell<readonly [boolean, bigint, bigint]>;
-  cirBtc: Cell<bigint>;
-  balance: Cell<bigint>;
-  market: { position: Cell<readonly [bigint, bigint, bigint]>; market: Cell<readonly [bigint, bigint, bigint, bigint, bigint, bigint]>; price: Cell<bigint> };
-};
-
-function PledgePanel({ currency, amount, needed, priceStatus, cirBtc, balance, market }: PledgePanelProps) {
-  const fresh = priceStatus.state === "ok" ? priceStatus.value[0] : null;
-  const pledge: Cell<bigint> = needed.state === "ok" ? { state: "ok", value: suggestPledge(needed.value) } : needed;
-
-  // The preview uses the contract's own rounding (loan.ts). It is a preview: the contract's check at payment decides.
-  let after: Cell<{ ltv: bigint; drop: bigint }> = { state: "loading" };
-  if (pledge.state === "ok" && market.position.state === "ok" && market.market.state === "ok" && market.price.state === "ok") {
-    const debt = debtFromShares(market.position.value[1], market.market.value[2], market.market.value[3]) + amount;
-    const ltv = ltvWad(debt, market.position.value[2] + pledge.value, market.price.value);
-    after = { state: "ok", value: { ltv, drop: liquidationDropWad(ltv, currency.params.lltv) } };
-  } else if ([pledge, market.position, market.market, market.price].some((c) => c.state === "unavailable")) {
-    after = { state: "unavailable" };
-  }
-
-  const short = pledge.state === "ok" && cirBtc.state === "ok" && cirBtc.value < pledge.value;
-  const enough = balance.state === "ok" ? balance.value >= amount : null;
-
-  return (
-    <div className="app-panel flex h-full flex-col p-6 md:p-8">
-      <p className="type-label text-muted">Pay from bitcoin: suggested pledge</p>
-      {fresh === false ? (
-        <p className="type-lead mt-5 text-text">New loans are paused until the bitcoin price updates. Paying from your balance still works.</p>
-      ) : (
-        <>
-          <p className="mt-5 font-display text-[clamp(2.25rem,4.2vw,3.5rem)] leading-none font-medium tabular-nums text-text">
-            <Value cell={pledge} render={(v) => (v === 0n ? "Nothing more" : formatUnitsExact(v, CIRBTC_DECIMALS))} />
-            {pledge.state === "ok" && pledge.value > 0n && <span className="ml-2 font-display text-[0.45em] italic text-gold">cirBTC</span>}
-          </p>
-          <p className="type-body mt-3 text-muted">
-            {pledge.state === "ok" && pledge.value === 0n
-              ? "The bitcoin you already pledged covers this loan at 40%."
-              : "Adag's own figure, plus a 5% margin for price moves and one satoshi for rounding. The contract's 40% check at payment is the real guard."}
-          </p>
-          <dl className="mt-6 grid grid-cols-2 gap-4 border-t border-rule pt-5">
-            <div>
-              <dt className="type-micro text-muted">Loan-to-value after</dt>
-              <dd className="mt-2 font-display text-[1.75rem] leading-none font-medium tabular-nums text-text">
-                <Value cell={after} render={(v) => formatPercentWad(v.ltv)} />
-              </dd>
-              <dd className="type-micro mt-2 text-muted">Adag&apos;s line is {formatPercentWad(MAX_LTV_WAD)}</dd>
-            </div>
-            <div>
-              <dt className="type-micro text-muted">BTC can then fall</dt>
-              <dd className="mt-2 font-display text-[1.75rem] leading-none font-medium tabular-nums text-text">
-                <Value cell={after} render={(v) => formatPercentWad(v.drop)} />
-              </dd>
-              <dd className="type-micro mt-2 text-muted">before Morpho may liquidate at {formatPercentWad(currency.params.lltv)}</dd>
-            </div>
-          </dl>
-          {short && <p className="type-body mt-5 text-danger">Your wallet holds less cirBTC than this pledge.</p>}
-        </>
-      )}
-      <p className="type-body mt-5 text-muted">
-        {enough === null
-          ? `Your ${currency.symbol} balance is unavailable right now.`
-          : enough
-            ? `You hold enough ${currency.symbol} to pay from balance.`
-            : `You hold less ${currency.symbol} than this bill, so paying from balance would fail.`}
-      </p>
-      <div className="mt-auto flex flex-col gap-3 pt-8 md:flex-row">
-        {/* C24: the bitcoin path is only offered while the price is fresh. */}
-        {fresh !== false && <PendingAction variant="primary">Pay from bitcoin</PendingAction>}
-        <PendingAction variant={fresh === false ? "primary" : "secondary"}>Pay from balance</PendingAction>
-      </div>
-    </div>
-  );
-}
-
-function PriceLine({ priceStatus, symbol }: { priceStatus: Cell<readonly [boolean, bigint, bigint]>; symbol: string }) {
+function PriceLine({ priceStatus, symbol, chainNow }: { priceStatus: Cell<readonly [boolean, bigint, bigint]>; symbol: string; chainNow: bigint | null }) {
   if (priceStatus.state !== "ok") {
     return (
       <p className="type-body flex items-center gap-3 text-muted">
@@ -352,12 +291,13 @@ function PriceLine({ priceStatus, symbol }: { priceStatus: Cell<readonly [boolea
     );
   }
   const [fresh, btcAt] = priceStatus.value;
-  const hours = Math.max(0, (Date.now() / 1000 - Number(btcAt)) / 3600);
+  const now = chainNow !== null ? Number(chainNow) : Date.now() / 1000;
+  const hours = Math.max(0, (now - Number(btcAt)) / 3600);
   return (
-    <p className="type-body flex flex-wrap items-center gap-x-3 gap-y-1 text-text">
+    <p className="type-body flex flex-wrap items-center gap-x-3 gap-y-1 text-text" data-price={fresh ? "fresh" : "stale"}>
       <span aria-hidden="true" className={`diamond ${fresh ? "!bg-success" : "!bg-danger"}`} />
-      {fresh ? `Bitcoin price live for the ${symbol} market.` : "Bitcoin price paused: new loans wait for the next update."}
-      <span className="text-muted">Chainlink BTC/USD updated {hours < 1 ? `${Math.round(hours * 60)} minutes` : `${hours.toFixed(1)} hours`} ago.</span>
+      {fresh ? `Bitcoin price fresh for the ${symbol} market.` : "Bitcoin price paused: new loans wait for the next update."}
+      <span className={fresh ? "text-text" : "text-muted"}>Chainlink BTC/USD updated {hours.toFixed(1)} hours ago.</span>
     </p>
   );
 }

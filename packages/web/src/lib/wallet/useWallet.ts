@@ -43,7 +43,9 @@ function withKind(address: Address, chainId: number | undefined, code: CodeRead)
   return { status: "connected", address, chainId: chainId ?? 0, onArc: chainId === arc.id, kind };
 }
 
-// C4: nothing may be built for signing unless this holds, and F5b calls it again right before each signature.
-export function readyToSign(wallet: WalletState): wallet is Extract<WalletState, { status: "connected" }> {
-  return wallet.status === "connected" && wallet.onArc && wallet.kind === "plain";
+// C4 and the plain-wallet rule: nothing is built for signing unless this holds, and send.ts checks the chain again at
+// the signature. A 7702-delegated wallet is let through because scripts/fork-7702.sh showed one sending its own
+// Multicall3From and Memo batch on a mainnet fork exactly like a plain wallet. Smart accounts stay blocked.
+export function readyToSign(wallet: WalletState): boolean {
+  return wallet.status === "connected" && wallet.onArc && (wallet.kind === "plain" || wallet.kind === "delegated");
 }

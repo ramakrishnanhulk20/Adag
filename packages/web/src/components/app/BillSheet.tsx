@@ -63,14 +63,15 @@ export function BillSheet({ bill, paidTx }: { bill: Bill; paidTx: PaidTx }) {
           <p className="type-label app-rise mt-10 text-muted md:mt-14" style={d(1)}>
             {HEADLINE[status]}
           </p>
-          {/* The stamp lands across the end of the amount, the one overlap on this poster. It wraps below on narrow screens. */}
-          <div className="mt-3 flex flex-wrap items-end gap-x-3 gap-y-5">
+          {/* The stamp sits clear of the figures so the currency always reads. It wraps below on narrow screens. */}
+          <div className="mt-3 flex flex-wrap items-end gap-x-10 gap-y-5">
             <p className="app-amount app-rise text-text" style={d(2)}>
               {amount}
               <span className="app-amount-unit">{currency?.symbol ?? "unknown token"}</span>
             </p>
-            <div className="app-stamp relative z-10 mb-[0.4rem] md:-ml-5 md:mb-[1.6rem]">
-              <BillStamp status={status} entrance="in-view" tilt={status === "paid" ? -9 : status === "void" ? -11 : -6} />
+            <div className="app-stamp relative z-10 mb-[0.4rem] md:mb-[1.6rem]">
+              {/* Keyed by status, so after a payment or a void the refreshed page stamps the new state down with a spring. */}
+              <BillStamp key={status} status={status} entrance="in-view" tilt={status === "paid" ? -9 : status === "void" ? -11 : -6} />
             </div>
           </div>
 

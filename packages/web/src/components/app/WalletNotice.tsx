@@ -16,7 +16,7 @@ export function WalletNotice() {
     else if (wallet.kind === "delegated")
       message = {
         tone: "pending",
-        text: "This wallet has an EIP-7702 delegation. Adag has not tested those with Arc's one-signature batching, so paying may fail. An ordinary wallet is the safe choice.",
+        text: "This wallet has an EIP-7702 delegation. Tested on a mainnet fork: it can pay here as long as it sends its own transaction.",
       };
     else if (wallet.kind === "unavailable") message = { tone: "pending", text: "Could not check this wallet's type on Arc right now. Reload to try again." };
   }
