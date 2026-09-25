@@ -26,6 +26,12 @@ approval back to 0. It then checks the position is at 0 debt, 0 shares and 0 ple
 
 The script exits 0 only when every check passes.
 
+Before it builds any Morpho step, the script proves the market params the RPC returned belong to the
+cirBTC/USDC market Adag checks. The params must hash to that market's id and match its hardcoded oracle, rate
+model and liquidation line, so a lying RPC cannot steer the pledge into Arc's other USDC/cirBTC market.
+`node packages/contracts/prove-it/prove-it.mjs --self-test` shows the check accepting the right market and
+refusing the other one.
+
 ## Commands
 
 Run from the repo root. Install once with `npm install` inside `packages/contracts/prove-it`.

@@ -145,6 +145,8 @@ Choice: trivially true if the loan goes straight to the payee, since Adag moves 
 
 Choice: on-chain bills make the link a single id, the smallest surface. Signed links carry the whole bill, so the bill must be verified before any field is used.
 
+Scope (added at the backend review): C3 and C4 bind every script that signs, including `prove-it.mjs` and `deploy.sh`, not only the web app. Market params placed in a signed call are proven by hashing them to the fixed market id, never trusted from an RPC answer.
+
 **C4.** The app builds no transaction and requests no signature unless the wallet reports chain id 5042. Every typed-data domain names chain 5042 and the deployed Adag address. A bill signed for another chain or another Adag deployment cannot be paid here.
 
 ### Bill identity and replay
@@ -182,12 +184,13 @@ Choice: with on-chain bills, a state flag. With signed links, an on-chain set of
 - The check reads live Morpho and oracle state. Nothing the caller passes in can substitute for it.
 
 Choice: with no admin, the 40% and the market ids are constants, which is easiest. With an owner, they are storage, and every change must emit an event and take effect only after a delay.
-Decided at the gate (25 September): **the new-debt rule.** On every payment, for both Adag markets, Adag compares the payer's live borrow shares with the last value it accepted for that payer and market.
-- If shares went up, the full check above runs and must pass, and then Adag records the new value.
-- If shares went down, Adag records the lower value without a check.
-- If shares are unchanged, nothing runs.
+Decided at the gate (25 September): **the new-debt rule.** On every payment, for both Adag markets, Adag compares the payer's live position with the last one it recorded for that payer and market.
 
-So the check runs whenever debt has grown, and no argument can skip it. A cash payment with no new debt is never blocked by a price drop. Proven on mainnet state in `reference/rnd/option-a/RESULTS-2.md`: a new-debt payment at 40.5% is refused; after a simulated 25% price drop, a cash payment at 46.7% goes through while a small new borrow is refused; borrowing to 60% in the same batch is refused, including when the bill is in the other currency.
+Amended at the backend review (25 September). The first version compared borrow shares alone. fable-reviewer showed it could be skipped: pay once, close the loan outside Adag, then re-open it with exactly the recorded share count against far less collateral. The rule now records both borrow shares and pledged collateral:
+- The check runs whenever debt is above zero and the position is not at least as safe as the recorded one, meaning shares went up or collateral went down.
+- A position with no more shares and no less collateral than one Adag already accepted skips the check. It can only be worse than that position through price or interest drift, which is exempt by design.
+
+So the check runs whenever the loan has become riskier by the payer's own action, and no argument can skip it. A cash payment with no new debt is never blocked by a price drop. Proven on mainnet state in `reference/rnd/option-a/RESULTS-2.md`: a new-debt payment at 40.5% is refused; after a simulated 25% price drop, a cash payment at 46.7% goes through while a small new borrow is refused; borrowing to 60% in the same batch is refused, including when the bill is in the other currency.
 Residual, named: the check runs at the moment Adag's step executes. A payer who hand-builds a batch can still borrow more or withdraw collateral after that step, putting only their own position at risk (see the non-goal "A payer who goes above 40% by using Morpho directly"). The residual lasts only until that payer's next Adag payment. The extra debt was never recorded, so it counts as new debt then, and the payment is refused while it sits above 40%. `test_residual_borrowAfterPayIsNotCaught` asserts the first half (the batch succeeds and nothing is recorded). `test_unseenDebt_above40IsRefused` shows the second (unrecorded debt above 40% is refused on the next payment). A payer whose debt Adag has never seen is checked on their first payment, so existing Morpho borrowers above 40% cannot pay through Adag until they are below 40%.
 
 **C11.** The payment step reverts if any read the check needs reverts, if collateral value computes to zero while debt is above zero, or if a fixed market id does not resolve to the expected loan and collateral tokens. Unreadable means over the limit.
@@ -195,6 +198,8 @@ Residual, named: the check runs at the moment Adag's step executes. A payer who 
 **C12.** The market params Adag passes to Morpho are exactly the ones Morpho returns for the fixed market ids. No argument from the caller can select, alter or substitute a market.
 
 **C13.** The pledge size the app proposes is a suggestion with a stated margin; the contract's check in C10 is the guard. If the price moves between page load and the block, the transaction reverts. That is never a loss and never a silent over-borrow.
+
+**C24.** New debt is accepted only if every nonzero feed that the market oracle's `price()` reads has a positive answer and an update time within its window: 26 hours for BTC/USD, 96 hours for EUR/USD. A fork test pins the oracle layout this assumes: no vaults, no second base feed, no second quote feed, and a quote feed only on the EURC market. Both oracles are immutable, and their addresses are part of each fixed market id, so the layout cannot change under a deployed Adag. (Added at the backend review; freshness had lived only in DECISIONS.md.)
 
 ### Rendering and outputs
 

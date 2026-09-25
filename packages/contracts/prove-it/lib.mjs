@@ -4,6 +4,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import {
   createPublicClient, defineChain, http, parseAbi, encodeFunctionData, decodeFunctionResult, decodeEventLog,
   decodeErrorResult, formatUnits, hexToString, isAddress, getAddress, pad, stringToHex, toHex, parseGwei,
+  keccak256, encodeAbiParameters,
 } from 'viem';
 
 export const CHAIN_ID = 5042;
@@ -18,6 +19,13 @@ export const M3F = '0x522fAf9A91c41c443c66765030741e4AaCe147D0';
 export const USDC = '0x3600000000000000000000000000000000000000';
 export const CIRBTC = '0x171A4217b86A807A64eB94757Db6849fb4bDbAA0';
 export const MARKET_USDC = '0xc2db905f174e5defcce01d321b09f15f78856a36a21b90cc7e1abbc29225815d';
+// MARKET_USDC's own oracle, rate model and liquidation line. A second USDC/cirBTC market exists with other
+// values, so the script checks every fetched field against these, not only the two tokens.
+export const USDC_MARKET_ORACLE = '0x2AA87fF48933Ce6aBA240BEE916Fc2e6Ec1e51Ab';
+export const USDC_MARKET_IRM = '0xF02615d094Fc02fC031C35fe705e175aA4653f20';
+export const USDC_MARKET_LLTV = 860000000000000000n;
+// The other USDC/cirBTC market on Morpho. Only --self-test reads it, to show the market check refuses it.
+export const OTHER_USDC_CIRBTC_MARKET = '0xabd1763943714b96b6590238d484a240019b4b842eb67fbcff7d96c081b7b566';
 // Only used when nothing is deployed yet: the dry run puts AdagBills' runtime code here inside the simulation.
 export const PLACEHOLDER_ADAG = getAddress('0x000000000000000000000000000000000000ada9');
 
@@ -126,6 +134,32 @@ export const calls = {
 };
 
 export const memoId = (billId) => pad(toHex(billId), { size: 32 });
+
+// Morpho's market id is keccak256 of the abi-encoded params (MarketParamsLib.id), so a match proves every field,
+// oracle and rate model included, whatever the RPC that served them. Throws on any mismatch or malformed field.
+export function verifyMarketParams(params, marketId) {
+  let id;
+  try {
+    id = keccak256(encodeAbiParameters(
+      [{ type: 'address' }, { type: 'address' }, { type: 'address' }, { type: 'address' }, { type: 'uint256' }],
+      [params.loanToken, params.collateralToken, params.oracle, params.irm, params.lltv],
+    ));
+  } catch {
+    throw new Error(`Market params for ${marketId} are malformed; refusing to sign with them.`);
+  }
+  if (id.toLowerCase() !== marketId.toLowerCase()) {
+    throw new Error(`Market params hash to ${id}, not ${marketId}; refusing to sign with them.`);
+  }
+}
+
+// Belt and braces beside verifyMarketParams: the fetched fields must also equal the values written above.
+export function assertUsdcMarketConstants(params) {
+  const same = (a, b) => getAddress(a) === getAddress(b);
+  if (!same(params.loanToken, USDC) || !same(params.collateralToken, CIRBTC) || !same(params.oracle, USDC_MARKET_ORACLE)
+    || !same(params.irm, USDC_MARKET_IRM) || params.lltv !== USDC_MARKET_LLTV) {
+    throw new Error(`Market params for ${MARKET_USDC} differ from the expected USDC market; refusing to sign with them.`);
+  }
+}
 
 export const circle = createPublicClient({ chain: arc, transport: http(WRITE_RPC, { timeout: 60_000 }) });
 

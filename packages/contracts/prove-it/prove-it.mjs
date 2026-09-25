@@ -22,10 +22,48 @@ const STATUS_PAID = 2;
 class Stop extends Error {}
 
 function parseArgs(argv) {
-  const known = new Set(['--broadcast', '--close']);
+  const known = new Set(['--broadcast', '--close', '--self-test']);
   const unknown = argv.filter((a) => !known.has(a));
-  if (unknown.length) throw new Stop(`Unknown option ${unknown.join(' ')}. Use --broadcast and/or --close.`);
-  return { broadcast: argv.includes('--broadcast'), close: argv.includes('--close') };
+  if (unknown.length) throw new Stop(`Unknown option ${unknown.join(' ')}. Use --broadcast and/or --close, or --self-test alone.`);
+  const selfTest = argv.includes('--self-test');
+  if (selfTest && argv.length > 1) throw new Stop('--self-test runs on its own.');
+  return { broadcast: argv.includes('--broadcast'), close: argv.includes('--close'), selfTest };
+}
+
+// Reads both USDC/cirBTC markets from Morpho and shows the market check accepting MARKET_USDC's params and
+// refusing the other market's, the exact swap a lying RPC would try. Reads only, no .env, nothing sent.
+async function selfTest() {
+  const fetchParams = async (id) => {
+    const [loanToken, collateralToken, oracle, irm, lltv] = (await circleRead([
+      L.read('p', L.MORPHO, L.morphoAbi, 'idToMarketParams', [id]),
+    ])).p;
+    return { loanToken, collateralToken, oracle, irm, lltv };
+  };
+  const describe = (p) => `loan ${p.loanToken}, collateral ${p.collateralToken}, oracle ${p.oracle}, irm ${p.irm}, lltv ${p.lltv}`;
+  const outcome = (fn) => { try { fn(); return null; } catch (e) { return e.message; } };
+
+  const real = await fetchParams(L.MARKET_USDC);
+  const other = await fetchParams(L.OTHER_USDC_CIRBTC_MARKET);
+  line('Market check self-test (reads Morpho on Arc mainnet through Circle\'s RPC)');
+  line(`  MARKET_USDC params: ${describe(real)}`);
+  line(`  other USDC/cirBTC market ${L.OTHER_USDC_CIRBTC_MARKET} params: ${describe(other)}`);
+
+  const realHash = outcome(() => L.verifyMarketParams(real, L.MARKET_USDC));
+  const realConst = outcome(() => L.assertUsdcMarketConstants(real));
+  const otherHash = outcome(() => L.verifyMarketParams(other, L.MARKET_USDC));
+  const otherConst = outcome(() => L.assertUsdcMarketConstants(other));
+  const results = [
+    ['MARKET_USDC params pass the hash check', realHash === null, realHash ?? 'accepted'],
+    ['MARKET_USDC params match the hardcoded oracle, irm and lltv', realConst === null, realConst ?? 'accepted'],
+    ['other market params, offered as MARKET_USDC, are refused by the hash check', otherHash !== null, otherHash ?? 'ACCEPTED'],
+    ['other market params are refused by the constants check', otherConst !== null, otherConst ?? 'ACCEPTED'],
+  ];
+  line();
+  for (const [label, ok, detail] of results) line(`  ${ok ? 'PASS' : 'FAIL'}  ${label}: ${detail}`);
+  const allOk = results.every(([, ok]) => ok);
+  line();
+  line(allOk ? 'SELF-TEST PASSED' : 'SELF-TEST FAILED');
+  return allOk ? 0 : 1;
 }
 
 const feesFor = (baseFee) => {
@@ -156,7 +194,8 @@ const txLine = (i, t) => {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
-  const env = L.readEnv(['DEPLOYER_ADDRESS', 'PAYEE_ADDRESS']);
+  if (args.selfTest) return selfTest();
+  const env =L.readEnv(['DEPLOYER_ADDRESS', 'PAYEE_ADDRESS']);
   const payer = L.checkedAddress(env.DEPLOYER_ADDRESS, 'DEPLOYER_ADDRESS');
   const payee = L.checkedAddress(env.PAYEE_ADDRESS, 'PAYEE_ADDRESS');
   if (payer === payee) throw new Stop('DEPLOYER_ADDRESS and PAYEE_ADDRESS are the same wallet; Adag refuses a self-payment.');
@@ -207,6 +246,9 @@ async function main() {
   ])).p;
   const params = { loanToken, collateralToken, oracle, irm, lltv };
   if (loanToken !== L.USDC || collateralToken !== L.CIRBTC) throw new Stop('Morpho reports a different USDC market than expected.');
+  // The RPC served these params and they go into signed calldata, so they must hash to MARKET_USDC first.
+  L.verifyMarketParams(params, L.MARKET_USDC);
+  L.assertUsdcMarketConstants(params);
 
   const start = await exec.plainRead([
     L.read('payerUsdc', L.USDC, L.erc20Abi, 'balanceOf', [payer]),
@@ -292,6 +334,7 @@ async function main() {
   const id = created.id;
   line(`  bill #${id} written by the payee`);
 
+  L.verifyMarketParams(params, L.MARKET_USDC);
   const steps = [];
   if (pledge > 0n) steps.push(L.calls.approve(L.CIRBTC, L.MORPHO, pledge), L.calls.supplyCollateral(params, pledge, payer));
   steps.push(
@@ -360,6 +403,7 @@ async function main() {
     const debt = L.toAssetsUp(shares, live.market[2], live.market[3]);
     const approval = debt + (debt + 999n) / 1000n;
     if (live.usdc < approval) throw new Stop(`Closing needs ${L.usdc(approval)} of USDC to repay; the payer holds ${L.usdc(live.usdc)}.`);
+    L.verifyMarketParams(params, L.MARKET_USDC);
     const closeTx = await exec.send('repay, withdraw, reset', 'payer', L.calls.batch([
       L.calls.approve(L.USDC, L.MORPHO, approval),
       L.calls.repayShares(params, shares, payer),
