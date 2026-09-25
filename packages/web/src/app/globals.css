@@ -1,0 +1,456 @@
+@import "tailwindcss";
+@import "../styles/tokens.css";
+
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+@custom-variant light (&:where([data-theme="light"], [data-theme="light"] *));
+
+/* inline, so a utility reads the theme variable where it is used, not where :root resolved it */
+@theme inline {
+  --color-*: initial;
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-raised: var(--raised);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-rule: var(--rule);
+  --color-rule-strong: var(--rule-strong);
+  --color-gold: var(--gold);
+  --color-gold-fill: var(--gold-fill);
+  --color-gold-hover: var(--gold-hover);
+  --color-on-gold: var(--on-gold);
+  --color-success: var(--success);
+  --color-pending: var(--pending);
+  --color-danger: var(--danger);
+  --color-transparent: transparent;
+  --color-current: currentColor;
+
+  --font-*: initial;
+  --font-display: var(--font-bodoni), "Bodoni Moda", Didot, "Bodoni 72", serif;
+  --font-body: var(--font-dm-sans), "DM Sans", system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), "IBM Plex Mono", ui-monospace, monospace;
+}
+
+@theme {
+  --radius-button: 8px;
+  --ease-film: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-theme: cubic-bezier(0, 0, 0.6, 1);
+  --breakpoint-3xl: 120rem;
+}
+
+@utility type-hero {
+  font-family: var(--font-display);
+  font-size: clamp(3rem, 8.5vw, 7.5rem);
+  font-weight: 600;
+  line-height: 0.92;
+  letter-spacing: -0.02em;
+}
+@utility type-pinned {
+  font-family: var(--font-display);
+  font-size: clamp(6rem, 18vw, 13.3125rem);
+  font-weight: 500;
+  line-height: 0.85;
+  letter-spacing: -0.03em;
+}
+@utility type-h2 {
+  font-family: var(--font-display);
+  font-size: clamp(2.75rem, 1.25rem + 5vw, 5.625rem);
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.015em;
+}
+@utility type-h3 {
+  font-family: var(--font-display);
+  font-size: 2.375rem;
+  font-weight: 600;
+  line-height: 1.05;
+  letter-spacing: -0.01em;
+}
+@utility type-number {
+  font-family: var(--font-display);
+  font-size: clamp(2.25rem, 1.5rem + 1.8vw, 3.125rem);
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+@utility type-h4 {
+  font-family: var(--font-body);
+  font-size: 1.75rem;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.005em;
+}
+@utility type-lead {
+  font-family: var(--font-body);
+  font-size: 1.0625rem;
+  font-weight: 400;
+  line-height: 1.45;
+  @media (width >= 48rem) {
+    font-size: 1.3125rem;
+  }
+}
+@utility type-body {
+  font-family: var(--font-body);
+  font-size: 1rem;
+  font-weight: 400;
+  line-height: 1.6;
+}
+@utility type-ui {
+  font-family: var(--font-body);
+  font-size: 1rem;
+  font-weight: 500;
+  line-height: 1.25;
+  letter-spacing: 0.005em;
+}
+@utility type-label {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+@utility type-micro {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 400;
+  line-height: 1.3;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+/* Checksummed addresses carry meaning in their letter case, so this role never uppercases. */
+@utility type-address {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  font-weight: 400;
+  line-height: 1.3;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+@layer base {
+  html {
+    background-color: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    font-optical-sizing: auto;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    min-height: 100dvh;
+    background-color: var(--bg);
+  }
+  ::selection {
+    background-color: var(--gold-fill);
+    color: var(--on-gold);
+  }
+  :focus-visible {
+    outline: 2px solid var(--gold);
+    outline-offset: 3px;
+  }
+}
+
+html.theme-switching,
+html.theme-switching *,
+html.theme-switching *::before,
+html.theme-switching *::after {
+  transition:
+    background-color 500ms var(--ease-theme),
+    color 500ms var(--ease-theme),
+    border-color 500ms var(--ease-theme),
+    fill 500ms var(--ease-theme),
+    stroke 500ms var(--ease-theme) !important;
+}
+
+@layer components {
+  /* clip-path cuts plain borders, so the 1px edge is the outer layer showing round an inset inner layer */
+  .hallmark {
+    --hm-cut: 0.35em;
+    --hm-edge: var(--gold);
+    --hm-ground: var(--bg);
+    position: relative;
+    isolation: isolate;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6em;
+    padding: 0.6em 0.95em 0.55em;
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    line-height: 1.2;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    color: var(--gold);
+    background-color: var(--hm-edge);
+    clip-path: polygon(
+      var(--hm-cut) 0,
+      calc(100% - var(--hm-cut)) 0,
+      100% var(--hm-cut),
+      100% calc(100% - var(--hm-cut)),
+      calc(100% - var(--hm-cut)) 100%,
+      var(--hm-cut) 100%,
+      0 calc(100% - var(--hm-cut)),
+      0 var(--hm-cut)
+    );
+  }
+  .hallmark::before {
+    --hm-inner-cut: calc(var(--hm-cut) - 0.41px);
+    content: "";
+    position: absolute;
+    inset: 1px;
+    z-index: -1;
+    background-color: var(--hm-ground);
+    clip-path: polygon(
+      var(--hm-inner-cut) 0,
+      calc(100% - var(--hm-inner-cut)) 0,
+      100% var(--hm-inner-cut),
+      100% calc(100% - var(--hm-inner-cut)),
+      calc(100% - var(--hm-inner-cut)) 100%,
+      var(--hm-inner-cut) 100%,
+      0 calc(100% - var(--hm-inner-cut)),
+      0 var(--hm-inner-cut)
+    );
+  }
+  .hallmark-quiet {
+    --hm-edge: var(--rule-strong);
+    color: var(--muted);
+  }
+  .hallmark-lg {
+    font-size: 1rem;
+  }
+
+  .diamond {
+    display: inline-block;
+    flex: none;
+    width: 6px;
+    height: 6px;
+    background-color: var(--gold);
+    clip-path: polygon(44% 0, 56% 0, 100% 44%, 100% 56%, 56% 100%, 44% 100%, 0 56%, 0 44%);
+  }
+
+  .stamp {
+    --stamp-ink: var(--success);
+    display: inline-block;
+    padding: 3px;
+    color: var(--stamp-ink);
+    border: 2px solid currentColor;
+    border-radius: 3px;
+    font-family: var(--font-mono);
+    font-size: 1.125rem;
+    font-weight: 500;
+    line-height: 1;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    opacity: 0.94;
+  }
+  .stamp-inner {
+    display: block;
+    padding: 0.42em 0.7em 0.36em 0.9em;
+    border: 1px solid currentColor;
+    border-radius: 1px;
+  }
+  .stamp-paid {
+    --stamp-ink: var(--success);
+  }
+  .stamp-open {
+    --stamp-ink: var(--pending);
+  }
+  .stamp-void {
+    --stamp-ink: var(--danger);
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    height: 48px;
+    padding: 0 22px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-button);
+    font-family: var(--font-body);
+    font-size: 1rem;
+    font-weight: 600;
+    line-height: 1.25;
+    letter-spacing: 0.005em;
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+    text-decoration: none;
+    transition:
+      transform 180ms var(--ease-film),
+      background-color 180ms var(--ease-film),
+      border-color 180ms var(--ease-film),
+      color 180ms var(--ease-film);
+  }
+  .btn:focus-visible,
+  .btn.is-focus {
+    outline: 2px solid var(--gold);
+    outline-offset: 3px;
+  }
+  .btn-primary {
+    background-color: var(--gold-fill);
+    border-color: var(--gold-fill);
+    color: var(--on-gold);
+  }
+  .btn-primary:where(:hover:not(:disabled, [aria-disabled="true"])),
+  .btn-primary.is-hover {
+    background-color: var(--gold-hover);
+    border-color: var(--gold-hover-edge);
+    transform: translateY(-1px);
+  }
+  .btn-secondary {
+    background-color: transparent;
+    border-color: var(--rule-strong);
+    color: var(--text);
+  }
+  .btn-secondary:where(:hover:not(:disabled, [aria-disabled="true"])),
+  .btn-secondary.is-hover {
+    border-color: var(--gold);
+  }
+  .btn:where(:active:not(:disabled)) {
+    transform: translateY(0);
+  }
+  .btn:disabled,
+  .btn[aria-disabled="true"] {
+    cursor: not-allowed;
+    transform: none;
+    background-color: var(--surface);
+    border-color: var(--rule);
+    color: var(--muted);
+  }
+  .btn-secondary:disabled,
+  .btn-secondary[aria-disabled="true"] {
+    background-color: transparent;
+  }
+
+  .grain {
+    pointer-events: none;
+    opacity: var(--grain-opacity);
+    mix-blend-mode: var(--grain-blend);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-size: 160px 160px;
+    animation: grain-jitter 0.8s steps(1, end) infinite;
+  }
+  .grain-page {
+    position: fixed;
+    inset: 0;
+    z-index: 90;
+  }
+  .grain-local {
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+  }
+
+  .still {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    background-color: var(--surface);
+  }
+  .still-layer {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+  .tone-ink {
+    --s: var(--ink-rgb);
+  }
+  .tone-linen {
+    --s: var(--linen-rgb);
+  }
+  .tone-theme {
+    --s: var(--scrim-rgb);
+  }
+  .scrim-left {
+    background-image: linear-gradient(
+      90deg,
+      rgb(var(--s) / 0.92) 0%,
+      rgb(var(--s) / 0.7) 30%,
+      rgb(var(--s) / 0.25) 55%,
+      rgb(var(--s) / 0) 70%
+    );
+  }
+  .scrim-bottom {
+    background-image: linear-gradient(0deg, rgb(var(--s)) 0%, rgb(var(--s) / 0.85) 14%, rgb(var(--s) / 0) 40%);
+  }
+  .scrim-top {
+    background-image: linear-gradient(180deg, rgb(var(--s) / 0.6) 0%, rgb(var(--s) / 0) 22%);
+  }
+  .scrim-bottom-tall {
+    background-image: linear-gradient(
+      0deg,
+      rgb(var(--s)) 0%,
+      rgb(var(--s)) 42%,
+      rgb(var(--s) / 0.7) 58%,
+      rgb(var(--s) / 0) 78%
+    );
+  }
+  .scrim-caption {
+    background-image: linear-gradient(0deg, rgb(var(--s) / 0.88) 0%, rgb(var(--s) / 0.5) 16%, rgb(var(--s) / 0) 34%);
+  }
+  .vignette {
+    background-image: radial-gradient(120% 90% at 70% 45%, rgb(var(--shade-rgb) / 0) 55%, rgb(var(--shade-rgb) / 0.35) 100%);
+  }
+  .wash-linen {
+    background-color: var(--linen-wash);
+    opacity: 0.1;
+    mix-blend-mode: multiply;
+  }
+  .daylight {
+    filter: saturate(0.92);
+  }
+  .fade-edges {
+    mask-image: radial-gradient(closest-side, black 62%, transparent 100%);
+  }
+  .on-ink {
+    color: rgb(var(--linen-rgb));
+  }
+  .on-linen {
+    color: rgb(var(--ink-rgb));
+  }
+}
+
+@keyframes grain-jitter {
+  0% {
+    background-position: 0 0;
+  }
+  12.5% {
+    background-position: -37px 21px;
+  }
+  25% {
+    background-position: 53px -44px;
+  }
+  37.5% {
+    background-position: -18px -63px;
+  }
+  50% {
+    background-position: 71px 12px;
+  }
+  62.5% {
+    background-position: -59px 48px;
+  }
+  75% {
+    background-position: 27px 77px;
+  }
+  87.5% {
+    background-position: -81px -9px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .grain {
+    animation: none;
+  }
+  .btn {
+    transition: none;
+  }
+  .btn-primary.is-hover,
+  .btn-primary:hover {
+    transform: none;
+  }
+}

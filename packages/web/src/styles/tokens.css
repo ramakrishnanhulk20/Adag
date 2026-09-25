@@ -1,0 +1,67 @@
+/*
+  The only file in the app that holds colour values. Everything else reads these variables.
+  The head script always resolves the theme to "dark" or "light" before first paint,
+  so "system" never needs its own block here.
+*/
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0D0B08;
+  --surface: #17140F;
+  --raised: #211D16;
+  --text: #F2EDE3;
+  --muted: #A39B8C;
+  --rule: #2E2920;
+  --rule-strong: #7A7161;
+  --gold: #D9A94A;
+  --gold-fill: #D9A94A;
+  --gold-hover: #E6BA62;
+  --gold-hover-edge: #E6BA62;
+  --on-gold: #16110A;
+  --success: #4CC2AE;
+  --pending: #8FB0E0;
+  --danger: #F0788C;
+
+  --scrim-rgb: 13 11 8;
+  --grain-opacity: 0.07;
+  --grain-blend: overlay;
+  --hero-text-shadow: 0 2px 30px rgb(0 0 0 / 0.35);
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+  --bg: #F1ECE2;
+  --surface: #E8E1D4;
+  --raised: #F8F4EC;
+  --text: #1D1913;
+  --muted: #595142;
+  --rule: #D3C9B7;
+  --rule-strong: #857A67;
+  --gold: #7A5514;
+  --gold-fill: #B07A22;
+  --gold-hover: #BE8A2E;
+  --gold-hover-edge: #7A5514;
+  --on-gold: #1D1913;
+  --success: #0A6B5C;
+  --pending: #2D5C97;
+  --danger: #AE2140;
+
+  --scrim-rgb: 241 236 226;
+  --grain-opacity: 0.045;
+  --grain-blend: multiply;
+  --hero-text-shadow: none;
+}
+
+/* The coin metal and the fixed scrim grounds are the same in both themes. */
+[data-theme="dark"],
+[data-theme="light"] {
+  --coin-hi: #F6DC96;
+  --coin-mid: #D9A94A;
+  --coin-lo: #9A6A1C;
+  --coin-rim: #6E4A12;
+
+  --ink-rgb: 13 11 8;
+  --linen-rgb: 241 236 226;
+  --shade-rgb: 0 0 0;
+  --linen-wash: #F1ECE2;
+}
