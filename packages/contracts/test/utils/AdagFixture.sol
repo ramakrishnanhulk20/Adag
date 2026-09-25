@@ -5,6 +5,9 @@ import {Test} from "forge-std/Test.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {AdagBills} from "../../src/AdagBills.sol";
 import {MarketParams} from "../../src/interfaces/IMorphoMinimal.sol";
+import {IOracleMinimal} from "../../src/interfaces/IOracleMinimal.sol";
+import {IChainlinkFeed} from "../../src/interfaces/IChainlinkFeed.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {ArcMainnet} from "./ArcMainnet.sol";
 import {IMemo, IMulticall3From} from "./ArcInterfaces.sol";
 
@@ -21,6 +24,32 @@ interface IMorphoBorrow {
     function borrow(MarketParams memory marketParams, uint256 assets, uint256 shares, address onBehalf, address receiver)
         external
         returns (uint256 assetsBorrowed, uint256 sharesBorrowed);
+
+    function repay(MarketParams memory marketParams, uint256 assets, uint256 shares, address onBehalf, bytes memory data)
+        external
+        returns (uint256 assetsRepaid, uint256 sharesRepaid);
+
+    function withdrawCollateral(MarketParams memory marketParams, uint256 assets, address onBehalf, address receiver)
+        external;
+
+    function accrueInterest(MarketParams memory marketParams) external;
+
+    function position(bytes32 id, address user)
+        external
+        view
+        returns (uint256 supplyShares, uint128 borrowShares, uint128 collateral);
+
+    function market(bytes32 id)
+        external
+        view
+        returns (
+            uint128 totalSupplyAssets,
+            uint128 totalSupplyShares,
+            uint128 totalBorrowAssets,
+            uint128 totalBorrowShares,
+            uint128 lastUpdate,
+            uint128 fee
+        );
 }
 
 /// @notice Deploys AdagBills on an Arc mainnet fork and drives it the way the app will: every payment is a
@@ -115,6 +144,128 @@ abstract contract AdagFixture is Test {
     function marketParams(address currency) internal view returns (MarketParams memory p) {
         bytes32 id = currency == ArcMainnet.USDC ? ArcMainnet.MARKET_USDC : ArcMainnet.MARKET_EURC;
         (p.loanToken, p.collateralToken, p.oracle, p.irm, p.lltv) = MORPHO.idToMarketParams(id);
+    }
+
+    function paramsOf(bytes32 marketId) internal view returns (MarketParams memory p) {
+        (p.loanToken, p.collateralToken, p.oracle, p.irm, p.lltv) = MORPHO.idToMarketParams(marketId);
+    }
+
+    /// @dev Approve cirBTC, pledge it and borrow to the payer's own wallet: the three plain Morpho steps.
+    function pledgeAndBorrowCalls(address payer, bytes32 marketId, uint256 collateral, uint256 borrow)
+        internal
+        view
+        returns (IMulticall3From.Call3[] memory calls)
+    {
+        MarketParams memory params = paramsOf(marketId);
+        calls = new IMulticall3From.Call3[](3);
+        calls[0] = call3(ArcMainnet.CIRBTC, abi.encodeCall(IERC20.approve, (ArcMainnet.MORPHO, collateral)));
+        calls[1] = call3(ArcMainnet.MORPHO, abi.encodeCall(IMorphoBorrow.supplyCollateral, (params, collateral, payer, "")));
+        calls[2] = call3(ArcMainnet.MORPHO, abi.encodeCall(IMorphoBorrow.borrow, (params, borrow, 0, payer, payer)));
+    }
+
+    /// @dev Borrows through Morpho alone, with no Adag step, the way a payer could outside the app.
+    function borrowDirect(address payer, bytes32 marketId, uint256 collateral, uint256 borrow) internal {
+        runBatch(payer, pledgeAndBorrowCalls(payer, marketId, collateral, borrow));
+    }
+
+    /// @dev Repays an exact share count, then resets the loan token approval to zero.
+    function repayShares(address payer, bytes32 marketId, uint256 shares) internal {
+        MarketParams memory params = paramsOf(marketId);
+        IMulticall3From.Call3[] memory calls = new IMulticall3From.Call3[](3);
+        calls[0] = call3(params.loanToken, abi.encodeCall(IERC20.approve, (ArcMainnet.MORPHO, withMargin(assetsOf(marketId, shares)))));
+        calls[1] = call3(ArcMainnet.MORPHO, abi.encodeCall(IMorphoBorrow.repay, (params, 0, shares, payer, "")));
+        calls[2] = call3(params.loanToken, abi.encodeCall(IERC20.approve, (ArcMainnet.MORPHO, 0)));
+        runBatch(payer, calls);
+    }
+
+    /// @dev The close the app will offer: repay by the live share count, take all collateral back and leave no
+    /// standing approval, in one batch.
+    function closeLoan(address payer, bytes32 marketId) internal {
+        runBatch(payer, closeLoanCalls(payer, marketId));
+    }
+
+    function closeLoanCalls(address payer, bytes32 marketId)
+        internal
+        view
+        returns (IMulticall3From.Call3[] memory calls)
+    {
+        MarketParams memory params = paramsOf(marketId);
+        (, uint128 shares, uint128 collateral) = MORPHO.position(marketId, payer);
+        calls = new IMulticall3From.Call3[](4);
+        calls[0] = call3(params.loanToken, abi.encodeCall(IERC20.approve, (ArcMainnet.MORPHO, withMargin(assetsOf(marketId, shares)))));
+        calls[1] = call3(ArcMainnet.MORPHO, abi.encodeCall(IMorphoBorrow.repay, (params, 0, uint256(shares), payer, "")));
+        calls[2] = call3(
+            ArcMainnet.MORPHO, abi.encodeCall(IMorphoBorrow.withdrawCollateral, (params, uint256(collateral), payer, payer))
+        );
+        calls[3] = call3(params.loanToken, abi.encodeCall(IERC20.approve, (ArcMainnet.MORPHO, 0)));
+    }
+
+    /// @dev Debt for a share count from the stored market totals, rounded up the way Morpho's repay charges it.
+    /// Totals exclude interest since the last update, so callers add withMargin.
+    function assetsOf(bytes32 marketId, uint256 shares) internal view returns (uint256) {
+        (,, uint128 totalAssets, uint128 totalShares,,) = MORPHO.market(marketId);
+        return Math.mulDiv(shares, uint256(totalAssets) + 1, uint256(totalShares) + 1e6, Math.Rounding.Ceil);
+    }
+
+    /// @dev Debt plus 0.1% and one unit: covers the interest a repay accrues first.
+    function withMargin(uint256 debt) internal pure returns (uint256) {
+        return debt + debt / 1000 + 1;
+    }
+
+    /// @dev The borrow that puts `collateral` at `ltvWad` from the live oracle price, rounded down.
+    function borrowForLtv(bytes32 marketId, uint256 collateral, uint256 ltvWad) internal view returns (uint256) {
+        uint256 price = IOracleMinimal(paramsOf(marketId).oracle).price();
+        return Math.mulDiv(Math.mulDiv(collateral, price, 1e36), ltvWad, 1e18);
+    }
+
+    /// @dev Replaces the market oracle's price for every caller, Morpho included.
+    function mockPrice(bytes32 marketId, uint256 newPrice) internal {
+        vm.mockCall(paramsOf(marketId).oracle, abi.encodeWithSelector(IOracleMinimal.price.selector), abi.encode(newPrice));
+    }
+
+    /// @dev Keeps a Chainlink feed's live answer but stamps it with the current block time.
+    function mockFreshFeed(address feed) internal {
+        (uint80 roundId, int256 answer,,, uint80 answeredInRound) = IChainlinkFeed(feed).latestRoundData();
+        vm.mockCall(
+            feed,
+            abi.encodeWithSelector(IChainlinkFeed.latestRoundData.selector),
+            abi.encode(roundId, answer, block.timestamp, block.timestamp, answeredInRound)
+        );
+    }
+
+    /// @dev Like runBatch, but returns the revert instead of bubbling it, so a test can read Adag's error.
+    function tryBatch(address payer, IMulticall3From.Call3[] memory calls)
+        internal
+        returns (bool ok, bytes memory ret)
+    {
+        vm.startPrank(payer, payer);
+        (ok, ret) = ArcMainnet.MULTICALL3_FROM.call(abi.encodeCall(IMulticall3From.aggregate3, (calls)));
+        vm.stopPrank();
+    }
+
+    /// @dev Adag's own revert data from inside a failed Memo step. Multicall3From passes MemoFailed up unchanged.
+    function adagError(bytes memory ret) internal view returns (bytes memory) {
+        assertEq(bytes4(ret), IMemo.MemoFailed.selector, "batch did not fail inside Memo");
+        return abi.decode(this.dropSelector(ret), (bytes));
+    }
+
+    /// @dev External so it can slice calldata; memory bytes cannot be sliced.
+    function dropSelector(bytes calldata data) external pure returns (bytes memory) {
+        return data[4:];
+    }
+
+    function concat(IMulticall3From.Call3[] memory a, IMulticall3From.Call3[] memory b)
+        internal
+        pure
+        returns (IMulticall3From.Call3[] memory out)
+    {
+        out = new IMulticall3From.Call3[](a.length + b.length);
+        for (uint256 i; i < a.length; ++i) {
+            out[i] = a[i];
+        }
+        for (uint256 i; i < b.length; ++i) {
+            out[a.length + i] = b[i];
+        }
     }
 
     function assertAdagHoldsNothing() internal view {
