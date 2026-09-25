@@ -182,7 +182,13 @@ Choice: with on-chain bills, a state flag. With signed links, an on-chain set of
 - The check reads live Morpho and oracle state. Nothing the caller passes in can substitute for it.
 
 Choice: with no admin, the 40% and the market ids are constants, which is easiest. With an owner, they are storage, and every change must emit an event and take effect only after a delay.
-Open point: whether the check also runs when paying from balance. If it does, a payer whose own direct Morpho position is above 40% cannot pay with their own USDC. This is decided at the architecture gate and written down. C10 governs whenever the check runs.
+Decided at the gate (25 September): **the new-debt rule.** On every payment, for both Adag markets, Adag compares the payer's live borrow shares with the last value it accepted for that payer and market.
+- If shares went up, the full check above runs and must pass, and then Adag records the new value.
+- If shares went down, Adag records the lower value without a check.
+- If shares are unchanged, nothing runs.
+
+So the check runs whenever debt has grown, and no argument can skip it. A cash payment with no new debt is never blocked by a price drop. Proven on mainnet state in `reference/rnd/option-a/RESULTS-2.md`: a new-debt payment at 40.5% is refused; after a simulated 25% price drop, a cash payment at 46.7% goes through while a small new borrow is refused; borrowing to 60% in the same batch is refused, including when the bill is in the other currency.
+Residual, named: the check runs at the moment Adag's step executes. A payer who hand-builds a batch can still borrow more or withdraw collateral after that step, putting only their own position at risk (see the non-goal "A payer who goes above 40% by using Morpho directly"). A payer whose debt Adag has never seen is checked on their first payment, so existing Morpho borrowers above 40% cannot pay through Adag until they are below 40%.
 
 **C11.** The payment step reverts if any read the check needs reverts, if collateral value computes to zero while debt is above zero, or if a fixed market id does not resolve to the expected loan and collateral tokens. Unreadable means over the limit.
 
@@ -216,7 +222,8 @@ This holds on the bill page, both dashboards, the Memo data the app writes, and 
 
 ### Batch and limits
 
-**C20.** The batch pay function enforces an on-chain maximum number of bills. Any single failure inside a batch reverts the whole batch, so no bill in a batch can end up paid while another in the same batch is not.
+**C20.** Any single failure inside a batch reverts the whole batch, so no bill in a batch can end up paid while another in the same batch is not.
+Decided at the gate (25 September): there is no on-chain batch function. A multi-bill payment is several Memo-wrapped `pay` calls in one Multicall3From batch, every call with allowFailure false. Each bill keeps its own memo, and the batch is all or nothing. The app caps the bill count per batch, sized against the 30M block gas limit.
 
 ### Fee sponsor (only if built)
 
