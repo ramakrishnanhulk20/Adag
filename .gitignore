@@ -25,3 +25,6 @@ cache/
 broadcast/
 coverage/
 *.log
+
+# Contract dependencies, installed at pinned tags by packages/contracts/install-deps.sh
+packages/contracts/lib/

@@ -1,0 +1,26 @@
+[profile.default]
+src = "src"
+test = "test"
+script = "script"
+out = "out"
+libs = ["lib"]
+solc_version = "0.8.30"
+optimizer = true
+optimizer_runs = 200
+# Arc runs the Osaka baseline. Prague keeps us one step below it, so no opcode we emit can be missing on Arc.
+evm_version = "prague"
+network = "arc"
+remappings = [
+    "forge-std/=lib/forge-std/src/",
+    "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
+]
+
+[fuzz]
+runs = 1000
+
+[invariant]
+runs = 256
+depth = 64
+
+[rpc_endpoints]
+arc = "https://rpc.mainnet.arc.io"
