@@ -116,3 +116,29 @@ All are warnings; solhint reported 0 errors.
 3. H4: add `@return` to `loanToValue` and `collateralNeeded`.
 
 After those edits, re-running the script should show 38 solhint warnings, exactly rows H1 and H5 to H10. Slither and arc-forge lint would not change.
+
+## After WO-2c
+
+Re-run on 25 September 2026 after three source changes to `src/AdagBills.sol`:
+1. `createBill` picks the market from the currency first and reads only that market, so a broken USDC market no longer blocks EURC bills.
+2. `_applyNewDebtRule` stores the new borrow shares before the 40% check's external calls and emits `DebtRecorded` after the check passes.
+3. The NatSpec edits recommended above (H2, H3, H4).
+
+The tables above keep the line numbers of the first run. The output files in this folder now hold the new ones.
+
+| Tool | Before | After |
+| --- | --- | --- |
+| slither | 14 | 14 |
+| solhint | 65 | 38 |
+| arc-forge lint | 3 | 3 |
+| Total | 82 | 55 |
+
+What changed:
+- **Gone:** S1 (the write now comes before the call inside `_applyNewDebtRule`), H2 (11), H3 (12) and H4 (4). The 38 solhint warnings left are exactly rows H1 and H5 to H10.
+- **Still there, S2:** `pay`, lines 203 to 229. What remains is across markets: the EURC market's write (lines 349 and 355) follows the USDC market's `accrueInterest` call (line 364) inside the same `pay`. Same verdict as before: false positive. The call goes to the fixed Morpho address, which makes no callback, `pay` holds the reentrancy guard, and a failed check reverts the whole call. Clearing it would mean reading and storing both markets' shares before running either check, which WO-2c did not ask for.
+- **New, S15:** uninitialized-local, `createBill`, `marketId`, line 158. False positive, same as S3: each branch either sets it or reverts before it is read.
+- **Moved only:** S3 is now at line 419, the slither timestamp rows at 364 and 397, lint L1 to L3 at 364:13, 397:36 and 397:68, and solhint H7 at 397, 427 and 438.
+
+## After the head chef's ordering change (25 September)
+
+`pay` now records both markets' borrow shares before the token transfer, then runs the 40% checks, then emits `DebtRecorded` and `BillPaid` last. Behaviour is unchanged (a failed check still reverts everything), and no storage write follows an external call that can change state. Re-run of `run-analysis.sh`: slither reports 13 results, with no reentrancy finding left (S2 is gone); all three tools exit 0. 48 of 48 tests pass.

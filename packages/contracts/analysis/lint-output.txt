@@ -1,25 +1,25 @@
 arc-forge: forge Version: 1.7.1-dev
 No files changed, compilation skipped
 warning[block-timestamp]: usage of `block.timestamp` in a comparison may be manipulated by validators
-    ╭▸ src/AdagBills.sol:325:13
+    ╭▸ src/AdagBills.sol:369:13
     │
-325 │         if (lastUpdate != block.timestamp) _MORPHO.accrueInterest(params);
+369 │         if (lastUpdate != block.timestamp) _MORPHO.accrueInterest(params);
     │             ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     │
     ╰ help: https://getfoundry.sh/forge/linting/block-timestamp
 
 warning[block-timestamp]: usage of `block.timestamp` in a comparison may be manipulated by validators
-    ╭▸ src/AdagBills.sol:358:36
+    ╭▸ src/AdagBills.sol:402:36
     │
-358 │         read.fresh = answer > 0 && updatedAt <= block.timestamp && block.timestamp - updatedAt <= maxAge;
+402 │         read.fresh = answer > 0 && updatedAt <= block.timestamp && block.timestamp - updatedAt <= maxAge;
     │                                    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     │
     ╰ help: https://getfoundry.sh/forge/linting/block-timestamp
 
 warning[block-timestamp]: usage of `block.timestamp` in a comparison may be manipulated by validators
-    ╭▸ src/AdagBills.sol:358:68
+    ╭▸ src/AdagBills.sol:402:68
     │
-358 │         read.fresh = answer > 0 && updatedAt <= block.timestamp && block.timestamp - updatedAt <= maxAge;
+402 │         read.fresh = answer > 0 && updatedAt <= block.timestamp && block.timestamp - updatedAt <= maxAge;
     │                                                                    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     │
     ╰ help: https://getfoundry.sh/forge/linting/block-timestamp

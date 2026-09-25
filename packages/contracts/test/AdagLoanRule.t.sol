@@ -264,6 +264,23 @@ contract AdagLoanRuleTest is AdagFixture {
         assertEq(adagError(ret), badMarket);
     }
 
+    function test_badUsdcMarket_leavesEurcBillsWritable() public {
+        MarketParams memory p = paramsOf(MARKET_USDC);
+        vm.mockCall(
+            ArcMainnet.MORPHO,
+            abi.encodeCall(IMorphoBorrow.idToMarketParams, (MARKET_USDC)),
+            abi.encode(p.loanToken, ArcMainnet.WETH, p.oracle, p.irm, p.lltv)
+        );
+
+        vm.prank(PAYEE);
+        uint256 id = adag.createBill(ArcMainnet.EURC, SMALL, 0, REF);
+        assertEq(uint8(adag.bill(id).status), uint8(AdagBills.Status.Open), "a broken USDC market blocked EURC");
+
+        vm.expectRevert(abi.encodeWithSelector(AdagBills.BadMarket.selector, MARKET_USDC));
+        vm.prank(PAYEE);
+        adag.createBill(ArcMainnet.USDC, SMALL, 0, REF);
+    }
+
     function test_badFeed_refusesLoanPay() public {
         uint256 borrow = borrowForLtv(MARKET_USDC, COLLATERAL, 0.2e18);
         IMulticall3From.Call3[] memory calls =
