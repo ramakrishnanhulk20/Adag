@@ -28,3 +28,4 @@ coverage/
 
 # Contract dependencies, installed at pinned tags by packages/contracts/install-deps.sh
 packages/contracts/lib/
+packages/contracts/deployments/*.dry-run.json
