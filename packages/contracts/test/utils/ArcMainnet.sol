@@ -22,6 +22,11 @@ library ArcMainnet {
 
     /// @dev Chainlink BTC / USD, 8 decimals. Base feed of both market oracles.
     address internal constant BTC_USD_FEED = 0x7777547914e03BCbB04Ae034942765a0dbb26aE3;
+    /// @dev Chainlink EUR / USD, 8 decimals. Quote feed of the EURC market oracle.
+    address internal constant EUR_USD_FEED = 0xa4266689D107aF71c7dBE975cfB92aB40E7b4EFE;
+
+    /// @dev WETH on Arc. A real token that is not the loan token of either Adag market.
+    address internal constant WETH = 0x128cC466B61f542da60c70e3aA11c10e19B84EDB;
 
     /// @dev Our demo wallet: 5 USDC and 0.00011973 cirBTC on mainnet at the time of writing.
     address internal constant DEMO_WALLET = 0x6e26Dd347b57ba591Ee34292A2d828CCC17A1fDE;
