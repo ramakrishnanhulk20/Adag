@@ -7,6 +7,7 @@ import { Grain } from "@/components/Grain";
 import { MotionPreferences } from "@/components/MotionPreferences";
 import { SmoothScroll } from "@/components/SmoothScroll";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import { Providers } from "@/lib/wallet/Providers";
 import { THEME_COOKIE, parseThemeChoice, serverResolvedTheme, themeHeadScript } from "@/lib/theme";
 
 export const metadata: Metadata = {
@@ -39,7 +40,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <ThemeProvider initialChoice={choice}>
           <MotionPreferences>
             <SmoothScroll />
-            {children}
+            <Providers>{children}</Providers>
             <Grain />
           </MotionPreferences>
         </ThemeProvider>

@@ -1,0 +1,205 @@
+/*
+  Styles for the app screens (/pay, /bill). Colours only ever come from tokens.css.
+  The load entrance is CSS, so server-rendered text is on screen before JavaScript arrives, as on the hero.
+*/
+
+@keyframes app-rise {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes app-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+/* Ends at the watermark's resting strength, since a running animation's opacity wins over the element's own. */
+@keyframes app-drift {
+  from {
+    opacity: 0;
+    transform: translate3d(4%, 0, 0) scale(1.04);
+  }
+  to {
+    opacity: 0.6;
+    transform: none;
+  }
+}
+
+.app-rise {
+  animation: app-rise 800ms var(--ease-film) both;
+  animation-delay: calc(var(--d, 0) * 90ms + 60ms);
+}
+.app-fade {
+  animation: app-fade 900ms ease-out both;
+  animation-delay: calc(var(--d, 0) * 90ms + 60ms);
+}
+
+/* The light source: a soft pool of pledge gold falling from the top right, like a lamp over a desk. */
+.app-light {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  background:
+    radial-gradient(55% 60% at 88% -8%, color-mix(in srgb, var(--gold-fill) 22%, transparent) 0%, transparent 70%),
+    radial-gradient(40% 40% at 8% 110%, color-mix(in srgb, var(--gold-fill) 7%, transparent) 0%, transparent 70%);
+}
+.app-rule-grid {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.5;
+  background-image: linear-gradient(90deg, var(--rule) 1px, transparent 1px);
+  background-size: calc((100% - 12vw) / 12) 100%;
+  background-position: 6vw 0;
+  mask-image: linear-gradient(180deg, black 0%, transparent 65%);
+}
+
+/* The giant bill number, set as an outline so it reads as a watermark behind the figures. */
+.app-watermark {
+  pointer-events: none;
+  font-family: var(--font-display);
+  font-weight: 600;
+  line-height: 0.78;
+  letter-spacing: -0.05em;
+  white-space: nowrap;
+  color: transparent;
+  -webkit-text-stroke: 1px var(--rule-strong);
+  opacity: 0.6;
+  animation: app-drift 1600ms var(--ease-film) 120ms both;
+}
+.app-watermark-sign {
+  font-size: 0.42em;
+  vertical-align: 0.9em;
+  margin-right: 0.04em;
+}
+
+.app-amount {
+  font-family: var(--font-display);
+  font-size: clamp(3.25rem, 15vw, 9rem);
+  font-weight: 600;
+  line-height: 0.9;
+  letter-spacing: -0.035em;
+  font-variant-numeric: tabular-nums lining-nums;
+  text-shadow: var(--hero-text-shadow);
+}
+.app-amount-unit {
+  font-style: italic;
+  font-weight: 500;
+  font-size: 0.34em;
+  letter-spacing: -0.01em;
+  color: var(--gold);
+  margin-left: 0.18em;
+}
+
+.app-title {
+  font-family: var(--font-display);
+  font-size: clamp(3rem, 10vw, 9rem);
+  font-weight: 600;
+  line-height: 0.9;
+  letter-spacing: -0.03em;
+}
+
+/* The status stamp at poster size; the shared .stamp keeps its ink, border and letterpress filter. */
+.app-stamp .stamp {
+  font-size: clamp(1.35rem, 2.6vw, 2.35rem);
+  border-width: 3px;
+  padding: 4px;
+}
+
+.app-ledger > * + * {
+  border-top: 1px solid var(--rule);
+}
+.app-ledger-row {
+  display: grid;
+  grid-template-columns: 7.5rem 1fr;
+  gap: 1rem;
+  padding: 0.95rem 0;
+  align-items: baseline;
+}
+@media (width < 48rem) {
+  .app-ledger-row {
+    grid-template-columns: 1fr;
+    gap: 0.35rem;
+  }
+}
+
+/* A reference is untrusted bytes shown as text: isolated from the page's direction, wrapped, never linked (C14). */
+.app-reference {
+  unicode-bidi: isolate;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.app-panel {
+  position: relative;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background-color: color-mix(in srgb, var(--surface) 72%, transparent);
+  overflow: hidden;
+  transition: border-color 220ms var(--ease-film), transform 220ms var(--ease-film);
+}
+.app-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--gold) 55%, transparent), transparent);
+  opacity: 0.7;
+}
+.app-panel:hover {
+  border-color: var(--rule-strong);
+}
+
+.app-input {
+  width: 100%;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--rule-strong);
+  border-radius: 0;
+  padding: 0.2em 0 0.25em;
+  font-family: var(--font-display);
+  font-size: clamp(2.25rem, 6vw, 4.5rem);
+  font-weight: 500;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  caret-color: var(--gold);
+  transition: border-color 200ms var(--ease-film);
+}
+.app-input::placeholder {
+  color: var(--muted);
+  opacity: 0.55;
+}
+.app-input:hover {
+  border-bottom-color: var(--gold);
+}
+.app-input:focus {
+  outline: none;
+  border-bottom-color: var(--gold);
+}
+.app-input:focus-visible {
+  outline: none;
+  box-shadow: 0 2px 0 0 var(--gold);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-rise {
+    animation: app-fade 300ms ease-out both;
+  }
+  .app-watermark {
+    animation: none;
+  }
+  .app-panel {
+    transition: none;
+  }
+}

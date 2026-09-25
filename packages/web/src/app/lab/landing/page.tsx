@@ -7,7 +7,7 @@ import { ForSuppliers } from "@/components/landing/ForSuppliers";
 import { Ledger } from "@/components/landing/Ledger";
 import { OneSignature } from "@/components/landing/OneSignature";
 import { PledgedNotSold } from "@/components/landing/PledgedNotSold";
-import { PledgePlaceholder } from "@/components/landing/PledgePlaceholder";
+import { PledgeStage } from "@/components/pledge/PledgeStage";
 
 export const metadata: Metadata = {
   title: "Landing · Adag lab",
@@ -24,7 +24,7 @@ export default function LandingLabPage() {
       {/* The hero keeps its own live-data reader; this second one is answered from the route's 15-second cache. */}
       <LiveData>
         <PledgedNotSold />
-        <PledgePlaceholder />
+        <PledgeStage pending={PENDING} />
         <OneSignature />
         <FortyLine pending={PENDING} />
         <ForSuppliers pending={PENDING} />
