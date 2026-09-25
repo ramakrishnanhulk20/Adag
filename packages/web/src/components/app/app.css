@@ -203,3 +203,11 @@
     transition: none;
   }
 }
+
+/* The list-row stamp: the same letterpress mark as the bill page, at the size of a line of text. */
+.app-stamp-sm .stamp {
+  font-size: 0.6875rem;
+  letter-spacing: 0.16em;
+  border-width: 1.5px;
+  padding: 2px;
+}

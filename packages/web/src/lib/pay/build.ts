@@ -1,8 +1,9 @@
-import { decodeFunctionData, encodeFunctionData, getAddress, isAddress, isAddressEqual, isHex, numberToHex, size, type Address, type Hex } from "viem";
+import { decodeFunctionData, encodeFunctionData, getAddress, isAddress, isAddressEqual, isHex, numberToHex, size, stringToHex, type Address, type Hex } from "viem";
 import { adagAbi, erc20Abi, memoAbi, morphoAbi, multicall3FromAbi } from "./abi";
 import {
   ADAG_BILLS,
   BILL_STATUS,
+  CURRENCIES,
   CIRBTC,
   EURC,
   MAX_REFERENCE_BYTES,
@@ -133,6 +134,76 @@ export function buildPayFromBitcoin(bill: Bill, payer: string, pledgeCirBtc: big
 export function buildVoid(billId: bigint): DirectCall {
   if (typeof billId !== "bigint" || billId < 1n) throw new Error("A bill number must be a whole number of 1 or more.");
   return { to: ADAG_BILLS, data: encodeFunctionData({ abi: adagAbi, functionName: "voidBill", args: [billId] }) };
+}
+
+const MAX_UINT64 = 2n ** 64n;
+
+// The one encoding of a reference: its UTF-8 bytes. The form's byte counter, the preview and the transaction all use
+// this, so what the supplier sees is exactly what goes on chain (C14, C15).
+export function referenceBytes(refText: string): Hex {
+  return refText === "" ? "0x" : stringToHex(refText);
+}
+
+function fixedCurrency(currency: Currency): Currency {
+  const match = CURRENCIES.find((c) => isAddressEqual(c.address, currency.address) && c.marketId === currency.marketId);
+  if (!match) throw new Error("Bills can only be written in USDC or EURC.");
+  return match;
+}
+
+// C8 as a courtesy before the contract's own checks: a positive amount, a real currency, a due date that fits.
+export function buildCreateBill(currency: Currency, amount: bigint, due: bigint, refText: string): DirectCall {
+  const c = fixedCurrency(currency);
+  if (typeof amount !== "bigint" || amount <= 0n) throw new Error("The amount must be more than zero.");
+  if (typeof due !== "bigint" || due < 0n || due >= MAX_UINT64) throw new Error("The due date is not a date Arc can store.");
+  const ref = referenceBytes(refText);
+  if (size(ref) > MAX_REFERENCE_BYTES) {
+    throw new Error(`The reference is ${size(ref)} bytes; the limit is ${MAX_REFERENCE_BYTES}. Some characters take more than one byte.`);
+  }
+  return { to: ADAG_BILLS, data: encodeFunctionData({ abi: adagAbi, functionName: "createBill", args: [c.address, amount, due, ref] }) };
+}
+
+function verifiedParams(currency: Currency, marketParams: MarketParams): { c: Currency; params: MarketParams } {
+  const c = fixedCurrency(currency);
+  verifyMarketParams(marketParams, c.marketId);
+  assertMarketConstants(marketParams, c);
+  return { c, params: c.params };
+}
+
+// Pledge more cirBTC to a market. No borrow, so no price freshness is needed.
+export function buildAddCollateral(payer: string, currency: Currency, amount: bigint, marketParams: MarketParams): Batch {
+  const who = checkedPayer(payer);
+  const { params } = verifiedParams(currency, marketParams);
+  if (typeof amount !== "bigint" || amount <= 0n) throw new Error("The amount of cirBTC to add must be more than zero.");
+  return batch([
+    approve(CIRBTC, MORPHO, amount),
+    call(MORPHO, encodeFunctionData({ abi: morphoAbi, functionName: "supplyCollateral", args: [params, amount, who, "0x"] })),
+  ]);
+}
+
+// ARCHITECTURE.md section 6, close a loan: repay by the live share count (repaying by assets leaves dust that blocks
+// the withdrawal), take every satoshi back, and reset the approval so none outlives the batch (C3).
+export function buildCloseLoan(
+  payer: string,
+  currency: Currency,
+  position: { shares: bigint; collateral: bigint },
+  repayApproval: bigint,
+  marketParams: MarketParams,
+): Batch {
+  const who = checkedPayer(payer);
+  const { c, params } = verifiedParams(currency, marketParams);
+  const { shares, collateral } = position;
+  if (shares < 0n || collateral < 0n) throw new Error("The loan position reads as negative, so nothing was built.");
+  if (shares === 0n && collateral === 0n) throw new Error("There is no loan and no pledged cirBTC in this market.");
+  const withdraw = call(MORPHO, encodeFunctionData({ abi: morphoAbi, functionName: "withdrawCollateral", args: [params, collateral, who, who] }));
+  if (shares === 0n) return batch([withdraw]);
+  if (typeof repayApproval !== "bigint" || repayApproval <= 0n) throw new Error("The repay approval must be more than zero.");
+  const calls = [
+    approve(c.address, MORPHO, repayApproval),
+    call(MORPHO, encodeFunctionData({ abi: morphoAbi, functionName: "repay", args: [params, 0n, shares, who, "0x"] })),
+  ];
+  if (collateral > 0n) calls.push(withdraw);
+  calls.push(approve(c.address, MORPHO, 0n));
+  return batch(calls);
 }
 
 export const APPROVAL_SPENDERS = SPENDERS;

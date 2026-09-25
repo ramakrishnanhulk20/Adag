@@ -10,7 +10,7 @@ import { createRequire } from 'node:module';
 import { existsSync, rmSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
-import { createPublicClient, http, parseAbi, parseAbiItem } from 'viem';
+import { createPublicClient, http, parseAbi, parseAbiItem, stringToHex } from 'viem';
 
 const WEB = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const REPO = resolve(WEB, '../..');
@@ -29,11 +29,19 @@ const STALE_SENTENCE = 'New loans are paused until the bitcoin price updates. Pa
 const globalRequire = createRequire(`${spawnSync('npm root -g', { encoding: 'utf8', shell: true }).stdout.trim()}/`);
 const { chromium } = globalRequire('playwright');
 
+const MORPHO = '0x34CD04070dD72b14E241112F6d83812Df5Af7fCD';
+const USDC = '0x3600000000000000000000000000000000000000';
+const CIRBTC = '0x171A4217b86A807A64eB94757Db6849fb4bDbAA0';
+const MARKET_USDC = '0xc2db905f174e5defcce01d321b09f15f78856a36a21b90cc7e1abbc29225815d';
+const tokenAbi = parseAbi(['function balanceOf(address) view returns (uint256)', 'function allowance(address, address) view returns (uint256)']);
+const morphoAbi = parseAbi(['function position(bytes32 id, address user) view returns (uint256 supplyShares, uint128 borrowShares, uint128 collateral)']);
 const adagAbi = parseAbi([
   'function bill(uint256 id) view returns ((address payee, uint8 status, uint64 due, address currency, uint64 createdAt, uint256 amount, address payer, uint64 paidAt, bytes ref))',
 ]);
 const billPaidEvent = parseAbiItem('event BillPaid(uint256 indexed id, address indexed payer, address indexed payee, address currency, uint256 amount, bool loanChecked)');
 const fork = createPublicClient({ transport: http(FORK, { timeout: 60_000 }) });
+const positionOf = (who) => fork.readContract({ address: MORPHO, abi: morphoAbi, functionName: 'position', args: [MARKET_USDC, who] });
+const cirBtcOf = (who) => fork.readContract({ address: CIRBTC, abi: tokenAbi, functionName: 'balanceOf', args: [who] });
 
 const results = [];
 const consoleErrors = [];
@@ -136,7 +144,10 @@ async function connect(page, path) {
 }
 
 // Reveals only fire in view, so walk the page before a full-page capture; then shoot 1440 dark and 375 light.
+// The F5b states (a) to (f) are only re-shot with --f5b-shots, so a normal run leaves their approved images alone.
 async function shoot(page, name) {
+  const file = name.startsWith('f7-') ? name : process.argv.includes('--f5b-shots') ? `e2e-${name}` : null;
+  if (!file) return;
   const walk = async () => {
     await page.evaluate(async () => {
       for (let y = 0; y < document.body.scrollHeight; y += 300) {
@@ -148,11 +159,11 @@ async function shoot(page, name) {
     await page.waitForTimeout(900);
   };
   await walk();
-  await page.screenshot({ path: `${SHOTS}/e2e-${name}-1440-dark.png`, fullPage: true });
+  await page.screenshot({ path: `${SHOTS}/${file}-1440-dark.png`, fullPage: true });
   await page.setViewportSize({ width: 375, height: 812 });
   await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'light'));
   await walk();
-  await page.screenshot({ path: `${SHOTS}/e2e-${name}-375-light.png`, fullPage: true });
+  await page.screenshot({ path: `${SHOTS}/${file}-375-light.png`, fullPage: true });
   await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'));
   await page.setViewportSize({ width: 1440, height: 900 });
 }
@@ -299,6 +310,151 @@ async function main() {
         text.includes(LTV_SENTENCE) && sent === 0 && (await statusOf(E)) === 1, `shown: ${text.replace(/\s*\n\s*/g, ' ')}; eth_sendTransaction requests ${sent}`);
       await context.close();
     }
+
+    // (g) The payee writes a bill through /bill/new with a non-ASCII reference.
+    const G_REF = 'E2E-G · café';
+    let G = null;
+    {
+      const { context, page } = await openPage({ account: PAYEE });
+      await connect(page, '/bill/new').catch(() => {});
+      await page.locator('[data-action="write-bill"]').waitFor({ timeout: 60_000 });
+      await page.locator('[data-field="amount"]').fill('0.25');
+      await page.locator('[data-field="ref"]').fill(G_REF);
+      const dueInput = await page.locator('input[type="date"]').inputValue();
+      await page.waitForTimeout(1200);
+      await shoot(page, 'f7-g-form');
+      await page.locator('[data-action="write-bill"]').click();
+      const card = page.locator('[data-tx-result="created"]');
+      await card.waitFor({ timeout: 120_000 });
+      await page.locator('[data-drawn-number]').waitFor({ timeout: 10_000 });
+      G = BigInt(await card.getAttribute('data-bill-id'));
+      const link = await page.locator('[data-share-link]').innerText();
+      await page.waitForTimeout(1600);
+      await shoot(page, 'f7-g-written');
+      const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dueInput);
+      const wantDue = m ? BigInt(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12) / 1000) : -1n;
+      const onFork = await fork.readContract({ address: ADAG, abi: adagAbi, functionName: 'bill', args: [G] });
+      await page.goto(`${APP}/bill/${G}`, { waitUntil: 'networkidle', timeout: 120_000 });
+      const openStamp = await page.getByRole('img', { name: 'Status: Open' }).first().isVisible();
+      await shoot(page, 'f7-g-bill-page');
+      record(`(g) the payee writes bill #${G} (0.25 USDC, "${G_REF}") through /bill/new; it reads OPEN`,
+        link.endsWith(`/bill/${G}`) && onFork.amount === 250_000n && onFork.due === wantDue && onFork.ref === stringToHex(G_REF)
+          && onFork.payee.toLowerCase() === PAYEE.toLowerCase() && onFork.status === 1 && openStamp,
+        `link ${link}; fork amount ${onFork.amount}, due ${onFork.due} (want ${wantDue}), ref ${onFork.ref} (want ${stringToHex(G_REF)})`);
+      await context.close();
+    }
+
+    // (h) The payer adds 0.00001 cirBTC to the USDC loan from /app, then (i) closes it.
+    {
+      const { context, page } = await openPage({ account: PAYER });
+      await connect(page, '/app').catch(() => {});
+      const ticket = page.locator('[data-loan="USDC"]');
+      await ticket.waitFor({ timeout: 60_000 });
+      await page.waitForFunction(() => document.querySelector('[data-loan="USDC"]')?.getAttribute('data-ltv') !== '', null, { timeout: 60_000 });
+      const ltvBefore = Number(await ticket.getAttribute('data-ltv'));
+      const before = await positionOf(PAYER);
+      await shoot(page, 'f7-h-app');
+      await ticket.locator('[data-field="add-collateral"]').fill('0.00001');
+      await ticket.locator('[data-action="add-collateral"]').click();
+      const dialog = page.getByRole('dialog', { name: /Borrowing through Morpho/ });
+      if (await dialog.isVisible({ timeout: 5_000 }).catch(() => false)) {
+        await dialog.getByRole('checkbox').check();
+        await dialog.getByRole('button', { name: 'Continue to payment' }).click();
+      }
+      await ticket.locator('[data-tx-result="added"]').waitFor({ timeout: 120_000 });
+      await page.waitForFunction((b) => Number(document.querySelector('[data-loan="USDC"]')?.getAttribute('data-ltv')) < b, ltvBefore, { timeout: 60_000 }).catch(() => {});
+      const ltvAfter = Number(await ticket.getAttribute('data-ltv'));
+      const after = await positionOf(PAYER);
+      await shoot(page, 'f7-h-added');
+      record('(h) the payer adds 0.00001 cirBTC from /app: Morpho collateral +1000 sat, the gauge moves down',
+        after[2] - before[2] === 1_000n && ltvAfter < ltvBefore,
+        `pledged ${before[2]} -> ${after[2]} sat; gauge ${ltvBefore}% -> ${ltvAfter}%`);
+
+      const pledge = after[2];
+      const btcBefore = await cirBtcOf(PAYER);
+      await ticket.getByRole('tab', { name: 'Close loan' }).click();
+      await ticket.locator('[data-action="close-loan"]').waitFor({ timeout: 30_000 });
+      await shoot(page, 'f7-i-close');
+      await ticket.locator('[data-action="close-loan"]').click();
+      await ticket.locator('[data-tx-result="closed"]').waitFor({ timeout: 120_000 });
+      const text = await ticket.locator('[data-tx-result="closed"]').innerText();
+      await shoot(page, 'f7-i-closed');
+      const end = await positionOf(PAYER);
+      const back = (await cirBtcOf(PAYER)) - btcBefore;
+      const allowance = await fork.readContract({ address: USDC, abi: tokenAbi, functionName: 'allowance', args: [PAYER, MORPHO] });
+      record('(i) the payer closes the USDC loan from /app: 0 shares, 0 pledged, all cirBTC back, allowance 0',
+        end[1] === 0n && end[2] === 0n && back === pledge && allowance === 0n && text.includes('Loan closed. 0 owed, 0 pledged.'),
+        `after: ${end[1]} shares, ${end[2]} pledged; cirBTC back ${back} of ${pledge} sat; USDC allowance to Morpho ${allowance}; shown: ${text.split('\n')[0]}`);
+      await context.close();
+    }
+
+    // (j) The lists: the payee's written bills with their stamps, the payer's paid bills.
+    {
+      const want = [[A, 'paid'], [B, 'paid'], [C, 'void'], [E, 'open'], [G, 'open']];
+      const { context, page } = await openPage({ account: PAYEE });
+      await connect(page, '/app').catch(() => {});
+      await page.locator('[data-list="wrote"] [data-bill-row]').first().waitFor({ timeout: 60_000 });
+      const rows = await page.locator('[data-list="wrote"] [data-bill-row]').evaluateAll((els) => els.map((e) => [e.getAttribute('data-bill-row'), e.getAttribute('data-status')]));
+      await shoot(page, 'f7-j-payee-lists');
+      await context.close();
+      const wroteOk = want.every(([id, status]) => rows.some(([r, s]) => r === String(id) && s === status));
+      const newestFirst = rows.map(([r]) => Number(r)).every((v, i, arr) => i === 0 || arr[i - 1] > v);
+
+      const p2 = await openPage({ account: PAYER });
+      await connect(p2.page, '/app').catch(() => {});
+      await p2.page.locator('[data-list="paid"] [data-bill-row]').first().waitFor({ timeout: 60_000 });
+      const paid = await p2.page.locator('[data-list="paid"] [data-bill-row]').evaluateAll((els) => els.map((e) => e.getAttribute('data-bill-row')));
+      await shoot(p2.page, 'f7-j-payer-lists');
+      await p2.context.close();
+      record("(j) /app lists the payee's written bills with the right stamps, newest first, and the payer's paid bills",
+        wroteOk && newestFirst && paid.includes(String(A)) && paid.includes(String(B)),
+        `wrote: ${rows.map(([r, s]) => `#${r} ${s}`).join(', ')}; paid: ${paid.map((r) => `#${r}`).join(', ')}`);
+    }
+
+    // (k) The form refuses a zero amount and a 141-byte reference before any wallet request.
+    {
+      const { context, page } = await openPage({ account: PAYEE });
+      await connect(page, '/bill/new').catch(() => {});
+      const button = page.locator('[data-action="write-bill"]');
+      await button.waitFor({ timeout: 60_000 });
+      await page.locator('[data-field="amount"]').fill('0');
+      const zeroMsg = await page.locator('[data-error="amount"]').innerText();
+      const zeroBlocked = await button.isDisabled();
+      await button.click({ force: true }).catch(() => {});
+      await page.locator('[data-field="amount"]').fill('1');
+      await page.locator('[data-field="ref"]').fill('x'.repeat(141));
+      const refMsg = await page.locator('[data-error="ref"]').innerText();
+      const refBlocked = await button.isDisabled();
+      await button.click({ force: true }).catch(() => {});
+      await page.waitForTimeout(800);
+      await shoot(page, 'f7-k-refused');
+      const sent = await sends(page);
+      record('(k) /bill/new refuses amount 0 and a 141-byte reference, with no wallet request',
+        zeroBlocked && refBlocked && sent === 0 && zeroMsg.includes('more than zero') && refMsg.includes('141 bytes'),
+        `amount 0: "${zeroMsg}"; 141 bytes: "${refMsg}"; eth_sendTransaction requests ${sent}`);
+      await context.close();
+    }
+
+    // The mobile menu open, and the wallet page before connecting.
+    {
+      const { context, page } = await openPage({ account: PAYER, width: 375, theme: 'light' });
+      await page.goto(`${APP}/app`, { waitUntil: 'networkidle', timeout: 120_000 });
+      await page.waitForTimeout(1200);
+      await page.screenshot({ path: `${SHOTS}/f7-app-connect-375-light.png`, fullPage: true });
+      await page.locator('[data-action="menu"]').click();
+      await page.getByRole('dialog', { name: 'Menu' }).waitFor({ timeout: 10_000 });
+      await page.waitForTimeout(900);
+      await page.screenshot({ path: `${SHOTS}/f7-menu-open-375-light.png` });
+      await page.keyboard.press('Escape');
+      // The sheet animates out over 0.3 seconds, so wait for it rather than checking the same instant.
+      const closedOnEscape = await page.getByRole('dialog', { name: 'Menu' }).waitFor({ state: 'hidden', timeout: 3_000 }).then(() => true, () => false);
+      if (!closedOnEscape) consoleErrors.push('the mobile menu did not close on Escape');
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'));
+      await page.waitForTimeout(900);
+      await page.screenshot({ path: `${SHOTS}/f7-app-connect-1440-dark.png`, fullPage: true });
+      await context.close();
+    }
   } finally {
     await browser?.close();
     stopApp(app);
@@ -310,7 +466,7 @@ try {
   await main();
   const passed = results.filter((r) => r.ok).length;
   console.log(`\nconsole errors: ${consoleErrors.length}${consoleErrors.length ? `\n  ${consoleErrors.join('\n  ')}` : ''}`);
-  const allOk = passed === results.length && results.length === 6 && consoleErrors.length === 0;
+  const allOk = passed === results.length && results.length === 11 && consoleErrors.length === 0;
   console.log(allOk ? `ALL ${passed} SCENARIOS PASSED` : `${results.length - passed} of ${results.length} scenarios failed`);
   code = allOk ? 0 : 1;
 } catch (error) {

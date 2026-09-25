@@ -22,3 +22,10 @@ export function liquidationDropWad(ltv: bigint, lltv: bigint): bigint {
   if (ltv === 0n) return WAD;
   return WAD - (ltv * WAD) / lltv;
 }
+
+// What a close approves: the live debt rounded up, plus 0.1% for interest that accrues before the block, plus 1.
+// Morpho pulls only what the shares are worth at that moment, and the batch resets the approval to 0 afterwards.
+export function closeApproval(shares: bigint, totalBorrowAssets: bigint, totalBorrowShares: bigint): bigint {
+  const debt = debtFromShares(shares, totalBorrowAssets, totalBorrowShares);
+  return (debt * 1001n + 999n) / 1000n + 1n;
+}

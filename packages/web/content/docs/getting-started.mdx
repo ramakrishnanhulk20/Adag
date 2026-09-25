@@ -28,23 +28,27 @@ description: Pay a bill from your balance or your bitcoin, or write one and get 
 
 ### Your loan afterwards
 
-The loan is an ordinary Morpho loan in your own name. Adag checks the 40% line once, at payment, and does not watch it after that. Interest accrues slowly, and if bitcoin falls far enough, Morpho can liquidate at 86%. To take your bitcoin back, repay the loan and withdraw the collateral. Until Adag's own dashboard ships, you can do that on [Morpho's page for the USDC market](https://app.morpho.org/arc/market/0xc2db905f174e5defcce01d321b09f15f78856a36a21b90cc7e1abbc29225815d), or the [EURC market](https://app.morpho.org/arc/market/0x6ea1ea96a1cc671615f3a3bdf51481c5b79e362a8b634396e680d1070137daf4). Repay by your full share count, not by an amount, or a tiny remainder of debt blocks the withdrawal.
+The loan is an ordinary Morpho loan in your own name. Adag checks the 40% line once, at payment, and does not watch it after that. Interest accrues slowly, and if bitcoin falls far enough, Morpho can liquidate at 86%.
+
+[Your wallet](/app) shows each loan with its loan-to-value against Adag's 40% line and Morpho's 86% line, how far bitcoin can fall, and the live borrow rate. From there, each in one signature:
+
+- **Add cirBTC** to lower the loan-to-value. It adds no debt.
+- **Close the loan** to repay it in full and take all your cirBTC back. The page shows the amount to repay and whether your wallet holds enough; the approval it uses is reset to zero in the same signature.
+
+You can also do either on Morpho's own app: the [USDC market](https://app.morpho.org/arc/market/0xc2db905f174e5defcce01d321b09f15f78856a36a21b90cc7e1abbc29225815d) or the [EURC market](https://app.morpho.org/arc/market/0x6ea1ea96a1cc671615f3a3bdf51481c5b79e362a8b634396e680d1070137daf4). There, repay by your full share count, not by an amount, or a tiny remainder of debt blocks the withdrawal.
 
 ## Write a bill
 
 A bill is a record on Arc: who is paid (always the wallet that wrote it), the currency, the amount, an optional due date and a reference of up to 140 bytes, such as your invoice number.
 
-The Write a bill screen is the next part of the app to ship. Until then, a supplier writes a bill from the contract's page on the explorer:
+1. Open [Write a bill](/bill/new) and connect the wallet you want paid.
+2. Choose USDC or EURC, type the amount, pick a due date (or No due date) and add a reference. The counter shows the reference in bytes: accented letters and symbols take more than one, and the reference is public on Arc.
+3. The preview on the right is the bill exactly as the payer will see it, built from the same amount and bytes the transaction carries. Press Write the bill and sign once.
+4. The bill number appears with its link. Copy the link and send it to whoever owes it.
 
-1. Open [AdagBills on explorer.arc.io](https://explorer.arc.io/address/0x6F2199e0A04e5e8ba67c89C467b6DF168b01137E?tab=write_contract) and connect your wallet.
-2. Call `createBill` with:
-   - `currency`: USDC `0x3600000000000000000000000000000000000000` or EURC `0xbEf5f6d51CB62b58e6A8f77868681825C6fe21c1`. Any other token is refused.
-   - `amount`: in base units, six decimals. 125.50 USDC is `125500000`.
-   - `due`: a Unix timestamp, or `0` for none. It is shown to the payer, not enforced.
-   - `ref`: your reference as hex bytes, at most 140 bytes.
-3. Your bill number is in the `BillCreated` event of the transaction. Share `/bill/` followed by that number on this site.
+Writing a bill costs about 0.004 USDC in gas, and up to about 0.006 USDC with a full 140-byte reference. Your bills and their status are listed on [Your wallet](/app).
 
-Writing a bill costs about 0.004 USDC in gas.
+By hand, without this site: call `createBill(currency, amount, due, ref)` on [AdagBills on explorer.arc.io](https://explorer.arc.io/address/0x6F2199e0A04e5e8ba67c89C467b6DF168b01137E?tab=write_contract), with the amount in base units (six decimals, so 125.50 USDC is `125500000`), `due` as a Unix timestamp or `0`, and the reference as hex bytes. The bill number is in the transaction's `BillCreated` event.
 
 ### After it is paid
 

@@ -3,7 +3,7 @@
 //
 //   node packages/web/scripts/check-batches.mjs
 //
-// Exits 0 only if all five checks pass.
+// Checks (a) to (e) prove paying; (f) to (j) prove writing a bill, adding cirBTC and closing a loan. Exits 0 only if all pass.
 import { registerHooks } from 'node:module';
 import { decodeEventLog, decodeFunctionData, decodeFunctionResult, encodeFunctionData, getAddress, isAddressEqual, stringToHex, toHex } from 'viem';
 
@@ -29,7 +29,9 @@ process.emitWarning = (warning, ...rest) => {
 };
 
 const pay = (file) => import(new URL(`../src/lib/pay/${file}`, import.meta.url).href);
-const { buildPayFromBalance, buildPayFromBitcoin, suggestPledge, BATCH_TARGETS, APPROVAL_SPENDERS } = await pay('build.ts');
+const { buildPayFromBalance, buildPayFromBitcoin, suggestPledge, buildCreateBill, buildAddCollateral, buildCloseLoan, referenceBytes, BATCH_TARGETS, APPROVAL_SPENDERS } = await pay('build.ts');
+const { debtFromShares, closeApproval } = await pay('loan.ts');
+const { billCreatedIn, morphoEventsIn } = await pay('receipt.ts');
 const { decodeAdagError } = await pay('errors.ts');
 const { verifyMarketParams, paramsFromTuple } = await pay('market.ts');
 const { adagAbi, erc20Abi, morphoAbi, multicall3FromAbi } = await pay('abi.ts');
@@ -259,6 +261,83 @@ async function main() {
       `as MARKET_USDC: ${swapped ?? 'ACCEPTED'}`,
       `buildPayFromBitcoin with them: ${builderSwapped ?? 'ACCEPTED'}`,
       `MARKET_USDC's own params: ${realOk ?? 'accepted'}; the other params against their own id: ${ownId ?? 'accepted'}`]);
+
+
+  // (f) to (j) start again from the live block, so each proves one action on real mainnet state and nothing else.
+  const usdcCurrency = C.CURRENCIES.find((c) => c.symbol === 'USDC');
+  const reset = () => { kept.length = 0; };
+  const pos = () => read(C.MORPHO, morphoAbi, 'position', [C.MARKET_USDC, PAYER]);
+  const mkt = () => read(C.MORPHO, morphoAbi, 'market', [C.MARKET_USDC]);
+  const btcOf = () => read(C.CIRBTC, erc20Abi, 'balanceOf', [PAYER]);
+  const allowance = (token) => read(token, erc20Abi, 'allowance', [PAYER, C.MORPHO]);
+
+  // (f) The payee writes a bill through buildCreateBill with a non-ASCII reference.
+  reset();
+  const fRef = 'F-café ✓ Straße';
+  const fCount = decode(read(C.ADAG_BILLS, adagAbi, 'billCount'), (await simulate([{ from: PAYEE, ...read(C.ADAG_BILLS, adagAbi, 'billCount') }]))[0].returnData);
+  const fCall = buildCreateBill(usdcCurrency, 1_230_000n, 0n, fRef);
+  const fRes = await send({ from: PAYEE, ...fCall }, { after: [read(C.ADAG_BILLS, adagAbi, 'bill', [fCount + 1n])] });
+  const fReturned = fRes.ok ? decodeFunctionResult({ abi: adagAbi, functionName: 'createBill', data: fRes.returnData }) : null;
+  const fCreated = fRes.ok ? adagEvent(fRes.logs, 'BillCreated') : null;
+  const fId = fRes.ok ? billCreatedIn(fRes.logs.map((l) => ({ ...l, removed: false }))) : null;
+  const fBytes = referenceBytes(fRef);
+  record('(f) buildCreateBill writes bill billCount + 1, and BillCreated carries the exact UTF-8 bytes of the reference',
+    fRes.ok && fReturned === fCount + 1n && fId === fCount + 1n && fCreated?.ref === fBytes && fRes.after[0].ref === fBytes
+      && fRes.after[0].amount === 1_230_000n && fRes.after[0].due === 0n && isAddressEqual(fRes.after[0].payee, PAYEE),
+    fRes.ok
+      ? [`billCount ${fCount}, createBill returned ${fReturned}, billCreatedIn ${fId}`,
+        `reference "${fRef}" is ${(fBytes.length - 2) / 2} bytes: ${fBytes}; BillCreated.ref ${fCreated?.ref === fBytes ? 'matches' : 'DIFFERS'}, bill(${fId}).ref ${fRes.after[0].ref === fBytes ? 'matches' : 'DIFFERS'}; gas ${fRes.gas}`]
+      : [`reverted: ${decodeAdagError(fRes.revertData).text}`]);
+
+  // (g) Add 0.00001 cirBTC to the payer's USDC loan.
+  reset();
+  const gAmount = 1_000n;
+  const gBuilt = buildAddCollateral(PAYER, usdcCurrency, gAmount, usdcParams);
+  const gRes = await send({ from: PAYER, to: gBuilt.to, data: gBuilt.data }, { before: [pos()], after: [pos(), allowance(C.CIRBTC)] });
+  const gEvents = gRes.ok ? morphoEventsIn(gRes.logs.map((l) => ({ ...l, removed: false }))) : [];
+  const gSupply = gEvents.find((e) => e.name === 'SupplyCollateral');
+  const gRise = gRes.ok ? gRes.after[0][2] - gRes.before[0][2] : 0n;
+  record('(g) buildAddCollateral: Morpho collateral rises by exactly the amount, cirBTC allowance to Morpho ends at 0',
+    gRes.ok && shapeProblems(gBuilt).length === 0 && gRise === gAmount && gRes.after[1] === 0n && gSupply?.assets === gAmount && isAddressEqual(gSupply.onBehalf, PAYER),
+    gRes.ok
+      ? [`${gBuilt.calls.length} calls; pledged ${btc(gRes.before[0][2])} -> ${btc(gRes.after[0][2])} (+${gRise} sat); Morpho SupplyCollateral ${gSupply?.assets} sat for ${gSupply?.onBehalf}; allowance after ${gRes.after[1]}; gas ${gRes.gas}`]
+      : [`reverted: ${decodeAdagError(gRes.revertData).text}`]);
+
+  // (h) Close the payer's real USDC loan.
+  reset();
+  const [, hShares, hCollateral] = await ethCall(pos());
+  const hMarket = await ethCall(mkt());
+  const hDebt = debtFromShares(hShares, hMarket[2], hMarket[3]);
+  const hApproval = closeApproval(hShares, hMarket[2], hMarket[3]);
+  const hBuilt = buildCloseLoan(PAYER, usdcCurrency, { shares: hShares, collateral: hCollateral }, hApproval, usdcParams);
+  const hRes = await send({ from: PAYER, to: hBuilt.to, data: hBuilt.data }, { before: [btcOf()], after: [pos(), btcOf(), allowance(C.USDC)] });
+  const hEvents = hRes.ok ? morphoEventsIn(hRes.logs.map((l) => ({ ...l, removed: false }))) : [];
+  const hRepay = hEvents.find((e) => e.name === 'Repay');
+  const hWithdraw = hEvents.find((e) => e.name === 'WithdrawCollateral');
+  const hBack = hRes.ok ? hRes.after[1] - hRes.before[0] : 0n;
+  record('(h) buildCloseLoan closes the real USDC loan: 0 shares, 0 pledged, all cirBTC back, USDC allowance to Morpho 0',
+    hShares > 0n && hRes.ok && shapeProblems(hBuilt).length === 0 && hRes.after[0][1] === 0n && hRes.after[0][2] === 0n && hBack === hCollateral
+      && hRes.after[2] === 0n && hRepay?.shares === hShares && hWithdraw?.assets === hCollateral && isAddressEqual(hWithdraw.receiver, PAYER),
+    [`loan ${usdc(hDebt)} (${hShares} shares) against ${btc(hCollateral)}; approval ${usdc(hApproval)} (debt + 0.1% + 1)`,
+      ...(hRes.ok
+        ? [`${hBuilt.calls.length} calls; Morpho Repay ${usdc(hRepay?.assets ?? 0n)} for ${hRepay?.shares} shares; WithdrawCollateral ${btc(hWithdraw?.assets ?? 0n)} to ${hWithdraw?.receiver}`,
+          `after: ${hRes.after[0][1]} shares, ${btc(hRes.after[0][2])} pledged, cirBTC back ${btc(hBack)}, USDC allowance to Morpho ${hRes.after[2]}; gas ${hRes.gas}`]
+        : [`reverted: ${decodeAdagError(hRes.revertData).text}`])]);
+
+  // (i) The same close, approving one unit less than the debt, must be refused in plain words.
+  reset();
+  const iBuilt = buildCloseLoan(PAYER, usdcCurrency, { shares: hShares, collateral: hCollateral }, hDebt - 1n, usdcParams);
+  const iRes = await send({ from: PAYER, to: iBuilt.to, data: iBuilt.data });
+  const iErr = iRes.ok ? null : decodeAdagError(iRes.revertData);
+  record('(i) a close approving 1 unit short of the debt is refused, with a plain sentence',
+    !iRes.ok && !!iErr && iErr.name !== 'unknown' && iErr.text.length > 20,
+    iRes.ok ? 'the close SUCCEEDED, which is wrong' : [`approved ${usdc(hDebt - 1n)} for a debt of ${usdc(hDebt)}`, `refused: ${iErr.name}: "${iErr.text}"`, `raw revert ${String(iRes.revertData).slice(0, 138)}`]);
+
+  // (j) The look-alike market's params are refused by the loan builders too.
+  const jAdd = outcome(() => buildAddCollateral(PAYER, usdcCurrency, 1_000n, otherParams));
+  const jClose = outcome(() => buildCloseLoan(PAYER, usdcCurrency, { shares: hShares, collateral: hCollateral }, hApproval, otherParams));
+  record("(j) buildAddCollateral and buildCloseLoan throw on the second USDC/cirBTC market's params",
+    jAdd !== null && jClose !== null, [`buildAddCollateral: ${jAdd ?? 'ACCEPTED'}`, `buildCloseLoan: ${jClose ?? 'ACCEPTED'}`]);
 
   const passed = results.filter((r) => r.ok).length;
   console.log();

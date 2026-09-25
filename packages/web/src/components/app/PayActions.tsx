@@ -16,6 +16,7 @@ import { hasAcceptedMorphoDisclaimer, rememberMorphoDisclaimer } from "@/lib/wal
 import { feesNow, publicArc, simulateAndSend } from "@/lib/wallet/send";
 import { Value, type Cell } from "./cells";
 import { e2ePledge } from "./e2eHook";
+import { feeText } from "./fee";
 import { MorphoDisclaimer } from "./MorphoDisclaimer";
 import { SuccessCard } from "./SuccessCard";
 import { BusyLabel, TxMessage, type TxState } from "./TxProgress";
@@ -40,11 +41,6 @@ export type PayActionsProps = {
 
 type Paid = { method: "balance" | "bitcoin"; hash: Hex; loanChecked: boolean; ltvAfter?: bigint; sold?: bigint; pledged?: bigint };
 
-// Rounded up to four decimals: it is an estimate, and it should never read cheaper than it is.
-const feeText = (wei: bigint) => {
-  const step = 10n ** 14n;
-  return `about ${formatUnitsExact(((wei + step - 1n) / step) * step, 18)} USDC`;
-};
 
 export function PayActions(props: PayActionsProps) {
   const { bill, address, currency, balance, cirBtc, position, market, price, priceStatus, needed, borrowApy, onSettled } = props;

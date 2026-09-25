@@ -9,6 +9,8 @@ export const adagAbi = parseAbi([
   "function pay(uint256 id)",
   "function bill(uint256 id) view returns ((address payee, uint8 status, uint64 due, address currency, uint64 createdAt, uint256 amount, address payer, uint64 paidAt, bytes ref))",
   "function billCount() view returns (uint256)",
+  "function billsOfPayee(address payee, uint256 offset, uint256 limit) view returns (uint256[] ids, uint256 total)",
+  "function paymentsOfPayer(address payer, uint256 offset, uint256 limit) view returns (uint256[] ids, uint256 total)",
   "function loanToValue(address user, bytes32 marketId) view returns (uint256)",
   "function collateralNeeded(address user, bytes32 marketId, uint256 extraBorrow) view returns (uint256)",
   "function priceStatus(bytes32 marketId) view returns (bool fresh, uint256 btcUsdUpdatedAt, uint256 eurUsdUpdatedAt)",
@@ -41,11 +43,17 @@ export const morphoAbi = parseAbi([
   "function market(bytes32 id) view returns (uint128 totalSupplyAssets, uint128 totalSupplyShares, uint128 totalBorrowAssets, uint128 totalBorrowShares, uint128 lastUpdate, uint128 fee)",
   `function supplyCollateral(${mp} marketParams, uint256 assets, address onBehalf, bytes data)`,
   `function borrow(${mp} marketParams, uint256 assets, uint256 shares, address onBehalf, address receiver) returns (uint256, uint256)`,
+  `function repay(${mp} marketParams, uint256 assets, uint256 shares, address onBehalf, bytes data) returns (uint256, uint256)`,
+  `function withdrawCollateral(${mp} marketParams, uint256 assets, address onBehalf, address receiver)`,
+  "event SupplyCollateral(bytes32 indexed id, address indexed caller, address indexed onBehalf, uint256 assets)",
+  "event WithdrawCollateral(bytes32 indexed id, address caller, address indexed onBehalf, address indexed receiver, uint256 assets)",
+  "event Repay(bytes32 indexed id, address indexed caller, address indexed onBehalf, uint256 assets, uint256 shares)",
 ]);
 
 export const erc20Abi = parseAbi([
   "function approve(address spender, uint256 amount) returns (bool)",
   "function balanceOf(address account) view returns (uint256)",
+  "function allowance(address owner, address spender) view returns (uint256)",
   // OpenZeppelin 5 token errors, in case a token on Arc reverts with them instead of a string.
   "error ERC20InsufficientBalance(address sender, uint256 balance, uint256 needed)",
   "error ERC20InsufficientAllowance(address spender, uint256 allowance, uint256 needed)",

@@ -26,7 +26,7 @@ const STRING_REASONS: { match: RegExp; name: string; message: string; next: stri
   { match: /paused/i, name: "paused", message: "The token is paused by its issuer.", next: "Nothing moved. Try again later." },
   { match: /exceeds balance|insufficient balance/i, name: "insufficient balance", message: "Your wallet does not hold enough of this token.", next: "Add funds, or pay from bitcoin instead." },
   { match: /insufficient allowance|exceeds allowance/i, name: "insufficient allowance", message: "The approval in this payment was smaller than the amount.", next: "Reload the page and build the payment again." },
-  { match: /transfer(from)? (reverted|returned false)/i, name: "token transfer failed", message: "A token transfer inside Morpho failed.", next: "Check your cirBTC balance, then try again." },
+  { match: /transfer(from)? (reverted|returned false)/i, name: "token transfer failed", message: "A token transfer inside Morpho failed: your wallet held or approved less than Morpho needed to move.", next: "Nothing moved. Reload so the amounts are read fresh, then try again." },
   { match: /call failed/i, name: "batch step failed", message: "One step of the payment failed, so nothing happened.", next: "Reload the page and try again." },
 ];
 

@@ -1,6 +1,6 @@
 import { decodeEventLog, isAddressEqual, type Address, type Hex, type Log } from "viem";
-import { adagAbi } from "./abi";
-import { ADAG_BILLS } from "./constants";
+import { adagAbi, morphoAbi } from "./abi";
+import { ADAG_BILLS, MORPHO } from "./constants";
 
 export type BillPaidProof = { txHash: Hex; logIndex: number; payer: Address; payee: Address; amount: bigint; loanChecked: boolean };
 
@@ -37,4 +37,41 @@ export function billVoidedIn(logs: readonly Log[], billId: bigint): boolean {
       return false;
     }
   });
+}
+
+// C16: a new bill's number comes only from Adag's own BillCreated, from Adag's address.
+export function billCreatedIn(logs: readonly Log[]): bigint | null {
+  for (const log of logs) {
+    if (log.removed || !isAddressEqual(log.address, ADAG_BILLS)) continue;
+    try {
+      const ev = decodeEventLog({ abi: adagAbi, data: log.data, topics: log.topics, strict: true });
+      if (ev.eventName === "BillCreated") return ev.args.id;
+    } catch {
+      // Not an Adag event this ABI knows; skip it.
+    }
+  }
+  return null;
+}
+
+export type MorphoEvent =
+  | { name: "SupplyCollateral"; id: Hex; onBehalf: Address; assets: bigint }
+  | { name: "WithdrawCollateral"; id: Hex; onBehalf: Address; receiver: Address; assets: bigint }
+  | { name: "Repay"; id: Hex; onBehalf: Address; assets: bigint; shares: bigint };
+
+// Loan actions are proven by Morpho's own events, from Morpho's address only.
+export function morphoEventsIn(logs: readonly Log[]): MorphoEvent[] {
+  const out: MorphoEvent[] = [];
+  for (const log of logs) {
+    if (log.removed || !isAddressEqual(log.address, MORPHO)) continue;
+    try {
+      const ev = decodeEventLog({ abi: morphoAbi, data: log.data, topics: log.topics, strict: true });
+      if (ev.eventName === "SupplyCollateral") out.push({ name: ev.eventName, id: ev.args.id, onBehalf: ev.args.onBehalf, assets: ev.args.assets });
+      else if (ev.eventName === "WithdrawCollateral")
+        out.push({ name: ev.eventName, id: ev.args.id, onBehalf: ev.args.onBehalf, receiver: ev.args.receiver, assets: ev.args.assets });
+      else if (ev.eventName === "Repay") out.push({ name: ev.eventName, id: ev.args.id, onBehalf: ev.args.onBehalf, assets: ev.args.assets, shares: ev.args.shares });
+    } catch {
+      // Morpho events this ABI does not list, such as Borrow or AccrueInterest.
+    }
+  }
+  return out;
 }
