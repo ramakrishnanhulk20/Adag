@@ -186,7 +186,12 @@ export function LoanTicket(props: LoanTicketProps) {
       after !== null && after[1] === 0n && after[2] === 0n && (liveShares === 0n || allowance === 0n);
     if (!proven || btcAfter === null) return fail("Arc confirmed the transaction, but Morpho does not read the loan as closed. Check the transaction.", out.hash);
     const back = btcAfter - btcBefore;
-    setDone({ kind: "closed", hash: out.hash, text: `Loan closed. 0 owed, 0 pledged. ${formatUnitsExact(back, CIRBTC_DECIMALS)} cirBTC is back in your wallet.` });
+    const returned = `${formatUnitsExact(back, CIRBTC_DECIMALS)} cirBTC is back in your wallet.`;
+    setDone({
+      kind: "closed",
+      hash: out.hash,
+      text: liveShares > 0n ? `Loan closed. 0 owed, 0 pledged. ${returned}` : `Done. 0 pledged in this market, and ${returned}`,
+    });
     setTx({ kind: "idle" });
     onChanged();
   };

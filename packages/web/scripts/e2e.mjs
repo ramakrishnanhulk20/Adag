@@ -33,6 +33,8 @@ const MORPHO = '0x34CD04070dD72b14E241112F6d83812Df5Af7fCD';
 const USDC = '0x3600000000000000000000000000000000000000';
 const CIRBTC = '0x171A4217b86A807A64eB94757Db6849fb4bDbAA0';
 const MARKET_USDC = '0xc2db905f174e5defcce01d321b09f15f78856a36a21b90cc7e1abbc29225815d';
+const MARKET_EURC = '0x6ea1ea96a1cc671615f3a3bdf51481c5b79e362a8b634396e680d1070137daf4';
+const EURC = '0xbEf5f6d51CB62b58e6A8f77868681825C6fe21c1';
 const tokenAbi = parseAbi(['function balanceOf(address) view returns (uint256)', 'function allowance(address, address) view returns (uint256)']);
 const morphoAbi = parseAbi(['function position(bytes32 id, address user) view returns (uint256 supplyShares, uint128 borrowShares, uint128 collateral)']);
 const adagAbi = parseAbi([
@@ -144,9 +146,10 @@ async function connect(page, path) {
 }
 
 // Reveals only fire in view, so walk the page before a full-page capture; then shoot 1440 dark and 375 light.
-// The F5b states (a) to (f) are only re-shot with --f5b-shots, so a normal run leaves their approved images alone.
+// Only the newest work order's states (f7b-) are shot by default. --all-shots re-shoots the approved F5b and F7 images too.
 async function shoot(page, name) {
-  const file = name.startsWith('f7-') ? name : process.argv.includes('--f5b-shots') ? `e2e-${name}` : null;
+  const all = process.argv.includes('--all-shots');
+  const file = name.startsWith('f7b-') ? name : !all ? null : name.startsWith('f7-') ? name : `e2e-${name}`;
   if (!file) return;
   const walk = async () => {
     await page.evaluate(async () => {
@@ -435,16 +438,142 @@ async function main() {
       await context.close();
     }
 
+    const acceptDisclaimer = async (page) => {
+      const dialog = page.getByRole('dialog', { name: /Borrowing through Morpho/ });
+      if (await dialog.isVisible({ timeout: 5_000 }).catch(() => false)) {
+        await dialog.getByRole('checkbox').check();
+        await dialog.getByRole('button', { name: 'Continue to payment' }).click();
+      }
+    };
+    const eurcPositionOf = (who) => fork.readContract({ address: MORPHO, abi: morphoAbi, functionName: 'position', args: [MARKET_EURC, who] });
+
+    // (l) A EURC loan, round trip: pay a EURC bill from bitcoin, then close that loan from /app.
+    {
+      const L = newBill('EURC', 200_000, 'E2E-L');
+      const { context, page } = await openPage({ account: PAYER });
+      // With the USDC loan closed in (i), both markets are empty: two quiet tickets.
+      await connect(page, '/app').catch(() => {});
+      await page.locator('[data-loan-ghost="EURC"]').waitFor({ timeout: 60_000 });
+      const ghostsWhenEmpty = await page.locator('[data-loan-ghost]').count();
+      await shoot(page, 'f7b-ghost-empty');
+
+      await page.goto(`${APP}/bill/${L}`, { waitUntil: 'networkidle', timeout: 120_000 });
+      await page.locator('[data-action="pay-bitcoin"]:not([disabled])').waitFor({ timeout: 60_000 });
+      await page.locator('[data-action="pay-bitcoin"]').click();
+      await acceptDisclaimer(page);
+      await page.locator('[data-tx-result="paid"]').waitFor({ timeout: 120_000 });
+      const paidLog = await billPaidLog(L);
+      const opened = await eurcPositionOf(PAYER);
+      const pledge = opened[2];
+      console.log(`  (l) bill #${L} paid from bitcoin: EURC loan ${opened[1]} shares against ${pledge} sat; funding the payer with 1 EURC to repay: ${forkScript('fund-eurc', PAYER, '1000000')}`);
+
+      await page.goto(`${APP}/app`, { waitUntil: 'networkidle', timeout: 120_000 });
+      const ticket = page.locator('[data-loan="EURC"]');
+      await ticket.waitFor({ timeout: 60_000 });
+      const usdcGhost = await page.locator('[data-loan-ghost="USDC"]').count();
+      await ticket.getByRole('tab', { name: 'Close loan' }).click();
+      await ticket.locator('[data-action="close-loan"]').waitFor({ timeout: 30_000 });
+      await shoot(page, 'f7b-l-eurc-ticket');
+      const btcBefore = await cirBtcOf(PAYER);
+      const nativeBefore = await fork.getBalance({ address: PAYER });
+      await ticket.locator('[data-action="close-loan"]').click();
+      await acceptDisclaimer(page);
+      await ticket.locator('[data-tx-result="closed"]').waitFor({ timeout: 120_000 });
+      const text = await ticket.locator('[data-tx-result="closed"]').innerText();
+      const href = await ticket.locator('[data-tx-result="closed"] a').getAttribute('href');
+      await shoot(page, 'f7b-l-closed');
+      const hash = href.split('/tx/')[1];
+      const receipt = await fork.getTransactionReceipt({ hash });
+      const fee = receipt.gasUsed * receipt.effectiveGasPrice;
+      const nativeDrop = nativeBefore - (await fork.getBalance({ address: PAYER }));
+      const end = await eurcPositionOf(PAYER);
+      const back = (await cirBtcOf(PAYER)) - btcBefore;
+      const allowance = await fork.readContract({ address: EURC, abi: tokenAbi, functionName: 'allowance', args: [PAYER, MORPHO] });
+      record('(l) a EURC loan round trip: paid from bitcoin, closed from /app, fee paid in USDC',
+        ghostsWhenEmpty === 2 && paidLog?.args.loanChecked === true && opened[1] > 0n && usdcGhost === 1
+          && end[1] === 0n && end[2] === 0n && back === pledge && allowance === 0n && fee > 0n && nativeDrop === fee && text.includes('Loan closed. 0 owed, 0 pledged.'),
+        `bill #${L} loanChecked ${paidLog?.args.loanChecked}; after close: ${end[1]} shares, ${end[2]} pledged; cirBTC back ${back} of ${pledge} sat; EURC allowance ${allowance}; fee ${fee} wei of USDC, USDC balance fell ${nativeDrop}`);
+      await context.close();
+    }
+
+    // (m) Withdraw only: bitcoin pledged with no debt comes back, and a standing approval is left alone.
+    {
+      const params = `(${USDC},${CIRBTC},0x2AA87fF48933Ce6aBA240BEE916Fc2e6Ec1e51Ab,0xF02615d094Fc02fC031C35fe705e175aA4653f20,860000000000000000)`;
+      const steps = [
+        forkScript('send', PAYER, USDC, 'approve(address,uint256)', MORPHO, '5000000'),
+        forkScript('send', PAYER, CIRBTC, 'approve(address,uint256)', MORPHO, '1000'),
+        forkScript('send', PAYER, MORPHO, 'supplyCollateral((address,address,address,address,uint256),uint256,address,bytes)', params, '1000', PAYER, '0x'),
+      ];
+      const start = await positionOf(PAYER);
+      const { context, page } = await openPage({ account: PAYER });
+      await connect(page, '/app').catch(() => {});
+      const ticket = page.locator('[data-loan="USDC"]');
+      await ticket.waitFor({ timeout: 60_000 });
+      await ticket.getByRole('tab', { name: 'Take your bitcoin back' }).click();
+      const button = ticket.locator('[data-action="close-loan"]');
+      await button.waitFor({ timeout: 30_000 });
+      const label = await button.innerText();
+      await shoot(page, 'f7b-m-take-back');
+      const btcBefore = await cirBtcOf(PAYER);
+      await button.click();
+      await acceptDisclaimer(page);
+      await ticket.locator('[data-tx-result="closed"]').waitFor({ timeout: 120_000 });
+      const text = await ticket.locator('[data-tx-result="closed"]').innerText();
+      await shoot(page, 'f7b-m-taken-back');
+      const end = await positionOf(PAYER);
+      const back = (await cirBtcOf(PAYER)) - btcBefore;
+      const standing = await fork.readContract({ address: USDC, abi: tokenAbi, functionName: 'allowance', args: [PAYER, MORPHO] });
+      record('(m) withdraw only: "Take your bitcoin back" returns all 1000 sat, and the standing 5 USDC approval is untouched',
+        steps.every((x) => x.includes('"status":"0x1"')) && start[1] === 0n && start[2] === 1_000n && label === 'Take your bitcoin back'
+          && end[1] === 0n && end[2] === 0n && back === 1_000n && standing === 5_000_000n && text.includes('0 pledged'),
+        `set-up ${steps.join(' ')}; before: ${start[1]} shares, ${start[2]} pledged; after: ${end[1]} and ${end[2]}; back ${back} sat; USDC approval to Morpho ${standing}; shown: ${text.split('\n')[0]}`);
+      await context.close();
+    }
+
+    // (n) The comma rule on /bill/new: a lone comma is the decimal mark; thousands separators are refused.
+    {
+      const { context, page } = await openPage({ account: PAYEE });
+      await connect(page, '/bill/new').catch(() => {});
+      await page.locator('[data-action="write-bill"]').waitFor({ timeout: 60_000 });
+      await page.locator('[data-field="amount"]').fill('12,50');
+      await page.locator('[data-field="ref"]').fill('E2E-N');
+      await page.waitForTimeout(800);
+      const preview = await page.locator('[data-preview]').innerText();
+      await shoot(page, 'f7b-n-comma-preview');
+      await page.locator('[data-action="write-bill"]').click();
+      const card = page.locator('[data-tx-result="created"]');
+      await card.waitFor({ timeout: 120_000 });
+      const N = BigInt(await card.getAttribute('data-bill-id'));
+      const onFork = await fork.readContract({ address: ADAG, abi: adagAbi, functionName: 'bill', args: [N] });
+      await context.close();
+
+      const p2 = await openPage({ account: PAYEE });
+      await connect(p2.page, '/bill/new').catch(() => {});
+      const button = p2.page.locator('[data-action="write-bill"]');
+      await button.waitFor({ timeout: 60_000 });
+      await p2.page.locator('[data-field="amount"]').fill('1,250.50');
+      const message = await p2.page.locator('[data-error="amount"]').innerText();
+      const blocked = await button.isDisabled();
+      await button.click({ force: true }).catch(() => {});
+      await p2.page.waitForTimeout(800);
+      await shoot(p2.page, 'f7b-n-refused');
+      const sent = await sends(p2.page);
+      await p2.context.close();
+      record('(n) "12,50" previews 12.50 and writes 12500000; "1,250.50" is refused with no wallet request',
+        /12\.50/.test(preview) && onFork.amount === 12_500_000n && message.includes('one decimal mark') && blocked && sent === 0,
+        `bill #${N} amount ${onFork.amount}; "1,250.50": "${message}"; eth_sendTransaction requests ${sent}`);
+    }
+
     // The mobile menu open, and the wallet page before connecting.
     {
       const { context, page } = await openPage({ account: PAYER, width: 375, theme: 'light' });
       await page.goto(`${APP}/app`, { waitUntil: 'networkidle', timeout: 120_000 });
       await page.waitForTimeout(1200);
-      await page.screenshot({ path: `${SHOTS}/f7-app-connect-375-light.png`, fullPage: true });
+      if (process.argv.includes('--all-shots')) await page.screenshot({ path: `${SHOTS}/f7-app-connect-375-light.png`, fullPage: true });
       await page.locator('[data-action="menu"]').click();
       await page.getByRole('dialog', { name: 'Menu' }).waitFor({ timeout: 10_000 });
       await page.waitForTimeout(900);
-      await page.screenshot({ path: `${SHOTS}/f7-menu-open-375-light.png` });
+      if (process.argv.includes('--all-shots')) await page.screenshot({ path: `${SHOTS}/f7-menu-open-375-light.png` });
       await page.keyboard.press('Escape');
       // The sheet animates out over 0.3 seconds, so wait for it rather than checking the same instant.
       const closedOnEscape = await page.getByRole('dialog', { name: 'Menu' }).waitFor({ state: 'hidden', timeout: 3_000 }).then(() => true, () => false);
@@ -452,7 +581,7 @@ async function main() {
       await page.setViewportSize({ width: 1440, height: 900 });
       await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'));
       await page.waitForTimeout(900);
-      await page.screenshot({ path: `${SHOTS}/f7-app-connect-1440-dark.png`, fullPage: true });
+      if (process.argv.includes('--all-shots')) await page.screenshot({ path: `${SHOTS}/f7-app-connect-1440-dark.png`, fullPage: true });
       await context.close();
     }
   } finally {
@@ -466,7 +595,7 @@ try {
   await main();
   const passed = results.filter((r) => r.ok).length;
   console.log(`\nconsole errors: ${consoleErrors.length}${consoleErrors.length ? `\n  ${consoleErrors.join('\n  ')}` : ''}`);
-  const allOk = passed === results.length && results.length === 11 && consoleErrors.length === 0;
+  const allOk = passed === results.length && results.length === 14 && consoleErrors.length === 0;
   console.log(allOk ? `ALL ${passed} SCENARIOS PASSED` : `${results.length - passed} of ${results.length} scenarios failed`);
   code = allOk ? 0 : 1;
 } catch (error) {

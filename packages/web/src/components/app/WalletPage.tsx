@@ -126,32 +126,38 @@ function Connected({ address, wallet }: { address: Address; wallet: WalletState 
             Your loans on <em className="font-semibold italic text-gold">Morpho</em>.
           </h2>
         </motion.div>
-        <div className={`mt-8 grid gap-6 ${tickets.length > 1 ? "lg:grid-cols-2" : "lg:max-w-[46rem]"}`}>
-          {tickets.map((p) => (
-            <motion.div key={p.currency.symbol} {...rise(1)}>
-              <LoanTicket
-                address={address}
-                currency={p.currency}
-                position={(p.position as { value: Position }).value}
-                cirBtc={balances[2]}
-                loanTokenBalance={p.currency.symbol === "EURC" ? balances[1] : balances[0]}
-                usdcBalance={balances[0]}
-                canSign={reason === null}
-                blockedReason={reason}
-                onChanged={() => onChanged(p.currency.marketId)}
-              />
-            </motion.div>
-          ))}
+        {/* Both markets always hold a place: a live ticket, or a quiet one saying how a loan would start. */}
+        <div className="mt-8 grid gap-6 lg:grid-cols-2">
+          {positions.map((p) =>
+            p.position.state !== "ok" ? null : tickets.includes(p) ? (
+              <motion.div key={p.currency.symbol} {...rise(1)}>
+                <LoanTicket
+                  address={address}
+                  currency={p.currency}
+                  position={p.position.value}
+                  cirBtc={balances[2]}
+                  loanTokenBalance={p.currency.symbol === "EURC" ? balances[1] : balances[0]}
+                  usdcBalance={balances[0]}
+                  canSign={reason === null}
+                  blockedReason={reason}
+                  onChanged={() => onChanged(p.currency.marketId)}
+                />
+              </motion.div>
+            ) : (
+              <motion.div key={p.currency.symbol} {...rise(2)} className="h-full">
+                <GhostTicket symbol={p.currency.symbol} />
+              </motion.div>
+            ),
+          )}
         </div>
         {reads.isPending ? (
           <span className="live-shimmer mt-6 block h-[2px] w-full" aria-label="Loading" />
         ) : anyPositionUnavailable ? (
           <p className="type-body mt-6 text-muted">Some loan positions are unavailable right now: Arc did not answer. Reload to try again.</p>
         ) : tickets.length === 0 ? (
-          <div className="app-panel mt-2 p-6 md:p-8">
-            <p className="type-lead text-text">No loans on Morpho from this wallet.</p>
-            <p className="type-body mt-2 text-muted">Pay a bill from bitcoin and the loan appears here, with a way to add cirBTC or close it.</p>
-            <Button href="/pay" variant="secondary" size="sm" className="mt-5">
+          <div className="mt-6 flex flex-wrap items-center gap-4">
+            <p className="type-body text-muted">No loans from this wallet yet.</p>
+            <Button href="/pay" variant="secondary" size="sm">
               Pay a bill
             </Button>
           </div>
@@ -167,5 +173,17 @@ function Connected({ address, wallet }: { address: Address; wallet: WalletState 
         </div>
       </div>
     </div>
+  );
+}
+
+function GhostTicket({ symbol }: { symbol: string }) {
+  return (
+    <article className="flex h-full min-h-[12rem] flex-col justify-center rounded-[8px] border border-dashed border-rule p-6 md:p-8" data-loan-ghost={symbol}>
+      <p className="type-label text-muted">
+        {symbol} <span className="opacity-70">against</span> cirBTC
+      </p>
+      <p className="type-h4 mt-4 text-text/70">No loan.</p>
+      <p className="type-body mt-2 max-w-[28rem] text-muted">Paying a {symbol} bill from bitcoin opens one here.</p>
+    </article>
   );
 }
