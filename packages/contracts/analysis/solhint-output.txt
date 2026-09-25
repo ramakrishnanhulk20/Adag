@@ -1,14 +1,15 @@
 solhint: 6.2.4
 
 src/AdagBills.sol
-   19:1   warning  Missing @author tag in contract 'AdagBills'                                                       use-natspec
-   47:5   warning  GC: For [ FeedRead ] struct, packing seems inefficient. Try rearranging to achieve 32bytes slots  gas-struct-packing
-  130:5   warning  GC: [borrowShares] on Event [DebtRecorded] could be Indexed                                       gas-indexed-events
-  130:5   warning  GC: [checked] on Event [DebtRecorded] could be Indexed                                            gas-indexed-events
-  402:36  warning  GC: Non strict inequality found. Try converting to a strict one                                   gas-strict-inequalities
-  402:68  warning  GC: Non strict inequality found. Try converting to a strict one                                   gas-strict-inequalities
-  432:20  warning  GC: Non strict inequality found. Try converting to a strict one                                   gas-strict-inequalities
-  443:13  warning  GC: Non strict inequality found. Try converting to a strict one                                   gas-strict-inequalities
+   20:1   warning  Missing @author tag in contract 'AdagBills'                                                       use-natspec
+   55:5   warning  GC: For [ FeedRead ] struct, packing seems inefficient. Try rearranging to achieve 32bytes slots  gas-struct-packing
+  141:5   warning  GC: [borrowShares] on Event [DebtRecorded] could be Indexed                                       gas-indexed-events
+  141:5   warning  GC: [collateral] on Event [DebtRecorded] could be Indexed                                         gas-indexed-events
+  141:5   warning  GC: [checked] on Event [DebtRecorded] could be Indexed                                            gas-indexed-events
+  431:36  warning  GC: Non strict inequality found. Try converting to a strict one                                   gas-strict-inequalities
+  431:68  warning  GC: Non strict inequality found. Try converting to a strict one                                   gas-strict-inequalities
+  461:20  warning  GC: Non strict inequality found. Try converting to a strict one                                   gas-strict-inequalities
+  472:13  warning  GC: Non strict inequality found. Try converting to a strict one                                   gas-strict-inequalities
 
 src/interfaces/IOracleMinimal.sol
    6:1  warning  Missing @title tag in contract 'IOracleMinimal'   use-natspec
@@ -46,5 +47,5 @@ src/interfaces/IChainlinkFeed.sol
   6:5  warning  Missing @return tag in function 'latestRoundData'                                                                                        use-natspec
   6:5  warning  Mismatch in @return names for function 'latestRoundData'. Expected: [roundId, answer, startedAt, updatedAt, answeredInRound], Found: []  use-natspec
 
-✖ 38 problems (0 errors, 38 warnings)
+✖ 39 problems (0 errors, 39 warnings)
 

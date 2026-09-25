@@ -2,9 +2,10 @@
 pragma solidity ^0.8.30;
 
 // Fork tests for the 40% new-debt rule on Arc mainnet: loan-backed payments through Memo and Multicall3From, the
-// line itself, price drops, borrowing around the check, stale and broken price feeds, a market Morpho reports
-// wrongly, the collateral preview, the full loan close, three bills in one signature, and the residual the threat
-// model accepts (C10).
+// line itself, price drops, borrowing around the check, reusing a recorded share count on less or more collateral,
+// adding or withdrawing collateral outside Adag, stale and broken price feeds, a market Morpho reports wrongly, the
+// oracles' feed layout, the collateral preview, the full loan close, three bills in one signature, and the
+// residual the threat model accepts (C10).
 // Not covered here: fuzz and invariant tests on the money maths and batch-size limits (WO-3), and real signed
 // transactions. Price moves and feed failures are simulated with vm.mockCall, not observed on chain. Results
 // follow live mainnet state: the demo wallet must still hold 0.00011 cirBTC, 4 USDC and no Morpho debt.
@@ -20,10 +21,21 @@ import {AdagFixture, IMorphoBorrow} from "./utils/AdagFixture.sol";
 import {ArcMainnet} from "./utils/ArcMainnet.sol";
 import {IMemo, IMulticall3From} from "./utils/ArcInterfaces.sol";
 
+/// @dev The MorphoChainlinkOracleV2 getters that decide where its price comes from.
+interface IOracleLayout {
+    function BASE_VAULT() external view returns (address);
+    function BASE_FEED_1() external view returns (address);
+    function BASE_FEED_2() external view returns (address);
+    function QUOTE_VAULT() external view returns (address);
+    function QUOTE_FEED_1() external view returns (address);
+    function QUOTE_FEED_2() external view returns (address);
+}
+
 contract AdagLoanRuleTest is AdagFixture {
     struct DebtRecord {
         bytes32 marketId;
         uint256 shares;
+        uint256 collateral;
         bool checked;
     }
 
@@ -65,7 +77,9 @@ contract AdagLoanRuleTest is AdagFixture {
         assertEq(records[0].marketId, MARKET_USDC);
         assertEq(records[0].shares, shares, "recorded shares are not the live shares");
         assertTrue(records[0].checked);
-        assertEq(adag.seenShares(PAYER, MARKET_USDC), shares);
+        assertEq(recordedShares(MARKET_USDC), shares);
+        assertEq(records[0].collateral, COLLATERAL, "recorded collateral is not the live collateral");
+        assertEq(recordedCollateral(MARKET_USDC), COLLATERAL);
         assertEq(USDC.balanceOf(PAYEE), borrow, "payee not credited exactly");
         assertEq(USDC.balanceOf(PAYER), usdcBefore, "the loan did not fund the bill");
         assertEq(cirBtcBefore - CIRBTC.balanceOf(PAYER), COLLATERAL);
@@ -172,7 +186,8 @@ contract AdagLoanRuleTest is AdagFixture {
         assertEq(records[0].shares, sharesAfter);
         assertFalse(records[0].checked, "a lower debt was checked");
         assertFalse(_billPaidFlags(logs)[0]);
-        assertEq(adag.seenShares(PAYER, MARKET_USDC), sharesAfter);
+        assertEq(recordedShares(MARKET_USDC), sharesAfter);
+        assertEq(records[0].collateral, COLLATERAL, "repaying changed the recorded collateral");
     }
 
     function test_unseenDebt_under40IsCheckedAndPasses() public {
@@ -200,7 +215,7 @@ contract AdagLoanRuleTest is AdagFixture {
 
         assertFalse(ok, "a payer at 60% paid through Adag");
         _assertLtvAboveLimit(ret, MARKET_USDC);
-        assertEq(adag.seenShares(PAYER, MARKET_USDC), 0);
+        assertEq(recordedShares(MARKET_USDC), 0);
         assertEq(uint8(adag.bill(id).status), uint8(AdagBills.Status.Open));
     }
 
@@ -413,15 +428,149 @@ contract AdagLoanRuleTest is AdagFixture {
         assertEq(uint8(adag.bill(id).status), uint8(AdagBills.Status.Paid), "the accepted residual changed");
         assertFalse(_billPaidFlags(logs)[0]);
         assertEq(_debtRecords(logs).length, 0);
-        assertEq(adag.seenShares(PAYER, MARKET_USDC), 0);
+        assertEq(recordedShares(MARKET_USDC), 0);
         assertApproxEqAbs(adag.loanToValue(PAYER, MARKET_USDC), 0.6e18, 0.001e18);
+    }
+
+    /// @dev The backend-gate finding: close outside Adag, re-pledge a quarter of the collateral, borrow back the
+    /// exact share count Adag recorded, and pay. Same shares, much less collateral: about 80%.
+    function test_bypass_sameSharesLessCollateralIsRefused() public {
+        uint256 borrow = borrowForLtv(MARKET_USDC, COLLATERAL, 0.2e18);
+        payWithLoan(PAYER, makeBill(PAYEE, ArcMainnet.USDC, borrow, REF), COLLATERAL, borrow);
+        uint256 recordedShares = _liveShares(MARKET_USDC);
+        closeLoan(PAYER, MARKET_USDC);
+
+        uint256 id = makeBill(PAYEE_B, ArcMainnet.USDC, SMALL, REF);
+        IMulticall3From.Call3[] memory calls =
+            concat(concat(pledgeCalls(PAYER, MARKET_USDC, 2_500), borrowSharesCalls(PAYER, MARKET_USDC, recordedShares)), cashCalls(id));
+
+        (bool ok, bytes memory ret) = tryBatch(PAYER, calls);
+
+        assertFalse(ok, "same shares on a quarter of the collateral skipped the check");
+        _assertLtvAboveLimit(ret, MARKET_USDC);
+        assertEq(uint8(adag.bill(id).status), uint8(AdagBills.Status.Open));
+    }
+
+    /// @dev The mirror case: the same share count on more collateral than Adag accepted is a safer position, so
+    /// it is recorded and not checked.
+    function test_dominatedPosition_skipsCheck() public {
+        uint256 borrow = borrowForLtv(MARKET_USDC, COLLATERAL, 0.35e18);
+        payWithLoan(PAYER, makeBill(PAYEE, ArcMainnet.USDC, borrow, REF), COLLATERAL, borrow);
+        uint256 recorded = recordedShares(MARKET_USDC);
+        assertEq(recordedCollateral(MARKET_USDC), COLLATERAL);
+        closeLoan(PAYER, MARKET_USDC);
+
+        uint256 id = makeBill(PAYEE_B, ArcMainnet.USDC, SMALL, REF);
+        IMulticall3From.Call3[] memory calls = concat(
+            concat(pledgeCalls(PAYER, MARKET_USDC, COLLATERAL + 1_000), borrowSharesCalls(PAYER, MARKET_USDC, recorded)),
+            cashCalls(id)
+        );
+        vm.recordLogs();
+        runBatch(PAYER, calls);
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+
+        assertFalse(_billPaidFlags(logs)[0], "a safer position than the accepted one was checked");
+        DebtRecord[] memory records = _debtRecords(logs);
+        assertEq(records.length, 1, "the collateral change was not recorded");
+        assertEq(records[0].shares, recorded);
+        assertEq(records[0].collateral, COLLATERAL + 1_000);
+        assertFalse(records[0].checked);
+        assertEq(recordedCollateral(MARKET_USDC), COLLATERAL + 1_000);
+    }
+
+    function test_addCollateralOnly_recordsWithoutCheck() public {
+        uint256 borrow = borrowForLtv(MARKET_USDC, COLLATERAL, 0.2e18);
+        payWithLoan(PAYER, makeBill(PAYEE, ArcMainnet.USDC, borrow, REF), COLLATERAL, borrow);
+        uint256 shares = recordedShares(MARKET_USDC);
+        runBatch(PAYER, pledgeCalls(PAYER, MARKET_USDC, 1_000));
+
+        uint256 id = makeBill(PAYEE_B, ArcMainnet.USDC, SMALL, REF);
+        IMulticall3From.Call3[] memory calls = cashCalls(id);
+        vm.recordLogs();
+        runBatch(PAYER, calls);
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+
+        assertFalse(_billPaidFlags(logs)[0], "adding collateral triggered the check");
+        DebtRecord[] memory records = _debtRecords(logs);
+        assertEq(records.length, 1);
+        assertEq(records[0].shares, shares);
+        assertEq(records[0].collateral, COLLATERAL + 1_000);
+        assertFalse(records[0].checked);
+    }
+
+    function test_withdrawCollateralOutside_thenCashPay_isChecked() public {
+        uint256 borrow = borrowForLtv(MARKET_USDC, COLLATERAL, 0.2e18);
+        payWithLoan(PAYER, makeBill(PAYEE, ArcMainnet.USDC, borrow, REF), COLLATERAL, borrow);
+
+        // 20% on 10,000 satoshis is 30% on two thirds of them.
+        runBatch(PAYER, withdrawCollateralCalls(PAYER, MARKET_USDC, COLLATERAL / 3));
+        assertApproxEqAbs(adag.loanToValue(PAYER, MARKET_USDC), 0.3e18, 0.001e18);
+        uint256 thirtyId = makeBill(PAYEE_B, ArcMainnet.USDC, SMALL, REF);
+        IMulticall3From.Call3[] memory calls = cashCalls(thirtyId);
+        vm.recordLogs();
+        runBatch(PAYER, calls);
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        assertTrue(_billPaidFlags(logs)[0], "less collateral with debt was not checked");
+        DebtRecord[] memory records = _debtRecords(logs);
+        assertEq(records.length, 1);
+        assertTrue(records[0].checked);
+        assertEq(records[0].collateral, COLLATERAL - COLLATERAL / 3);
+
+        // And 20% on 10,000 is 60% on a third of them.
+        runBatch(PAYER, withdrawCollateralCalls(PAYER, MARKET_USDC, COLLATERAL / 3));
+        assertApproxEqAbs(adag.loanToValue(PAYER, MARKET_USDC), 0.6e18, 0.001e18);
+        uint256 sixtyId = makeBill(PAYEE_C, ArcMainnet.USDC, SMALL, REF);
+        (bool ok, bytes memory ret) = tryBatch(PAYER, cashCalls(sixtyId));
+        assertFalse(ok, "a cash payment at 60% after withdrawing collateral went through");
+        _assertLtvAboveLimit(ret, MARKET_USDC);
+        assertEq(uint8(adag.bill(sixtyId).status), uint8(AdagBills.Status.Open));
+    }
+
+    /// @dev With no debt left, less collateral cannot be unsafe, so repaying everything and taking some cirBTC
+    /// back is recorded without a check.
+    function test_repayAll_recordsZeroWithoutCheck() public {
+        uint256 borrow = borrowForLtv(MARKET_USDC, COLLATERAL, 0.2e18);
+        payWithLoan(PAYER, makeBill(PAYEE, ArcMainnet.USDC, borrow, REF), COLLATERAL, borrow);
+        repayShares(PAYER, MARKET_USDC, _liveShares(MARKET_USDC));
+        runBatch(PAYER, withdrawCollateralCalls(PAYER, MARKET_USDC, COLLATERAL / 2));
+
+        uint256 id = makeBill(PAYEE_B, ArcMainnet.USDC, SMALL, REF);
+        IMulticall3From.Call3[] memory calls = cashCalls(id);
+        vm.recordLogs();
+        runBatch(PAYER, calls);
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+
+        assertFalse(_billPaidFlags(logs)[0]);
+        DebtRecord[] memory records = _debtRecords(logs);
+        assertEq(records.length, 1);
+        assertEq(records[0].shares, 0);
+        assertEq(records[0].collateral, COLLATERAL - COLLATERAL / 2);
+        assertFalse(records[0].checked, "a position with no debt was checked");
+        assertEq(recordedShares(MARKET_USDC), 0);
+    }
+
+    /// @dev The freshness check reads BASE_FEED_1, and QUOTE_FEED_1 for EURC, and assumes nothing else feeds the
+    /// price. This pins that layout, so a change in either oracle shows up here first.
+    function test_oracleLayout_isPinned() public view {
+        _assertLayout(MARKET_USDC, address(0));
+        _assertLayout(MARKET_EURC, ArcMainnet.EUR_USD_FEED);
+    }
+
+    function _assertLayout(bytes32 marketId, address quoteFeed) internal view {
+        IOracleLayout oracle = IOracleLayout(paramsOf(marketId).oracle);
+        assertEq(oracle.BASE_VAULT(), address(0), "BASE_VAULT");
+        assertEq(oracle.BASE_FEED_1(), ArcMainnet.BTC_USD_FEED, "BASE_FEED_1");
+        assertEq(oracle.BASE_FEED_2(), address(0), "BASE_FEED_2");
+        assertEq(oracle.QUOTE_VAULT(), address(0), "QUOTE_VAULT");
+        assertEq(oracle.QUOTE_FEED_1(), quoteFeed, "QUOTE_FEED_1");
+        assertEq(oracle.QUOTE_FEED_2(), address(0), "QUOTE_FEED_2");
     }
 
     function _payThenClose(uint256 wait) internal {
         uint256 cirBtcStart = CIRBTC.balanceOf(PAYER);
         uint256 borrow = borrowForLtv(MARKET_USDC, COLLATERAL, 0.2e18);
         payWithLoan(PAYER, makeBill(PAYEE, ArcMainnet.USDC, borrow, REF), COLLATERAL, borrow);
-        assertGt(adag.seenShares(PAYER, MARKET_USDC), 0);
+        assertGt(recordedShares(MARKET_USDC), 0);
 
         vm.warp(block.timestamp + wait);
         closeLoan(PAYER, MARKET_USDC);
@@ -444,9 +593,10 @@ contract AdagLoanRuleTest is AdagFixture {
         assertEq(records.length, 1);
         assertEq(records[0].marketId, MARKET_USDC);
         assertEq(records[0].shares, 0);
+        assertEq(records[0].collateral, 0);
         assertFalse(records[0].checked);
         assertFalse(_billPaidFlags(logs)[0]);
-        assertEq(adag.seenShares(PAYER, MARKET_USDC), 0);
+        assertEq(recordedShares(MARKET_USDC), 0);
     }
 
     /// @dev What Adag will compute as the payer's debt right after Morpho lends `assets` from a fresh position, in
@@ -479,8 +629,8 @@ contract AdagLoanRuleTest is AdagFixture {
         for (uint256 i; i < logs.length; ++i) {
             if (logs[i].emitter == address(adag) && logs[i].topics[0] == AdagBills.DebtRecorded.selector) {
                 assertEq(logs[i].topics[1], bytes32(uint256(uint160(PAYER))), "debt recorded for someone else");
-                (uint256 shares, bool checked) = abi.decode(logs[i].data, (uint256, bool));
-                records[n++] = DebtRecord(logs[i].topics[2], shares, checked);
+                (uint256 shares, uint256 collateral, bool checked) = abi.decode(logs[i].data, (uint256, uint256, bool));
+                records[n++] = DebtRecord(logs[i].topics[2], shares, collateral, checked);
             }
         }
         assembly ("memory-safe") {

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
+import {Vm} from "forge-std/Vm.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {AdagBills} from "../../src/AdagBills.sol";
 import {IOracleMinimal} from "../../src/interfaces/IOracleMinimal.sol";
@@ -20,9 +21,16 @@ contract AdagHandler is AdagFixture {
         uint256 timesPaid;
     }
 
+    struct Pair {
+        uint256 shares;
+        uint256 collateral;
+    }
+
     address[4] internal payees;
     address[2] internal payers;
     mapping(uint256 id => Ghost) internal ghosts;
+    /// @dev The position at the last payment whose 40% check passed, per payer and market.
+    mapping(address payer => mapping(bytes32 marketId => Pair)) internal lastAccepted;
 
     uint256 public created;
     uint256 public paidUsdc;
@@ -33,6 +41,8 @@ contract AdagHandler is AdagFixture {
     uint256 public bookkeepingBreaks;
     uint256 public lineBreaks;
     uint256 public idBreaks;
+    uint256 public decisionBreaks;
+    uint256 public dominanceBreaks;
     string public firstBreak;
 
     uint256 public successfulPays;
@@ -40,6 +50,7 @@ contract AdagHandler is AdagFixture {
     uint256 public refusedNotOpen;
     uint256 public refusedOverLine;
     uint256 public refusedOther;
+    uint256 public reuseAttempts;
 
     /// @dev The real oracle prices at deploy, and a per-market factor in basis points that price moves adjust.
     uint256 internal usdcBasePrice;
@@ -149,6 +160,37 @@ contract AdagHandler is AdagFixture {
         _syncMocks();
     }
 
+    /// @dev The backend-gate bypass, attempted at random: close outside Adag, re-pledge between a tenth and double
+    /// the recorded collateral, borrow back exactly the recorded share count, then pay a bill.
+    function reuseRecordedShares(uint256 payerSeed, bool eurc, uint256 collateralBps, uint256 idSeed) external {
+        _syncMocks();
+        if (created == 0) return;
+        address payer = payers[payerSeed % payers.length];
+        bytes32 marketId = eurc ? ArcMainnet.MARKET_EURC : ArcMainnet.MARKET_USDC;
+        Pair memory recorded = _recorded(payer, marketId);
+        if (recorded.shares == 0) return;
+
+        (, uint128 liveShares,) = MORPHO.position(marketId, payer);
+        if (liveShares != 0) {
+            (bool closed,) = tryBatch(payer, closeLoanCalls(payer, marketId));
+            if (!closed) return;
+        }
+        uint256 collateral = recorded.collateral * _bound(collateralBps, 1_000, 20_000) / 10_000;
+        if (collateral == 0) collateral = 1;
+        if (collateral > CIRBTC.balanceOf(payer)) return;
+
+        reuseAttempts++;
+        uint256 id = _pickBill(idSeed);
+        _pay(
+            id,
+            payer,
+            concat(
+                concat(pledgeCalls(payer, marketId, collateral), borrowSharesCalls(payer, marketId, recorded.shares)),
+                cashCalls(id)
+            )
+        );
+    }
+
     function ghostOf(uint256 id) external view returns (Ghost memory) {
         return ghosts[id];
     }
@@ -159,11 +201,13 @@ contract AdagHandler is AdagFixture {
 
     function _pay(uint256 id, address payer, IMulticall3From.Call3[] memory calls) internal {
         Ghost storage g = ghosts[id];
-        uint256 seenUsdcBefore = adag.seenShares(payer, ArcMainnet.MARKET_USDC);
-        uint256 seenEurcBefore = adag.seenShares(payer, ArcMainnet.MARKET_EURC);
+        Pair memory usdcBefore = _recorded(payer, ArcMainnet.MARKET_USDC);
+        Pair memory eurcBefore = _recorded(payer, ArcMainnet.MARKET_EURC);
         uint256 payeeBefore = IERC20(g.currency).balanceOf(g.payee);
 
+        vm.recordLogs();
         (bool ok, bytes memory ret) = tryBatch(payer, calls);
+        Vm.Log[] memory logs = vm.getRecordedLogs();
 
         if (!ok) {
             if (g.status != AdagBills.Status.Open) refusedNotOpen++;
@@ -193,23 +237,60 @@ contract AdagHandler is AdagFixture {
         if (g.currency == ArcMainnet.USDC) paidUsdc += g.amount;
         else paidEurc += g.amount;
 
-        bool grewUsdc = _checkAfterPay(ArcMainnet.MARKET_USDC, payer, seenUsdcBefore);
-        bool grewEurc = _checkAfterPay(ArcMainnet.MARKET_EURC, payer, seenEurcBefore);
-        if (grewUsdc || grewEurc) checkedPays++;
+        bool checkedUsdc = _checkAfterPay(ArcMainnet.MARKET_USDC, payer, usdcBefore, logs);
+        bool checkedEurc = _checkAfterPay(ArcMainnet.MARKET_EURC, payer, eurcBefore, logs);
+        if (checkedUsdc || checkedEurc) checkedPays++;
     }
 
-    function _checkAfterPay(bytes32 marketId, address payer, uint256 seenBefore) internal returns (bool grew) {
-        (, uint128 live,) = MORPHO.position(marketId, payer);
-        if (adag.seenShares(payer, marketId) != live) {
+    function _checkAfterPay(bytes32 marketId, address payer, Pair memory before, Vm.Log[] memory logs)
+        internal
+        returns (bool checked)
+    {
+        (, uint128 shares, uint128 collateral) = MORPHO.position(marketId, payer);
+        Pair memory recorded = _recorded(payer, marketId);
+        if (recorded.shares != shares || recorded.collateral != collateral) {
             bookkeepingBreaks++;
-            _note("seenShares differs from live shares after a payment");
+            _note("the recorded position differs from the live one after a payment");
         }
-        grew = live > seenBefore;
-        // Adag accrued interest in this same call when shares grew, so the stored totals are current here.
-        if (grew && independentDebt(marketId, payer) > independentLine(marketId, payer)) {
+
+        checked = _checkedInLogs(logs, payer, marketId);
+        bool ruleSaysCheck = shares != 0 && (shares > before.shares || collateral < before.collateral);
+        if (checked != ruleSaysCheck) {
+            decisionBreaks++;
+            _note("whether the payment was checked differs from the rule");
+        }
+        // Adag accrued interest in this same call when it checked, so the stored totals are current here.
+        if (checked && independentDebt(marketId, payer) > independentLine(marketId, payer)) {
             lineBreaks++;
-            _note("a payment that added debt left the loan above 40%");
+            _note("a checked payment left the loan above 40%");
         }
+
+        if (checked) {
+            lastAccepted[payer][marketId] = Pair(shares, collateral);
+        } else if (shares != 0) {
+            Pair memory accepted = lastAccepted[payer][marketId];
+            if (shares > accepted.shares || collateral < accepted.collateral) {
+                dominanceBreaks++;
+                _note("an unchecked position with debt is less safe than the last one a check accepted");
+            }
+        }
+    }
+
+    function _recorded(address payer, bytes32 marketId) internal view returns (Pair memory p) {
+        (p.shares, p.collateral) = adag.seenPosition(payer, marketId);
+    }
+
+    function _checkedInLogs(Vm.Log[] memory logs, address payer, bytes32 marketId) internal view returns (bool) {
+        for (uint256 i; i < logs.length; ++i) {
+            if (
+                logs[i].emitter == address(adag) && logs[i].topics[0] == AdagBills.DebtRecorded.selector
+                    && logs[i].topics[1] == bytes32(uint256(uint160(payer))) && logs[i].topics[2] == marketId
+            ) {
+                (,, bool checked) = abi.decode(logs[i].data, (uint256, uint256, bool));
+                return checked;
+            }
+        }
+        return false;
     }
 
     // Mocks may outlive an invariant run while this contract's storage does not. Re-applying them from storage

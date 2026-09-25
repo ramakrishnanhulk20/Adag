@@ -142,8 +142,8 @@ contract AdagBillsTest is AdagFixture {
         assertEq(USDC.balanceOf(SUPPLIER) - payeeBefore, AMOUNT, "payee not credited exactly");
         assertEq(USDC.allowance(PAYER, address(adag)), 0, "approval left over");
         assertEq(uint8(adag.bill(id).status), uint8(AdagBills.Status.Paid));
-        assertEq(adag.seenShares(PAYER, ArcMainnet.MARKET_USDC), 0);
-        assertEq(adag.seenShares(PAYER, ArcMainnet.MARKET_EURC), 0);
+        assertEq(recordedShares(ArcMainnet.MARKET_USDC), 0);
+        assertEq(recordedShares(ArcMainnet.MARKET_EURC), 0);
         _assertMemoForBill(logs, id);
         _assertNoDebtRecorded(logs);
         assertAdagHoldsNothing();

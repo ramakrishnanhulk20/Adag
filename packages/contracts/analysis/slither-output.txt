@@ -3,36 +3,36 @@ slither: 0.11.6
 'forge config --json' running
 INFO:Detectors:
 Detector: uninitialized-local
-AdagBills.createBill(address,uint256,uint64,bytes).marketId (src/AdagBills.sol#164) is a local variable never initialized
-AdagBills._params(bytes32).expectedLoan (src/AdagBills.sol#424) is a local variable never initialized
+AdagBills.createBill(address,uint256,uint64,bytes).marketId (src/AdagBills.sol#177) is a local variable never initialized
+AdagBills._params(bytes32).expectedLoan (src/AdagBills.sol#453) is a local variable never initialized
 Reference: https://github.com/crytic/slither/wiki/Detector-Documentation#uninitialized-local-variables
 INFO:Detectors:
 Detector: unused-return
-AdagBills._recordShares(bytes32,address) (src/AdagBills.sol#355-363) ignores return value by (None,shares,None) = _MORPHO.position(marketId,payer) (src/AdagBills.sol#356)
-AdagBills._checkLoan(bytes32,address) (src/AdagBills.sol#366-381) ignores return value by (None,None,None,None,lastUpdate,None) = _MORPHO.market(marketId) (src/AdagBills.sol#368)
-AdagBills._readFeed(address,address,uint256) (src/AdagBills.sol#397-403) ignores return value by (None,answer,None,updatedAt,None) = IChainlinkFeed(feed).latestRoundData() (src/AdagBills.sol#399)
-AdagBills._debt(bytes32,address) (src/AdagBills.sol#405-416) ignores return value by (None,borrowShares,pledged) = _MORPHO.position(marketId,user) (src/AdagBills.sol#406)
-AdagBills._debt(bytes32,address) (src/AdagBills.sol#405-416) ignores return value by (None,None,totalBorrowAssets,totalBorrowShares,None,None) = _MORPHO.market(marketId) (src/AdagBills.sol#409)
+AdagBills._recordPosition(bytes32,address) (src/AdagBills.sol#383-392) ignores return value by (None,shares,collateral) = _MORPHO.position(marketId,payer) (src/AdagBills.sol#384)
+AdagBills._checkLoan(bytes32,address) (src/AdagBills.sol#395-410) ignores return value by (None,None,None,None,lastUpdate,None) = _MORPHO.market(marketId) (src/AdagBills.sol#397)
+AdagBills._readFeed(address,address,uint256) (src/AdagBills.sol#426-432) ignores return value by (None,answer,None,updatedAt,None) = IChainlinkFeed(feed).latestRoundData() (src/AdagBills.sol#428)
+AdagBills._debt(bytes32,address) (src/AdagBills.sol#434-445) ignores return value by (None,borrowShares,pledged) = _MORPHO.position(marketId,user) (src/AdagBills.sol#435)
+AdagBills._debt(bytes32,address) (src/AdagBills.sol#434-445) ignores return value by (None,None,totalBorrowAssets,totalBorrowShares,None,None) = _MORPHO.market(marketId) (src/AdagBills.sol#438)
 Reference: https://github.com/crytic/slither/wiki/Detector-Documentation#unused-return
 INFO:Detectors:
 Detector: timestamp
-AdagBills.pay(uint256) (src/AdagBills.sol#209-240) uses timestamp for comparisons
+AdagBills.pay(uint256) (src/AdagBills.sol#225-260) uses timestamp for comparisons
 	Dangerous comparisons:
-	- rise < amount (src/AdagBills.sol#232)
-	- balanceAfter > balanceBefore (src/AdagBills.sol#231)
-AdagBills.priceStatus(bytes32) (src/AdagBills.sol#343-351) uses timestamp for comparisons
+	- rise < amount (src/AdagBills.sol#248)
+	- balanceAfter > balanceBefore (src/AdagBills.sol#247)
+AdagBills.priceStatus(bytes32) (src/AdagBills.sol#368-376) uses timestamp for comparisons
 	Dangerous comparisons:
-	- (btcUsd.fresh && eurUsd.fresh,btcUsd.updatedAt,eurUsd.updatedAt) (src/AdagBills.sol#350)
-AdagBills._checkLoan(bytes32,address) (src/AdagBills.sol#366-381) uses timestamp for comparisons
+	- (btcUsd.fresh && eurUsd.fresh,btcUsd.updatedAt,eurUsd.updatedAt) (src/AdagBills.sol#375)
+AdagBills._checkLoan(bytes32,address) (src/AdagBills.sol#395-410) uses timestamp for comparisons
 	Dangerous comparisons:
-	- lastUpdate != block.timestamp (src/AdagBills.sol#369)
-AdagBills._readFeed(address,address,uint256) (src/AdagBills.sol#397-403) uses timestamp for comparisons
+	- lastUpdate != block.timestamp (src/AdagBills.sol#398)
+AdagBills._readFeed(address,address,uint256) (src/AdagBills.sol#426-432) uses timestamp for comparisons
 	Dangerous comparisons:
-	- read.fresh = answer > 0 && updatedAt <= block.timestamp && block.timestamp - updatedAt <= maxAge (src/AdagBills.sol#402)
+	- read.fresh = answer > 0 && updatedAt <= block.timestamp && block.timestamp - updatedAt <= maxAge (src/AdagBills.sol#431)
 Reference: https://github.com/crytic/slither/wiki/Detector-Documentation#block-timestamp
 INFO:Detectors:
 Detector: naming-convention
 Function IOracleMinimal.BASE_FEED_1() (src/interfaces/IOracleMinimal.sol#10) is not in mixedCase
 Function IOracleMinimal.QUOTE_FEED_1() (src/interfaces/IOracleMinimal.sol#12) is not in mixedCase
 Reference: https://github.com/crytic/slither/wiki/Detector-Documentation#conformance-to-solidity-naming-conventions
-INFO:Slither:. analyzed (42 contracts with 102 detectors), 13 result(s) found
+INFO:Slither:. analyzed (43 contracts with 102 detectors), 13 result(s) found

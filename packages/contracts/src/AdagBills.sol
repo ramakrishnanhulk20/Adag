@@ -11,9 +11,10 @@ import {IChainlinkFeed} from "./interfaces/IChainlinkFeed.sol";
 
 /// @title AdagBills
 /// @notice A public bill book on Arc. A supplier writes a bill in USDC or EURC; anyone else can pay it exactly
-/// once, and the supplier is proven credited in the same call. When the payer's Morpho debt against cirBTC has
-/// grown since Adag last looked, the payment only goes through if that debt sits at or under 40% of the
-/// collateral's value.
+/// once, and the supplier is proven credited in the same call. When the payer's Morpho position against cirBTC is
+/// less safe than the one Adag last recorded (more borrow shares, or less collateral, while any debt remains), the
+/// payment only goes through if that debt sits at or under 40% of the collateral's value. Price moves and
+/// interest alone never trigger the check.
 /// @dev Immutable, no owner, no admin, no pause, no rescue. Adag never holds tokens: the only transfer it makes
 /// goes straight from the payer to the payee inside `pay`.
 contract AdagBills is ReentrancyGuardTransient {
@@ -38,10 +39,17 @@ contract AdagBills is ReentrancyGuardTransient {
         bytes ref;
     }
 
-    struct DebtChange {
+    /// @dev One storage slot per payer and market. Morpho keeps both fields as uint128, so nothing is lost.
+    struct Seen {
+        uint128 shares;
+        uint128 collateral;
+    }
+
+    struct PositionChange {
         bool changed;
-        bool grew;
+        bool mustCheck;
         uint256 shares;
+        uint256 collateral;
     }
 
     struct FeedRead {
@@ -91,7 +99,7 @@ contract AdagBills is ReentrancyGuardTransient {
     mapping(uint256 id => Bill) private _bills;
     mapping(address payee => uint256[] ids) private _payeeBills;
     mapping(address payer => uint256[] ids) private _payerPayments;
-    mapping(address payer => mapping(bytes32 marketId => uint256 shares)) private _seenShares;
+    mapping(address payer => mapping(bytes32 marketId => Seen)) private _seen;
 
     /// @notice A payee wrote a bill.
     /// @param id The new bill id.
@@ -113,7 +121,8 @@ contract AdagBills is ReentrancyGuardTransient {
     /// @param payee The account that received it, checked by its balance in the same call.
     /// @param currency The token that moved.
     /// @param amount The exact amount that moved, in the token's base units.
-    /// @param loanChecked True if the payer's debt had grown in either Adag market and passed the 40% check.
+    /// @param loanChecked True if the payer's position in either Adag market was less safe than the one Adag last
+    /// recorded, and it passed the 40% check.
     event BillPaid(
         uint256 indexed id,
         address indexed payer,
@@ -122,12 +131,16 @@ contract AdagBills is ReentrancyGuardTransient {
         uint256 amount,
         bool loanChecked
     );
-    /// @notice Adag stored a new value for a payer's Morpho borrow shares in one of its markets.
+    /// @notice Adag stored a new position for a payer in one of its markets, because it differed from the last one.
     /// @param payer The borrower.
     /// @param marketId MARKET_USDC or MARKET_EURC.
-    /// @param borrowShares The live borrow shares Adag now remembers.
-    /// @param checked True if the shares had grown and the 40% check passed; false if they had fallen.
-    event DebtRecorded(address indexed payer, bytes32 indexed marketId, uint256 borrowShares, bool checked);
+    /// @param borrowShares The live Morpho borrow shares Adag now remembers.
+    /// @param collateral The live pledged cirBTC, in satoshis, Adag now remembers.
+    /// @param checked True if the position was less safe than the last one (more shares, or less collateral, with
+    /// debt above zero) and the 40% check passed; false if it was at least as safe, or carried no debt.
+    event DebtRecorded(
+        address indexed payer, bytes32 indexed marketId, uint256 borrowShares, uint256 collateral, bool checked
+    );
 
     error ZeroAmount();
     error ReferenceTooLong(uint256 length);
@@ -199,12 +212,15 @@ contract AdagBills is ReentrancyGuardTransient {
     /// @notice Pays an open bill from the caller's own balance.
     /// @dev The caller must have approved this contract for exactly the bill amount in the bill's currency.
     /// The bill is marked paid before any external call. The amount moves from the caller straight to the
-    /// payee, and the payee's balance must rise by at least the amount in this same call. Then, in both Adag
-    /// markets, if the caller's Morpho borrow shares are above the value Adag last accepted, the caller's debt
-    /// there must be at or under 40% of the collateral value, with interest accrued and fresh prices.
-    /// Reverts UnknownBill, BillNotOpen, SelfPayment, PayeeNotCredited, any token revert, BadMarket, BadFeed,
-    /// StalePrice, ZeroPrice, LtvAboveLimit. Emits DebtRecorded for each market whose shares changed, then
-    /// BillPaid with loanChecked true if either market ran the 40% check.
+    /// payee, and the payee's balance must rise by at least the amount in this same call. In both Adag markets,
+    /// before the transfer, Adag reads the caller's Morpho borrow shares and collateral and records them if either
+    /// differs from the pair it last recorded. The 40% check is due in a market when the caller has debt there and
+    /// the new pair is less safe than the recorded one: more shares, or less collateral. After the transfer, every
+    /// market with a check due must have debt at or under 40% of the collateral value, with interest accrued and
+    /// fresh prices. A position at least as safe as the recorded one is never checked, so price moves and interest
+    /// alone never block a payment. Reverts UnknownBill, BillNotOpen, SelfPayment, PayeeNotCredited, any token
+    /// revert, BadMarket, BadFeed, StalePrice, ZeroPrice, LtvAboveLimit. Emits DebtRecorded for each market whose
+    /// pair changed, then BillPaid with loanChecked true if either market ran the 40% check.
     /// @param id The bill to pay.
     function pay(uint256 id) external nonReentrant {
         Bill storage b = _bills[id];
@@ -219,9 +235,9 @@ contract AdagBills is ReentrancyGuardTransient {
         b.paidAt = uint64(block.timestamp);
         _payerPayments[msg.sender].push(id);
         // Both markets, whatever the bill's currency: a loan taken in one market can fund a bill in the other.
-        // Shares are recorded before any external call that can change state; a failed check reverts them.
-        DebtChange memory usdcDebt = _recordShares(MARKET_USDC, msg.sender);
-        DebtChange memory eurcDebt = _recordShares(MARKET_EURC, msg.sender);
+        // Positions are recorded before any external call that can change state; a failed check reverts them.
+        PositionChange memory usdcPos = _recordPosition(MARKET_USDC, msg.sender);
+        PositionChange memory eurcPos = _recordPosition(MARKET_EURC, msg.sender);
 
         IERC20 token = IERC20(b.currency);
         uint256 amount = b.amount;
@@ -231,12 +247,16 @@ contract AdagBills is ReentrancyGuardTransient {
         uint256 rise = balanceAfter > balanceBefore ? balanceAfter - balanceBefore : 0;
         if (rise < amount) revert PayeeNotCredited(rise, amount);
 
-        if (usdcDebt.grew) _checkLoan(MARKET_USDC, msg.sender);
-        if (eurcDebt.grew) _checkLoan(MARKET_EURC, msg.sender);
+        if (usdcPos.mustCheck) _checkLoan(MARKET_USDC, msg.sender);
+        if (eurcPos.mustCheck) _checkLoan(MARKET_EURC, msg.sender);
 
-        if (usdcDebt.changed) emit DebtRecorded(msg.sender, MARKET_USDC, usdcDebt.shares, usdcDebt.grew);
-        if (eurcDebt.changed) emit DebtRecorded(msg.sender, MARKET_EURC, eurcDebt.shares, eurcDebt.grew);
-        emit BillPaid(id, msg.sender, payee, address(token), amount, usdcDebt.grew || eurcDebt.grew);
+        if (usdcPos.changed) {
+            emit DebtRecorded(msg.sender, MARKET_USDC, usdcPos.shares, usdcPos.collateral, usdcPos.mustCheck);
+        }
+        if (eurcPos.changed) {
+            emit DebtRecorded(msg.sender, MARKET_EURC, eurcPos.shares, eurcPos.collateral, eurcPos.mustCheck);
+        }
+        emit BillPaid(id, msg.sender, payee, address(token), amount, usdcPos.mustCheck || eurcPos.mustCheck);
     }
 
     /// @notice Returns a bill's full record.
@@ -281,13 +301,18 @@ contract AdagBills is ReentrancyGuardTransient {
         return _page(_payerPayments[payer], offset, limit);
     }
 
-    /// @notice The borrow shares Adag last accepted for a payer in a market.
-    /// @dev Shares do not grow with interest, so a live value above this one means the payer took new debt
-    /// since Adag last looked. 0 for a payer Adag has never seen.
+    /// @notice The Morpho position Adag last recorded for a payer in a market, at that payer's latest payment.
+    /// @dev The next payment runs the 40% check in this market if the payer then has debt here and either more
+    /// borrow shares or less collateral than this pair. Shares do not grow with interest and collateral does not
+    /// move with price, so only the payer's own borrowing, repaying, pledging and withdrawing change the answer.
+    /// Both are 0 for a payer Adag has never seen.
     /// @param payer The payer address.
     /// @param marketId A Morpho market id.
-    function seenShares(address payer, bytes32 marketId) external view returns (uint256) {
-        return _seenShares[payer][marketId];
+    /// @return shares The recorded borrow shares.
+    /// @return collateral The recorded pledged cirBTC, in satoshis.
+    function seenPosition(address payer, bytes32 marketId) external view returns (uint256 shares, uint256 collateral) {
+        Seen memory seen = _seen[payer][marketId];
+        return (seen.shares, seen.collateral);
     }
 
     /// @notice A user's debt over collateral value in an Adag market, WAD scaled (0.4e18 is 40%), rounded up.
@@ -350,16 +375,20 @@ contract AdagBills is ReentrancyGuardTransient {
         return (btcUsd.fresh && eurUsd.fresh, btcUsd.updatedAt, eurUsd.updatedAt);
     }
 
-    // Shares, not the loan-to-value, decide whether to check: a price drop or interest never blocks a payment
-    // that adds no debt, while any new borrow since Adag last looked, made anywhere, must pass the 40% line.
-    function _recordShares(bytes32 marketId, address payer) private returns (DebtChange memory change) {
-        (, uint128 shares,) = _MORPHO.position(marketId, payer);
-        uint256 seen = _seenShares[payer][marketId];
-        if (shares == seen) return change;
-        _seenShares[payer][marketId] = shares;
+    // The position, not the loan-to-value, decides whether to check. With debt above zero, more shares or less
+    // collateral than the recorded pair means the payer made the position less safe since Adag last looked, and
+    // it must pass the 40% line. Checking shares alone let a payer close, re-pledge less and borrow back the same
+    // share count unchecked. A position that is no worse on both counts was already acceptable, and price moves
+    // and interest change neither field, so they never block a payment.
+    function _recordPosition(bytes32 marketId, address payer) private returns (PositionChange memory change) {
+        (, uint128 shares, uint128 collateral) = _MORPHO.position(marketId, payer);
+        Seen memory seen = _seen[payer][marketId];
+        if (shares == seen.shares && collateral == seen.collateral) return change;
+        _seen[payer][marketId] = Seen(shares, collateral);
         change.changed = true;
-        change.grew = shares > seen;
+        change.mustCheck = shares != 0 && (shares > seen.shares || collateral < seen.collateral);
         change.shares = shares;
+        change.collateral = collateral;
     }
 
     // Shape follows Morpho's BlueBundlesV1.requireMaxLtv, plus the freshness and zero-price checks Morpho skips.

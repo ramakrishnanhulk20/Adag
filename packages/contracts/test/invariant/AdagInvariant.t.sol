@@ -2,8 +2,9 @@
 pragma solidity ^0.8.30;
 
 // Invariant tests for AdagBills on an Arc mainnet fork. AdagHandler runs random sequences of bill writing, voiding,
-// cash and loan-backed payments, Morpho borrowing and repaying outside Adag, time passing and price moves, and
-// these six rules must hold after every step.
+// cash and loan-backed payments, Morpho borrowing and repaying outside Adag, attempts to reuse a recorded share
+// count on different collateral, time passing and price moves, and
+// these seven rules must hold after every step.
 // Not covered here: liquidations, token pauses and blocklists, more than two payers, feeds that go stale on their
 // own (the handler keeps them fresh so loans can happen; staleness is proven in AdagLoanRule), and real signed
 // transactions. Payers are funded with deal(): each gets 0.05 cirBTC, 1,000 USDC and 1,000 EURC, which replaces
@@ -29,7 +30,7 @@ contract AdagInvariantTest is AdagFixture {
         }
         handler = new AdagHandler(adag, payees, payers);
 
-        bytes4[] memory selectors = new bytes4[](8);
+        bytes4[] memory selectors = new bytes4[](9);
         selectors[0] = AdagHandler.createBill.selector;
         selectors[1] = AdagHandler.voidBill.selector;
         selectors[2] = AdagHandler.payFromBalance.selector;
@@ -38,6 +39,7 @@ contract AdagInvariantTest is AdagFixture {
         selectors[5] = AdagHandler.repayPart.selector;
         selectors[6] = AdagHandler.passTime.selector;
         selectors[7] = AdagHandler.movePrice.selector;
+        selectors[8] = AdagHandler.reuseRecordedShares.selector;
         targetContract(address(handler));
         targetSelector(FuzzSelector({addr: address(handler), selectors: selectors}));
         // Left free, the fuzzer draws callers from addresses it finds in state, and Arc refuses any call from an
@@ -73,12 +75,14 @@ contract AdagInvariantTest is AdagFixture {
         assertEq(eurc, handler.paidEurc(), "EURC credited to payees differs from bills paid");
     }
 
-    /// I4: after every successful payment, seenShares equals the payer's live borrow shares in both markets.
-    function invariant_I4_seenSharesMatchAfterPay() public view {
+    /// I4: after every successful payment, the recorded shares and collateral equal the live position in both
+    /// markets.
+    function invariant_I4_recordedPositionMatchesAfterPay() public view {
         assertEq(handler.bookkeepingBreaks(), 0, handler.firstBreak());
     }
 
-    /// I5 (C10): after every successful payment where debt grew, that market's debt was at or under 40%.
+    /// I5 (C10): after every successful payment that ran the 40% check in a market, that market's debt was at or
+    /// under 40%.
     function invariant_I5_newDebtWithinLine() public view {
         assertEq(handler.lineBreaks(), 0, handler.firstBreak());
     }
@@ -92,5 +96,13 @@ contract AdagInvariantTest is AdagFixture {
         for (uint256 id = 1; id <= n; ++id) {
             assertEq(adag.bill(id).payee, handler.ghostOf(id).payee, "bill payee differs from its writer");
         }
+    }
+
+    /// I7 (C10, the backend-gate finding): after every successful payment, in each market where the payer has
+    /// debt, either that payment ran the 40% check or the live position is no less safe than the last one a check
+    /// accepted (shares no higher, collateral no lower). Also: whether the check ran matches the rule exactly.
+    function invariant_I7_uncheckedDebtIsDominated() public view {
+        assertEq(handler.dominanceBreaks(), 0, handler.firstBreak());
+        assertEq(handler.decisionBreaks(), 0, handler.firstBreak());
     }
 }

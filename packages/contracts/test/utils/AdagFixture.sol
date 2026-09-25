@@ -292,6 +292,41 @@ abstract contract AdagFixture is Test {
         );
     }
 
+    /// @dev The borrow shares Adag has recorded for the demo wallet in a market.
+    function recordedShares(bytes32 marketId) internal view returns (uint256 shares) {
+        (shares,) = adag.seenPosition(PAYER, marketId);
+    }
+
+    /// @dev The pledged cirBTC Adag has recorded for the demo wallet in a market.
+    function recordedCollateral(bytes32 marketId) internal view returns (uint256 collateral) {
+        (, collateral) = adag.seenPosition(PAYER, marketId);
+    }
+
+    /// @dev Borrow an exact share count, the input a payer controls when reproducing a position Adag recorded.
+    function borrowSharesCalls(address payer, bytes32 marketId, uint256 shares)
+        internal
+        view
+        returns (IMulticall3From.Call3[] memory calls)
+    {
+        calls = new IMulticall3From.Call3[](1);
+        calls[0] = call3(
+            ArcMainnet.MORPHO, abi.encodeCall(IMorphoBorrow.borrow, (paramsOf(marketId), 0, shares, payer, payer))
+        );
+    }
+
+    /// @dev Take pledged cirBTC back to the payer's wallet, outside Adag.
+    function withdrawCollateralCalls(address payer, bytes32 marketId, uint256 amount)
+        internal
+        view
+        returns (IMulticall3From.Call3[] memory calls)
+    {
+        calls = new IMulticall3From.Call3[](1);
+        calls[0] = call3(
+            ArcMainnet.MORPHO,
+            abi.encodeCall(IMorphoBorrow.withdrawCollateral, (paramsOf(marketId), amount, payer, payer))
+        );
+    }
+
     /// @dev The batch repayShares sends, built apart so a caller can try it without reverting.
     function repaySharesCalls(address payer, bytes32 marketId, uint256 shares)
         internal

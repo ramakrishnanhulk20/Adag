@@ -142,3 +142,17 @@ What changed:
 ## After the head chef's ordering change (25 September)
 
 `pay` now records both markets' borrow shares before the token transfer, then runs the 40% checks, then emits `DebtRecorded` and `BillPaid` last. Behaviour is unchanged (a failed check still reverts everything), and no storage write follows an external call that can change state. Re-run of `run-analysis.sh`: slither reports 13 results, with no reentrancy finding left (S2 is gone); all three tools exit 0. 48 of 48 tests pass.
+
+## After WO-5 (new-debt rule closes the reused-shares bypass)
+
+The rule now records each payer's borrow shares and collateral per market, and runs the 40% check whenever the payer has debt and the position is less safe than the recorded one: more shares, or less collateral. `seenShares` is replaced by `seenPosition`, and `DebtRecorded` gains a `collateral` field. Re-run of `run-analysis.sh`: all three tools exit 0.
+
+| Tool | Before | After |
+| --- | --- | --- |
+| slither | 13 | 13 |
+| solhint | 38 | 39 |
+| arc-forge lint | 3 | 3 |
+
+- **New, solhint:** gas-indexed-events on the new `collateral` field of `DebtRecorded`, line 141. False positive for the same reason as H6: two of the three index slots are taken by the payer and the market, and nobody searches by an exact collateral amount.
+- **Renamed only, slither S4:** unused-return now points at `_recordPosition`, line 384, which reads both borrow shares and collateral from `position` and still skips supply shares on purpose. Same verdict.
+- **Moved only:** the other slither rows, lint L1 to L3 (now 398:13, 431:36, 431:68) and solhint H7 (431, 461, 472) shifted with the longer NatSpec. No verdict changed.
