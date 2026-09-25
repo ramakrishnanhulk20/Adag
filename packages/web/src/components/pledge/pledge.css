@@ -1,0 +1,662 @@
+/*
+  The pledge stage (SPEC section 5). The timeline writes its progress to --p on .pl-stage; the chapter rule, the
+  chapter names and the coin's float read it here, so React never re-renders per frame.
+  Phones first: everything in one column. From 48rem the stage is one pinned screen.
+*/
+
+.pl-section {
+  position: relative;
+  background-color: var(--bg);
+}
+
+.pl-stage {
+  --p: 0;
+  --gut: 20px;
+  --card-w: 100%;
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  padding: 56px 0 48px;
+  overflow: hidden;
+  background-color: var(--bg);
+}
+
+.pl-honesty {
+  position: relative;
+  z-index: 4;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 var(--gut);
+}
+
+.pl-head {
+  position: relative;
+  z-index: 4;
+  padding: 28px var(--gut) 24px;
+}
+.pl-title {
+  margin-bottom: 20px;
+}
+
+/* Every caption shares one box; the timeline cross-fades them. The first sets the box's height. */
+.pl-captions {
+  display: grid;
+}
+.pl-caption-block {
+  grid-area: 1 / 1;
+  opacity: 0;
+}
+.pl-caption-block[data-pl-cap="1"] {
+  opacity: 1;
+}
+.pl-caption {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: clamp(2.125rem, 1.4rem + 3vw, 3.25rem);
+  line-height: 1.02;
+  letter-spacing: -0.015em;
+  color: var(--text);
+  text-wrap: balance;
+}
+.pl-sub {
+  margin-top: 14px;
+  max-width: 44ch;
+  font-size: 1rem;
+  line-height: 1.55;
+  color: var(--muted);
+}
+
+.pl-frame {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+}
+/* Scaled about the coin's landing point, so the loan lines stay pinned to the coin while the camera pushes in. */
+.pl-push {
+  position: absolute;
+  inset: 0;
+  transform-origin: 50.17% 50.42%;
+}
+.pl-photo {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  mask-image:
+    radial-gradient(64% 72% at 54% 50%, black 55%, transparent 100%),
+    linear-gradient(180deg, transparent 0%, black 14%, black 86%, transparent 100%);
+  mask-composite: intersect;
+}
+.pl-photo-vignette {
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(90% 80% at 50% 50%, rgb(var(--shade-rgb) / 0) 50%, rgb(var(--shade-rgb) / 0.45) 100%);
+}
+/* On linen the vignette turns the faded edge grey. */
+[data-theme="light"] .pl-photo-vignette {
+  display: none;
+}
+
+/* The light the coin hangs in, before it is pledged. */
+.pl-cone {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(22% 34% at 50.17% 21%, color-mix(in srgb, var(--coin-hi) 30%, transparent) 0%, transparent 100%),
+    linear-gradient(180deg, color-mix(in srgb, var(--coin-hi) 12%, transparent) 0%, transparent 42%);
+  mask-image: linear-gradient(90deg, transparent 30%, black 44%, black 56%, transparent 70%);
+  mix-blend-mode: screen;
+}
+
+/* The empty slot waiting for the coin: it hides the photographed coin until the falling one reaches it. */
+.pl-shade {
+  position: absolute;
+  left: 50.17%;
+  top: 50.42%;
+  width: 34%;
+  height: 31%;
+  translate: -50% -50%;
+  border-radius: 50%;
+  background-image: radial-gradient(closest-side, rgb(var(--ink-rgb)) 0%, rgb(var(--ink-rgb)) 50%, rgb(var(--ink-rgb) / 0.75) 68%, rgb(var(--ink-rgb) / 0) 100%);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  mask-image: radial-gradient(closest-side, black 62%, transparent 100%);
+  pointer-events: none;
+}
+
+.pl-tray {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+  visibility: hidden;
+}
+/* The glow sits on the polygon, not the svg box: a filtered svg box leaves a 1px seam along the photo's edge. */
+.pl-tray polygon {
+  filter: drop-shadow(0 0 40px color-mix(in srgb, var(--coin-mid) 35%, transparent))
+    drop-shadow(0 0 6px color-mix(in srgb, var(--coin-hi) 45%, transparent));
+  fill: color-mix(in srgb, var(--coin-mid) 7%, transparent);
+  stroke: var(--coin-mid);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.pl-coin {
+  position: absolute;
+  left: 50.17%;
+  top: 50.42%;
+  width: 14.33%;
+  aspect-ratio: 1;
+  translate: -50% -50%;
+  pointer-events: none;
+}
+.pl-coin-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 10px 18px rgb(var(--shade-rgb) / 0.45));
+}
+.pl-coin-glow {
+  position: absolute;
+  inset: -45%;
+  border-radius: 50%;
+  background-image: radial-gradient(closest-side, color-mix(in srgb, var(--coin-hi) 55%, transparent), transparent 100%);
+  opacity: 0;
+  mix-blend-mode: screen;
+}
+/* Floats 4px while it hangs, and stops before the drop (--p passes 0.3). */
+.pl-coin-float {
+  --amp: clamp(0, (0.3 - var(--p)) * 200, 1);
+  width: 100%;
+  height: 100%;
+  animation: pl-float 2.6s ease-in-out infinite;
+}
+@keyframes pl-float {
+  0%,
+  100% {
+    transform: translateY(calc(var(--amp) * -4px));
+  }
+  50% {
+    transform: translateY(calc(var(--amp) * 4px));
+  }
+}
+.pl-stop-hi {
+  stop-color: var(--coin-hi);
+}
+.pl-stop-mid {
+  stop-color: var(--coin-mid);
+}
+.pl-stop-lo {
+  stop-color: var(--coin-lo);
+}
+.pl-stop-rim {
+  stop-color: var(--coin-rim);
+}
+.pl-coin-reed {
+  stroke: var(--coin-hi);
+  opacity: 0.4;
+}
+.pl-coin-ring {
+  stroke: var(--coin-lo);
+  opacity: 0.55;
+}
+.pl-coin-glyph {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 104px;
+}
+.pl-coin-mark {
+  fill: var(--coin-lo);
+  opacity: 0.8;
+}
+.pl-coin-mark-hi {
+  fill: var(--coin-hi);
+  opacity: 0.7;
+}
+
+/* Coin tags sit on the photograph, which is dark in both themes, so they use the coin's own gold on ink. */
+.pl-tag {
+  position: absolute;
+  z-index: 2;
+  opacity: 0;
+  pointer-events: none;
+}
+.pl-hallmark {
+  --gold: var(--coin-mid);
+  --hm-ground: rgb(var(--ink-rgb));
+  font-size: 0.6875rem;
+  letter-spacing: 0.06em;
+  text-transform: none;
+}
+.pl-hallmark-wrap {
+  white-space: normal;
+  max-width: 17rem;
+  line-height: 1.4;
+}
+/* Phones span the tags across the frame and centre them, so a long tag gets the full width instead of half. */
+.pl-tag-1,
+.pl-tag-3,
+.pl-tag-6 {
+  left: 4%;
+  right: 4%;
+  top: 63%;
+  display: flex;
+  justify-content: center;
+}
+.pl-tag-6 .pl-hallmark-wrap {
+  max-width: 100%;
+  text-align: center;
+}
+
+.pl-lines {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+}
+.pl-line {
+  fill: none;
+  stroke: var(--gold-fill);
+  stroke-width: 1.5;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  vector-effect: non-scaling-stroke;
+}
+.pl-line-glow {
+  fill: none;
+  stroke: color-mix(in srgb, var(--coin-mid) 40%, transparent);
+  stroke-width: 6;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  filter: blur(4px);
+  vector-effect: non-scaling-stroke;
+}
+.pl-line-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  fill: var(--coin-hi);
+  stroke: rgb(var(--ink-rgb) / 0.85);
+  stroke-width: 4px;
+  paint-order: stroke;
+  opacity: 0;
+}
+.pl-hidden {
+  display: none;
+}
+
+.pl-cards {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: -36px;
+  padding: 0 calc(var(--gut) + 14px) 0 var(--gut);
+  list-style: none;
+}
+.pl-slot {
+  rotate: calc(var(--r) * 0.35);
+}
+.pl-card {
+  position: relative;
+  opacity: 0;
+}
+.pl-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 18px 14px;
+  background-color: var(--raised);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  box-shadow:
+    0 1px 0 rgb(var(--shade-rgb) / 0.04),
+    0 24px 60px -18px rgb(var(--shade-rgb) / 0.55);
+}
+.pl-card-amount {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.875rem;
+  line-height: 1;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+.pl-card-facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 12px;
+  row-gap: 6px;
+  align-items: baseline;
+}
+.pl-tx {
+  opacity: 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--rule);
+}
+.pl-stamp {
+  position: absolute;
+  top: -12px;
+  right: 12px;
+  transform-origin: 50% 50%;
+}
+.pl-stamp .stamp {
+  background-color: color-mix(in srgb, var(--raised) 86%, transparent);
+  font-size: 0.9375rem;
+}
+[data-pl="stamp-paid"] {
+  opacity: 0;
+}
+
+.pl-figures {
+  position: relative;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  padding: 36px var(--gut) 0;
+}
+.pl-figure {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.pl-figure-number {
+  display: flex;
+  align-items: baseline;
+  min-height: 1em;
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: clamp(2.25rem, 1.5rem + 1.8vw, 3.125rem);
+  line-height: 1;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+.pl-figure-small {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.75rem;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+[data-pl="borrowed"],
+[data-pl="gauge"],
+[data-pl="final"] {
+  opacity: 0;
+}
+
+.pl-gauge {
+  --fill: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.pl-gauge-value {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.5rem;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+.pl-gauge-track {
+  position: relative;
+  height: 8px;
+  background-color: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 1px;
+}
+.pl-gauge-fill {
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(90deg, var(--coin-lo), var(--gold-fill));
+  transform-origin: 0 50%;
+  transform: scaleX(calc(var(--fill) * var(--ltv)));
+}
+.pl-gauge-tick {
+  position: absolute;
+  top: -6px;
+  bottom: -6px;
+  width: 1px;
+}
+.pl-gauge-cap {
+  background-color: var(--gold);
+  width: 2px;
+}
+.pl-gauge-line {
+  background-color: var(--rule-strong);
+  opacity: 0.7;
+}
+.pl-gauge-legend {
+  position: relative;
+  height: 1.3em;
+}
+.pl-gauge-legend span {
+  position: absolute;
+  top: 0;
+  translate: -50% 0;
+  white-space: nowrap;
+}
+.pl-gauge-legend span:last-child {
+  translate: -80% 0;
+}
+
+.pl-final {
+  max-width: 40ch;
+  font-size: 1rem;
+  line-height: 1.55;
+  color: var(--text);
+  min-height: 3.1em;
+}
+
+.pl-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 48px;
+}
+.pl-replay {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius-button);
+  color: var(--text);
+  background-color: transparent;
+  cursor: pointer;
+  transition:
+    border-color 180ms var(--ease-film),
+    color 180ms var(--ease-film);
+}
+.pl-replay:hover {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+.pl-replay:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 3px;
+}
+
+.pl-chapters {
+  position: relative;
+  z-index: 4;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin: 40px var(--gut) 0;
+  padding-top: 14px;
+  list-style: none;
+}
+.pl-chapter {
+  color: var(--muted);
+  opacity: clamp(0.35, (var(--p) - var(--start) + 0.001) * 1000, 1);
+}
+.pl-chapter-rule {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background-color: var(--rule);
+}
+.pl-chapter-rule::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-color: var(--gold);
+  transform-origin: 0 50%;
+  transform: scaleX(var(--p));
+}
+
+/* Wide screens: one pinned screen. Left for words and numbers, right 60% for the photograph, bills fanned across the seam. */
+@media (width >= 48rem) {
+  .pl-stage {
+    --gut: 6vw;
+    --fw: min(60%, 104svh);
+    --card-w: clamp(236px, 18vw, 272px);
+    --col-w: calc(100% - var(--fw) - var(--card-w) / 2 - var(--gut) - 32px);
+    display: block;
+    height: 100svh;
+    min-height: 620px;
+    padding: 0;
+  }
+  .pl-honesty {
+    position: absolute;
+    top: 28px;
+    left: var(--gut);
+    right: var(--gut);
+    padding: 0;
+  }
+  .pl-head {
+    position: absolute;
+    top: clamp(64px, 11svh, 104px);
+    left: var(--gut);
+    width: max(var(--col-w), 18rem);
+    padding: 0;
+  }
+  .pl-caption {
+    font-size: clamp(1.875rem, 0.9rem + 2vw, 2.875rem);
+  }
+  .pl-sub {
+    font-size: 0.9375rem;
+  }
+  .pl-frame {
+    position: absolute;
+    right: 0;
+    top: 50%;
+    width: var(--fw);
+    translate: 0 -50%;
+  }
+  .pl-photo {
+    mask-image:
+      radial-gradient(66% 76% at 58% 50%, black 55%, transparent 100%),
+      linear-gradient(180deg, transparent 0%, black 16%, black 84%, transparent 100%),
+      linear-gradient(90deg, transparent 0%, black 18%);
+    mask-composite: intersect;
+  }
+  .pl-tag-1,
+  .pl-tag-6 {
+    left: 58.5%;
+    right: auto;
+    display: block;
+  }
+  .pl-tag-1 {
+    top: 16%;
+  }
+  .pl-tag-6 {
+    top: 36%;
+  }
+  .pl-tag-6 .pl-hallmark-wrap {
+    max-width: 17rem;
+    text-align: left;
+  }
+  .pl-tag-3 {
+    left: 50.17%;
+    right: auto;
+    top: 61%;
+    display: block;
+    translate: -50% 0;
+  }
+  .pl-hallmark {
+    font-size: 0.75rem;
+  }
+  .pl-cards {
+    position: absolute;
+    top: 50%;
+    left: calc(100% - var(--fw) - var(--card-w) / 2);
+    width: var(--card-w);
+    height: 0;
+    margin: 0;
+    padding: 0;
+    display: block;
+  }
+  .pl-slot {
+    --gap: min(12.25rem, 23svh);
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    translate: calc(var(--k) * -18px) calc(-50% + var(--k) * var(--gap));
+    rotate: var(--r);
+  }
+  .pl-cards[data-count="1"] .pl-slot {
+    translate: 0 -54%;
+  }
+  .pl-card-body {
+    gap: 8px;
+    padding: 14px 16px 12px;
+  }
+  .pl-card-amount {
+    font-size: 1.625rem;
+  }
+  .pl-figures {
+    position: absolute;
+    left: var(--gut);
+    bottom: 76px;
+    width: max(var(--col-w), 18rem);
+    gap: clamp(12px, 2.2svh, 22px);
+    padding: 0;
+  }
+  .pl-figure-number {
+    font-size: clamp(2rem, 1rem + 2vw, 3.125rem);
+  }
+  .pl-chapters {
+    position: absolute;
+    left: var(--gut);
+    right: var(--gut);
+    bottom: 22px;
+    margin: 0;
+    flex-wrap: nowrap;
+    justify-content: space-between;
+  }
+}
+
+@media (width >= 48rem) and (max-height: 820px) {
+  .pl-sub {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pl-coin-float {
+    animation: none;
+  }
+  .pl-replay {
+    transition: none;
+  }
+}
