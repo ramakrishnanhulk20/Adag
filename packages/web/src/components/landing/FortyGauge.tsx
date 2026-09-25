@@ -70,7 +70,7 @@ export function FortyGauge() {
           {lltv !== null && (
             <>
               <div className="flex flex-col gap-1.5">
-                <dt className="type-label text-muted">Morpho&apos;s line</dt>
+                <dt className="type-label text-muted">Liquidated past</dt>
                 <dd className="type-number text-text/88">{formatUsdPrice(price * lltv)}</dd>
               </div>
               <div className="flex flex-col gap-1.5">
@@ -80,7 +80,7 @@ export function FortyGauge() {
             </>
           )}
           <p className="type-micro col-span-2 text-muted">
-            BTC price from the USDC market&apos;s oracle on Arc, live · a loan at the cap would need bitcoin to fall that far before
+            Per 1 cirBTC, at the live price from the USDC market&apos;s oracle on Arc · a loan at the cap would need bitcoin to fall that far before
             Morpho could liquidate it
           </p>
         </dl>
