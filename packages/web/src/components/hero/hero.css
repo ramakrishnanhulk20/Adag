@@ -148,6 +148,15 @@
 }
 
 /*
+  The scale's pole and base stand behind the right half of the credit row and the last number cell. This band is
+  sized in pixels because that row sits a fixed height above the bottom edge, and masked so the left half is untouched.
+*/
+.hero-scrim-rows {
+  background-image: linear-gradient(0deg, rgb(var(--s)) 0px, rgb(var(--s) / 0.92) 200px, rgb(var(--s) / 0) 280px);
+  mask-image: linear-gradient(90deg, transparent 28%, black 48%);
+}
+
+/*
   Phones (head chef change A). Both mobile photos put the scale in the lower half, so the words sit on a
   top-down scrim that is gone by about 55% of the height, and only a short foot hands over to the numbers.
 */

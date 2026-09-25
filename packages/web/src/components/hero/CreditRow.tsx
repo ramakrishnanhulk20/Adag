@@ -29,18 +29,18 @@ function PriceItem() {
   if (live.status === "failed" || !live.snapshot.price.ok) return <span>BTC price unavailable</span>;
 
   const price = live.snapshot.price.value;
-  if (!price.fresh) return <span className="text-pending">New loans paused: waiting for a fresh price</span>;
+  if (!price.fresh) return <span className="text-pending">New loans paused · waiting for a fresh BTC price</span>;
   const elapsed = now === null ? 0 : Math.max(0, (now - live.receivedAt) / 1000);
   return (
     <span>
-      <span className="text-success">BTC price live</span> · {formatAge(price.ageSeconds + elapsed)}
+      <span className="text-success">BTC price fresh</span> · Updated {formatAge(price.ageSeconds + elapsed)}
     </span>
   );
 }
 
 export function CreditRow({ className = "" }: { className?: string }) {
   return (
-    <p className={`type-micro flex flex-wrap items-center gap-x-3 gap-y-2 text-muted ${className}`}>
+    <p data-credit-row className={`type-micro flex flex-wrap items-center gap-x-3 gap-y-2 text-muted ${className}`}>
       {FIXED.map((item, i) => (
         <span key={item} className="flex items-center gap-3">
           {i > 0 && <DiamondSeparator />}

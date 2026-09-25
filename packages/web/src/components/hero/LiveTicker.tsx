@@ -4,23 +4,14 @@ import { Hallmark } from "@/components/Hallmark";
 import { formatMoney } from "@/lib/arc/present";
 import { useLive } from "./LiveData";
 
-// The phone's eyebrow: the same hallmark, carrying Adag's own paid total instead of a fixed label.
+// The phone's eyebrow leads with the market's depth, the biggest honest number on screen one.
+// Until that read lands, or if it fails, it falls back to the plain label rather than a guess.
 export function LiveTicker({ className = "" }: { className?: string }) {
   const live = useLive();
-  let tail: React.ReactNode;
-  if (live.status === "loading") tail = live.slow ? "Reading Arc" : <span aria-hidden="true" className="live-shimmer inline-block h-px w-14" />;
-  else if (live.status === "failed" || !live.snapshot.paid.ok) tail = "Paid total unavailable";
-  else {
-    const p = live.snapshot.paid.value;
-    tail = `${formatMoney(p.usdcBaseUnits, "USD")} paid · ${p.billsPaid} ${p.billsPaid === 1 ? "bill" : "bills"}`;
-  }
+  const liquidity = live.status === "ready" && live.snapshot.liquidity.ok ? live.snapshot.liquidity.value.usdcBaseUnits : null;
   return (
     <Hallmark className={className}>
-      <span>Live on Arc</span>
-      <span aria-hidden="true">·</span>
-      <span aria-live="polite" className="inline-flex items-center">
-        {tail}
-      </span>
+      <span aria-live="polite">{liquidity === null ? "Live on Arc mainnet" : `Live on Arc · ${formatMoney(liquidity, "USD")} ready to lend`}</span>
     </Hallmark>
   );
 }

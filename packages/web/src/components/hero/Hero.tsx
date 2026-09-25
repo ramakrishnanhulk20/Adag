@@ -32,6 +32,7 @@ export function Hero({ pending = false }: { pending?: boolean }) {
           </div>
           <div className="hero-scrim hero-scrim-left hidden md:block" />
           <div className="hero-scrim hero-scrim-bottom hidden md:block" />
+          <div className="hero-scrim hero-scrim-rows hidden md:block" />
           <div className="hero-scrim hero-scrim-top hidden md:block" />
           <div className="hero-scrim hero-vignette hidden md:block" />
           <div className="hero-scrim hero-scrim-down md:hidden" />
@@ -50,7 +51,7 @@ export function Hero({ pending = false }: { pending?: boolean }) {
             <Hallmark>Live on Arc mainnet</Hallmark>
           </div>
           <div className="hero-in-1 md:hidden">
-            <LiveTicker />
+            <LiveTicker className="tracking-[0.1em] sm:tracking-[0.14em]" />
           </div>
           <h1 id="hero-title" className="hero-headline type-hero mt-4 text-text md:mt-3">
             <span className="hero-line-1 block">Pay the bill.</span>
