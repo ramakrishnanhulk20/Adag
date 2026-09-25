@@ -214,7 +214,7 @@ PY
 
 status="$(arc-cast receipt "$tx_hash" status --rpc-url "$RPC_URL")"
 block="$(arc-cast receipt "$tx_hash" blockNumber --rpc-url "$RPC_URL")"
-[[ "$status" == 1* || "$status" == "0x1" ]] || die "transaction ${tx_hash} did not succeed (status ${status})."
+[[ "$status" == 1* || "$status" == "0x1" || "$status" == "true" ]] || die "transaction ${tx_hash} did not succeed (status ${status})."
 is_uint "$block" || block="$(arc-cast to-dec "$block")"
 code="$(arc-cast code "$address" --rpc-url "$RPC_URL")"
 [ "${#code}" -gt 2 ] || die "no code at ${address} after the receipt."
