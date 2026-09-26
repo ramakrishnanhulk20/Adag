@@ -111,6 +111,8 @@ Two passes attacked the web app and its server routes directly, with every findi
 
 ## The attack suites on live state
 
+The same attacks run on [the break page](/docs/security/break), 35 of them in three groups, where each row ends Refused (the call reverts), Held (it goes through and changes nothing it should not), Allowed by design (one of the two named residuals) or, for the cash payment after a simulated price drop, Allowed. The scripts add the two lying-RPC checks the page leaves out.
+
 `node packages/contracts/prove-it/attack.mjs` and `guard-attack.mjs` simulate each attack from a real mainnet block against the deployed contracts and the demo wallet's real Morpho loan. Nothing is signed or sent. The full tables, with exact amounts and decoded reverts, are in `packages/contracts/deployments/attacks-2026-09-26.md` and `attacks-2026-09-26-guard.md`.
 
 **AdagBills, at block 22,863,576, 23 of 23:**

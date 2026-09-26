@@ -316,7 +316,7 @@ Liquidation distance at 86%, per market: Morpho can liquidate when debt passes `
 
 | Read | Where | Why |
 | --- | --- | --- |
-| `BillPaid` logs from each AdagBills since its deploy block | server, `eth_getLogs` in pages of at most 10,000 blocks, indexed in the key-value store | The paid totals and the newest payments, from each contract's own event only (C16). No bill reference is ever shown there. Without a store, the server reads the newest 400 bills of each contract directly and says so. |
+| `BillPaid` logs from each AdagBills since its deploy block | server, `eth_getLogs` in pages of at most 10,000 blocks, indexed in the key-value store | The "Paid through Adag" total and the ledger of the newest 8 paid bills across both deployments (the old ones marked "First deployment"), from each contract's own event only (C16). No bill reference is ever shown there. Without a store, the server reads the newest 400 bills of each contract directly and says so. |
 | `market(MARKET_USDC)` and `market(MARKET_EURC)` | Morpho | Liquidity is `totalSupplyAssets - totalBorrowAssets`. |
 | `priceStatus(MARKET_USDC)`, `MAX_LTV_WAD()`, `idToMarketParams(MARKET_USDC).lltv` | Adag, Morpho | "Bitcoin price live" or "paused", and the 40% and 86% lines, read rather than assumed. |
 | `borrowRateView(idToMarketParams(MARKET_USDC), market(MARKET_USDC))` | Interest rate model | The live borrow rate, shown as a yearly figure. Display only, never in a transaction (C18). |
