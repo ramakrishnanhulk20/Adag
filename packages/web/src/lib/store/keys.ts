@@ -77,4 +77,7 @@ export const keys = {
   // two deliveries into one replay key.
   hookNonce: (nonce: string) => key("hooks", "nonce", sha256(stringToHex(nonce)).slice(2)),
   rate: (bucket: "code" | "start" | "link" | "signed" | "safe-list" | "safe-status" | "safe-propose", who: unknown) => key("rate", bucket, subject(who)),
+  // The landing page's index of BillPaid events: one record and one lease per AdagBills deployment.
+  paidIndex: (contract: unknown) => key("paid", "index", normaliseAddress(contract)),
+  paidLease: (contract: unknown) => key("paid", "lease", normaliseAddress(contract)),
 };

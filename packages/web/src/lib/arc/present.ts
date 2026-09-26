@@ -1,5 +1,6 @@
 import { getAddress } from "viem";
-import type { BorrowRate, BtcPrice, Cell, LatestBills, LedgerBill, Liquidity, LiveSnapshot, LoanCap, PaidThroughAdag, PriceStatus } from "./types";
+import { deploymentOf } from "../pay/constants";
+import type { BorrowRate, BtcPrice, Cell, LatestBills, Liquidity, LiveSnapshot, LoanCap, PaidEntry, PaidThroughAdag, PriceStatus, ProofBill } from "./types";
 
 // Runs in the browser. The route is ours, but its answer is still checked field by field, because a malformed
 // answer must render "unavailable", never a wrong number (C19).
@@ -8,7 +9,6 @@ const isDigits = (v: unknown): v is string => typeof v === "string" && /^\d{1,78
 const isNum = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null;
 const TX_HASH = /^0x[0-9a-fA-F]{64}$/;
-const HEX_BYTES = /^0x(?:[0-9a-fA-F]{2}){0,140}$/;
 const EXPLORER_TX = "https://explorer.arc.io/tx/";
 
 // A payee is only shown if it is a well-formed address whose checksum survives a round trip (C15).
@@ -21,27 +21,26 @@ function isChecksummed(v: unknown): v is string {
   }
 }
 
-function isBill(v: unknown): v is LedgerBill {
-  if (!isObj(v)) return false;
-  const tx = v.tx;
-  const txOk =
-    tx === null ||
-    (isObj(tx) && typeof tx.txHash === "string" && TX_HASH.test(tx.txHash) && tx.explorerUrl === EXPLORER_TX + tx.txHash && isNum(tx.logIndex));
+// A paid entry must name one of Adag's two contracts, and its "first" mark must agree with which one (C18).
+function isEntry(v: unknown): v is PaidEntry {
+  if (!isObj(v) || !isChecksummed(v.contract)) return false;
+  const known = deploymentOf(v.contract);
   return (
-    isNum(v.id) &&
-    v.id >= 1 &&
-    isChecksummed(v.payee) &&
+    known !== null &&
+    v.first === (known.label === "first") &&
+    typeof v.id === "string" &&
+    /^[1-9]\d{0,77}$/.test(v.id) &&
     (v.currency === "USDC" || v.currency === "EURC") &&
     isDigits(v.amountBaseUnits) &&
-    (v.status === 1 || v.status === 2 || v.status === 3) &&
-    isNum(v.due) &&
-    isNum(v.createdAt) &&
+    isChecksummed(v.payer) &&
+    isChecksummed(v.payee) &&
+    typeof v.txHash === "string" &&
+    TX_HASH.test(v.txHash) &&
+    v.explorerUrl === EXPLORER_TX + v.txHash &&
+    isNum(v.logIndex) &&
+    isDigits(v.blockNumber) &&
     isNum(v.paidAt) &&
-    typeof v.refHex === "string" &&
-    HEX_BYTES.test(v.refHex) &&
-    txOk &&
-    (v.txKind === "paid" || v.txKind === "created") &&
-    (v.txNote === "found" || v.txNote === "not-found" || v.txNote === "unavailable")
+    typeof v.loanChecked === "boolean"
   );
 }
 
@@ -70,14 +69,45 @@ export function parseSnapshot(raw: unknown): LiveSnapshot | null {
           TX_HASH.test(lp.txHash) &&
           typeof lp.explorerUrl === "string" &&
           lp.explorerUrl === `https://explorer.arc.io/tx/${lp.txHash}`);
-      return isNum(v.billCount) && isNum(v.billsPaid) && isDigits(v.usdcBaseUnits) && isDigits(v.eurcBaseUnits) && lpOk;
+      return (
+        isNum(v.billCount) &&
+        isNum(v.billsPaid) &&
+        isDigits(v.usdcBaseUnits) &&
+        isDigits(v.eurcBaseUnits) &&
+        lpOk &&
+        (v.source === "index" || v.source === "direct") &&
+        isDigits(v.throughBlock) &&
+        (v.note === null || (typeof v.note === "string" && v.note.length <= 200))
+      );
     }),
     price: checkCell<PriceStatus>(raw.price, (v) => typeof v.fresh === "boolean" && isNum(v.btcUsdUpdatedAt) && isNum(v.ageSeconds)),
     btcPrice: checkCell<BtcPrice>(raw.btcPrice, (v) => isNum(v.usdPerCirbtc) && v.usdPerCirbtc > 0),
     latestBills: checkCell<LatestBills>(
       raw.latestBills,
-      (v) => isNum(v.billCount) && Array.isArray(v.bills) && v.bills.length <= 8 && v.bills.every(isBill),
+      (v) => isNum(v.billsPaid) && Array.isArray(v.bills) && v.bills.length <= 8 && v.bills.every(isEntry),
     ),
+    proof: checkCell<ProofBill>(raw.proof, (v) => {
+      const p = v.payment;
+      const paymentOk =
+        p === null ||
+        (isObj(p) &&
+          typeof p.txHash === "string" &&
+          TX_HASH.test(p.txHash) &&
+          p.explorerUrl === EXPLORER_TX + p.txHash &&
+          isNum(p.logIndex) &&
+          isDigits(p.blockNumber) &&
+          typeof p.loanChecked === "boolean");
+      return (
+        v.id === "1" &&
+        (v.status === 1 || v.status === 2 || v.status === 3) &&
+        (v.currency === "USDC" || v.currency === "EURC") &&
+        isDigits(v.amountBaseUnits) &&
+        isNum(v.paidAt) &&
+        paymentOk &&
+        (v.paymentNote === "found" || v.paymentNote === "not-paid" || v.paymentNote === "not-found") &&
+        (v.paymentNote === "found") === (p !== null)
+      );
+    }),
   };
 }
 
@@ -121,18 +151,6 @@ const wholeUsd = new Intl.NumberFormat("en-US", { style: "currency", currency: "
 
 export function formatUsdPrice(usd: number): string {
   return wholeUsd.format(usd);
-}
-
-// Bidirectional overrides and isolates can make "pay 100" render as "001 yap"; other control characters are noise.
-const BIDI_AND_CONTROLS = /[\u0000-\u0008\u000B-\u001F\u007F-\u009F\u061C\u200B\u200C\u200E\u200F\u202A-\u202E\u2060\u2066-\u2069\uFEFF]/g;
-
-// C14: a reference is opaque bytes shown as plain text. Invalid UTF-8 becomes U+FFFD, bidi controls are removed,
-// and the result is only ever rendered as a React text node, never as HTML, markdown or a link.
-export function referenceText(refHex: string): string {
-  if (!HEX_BYTES.test(refHex)) return "";
-  const bytes = new Uint8Array((refHex.length - 2) / 2);
-  for (let i = 0; i < bytes.length; i++) bytes[i] = parseInt(refHex.slice(2 + i * 2, 4 + i * 2), 16);
-  return new TextDecoder("utf-8", { fatal: false }).decode(bytes).replace(BIDI_AND_CONTROLS, "").replace(/\s+/g, " ").trim();
 }
 
 export function formatAmount(units: string, currency: "USDC" | "EURC"): string {

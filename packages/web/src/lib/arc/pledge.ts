@@ -1,32 +1,12 @@
-import { encodeAbiParameters, getAddress, isAddressEqual, keccak256, zeroAddress, type Address, type Block, type Hex } from "viem";
-import { adagAbi, BILL_STATUS_PAID, morphoAbi } from "./abi";
+import { encodeAbiParameters, isAddressEqual, keccak256, zeroAddress, type Address } from "viem";
+import { ADAG_BILLS, ADAG_BILLS_FIRST, EURC_MARKET_ORACLE } from "../pay/constants";
+import { adagAbi, morphoAbi } from "./abi";
 import { arcClient } from "./client";
-import {
-  ADAG_BILLS,
-  ADAG_DEPLOY_BLOCK,
-  ADAPTIVE_CURVE_IRM,
-  CHAIN_ID,
-  CIRBTC,
-  EURC,
-  EXPLORER,
-  LOG_MAX_PAGES,
-  LOG_PAGE_BLOCKS,
-  MARKET_EURC,
-  MARKET_USDC,
-  MORPHO,
-  USDC,
-  USDC_MARKET_ORACLE,
-  WAD,
-} from "./constants";
+import { ADAPTIVE_CURVE_IRM, CHAIN_ID, CIRBTC, EURC, EXPLORER, MARKET_EURC, MARKET_USDC, MORPHO, USDC, USDC_MARKET_ORACLE, WAD } from "./constants";
+import { readPaid, type PaidRead } from "./paidIndex";
 import { adagPledgeAbi, oracleAbi } from "./pledgeAbi";
 
-// ARCHITECTURE.md section 3. constants.ts does not carry it yet, and a fetched oracle address is never used in its place (C18).
-const EURC_MARKET_ORACLE: Address = "0x6945246777DfdF4744D957323857F797Ec19Ca1e";
-
-const BILL_STATUS_OPEN = 1;
-const SCAN_LIMIT = 50;
 const SHOWN = 3;
-const SCAN_CHUNK = 10;
 const ORACLE_SCALE = 10n ** 36n;
 const SAT_PER_BTC = 10n ** 8n;
 
@@ -36,26 +16,30 @@ export type Cell<T> = { ok: true; value: T; source: string } | { ok: false; reas
 
 export type BillPayment = { txHash: string; logIndex: number; blockNumber: string; explorerUrl: string };
 
+// A paid bill on the stage, exactly as its BillPaid event records it (C16). There is no reference field: the stage
+// never carries words a stranger wrote into a bill (security pass 1, M2).
 export type StageBill = {
-  id: number;
-  status: "paid" | "open";
+  // Unique across both AdagBills deployments, which each have their own bill #1.
+  key: string;
+  contract: string;
+  first: boolean;
+  id: string;
   payee: string;
+  payer: string;
   currency: Currency;
   amountBaseUnits: string;
-  due: number;
-  createdAt: number;
   paidAt: number;
-  // Plain text: decoded with replacement characters and stripped of direction controls (C14).
-  reference: string;
-  payment: BillPayment | null;
-  paymentNote: "found" | "not-found" | "unavailable" | "open";
+  loanChecked: boolean;
+  payment: BillPayment;
 };
 
 export type StageBills = {
-  billCount: number;
-  scanned: number;
-  // "open" means no paid bill was found in the scan, so the stage shows the latest open ones and skips the stamps.
-  mode: "paid" | "open" | "none";
+  billsPaid: number;
+  source: "index" | "direct";
+  throughBlock: string;
+  note: string | null;
+  // "none" means no bill has been paid yet: the stage then shows no bill at all, never an open one.
+  mode: "paid" | "none";
   bills: StageBill[];
 };
 
@@ -123,14 +107,6 @@ async function cell<T>(source: string, chain: Promise<Settled<number>>, run: () 
   }
 }
 
-const DIRECTION_CONTROLS = /[؜‎‏‪-‮⁦-⁩]/g;
-const CONTROL_CHARS = /[\u0000-\u001F\u007F-\u009F]/g;
-
-export function plainReference(bytes: Hex): string {
-  const raw = bytes.length > 2 ? Uint8Array.from(Buffer.from(bytes.slice(2), "hex")) : new Uint8Array();
-  return new TextDecoder("utf-8", { fatal: false }).decode(raw).replace(DIRECTION_CONTROLS, "").replace(CONTROL_CHARS, " ");
-}
-
 const ceilDiv = (a: bigint, b: bigint) => (a + b - 1n) / b;
 
 type ParamsTuple = readonly [Address, Address, Address, Address, bigint];
@@ -158,139 +134,34 @@ function verifiedLltv(currency: Currency, p: ParamsTuple): bigint {
   return lltv;
 }
 
-function currencyOf(address: Address): Currency {
-  if (isAddressEqual(address, USDC)) return "USDC";
-  if (isAddressEqual(address, EURC)) return "EURC";
-  throw new Error("A bill names a currency Adag does not support.");
-}
-
-let deployBlockPromise: Promise<Block> | null = null;
-function deployBlock(): Promise<Block> {
-  deployBlockPromise ??= arcClient.getBlock({ blockNumber: ADAG_DEPLOY_BLOCK }).catch((error: unknown) => {
-    deployBlockPromise = null;
-    throw error;
+function stageBillsOf(paid: PaidRead): StageBills {
+  const bills = paid.latest.slice(0, SHOWN).map((r): StageBill => {
+    const first = isAddressEqual(r.contract, ADAG_BILLS_FIRST);
+    return {
+      key: `${first ? "first" : "current"}:${r.id}`,
+      contract: r.contract,
+      first,
+      id: r.id.toString(),
+      payee: r.payee,
+      payer: r.payer,
+      currency: isAddressEqual(r.currency, USDC) ? "USDC" : "EURC",
+      amountBaseUnits: r.amount.toString(),
+      paidAt: Number(r.paidAt),
+      loanChecked: r.loanChecked,
+      payment: { txHash: r.txHash, logIndex: r.logIndex, blockNumber: r.blockNumber.toString(), explorerUrl: `${EXPLORER}/tx/${r.txHash}` },
+    };
   });
-  return deployBlockPromise;
+  return {
+    billsPaid: paid.totals.count,
+    source: paid.source,
+    throughBlock: paid.throughBlock.toString(),
+    note: paid.note,
+    mode: bills.length > 0 ? "paid" : "none",
+    bills,
+  };
 }
 
-const clamp = (v: bigint, lo: bigint, hi: bigint) => (v < lo ? lo : v > hi ? hi : v);
-
-// ARCHITECTURE.md section 5: the paying transaction is found in a window around paidAt, widening in bounded pages (C19).
-async function findBillPaidLog(billId: bigint, paidAt: bigint, head: Block): Promise<BillPayment | null> {
-  const deploy = await deployBlock();
-  if (head.number === null || deploy.number === null) throw new Error("Block numbers missing.");
-  const first = deploy.number;
-  const last = head.number;
-  const spanSeconds = head.timestamp - deploy.timestamp;
-  if (spanSeconds <= 0n) throw new Error("Chain clock went backwards.");
-
-  const estimateFrom = (anchorNumber: bigint, anchorTime: bigint) =>
-    clamp(anchorNumber + ((paidAt - anchorTime) * (last - first)) / spanSeconds, first, last);
-  let centre = estimateFrom(first, deploy.timestamp);
-  const probe = await arcClient.getBlock({ blockNumber: centre });
-  centre = estimateFrom(centre, probe.timestamp);
-
-  const half = LOG_PAGE_BLOCKS / 2n;
-  let low = clamp(centre - half, first, last);
-  let high = clamp(centre + half - 1n, first, last);
-  const windows: [bigint, bigint][] = [[low, high]];
-  while (windows.length < LOG_MAX_PAGES && (low > first || high < last)) {
-    if (high < last) {
-      const from = high + 1n;
-      high = clamp(from + LOG_PAGE_BLOCKS - 1n, first, last);
-      windows.push([from, high]);
-    }
-    if (windows.length < LOG_MAX_PAGES && low > first) {
-      const to = low - 1n;
-      low = clamp(to - LOG_PAGE_BLOCKS + 1n, first, last);
-      windows.push([low, to]);
-    }
-  }
-
-  for (const [fromBlock, toBlock] of windows) {
-    const logs = await arcClient.getContractEvents({
-      address: ADAG_BILLS,
-      abi: adagAbi,
-      eventName: "BillPaid",
-      args: { id: billId },
-      fromBlock,
-      toBlock,
-      strict: true,
-    });
-    // C16: Adag's own event for this exact bill, tied to a transaction hash and log index.
-    const match = logs.find(
-      (log) => !log.removed && isAddressEqual(log.address, ADAG_BILLS) && log.args.id === billId && log.transactionHash !== null && log.logIndex !== null,
-    );
-    if (match) {
-      return {
-        txHash: match.transactionHash!,
-        logIndex: match.logIndex!,
-        blockNumber: String(match.blockNumber),
-        explorerUrl: `${EXPLORER}/tx/${match.transactionHash}`,
-      };
-    }
-  }
-  return null;
-}
-
-type RawBill = Awaited<ReturnType<typeof readBill>>;
-const readBill = (id: bigint) => arcClient.readContract({ address: ADAG_BILLS, abi: adagAbi, functionName: "bill", args: [id] });
-
-async function readStageBills(countRead: Promise<Settled<bigint>>, headRead: Promise<Settled<Block>>): Promise<StageBills> {
-  const count = await need(countRead);
-  const paid: { id: bigint; b: RawBill }[] = [];
-  const open: { id: bigint; b: RawBill }[] = [];
-  let scanned = 0;
-  let next = count;
-
-  while (next >= 1n && scanned < SCAN_LIMIT && paid.length < SHOWN) {
-    const ids: bigint[] = [];
-    while (ids.length < SCAN_CHUNK && next >= 1n && scanned + ids.length < SCAN_LIMIT) ids.push(next--);
-    const read = await Promise.all(ids.map(readBill));
-    scanned += ids.length;
-    read.forEach((b, i) => {
-      const id = ids[i]!;
-      if (b.status === BILL_STATUS_PAID && paid.length < SHOWN) paid.push({ id, b });
-      else if (b.status === BILL_STATUS_OPEN && open.length < SHOWN) open.push({ id, b });
-    });
-  }
-
-  const mode: StageBills["mode"] = paid.length > 0 ? "paid" : open.length > 0 ? "open" : "none";
-  const chosen = mode === "paid" ? paid : open;
-  const head = mode === "paid" ? await headRead : null;
-
-  const bills = await Promise.all(
-    chosen.map(async ({ id, b }): Promise<StageBill> => {
-      let payment: BillPayment | null = null;
-      let paymentNote: StageBill["paymentNote"] = "open";
-      if (b.status === BILL_STATUS_PAID) {
-        try {
-          if (!head || !head.ok) throw new Error("No head block.");
-          payment = await findBillPaidLog(id, b.paidAt, head.value);
-          paymentNote = payment ? "found" : "not-found";
-        } catch {
-          paymentNote = "unavailable";
-        }
-      }
-      return {
-        id: Number(id),
-        status: b.status === BILL_STATUS_PAID ? "paid" : "open",
-        payee: getAddress(b.payee),
-        currency: currencyOf(getAddress(b.currency)),
-        amountBaseUnits: b.amount.toString(),
-        due: Number(b.due),
-        createdAt: Number(b.createdAt),
-        paidAt: Number(b.paidAt),
-        reference: plainReference(b.ref),
-        payment,
-        paymentNote,
-      };
-    }),
-  );
-
-  return { billCount: Number(count), scanned, mode, bills };
-}
-
+// collateralNeeded and priceStatus come from the current AdagBills, the one every new payment goes through.
 async function readMarketPledge(currency: Currency, bills: bigint, maxLtv: bigint): Promise<MarketPledge & { lltv: bigint }> {
   const m = MARKETS[currency];
   const [needed, price, params, status] = await Promise.all([
@@ -330,7 +201,7 @@ async function readMarketPledge(currency: Currency, bills: bigint, maxLtv: bigin
 async function readPledge(stage: Promise<Cell<StageBills>>, maxLtvRead: Promise<Settled<bigint>>, usdcPriceRead: Promise<Settled<bigint>>): Promise<Pledge> {
   const bills = await stage;
   if (!bills.ok) throw new Error("The bills could not be read, so there is nothing to pledge for.");
-  if (bills.value.bills.length === 0) throw new Error("No bills on Arc yet.");
+  if (bills.value.bills.length === 0) throw new Error("No bill has been paid on Arc yet.");
   const maxLtv = await need(maxLtvRead);
   if (maxLtv <= 0n || maxLtv >= WAD) throw new Error("AdagBills returned an impossible loan cap.");
 
@@ -362,17 +233,17 @@ async function readPledge(stage: Promise<Cell<StageBills>>, maxLtvRead: Promise<
 export async function readPledgeStage(): Promise<PledgeSnapshot> {
   const chain = settle(arcClient.getChainId());
   const head = settle(arcClient.getBlock());
-  const count = settle(arcClient.readContract({ address: ADAG_BILLS, abi: adagAbi, functionName: "billCount" }));
   const maxLtv = settle(arcClient.readContract({ address: ADAG_BILLS, abi: adagAbi, functionName: "MAX_LTV_WAD" }));
   const usdcPrice = settle(arcClient.readContract({ address: USDC_MARKET_ORACLE, abi: oracleAbi, functionName: "price" }));
+  const paid = settle(readPaid());
 
   const bills = cell<StageBills>(
-    `AdagBills ${ADAG_BILLS} billCount(), then bill(id) walking down, at most ${SCAN_LIMIT} reads, the ${SHOWN} newest with status 2; BillPaid log by bill id around paidAt`,
+    `The ${SHOWN} newest paid bills from the BillPaid events of AdagBills ${ADAG_BILLS} and of the first deployment ${ADAG_BILLS_FIRST}; no reference is read`,
     chain,
-    () => readStageBills(count, head),
+    async () => stageBillsOf(await need(paid)),
   );
   const pledge = cell<Pledge>(
-    `AdagBills collateralNeeded(0x0000000000000000000000000000000000000000, market, sum of that market's bills) x 1.05 + 1 sat; oracle price() on ${USDC_MARKET_ORACLE} and ${EURC_MARKET_ORACLE}; MAX_LTV_WAD(); Morpho idToMarketParams(market).lltv; fall = 1 - ltv / lltv`,
+    `AdagBills ${ADAG_BILLS} collateralNeeded(0x0000000000000000000000000000000000000000, market, sum of that market's bills) x 1.05 + 1 sat; oracle price() on ${USDC_MARKET_ORACLE} and ${EURC_MARKET_ORACLE}; MAX_LTV_WAD(); Morpho idToMarketParams(market).lltv; fall = 1 - ltv / lltv`,
     chain,
     () => readPledge(bills, maxLtv, usdcPrice),
   );

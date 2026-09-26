@@ -2,7 +2,7 @@ import "./landing.css";
 import Link from "next/link";
 import { ThemeControl } from "@/components/ThemeControl";
 import { HeroAction } from "@/components/hero/HeroAction";
-import { ADAG_BILLS } from "@/lib/arc/constants";
+import { CONTRACTS } from "./contracts";
 import { Reveal } from "./Reveal";
 
 // Section 8: the last ask, then the footer. "Powered by Morpho" is required by Morpho's UI rules (ARCHITECTURE.md section 8).
@@ -47,12 +47,22 @@ export function CloseAndFooter() {
             <Link href="/terms" className="link-draw hover:text-gold">
               Terms of Use
             </Link>
-            <a href={`https://explorer.arc.io/address/${ADAG_BILLS}`} target="_blank" rel="noopener noreferrer" className="link-draw hover:text-gold">
-              The contract
-            </a>
           </nav>
           <ThemeControl variant="segmented" />
         </div>
+        <ul aria-label="Contracts on Arc mainnet" className="mt-10 flex flex-col gap-3 border-t border-rule pt-6 md:flex-row md:flex-wrap md:gap-x-10">
+          {CONTRACTS.map((c) => (
+            <li key={c.address} className="type-micro flex flex-wrap items-baseline gap-x-3 gap-y-1 text-muted">
+              <span className="text-text/88">{c.name}</span>
+              <a href={c.explorer} target="_blank" rel="noopener noreferrer" className="link-draw hover:text-gold">
+                Explorer
+              </a>
+              <a href={c.sourcify} target="_blank" rel="noopener noreferrer" className="link-draw hover:text-gold">
+                Sourcify
+              </a>
+            </li>
+          ))}
+        </ul>
       </footer>
     </>
   );

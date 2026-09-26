@@ -9,6 +9,7 @@ export type StampKind = Verdict | "armed" | "running";
 // The same double-ruled, ink-rough stamp as BillStamp, with the attack verdicts as its words.
 const LOOK: Record<StampKind, { word: string; ink: string; tilt: number }> = {
   refused: { word: "Refused", ink: "stamp-paid", tilt: -7 },
+  held: { word: "Held", ink: "stamp-paid", tilt: -6 },
   allowed: { word: "Allowed", ink: "stamp-paid", tilt: -5 },
   "by-design": { word: "By design", ink: "stamp-open", tilt: -6 },
   broken: { word: "Broken", ink: "stamp-void", tilt: -9 },

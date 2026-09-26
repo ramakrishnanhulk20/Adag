@@ -7,7 +7,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { Grain } from "@/components/Grain";
 import { Hallmark } from "@/components/Hallmark";
 import { HeroAction } from "@/components/hero/HeroAction";
-import type { Pledge, StageBills } from "@/lib/arc/pledge";
+import type { Pledge, StageBill, StageBills } from "@/lib/arc/pledge";
 import { images } from "@/lib/images";
 import { BillCard } from "./BillCard";
 import { Coin } from "./Coin";
@@ -26,7 +26,7 @@ type Beat = 1 | 3 | 4 | 5 | 6;
 type Caption = { head: string; sub?: string };
 type Story = { honesty: string; captions: Record<Beat, Caption> };
 
-const idList = (ids: number[]) => ids.map((id) => `#${id}`).join(", ");
+const idList = (bills: StageBill[]) => bills.map((b) => (b.first ? `#${b.id} (first deployment)` : `#${b.id}`)).join(", ");
 
 function tell(state: PledgeState, bills: StageBills | null, pledge: Pledge | null): Story {
   const cap = pledge ? formatPercentWad(pledge.maxLtvWad) : "40%";
@@ -46,35 +46,23 @@ function tell(state: PledgeState, bills: StageBills | null, pledge: Pledge | nul
       captions: { 1: { head: "The bills could not be read from Arc.", sub: "No bill is invented to fill the stage. Try again in a minute." }, ...shared, 5: { head: "" } },
     };
   }
-  const ids = bills.bills.map((b) => b.id);
+  const ids = idList(bills.bills);
   const them = n === 1 ? "it" : "them";
+  // Only paid bills ever reach the stage; with none, it shows no bill rather than an open one anyone could write.
   if (bills.mode === "none") {
     return {
-      honesty: "No bills on Arc yet. Nothing is invented to fill this.",
-      captions: { 1: { head: "No bills on Arc yet.", sub: "The first bill written on Arc will appear here." }, ...shared, 5: { head: "" } },
+      honesty: "No bill has been paid on Arc yet. Nothing is invented to fill this.",
+      captions: { 1: { head: "No bill paid on Arc yet.", sub: "The first payment on Arc will appear here." }, ...shared, 5: { head: "" } },
     };
   }
   const due = `${countWord(n)} real ${billWord} ${n === 1 ? "is" : "are"} due.`;
   const Bills = n === 1 ? "Bill" : "Bills";
-  if (bills.mode === "open") {
-    return {
-      honesty: `Latest open ${billWord} ${idList(ids)} on Arc, not paid yet. Numbers read live.`,
-      captions: {
-        1: {
-          head: due,
-          sub: `${Bills} ${idList(ids)} ${n === 1 ? "is" : "are"} open on Arc. The pledge is what a new wallet would put up today to pay ${them} from bitcoin.`,
-        },
-        ...shared,
-        5: { head: "Still open on Arc.", sub: "Nothing is stamped until it is paid." },
-      },
-    };
-  }
   return {
-    honesty: `Replay of ${billWord} ${idList(ids)}, paid on Arc. Numbers read live.`,
+    honesty: `Replay of ${billWord} ${ids}, paid on Arc. Numbers read live.`,
     captions: {
       1: {
         head: due,
-        sub: `${Bills} ${idList(ids)} ${n === 1 ? "was" : "were"} really paid on Arc. The pledge is what a new wallet would put up today to pay ${them} from bitcoin.`,
+        sub: `${Bills} ${ids} ${n === 1 ? "was" : "were"} really paid on Arc. The pledge is what a new wallet would put up today to pay ${them} from bitcoin.`,
       },
       ...shared,
       5: {
@@ -110,7 +98,7 @@ export function PledgeStage() {
   const mode = bills?.mode ?? "none";
   const story = tell(state, bills, pledge);
 
-  const motionKey = `${state.status}:${mode}:${list.map((b) => b.id).join(",")}:${pledge ? "p" : "-"}`;
+  const motionKey = `${state.status}:${mode}:${list.map((b) => b.key).join(",")}:${pledge ? "p" : "-"}`;
   const geometry = useLoanGeometry(stageRef, motionKey);
   const { kind, replay } = usePledgeMotion({ pinRef, stageRef, key: motionKey, ready: state.status !== "loading", stamps: mode === "paid", onFinal: setFinal });
 
@@ -119,7 +107,7 @@ export function PledgeStage() {
   const perBtc = pledge?.usdPerBtcBaseUnits ? formatUsd(pledge.usdPerBtcBaseUnits, false) : null;
   const borrowed = pledge ? pledge.markets.map((m) => formatToken(m.billsBaseUnits, m.currency)).join(" + ") : null;
   const paused = pledge?.markets.some((m) => m.fresh === false) ?? false;
-  const lineLabels = Object.fromEntries(list.map((b) => [b.id, `${formatToken(b.amountBaseUnits, b.currency)} borrowed`]));
+  const lineLabels = Object.fromEntries(list.map((b) => [b.key, `${formatToken(b.amountBaseUnits, b.currency)} borrowed`]));
 
   const figure = (value: React.ReactNode) =>
     state.status === "loading" ? <Reading slow={state.slow} /> : pledge ? value : <Unavailable />;
@@ -227,12 +215,12 @@ export function PledgeStage() {
             </div>
           </div>
 
-          <LoanLines geometry={geometry} ids={list.map((b) => b.id)} labels={lineLabels} total={borrowed ? `${borrowed} borrowed` : ""} />
+          <LoanLines geometry={geometry} ids={list.map((b) => b.key)} labels={lineLabels} total={borrowed ? `${borrowed} borrowed` : ""} />
 
           {n > 0 && (
             <ol className="pl-cards" data-count={n} aria-label={mode === "paid" ? "Bills paid on Arc" : "Open bills on Arc"}>
               {list.map((bill, i) => (
-                <BillCard key={bill.id} bill={bill} index={i} count={n} />
+                <BillCard key={bill.key} bill={bill} index={i} count={n} />
               ))}
             </ol>
           )}

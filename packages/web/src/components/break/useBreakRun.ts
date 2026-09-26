@@ -13,11 +13,12 @@ export type BreakRun = {
   state: string[];
   results: Partial<Record<CheckId, CheckResult>>;
   summary: string | null;
+  providers: string[];
   fatal: string | null;
   startedAt: number;
 };
 
-const IDLE: BreakRun = { phase: "idle", start: null, state: [], results: {}, summary: null, fatal: null, startedAt: 0 };
+const IDLE: BreakRun = { phase: "idle", start: null, state: [], results: {}, summary: null, providers: [], fatal: null, startedAt: 0 };
 
 // Anything the stream never answered is marked "could not run" with the reason, never left looking refused (C19).
 function closeOut(run: BreakRun, reason: string): BreakRun {
@@ -65,7 +66,7 @@ export function useBreakRun() {
           else if (line.type === "state") current = { ...current, state: line.lines };
           else if (line.type === "result") current = { ...current, results: { ...current.results, [line.result.id]: line.result } };
           else if (line.type === "done") {
-            current = { ...current, summary: line.summary, phase: "done" };
+            current = { ...current, summary: line.summary, providers: line.providers, phase: "done" };
             finished = true;
           } else if (line.type === "fatal") {
             current = closeOut({ ...current, fatal: line.reason }, line.reason);

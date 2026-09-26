@@ -3,7 +3,7 @@
 import { useLayoutEffect, useState, type RefObject } from "react";
 import { COIN_CENTRE, COIN_SIZE } from "./geometry";
 
-export type LoanLine = { id: number; d: string; label: { x: number; y: number; anchor: "start" | "end" } | null };
+export type LoanLine = { id: string; d: string; label: { x: number; y: number; anchor: "start" | "end" } | null };
 type Geometry = { w: number; h: number; wide: boolean; lines: LoanLine[] };
 
 const EMPTY: Geometry = { w: 1, h: 1, wide: true, lines: [] };
@@ -33,7 +33,7 @@ function measure(stage: HTMLElement): Geometry {
   const gutter = s.width - 10;
 
   const lines = slots.map((slot, i): LoanLine => {
-    const id = Number(slot.dataset.plSlot);
+    const id = slot.dataset.plSlot ?? "";
     const b = slot.getBoundingClientRect();
     if (wide) {
       const ex = b.right - s.left - 8;
@@ -89,7 +89,7 @@ export function useLoanGeometry(stageRef: RefObject<HTMLElement | null>, key: st
 }
 
 // Wide screens label every line with its own bill; phones carry one label with the total.
-export function LoanLines({ geometry, ids, labels, total }: { geometry: Geometry; ids: number[]; labels: Record<number, string>; total: string }) {
+export function LoanLines({ geometry, ids, labels, total }: { geometry: Geometry; ids: string[]; labels: Record<string, string>; total: string }) {
   const byId = new Map(geometry.lines.map((l) => [l.id, l]));
   return (
     <svg className="pl-lines" viewBox={`0 0 ${geometry.w} ${geometry.h}`} preserveAspectRatio="none" aria-hidden="true">

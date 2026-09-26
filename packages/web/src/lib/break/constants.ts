@@ -13,9 +13,16 @@ export const DEMO_PAYEE: Address = "0xc95DE79125A9D7fCfE17f35C7Dbe0e88725Ad93B";
 // Derived exactly as attack.mjs derives them, so the page and the script attack with the same stranger.
 export const STRANGER: Address = getAddress(`0x${keccak256(stringToHex("adag attack stranger")).slice(-40)}`);
 export const RANDOM_TOKEN: Address = getAddress(`0x${keccak256(stringToHex("adag attack random token")).slice(-40)}`);
+// guard-prove.mjs and guard-attack.mjs use their own stranger and an empty wallet; the same derivations here.
+export const GUARD_STRANGER: Address = getAddress(`0x${keccak256(stringToHex("adag guard stranger")).slice(-40)}`);
+export const NO_LOAN_WALLET: Address = getAddress(`0x${keccak256(stringToHex("adag guard wallet with no loan")).slice(-40)}`);
 
-// Circle's RPC does not serve eth_simulateV1, so the suite simulates on dRPC's public endpoint, as attack.mjs does.
+// Circle's RPC does not serve eth_simulateV1. The server simulates on its own paid endpoint (ARC_RPC_URL, read only
+// in simulate.ts, never sent to a browser) when one is set, and on dRPC's public endpoint otherwise, as attack.mjs does.
 export const SIM_RPC = "https://rpc.drpc.mainnet.arc.io";
+export const PROVIDER_NAMES = ["QuickNode", "the server's own RPC", "dRPC's public endpoint"] as const;
+export type ProviderName = (typeof PROVIDER_NAMES)[number];
+export const SIM_TIMED_OUT = "the simulation service timed out, try again";
 export const SIM_SPACING_MS = 1_500;
 export const RATE_LIMIT_WAIT_MS = 5_000;
 export const SIM_TIMEOUT_MS = 30_000;
@@ -27,6 +34,7 @@ export const BILL_AMOUNT = 100_000n;
 // Set this when the repository is public; until then the page names the files as plain text.
 export const REPO_URL: string | null = null;
 export const ATTACK_SCRIPT_PATH = "packages/contracts/prove-it/attack.mjs";
+export const GUARD_ATTACK_SCRIPT_PATH = "packages/contracts/prove-it/guard-attack.mjs";
 export const THREAT_MODEL_PATH = "docs/security/threat-model.md";
 
 // Runtime code of packages/contracts/prove-it/mock/MockOracle.sol (its compiled MockOracle.json), used by A9 alone. Its three

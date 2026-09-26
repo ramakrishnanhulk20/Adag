@@ -2,11 +2,14 @@ import { parseAbi } from "viem";
 
 const mp = "(address loanToken, address collateralToken, address oracle, address irm, uint256 lltv)";
 
-// The slice of packages/contracts/deployments/AdagBills.abi.json the suite calls, with every error it can raise.
+// The slice of packages/contracts/deployments/2026-09-26/AdagBills.abi.json the suite calls (the current AdagBills,
+// with enrol), with every error it can raise.
 export const adagAbi = parseAbi([
   "function createBill(address currency, uint256 amount, uint64 due, bytes ref) returns (uint256 id)",
   "function pay(uint256 id)",
   "function voidBill(uint256 id)",
+  "function enrol()",
+  "function enrolledAt(address payer) view returns (uint64 blockNumber)",
   "function bill(uint256 id) view returns ((address payee, uint8 status, uint64 due, address currency, uint64 createdAt, uint256 amount, address payer, uint64 paidAt, bytes ref))",
   "function billCount() view returns (uint256)",
   "function loanToValue(address user, bytes32 marketId) view returns (uint256 ltvWad)",
@@ -16,6 +19,7 @@ export const adagAbi = parseAbi([
   "error BadFeed(address oracle)",
   "error BadMarket(bytes32 marketId)",
   "error BillNotOpen(uint256 id, uint8 status)",
+  "error EnrolledThisBlock()",
   "error LtvAboveLimit(bytes32 marketId, uint256 borrowed, uint256 maxBorrow)",
   "error NotPayee(address caller)",
   "error PageTooLarge(uint256 limit)",
@@ -31,8 +35,22 @@ export const adagAbi = parseAbi([
   "error ZeroPrice()",
 ]);
 
+// AdagGuard's errors, from packages/contracts/deployments/2026-09-26/AdagGuard.abi.json. Its functions come from
+// lib/guard/abi.ts, the app's one copy.
+export const guardErrorsAbi = parseAbi([
+  "error ExpiryInPast(uint64 expiry)",
+  "error GuardBalanceChanged(uint256 balanceBefore, uint256 balanceAfter)",
+  "error MorphoAllowanceLeft(uint256 allowanceBefore, uint256 allowanceAfter)",
+  "error NoRule(address borrower, bytes32 marketId)",
+  "error RepaidNotPulled(uint256 repaid, uint256 pulled)",
+  "error TargetNotBelowTrigger(uint64 target, uint64 trigger)",
+  "error TriggerNotBelowLiquidation(uint64 trigger, uint256 lltv)",
+  "error ZeroTarget()",
+]);
+
 export const erc20Abi = parseAbi([
   "function approve(address spender, uint256 amount) returns (bool)",
+  "function transfer(address to, uint256 amount) returns (bool)",
   "function balanceOf(address account) view returns (uint256)",
   "function allowance(address owner, address spender) view returns (uint256)",
 ]);
@@ -45,6 +63,8 @@ export const morphoAbi = parseAbi([
   `function borrow(${mp} marketParams, uint256 assets, uint256 shares, address onBehalf, address receiver) returns (uint256, uint256)`,
   `function repay(${mp} marketParams, uint256 assets, uint256 shares, address onBehalf, bytes data) returns (uint256, uint256)`,
   `function withdrawCollateral(${mp} marketParams, uint256 assets, address onBehalf, address receiver)`,
+  // Not in lib.mjs's slice; copied from morpho-blue v1.0.0 IMorpho.sol, as guard-attack.mjs does.
+  `function accrueInterest(${mp} marketParams)`,
 ]);
 
 export const memoAbi = parseAbi([

@@ -22,12 +22,17 @@ export type LoanCap = {
 };
 
 export type PaidThroughAdag = {
+  // Bills written on both AdagBills deployments together.
   billCount: number;
   billsPaid: number;
   usdcBaseUnits: string;
   eurcBaseUnits: string;
   latestPayment: { billId: number; txHash: string; logIndex: number; blockNumber: string; explorerUrl: string } | null;
   latestPaymentNote: "found" | "none" | "not-found" | "unavailable";
+  // "index": the BillPaid index in the server store; "direct": the newest bills read straight from Arc.
+  source: "index" | "direct";
+  throughBlock: string;
+  note: string | null;
 };
 
 export type PriceStatus = {
@@ -41,29 +46,41 @@ export type BtcPrice = {
   usdPerCirbtc: number;
 };
 
-export type BillTx = { txHash: string; logIndex: number; explorerUrl: string };
-
-export type LedgerBill = {
-  id: number;
-  payee: string;
+// One payment, exactly as its BillPaid event records it (C16). There is deliberately no reference here: the home page
+// never shows words a stranger wrote into a bill (security pass 1, M2).
+export type PaidEntry = {
+  contract: string;
+  // True for the first AdagBills deployment, whose bills open at /bill/first/N.
+  first: boolean;
+  id: string;
   currency: "USDC" | "EURC";
   amountBaseUnits: string;
+  payer: string;
+  payee: string;
+  txHash: string;
+  logIndex: number;
+  blockNumber: string;
+  paidAt: number;
+  loanChecked: boolean;
+  explorerUrl: string;
+};
+
+// The live proof bill the "Check it yourself" strip talks about: bill #1 on the current AdagBills. Every fact the
+// strip states comes from bill(1) and that bill's own BillPaid event, read on each snapshot.
+export type ProofBill = {
+  id: string;
   // 1 Open, 2 Paid, 3 Void, as AdagBills stores it.
   status: 1 | 2 | 3;
-  due: number;
-  createdAt: number;
+  currency: "USDC" | "EURC";
+  amountBaseUnits: string;
   paidAt: number;
-  // The reference exactly as stored: raw bytes as hex. Only the display layer turns it into text (C14).
-  refHex: string;
-  // Paid bills link their BillPaid transaction; open or void ones link the BillCreated transaction.
-  tx: BillTx | null;
-  txKind: "paid" | "created";
-  txNote: "found" | "not-found" | "unavailable";
+  payment: { txHash: string; logIndex: number; blockNumber: string; explorerUrl: string; loanChecked: boolean } | null;
+  paymentNote: "found" | "not-paid" | "not-found";
 };
 
 export type LatestBills = {
-  billCount: number;
-  bills: LedgerBill[];
+  billsPaid: number;
+  bills: PaidEntry[];
 };
 
 export type LiveSnapshot = {
@@ -77,4 +94,5 @@ export type LiveSnapshot = {
   price: Cell<PriceStatus>;
   btcPrice: Cell<BtcPrice>;
   latestBills: Cell<LatestBills>;
+  proof: Cell<ProofBill>;
 };

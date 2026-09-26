@@ -1,6 +1,11 @@
 import { RUN_CACHE_MS } from "./constants";
 import type { RunLine } from "./catalogue";
+import { providersUsed } from "./simulate";
 import { runSuite } from "./suite";
+
+// One full run makes 31 eth_simulateV1 calls on dRPC, plus eth_chainId and eth_getBlockByNumber once each:
+// AdagBills 19 (3 baseline reads, then A1 to A9 in 12 and E1 to E5 in 5) and AdagGuard 12 (a baseline read, one
+// pass of the 38% premise alone, then one per group G1 to G10). At 1.5 seconds apart that is about a minute.
 
 type Listener = (line: RunLine | null) => void;
 type Run = { lines: RunLine[]; listeners: Set<Listener>; done: boolean; finishedAt: number; failed: boolean };
@@ -21,14 +26,22 @@ async function execute(run: Run) {
     await runSuite(push);
     const results = run.lines.flatMap((l) => (l.type === "result" ? [l.result] : []));
     const passed = results.filter((r) => r.pass).length;
+    const broken = results.filter((r) => r.verdict === "broken").length;
+    const notRun = results.filter((r) => r.verdict === "error").length;
     push({
       type: "done",
       passed,
       total: results.length,
+      providers: providersUsed(),
       summary:
         passed === results.length
-          ? `All ${results.length} checks behaved as the threat model says: every attack was refused, and the named residual (A4) behaved exactly as documented.`
-          : `${results.length - passed} of ${results.length} checks did not behave as expected.`,
+          ? `All ${results.length} checks behaved as the threat model says: every attack was refused or held, and the named residuals (A4, and E5 for enrol) behaved exactly as documented.`
+          : [
+              broken ? `${broken} of ${results.length} checks did not behave as expected.` : null,
+              notRun ? `${notRun} could not run this time; nothing is claimed for ${notRun === 1 ? "it" : "them"}.` : null,
+            ]
+              .filter(Boolean)
+              .join(" "),
     });
   } catch (e) {
     run.failed = true;

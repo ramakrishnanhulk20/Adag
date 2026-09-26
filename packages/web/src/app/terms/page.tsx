@@ -2,7 +2,7 @@ import type { CSSProperties } from "react";
 import type { Metadata } from "next";
 import { Hallmark } from "@/components/Hallmark";
 import { AppShell } from "@/components/app/AppShell";
-import { ADAG_BILLS, EXPLORER } from "@/lib/pay/constants";
+import { CONTRACTS } from "@/components/landing/contracts";
 
 export const metadata: Metadata = {
   title: "Terms of Use · Adag",
@@ -81,10 +81,15 @@ const SECTIONS: { title: string; body: React.ReactNode }[] = [
     body: (
       <>
         The contract has not had a paid third-party audit. What exists is published: a threat model, a self-review with an attack suite simulated
-        against the deployed contract on live mainnet state, and static analysis. The contract source is verified on the{" "}
-        <a href={`${EXPLORER}/address/${ADAG_BILLS}`} target="_blank" rel="noopener noreferrer" className="link-draw text-gold">
-          Arc explorer
-        </a>
+        against the deployed contract on live mainnet state, and static analysis. The source of every contract is verified on the Arc explorer:{" "}
+        {CONTRACTS.map((c, i) => (
+          <span key={c.address}>
+            {i > 0 ? (i === CONTRACTS.length - 1 ? " and " : ", ") : null}
+            <a href={c.explorer} target="_blank" rel="noopener noreferrer" className="link-draw text-gold">
+              {c.name}
+            </a>
+          </span>
+        ))}
         .
       </>
     ),

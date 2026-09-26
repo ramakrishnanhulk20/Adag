@@ -1,11 +1,11 @@
 import "./landing.css";
 import { Hallmark } from "@/components/Hallmark";
-import { ADAG_BILLS } from "@/lib/arc/constants";
+import { CONTRACTS, CURRENT_BILLS } from "./contracts";
 import { FortyGauge } from "./FortyGauge";
 import Link from "next/link";
 import { Reveal } from "./Reveal";
 
-const CONTRACT = `https://explorer.arc.io/address/${ADAG_BILLS}`;
+const CONTRACT = CURRENT_BILLS.explorer;
 
 type Fact = { title: string; body: string; links: { label: string; href: string; internal?: boolean }[] };
 
@@ -22,11 +22,11 @@ const FACTS: Fact[] = [
   },
   {
     title: "Source verified",
-    body: "The code running on Arc matches the published source exactly, checked by Sourcify and by Arc's explorer.",
-    links: [
-      { label: "Sourcify", href: `https://repo.sourcify.dev/5042/${ADAG_BILLS}` },
-      { label: "explorer.arc.io", href: `${CONTRACT}?tab=contract` },
-    ],
+    body: "The code running on Arc matches the published source exactly, checked by Sourcify and by Arc's explorer, for every contract Adag uses.",
+    links: CONTRACTS.flatMap((c) => [
+      { label: `${c.name} on Sourcify`, href: c.sourcify },
+      { label: `${c.name} on explorer.arc.io`, href: `${c.explorer}?tab=contract` },
+    ]),
   },
   {
     title: "Refuses anything past 40%, even hand-built transactions",

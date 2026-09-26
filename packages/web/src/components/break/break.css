@@ -149,11 +149,16 @@
   border-radius: 2px;
   color: var(--pending);
 }
+/* A reason can quote a full 42-character address, which must wrap on a phone rather than widen the page. */
 .bk-reason {
   margin-top: 12px;
   max-width: 66ch;
   font-size: 1rem;
   line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+.bk-attack {
+  overflow-wrap: anywhere;
 }
 
 .bk-details {

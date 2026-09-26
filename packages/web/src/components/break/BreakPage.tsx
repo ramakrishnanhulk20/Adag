@@ -6,14 +6,13 @@ import Link from "next/link";
 import { motion } from "motion/react";
 import { Button } from "@/components/Button";
 import { Hallmark } from "@/components/Hallmark";
-import { CHECKS, type CheckInfo, type CheckResult } from "@/lib/break/catalogue";
-import { ATTACK_SCRIPT_PATH } from "@/lib/break/constants";
+import { CHECKS, GROUP_NOTES, GROUPS, RESIDUALS, type CheckInfo, type CheckResult } from "@/lib/break/catalogue";
+import { ATTACK_SCRIPT_PATH, GUARD_ATTACK_SCRIPT_PATH } from "@/lib/break/constants";
 import { useBreakRun, type BreakRun } from "./useBreakRun";
 import { VerdictStamp, type StampKind } from "./VerdictStamp";
 
 const EASE = [0.16, 1, 0.3, 1] as const;
 const TOTAL = CHECKS.length;
-const GROUPS = Array.from(new Set(CHECKS.map((c) => c.group)));
 const DATE = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "UTC" });
 
 // Set once the repository is public. Until then the terminal line is left out rather than pointing nowhere.
@@ -57,6 +56,7 @@ function Tally({ run }: { run: BreakRun }) {
 
 function Row({ info, result, running }: { info: CheckInfo; result: CheckResult | undefined; running: boolean }) {
   const kind: StampKind = result ? result.verdict : running ? "running" : "armed";
+  const residual = RESIDUALS[info.id];
   return (
     <motion.li
       className={`bk-row ${result ? "is-landed" : ""} ${running ? "is-running" : ""}`}
@@ -67,7 +67,8 @@ function Row({ info, result, running }: { info: CheckInfo; result: CheckResult |
     >
       <span className="bk-id">{info.id}</span>
       <div className="bk-body">
-        {info.simulatedPriceDrop && <span className="bk-tag type-micro">Simulated price drop · a mock oracle, 25% lower</span>}
+        {info.simulated === "price drop" && <span className="bk-tag type-micro">Simulated price drop · a mock oracle, 25% lower</span>}
+        {info.simulated === "price crash" && <span className="bk-tag type-micro">Simulated price crash · a mock oracle at zero</span>}
         <p className="bk-attack">{info.attack}</p>
         <p className="type-micro mt-2 text-muted">
           What should stop it · <span className="text-text/80">{info.stopper}</span>
@@ -81,10 +82,10 @@ function Row({ info, result, running }: { info: CheckInfo; result: CheckResult |
         {result && (
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease: EASE }}>
             <p className={`bk-reason ${result.verdict === "broken" ? "text-danger" : result.verdict === "error" ? "text-muted" : "text-text"}`}>{result.reason}</p>
-            {info.id === "A4" && result.verdict === "by-design" && (
+            {residual && result.verdict === "by-design" && (
               <p className="type-micro mt-2 text-muted">
-                Allowed by design, caught on the next payment. The named residual under C10 in{" "}
-                <Link href="/docs/security/threat-model#loan-safety" className="link-draw text-gold">
+                {residual.text}{" "}
+                <Link href={residual.href} className="link-draw text-gold">
                   the threat model
                 </Link>
                 .
@@ -125,7 +126,7 @@ export function BreakPage() {
   const when = run.start ? `${DATE.format(new Date(run.start.timestamp * 1000))} UTC` : null;
 
   let status: string;
-  if (run.phase === "idle") status = "About twenty seconds. Each attack waits its turn so Arc's public node is never flooded.";
+  if (run.phase === "idle") status = "About a minute. Each simulation waits its turn so Arc's public node is never flooded.";
   else if (running) status = answered === 0 ? `Reading Arc's live state · ${elapsed}s` : `Simulating on Arc · ${answered} of ${TOTAL} · ${elapsed}s`;
   else if (run.fatal) status = run.fatal;
   else if (run.start?.cached) status = `Served from the run ${run.start.ageSeconds}s ago. A fresh run starts at most once a minute.`;
@@ -154,8 +155,8 @@ export function BreakPage() {
             </span>
           </h1>
           <p className="type-lead bk-lead bk-in bk-in-2">
-            {TOTAL} real attacks on Adag&apos;s live contract, simulated on Arc mainnet&apos;s current state: the real loan, the real bills, the real bitcoin price.
-            Nothing is signed and nothing is sent.
+            {TOTAL} real attacks on Adag&apos;s live contracts, AdagBills and the loan guard, simulated on Arc mainnet&apos;s current state: the real loan, the
+            real bills, the real bitcoin price. Nothing is signed and nothing is sent.
           </p>
           <div className="bk-actions bk-in bk-in-3">
             <Button onClick={go} disabled={running} aria-busy={running}>
@@ -173,7 +174,10 @@ export function BreakPage() {
 
       {run.state.length > 0 && (
         <motion.section className="bk-state" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease: EASE }}>
-          <p className="type-label text-gold">Live state at block {block}</p>
+          <p className="type-label text-gold">
+            Live state at block {block}
+            {run.start ? `, simulated on ${run.start.provider}` : null}
+          </p>
           {run.state.map((line) => (
             <p key={line} className="type-address text-muted">
               {line}
@@ -189,6 +193,7 @@ export function BreakPage() {
               <Hallmark as="h2">
                 {String(gi + 1).padStart(2, "0")} · {group}
               </Hallmark>
+              <p className="type-body bk-group-note mt-4 max-w-[70ch] text-muted">{GROUP_NOTES[group]}</p>
             </motion.div>
             <ol className="bk-rows">
               {CHECKS.filter((c) => c.group === group).map((info) => (
@@ -206,12 +211,20 @@ export function BreakPage() {
       )}
 
       <footer className="bk-footer type-micro">
-        <span>{block ? `Simulated at Arc block ${block} · ${when}` : "Every run is pinned to Arc's latest block"}</span>
+        <span>
+          {block
+            ? `Simulated on ${run.providers.length ? run.providers.join(" and ") : (run.start?.provider ?? "Arc")} at Arc block ${block} · ${when}`
+            : "Every run is pinned to Arc's latest block"}
+        </span>
         {REPO_URL && (
           <span>
-            The same suite runs from the terminal:{" "}
+            The same suites run from the terminal:{" "}
             <a href={`${REPO_URL}/blob/main/${ATTACK_SCRIPT_PATH}`} target="_blank" rel="noopener noreferrer" className="link-draw text-gold">
               attack.mjs
+            </a>{" "}
+            and{" "}
+            <a href={`${REPO_URL}/blob/main/${GUARD_ATTACK_SCRIPT_PATH}`} target="_blank" rel="noopener noreferrer" className="link-draw text-gold">
+              guard-attack.mjs
             </a>
           </span>
         )}

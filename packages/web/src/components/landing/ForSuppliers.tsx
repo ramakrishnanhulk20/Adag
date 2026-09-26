@@ -38,7 +38,7 @@ export function ForSuppliers() {
         </div>
         <div className="md:col-span-6 md:col-start-7">
           <Reveal>
-            <p className="type-micro mb-4 text-muted">The latest bill on Arc, read live</p>
+            <p className="type-micro mb-4 text-muted">The latest payment on Arc, read live</p>
             <BillCard />
           </Reveal>
         </div>

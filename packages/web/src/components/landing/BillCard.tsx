@@ -1,11 +1,10 @@
 "use client";
 
-import { BillStamp, type BillStatus } from "@/components/BillStamp";
+import Link from "next/link";
+import { BillStamp } from "@/components/BillStamp";
 import { useLive } from "@/components/hero/LiveData";
-import { formatAmount, formatDate, referenceText } from "@/lib/arc/present";
-import type { LedgerBill } from "@/lib/arc/types";
-
-export const STAMP: Record<LedgerBill["status"], BillStatus> = { 1: "open", 2: "paid", 3: "void" };
+import { formatAmount, formatDate } from "@/lib/arc/present";
+import { billHref } from "@/lib/pay/billId";
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -20,7 +19,8 @@ function Frame({ children }: { children: React.ReactNode }) {
   return <div className="relative border border-rule-strong bg-raised px-6 py-7 md:px-9 md:py-9">{children}</div>;
 }
 
-// The newest bill on Arc, exactly as AdagBills stores it. Nothing on this card is typed in by us.
+// The newest payment on Arc, from its own BillPaid event. The invoice reference is not shown here: anyone can write
+// one, and the home page never carries a stranger's words (security pass 1, M2). The bill's own page shows it.
 export function BillCard() {
   const live = useLive();
 
@@ -37,51 +37,57 @@ export function BillCard() {
   if (live.status === "failed" || !live.snapshot.latestBills.ok) {
     return (
       <Frame>
-        <p className="type-body text-muted">The latest bill is unavailable: Arc did not answer. Nothing is shown in its place.</p>
+        <p className="type-body text-muted">The latest payment is unavailable: Arc did not answer. Nothing is shown in its place.</p>
       </Frame>
     );
   }
-  const bill = live.snapshot.latestBills.value.bills[0];
-  if (!bill) {
+  const entry = live.snapshot.latestBills.value.bills[0];
+  if (!entry) {
     return (
       <Frame>
-        <p className="type-body text-muted">No bill has been written on Arc yet.</p>
+        <p className="type-body text-muted">No bill has been paid on Arc yet.</p>
       </Frame>
     );
   }
 
-  const reference = referenceText(bill.refHex);
+  let href: string | null = null;
+  try {
+    href = billHref(entry.contract, BigInt(entry.id));
+  } catch {
+    href = null;
+  }
   return (
     <Frame>
       <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-4">
         <div>
-          <p className="type-label text-gold">Bill #{bill.id}</p>
-          <p className="type-number mt-3 whitespace-nowrap">{formatAmount(bill.amountBaseUnits, bill.currency)}</p>
+          <p className="type-label text-gold">
+            Bill #{entry.id}
+            {entry.first ? <span className="ml-3 text-muted">First deployment</span> : null}
+          </p>
+          <p className="type-number mt-3 whitespace-nowrap">{formatAmount(entry.amountBaseUnits, entry.currency)}</p>
         </div>
-        <BillStamp status={STAMP[bill.status]} entrance="in-view" className="mt-1 shrink-0" />
+        <BillStamp status="paid" entrance="in-view" className="mt-1 shrink-0" />
       </div>
       <dl className="mt-7">
-        <Row label="Pay to">
-          <span className="type-address break-all text-text">{bill.payee}</span>
+        <Row label="Paid to">
+          <span className="type-address break-all text-text">{entry.payee}</span>
         </Row>
-        <Row label="Reference">
-          {reference ? <span className="type-body break-words text-text">{reference}</span> : <span className="type-body text-muted">None</span>}
+        <Row label="Paid by">
+          <span className="type-address break-all text-text">{entry.payer}</span>
         </Row>
-        {bill.due > 0 && (
-          <Row label="Due">
-            <span className="type-body text-text">{formatDate(bill.due)}</span>
+        <Row label="Paid">
+          <span className="type-body text-text">{formatDate(entry.paidAt)}</span>
+          <a href={entry.explorerUrl} target="_blank" rel="noopener noreferrer" className="link-draw type-label ml-4 text-gold">
+            Payment on Arc
+          </a>
+        </Row>
+        {href && (
+          <Row label="The bill">
+            <Link href={href} className="link-draw type-label text-gold">
+              Open it, with its invoice reference
+            </Link>
           </Row>
         )}
-        <Row label={bill.status === 2 ? "Paid" : "Written"}>
-          <span className="type-body text-text">{formatDate(bill.status === 2 ? bill.paidAt : bill.createdAt)}</span>
-          {bill.tx ? (
-            <a href={bill.tx.explorerUrl} target="_blank" rel="noopener noreferrer" className="link-draw type-label ml-4 text-gold">
-              {bill.status === 2 ? "Payment on Arc" : "Bill on Arc"}
-            </a>
-          ) : (
-            <span className="type-micro ml-4 text-muted">{bill.txNote === "unavailable" ? "Link unavailable" : "Transaction outside the search window"}</span>
-          )}
-        </Row>
       </dl>
     </Frame>
   );
