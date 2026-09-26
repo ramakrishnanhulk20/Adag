@@ -1,0 +1,13 @@
+{
+  "chainId": 5042,
+  "AdagGuard": {
+    "address": "0x9a3f3ee50ae108124c7cf54a1b68c14fe5800806",
+    "txHash": "0xa969222d5ec16e0481063d2f1426ae86c56414665b1ab27da880f04859291e1c",
+    "block": 22859780,
+    "deployer": "0x6e26Dd347b57ba591Ee34292A2d828CCC17A1fDE",
+    "solc": "0.8.30",
+    "optimizerRuns": 200,
+    "evmVersion": "prague",
+    "deployedAt": "2026-09-26T12:43:23Z"
+  }
+}

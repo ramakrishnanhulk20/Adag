@@ -1,1 +1,23 @@
-{"chainId":5042,"AdagBills":{"address":"0x6F2199e0A04e5e8ba67c89C467b6DF168b01137E","txHash":"0x758e4463ec738c675e4d9615aff67d9864359c7a30b3a77bd7b2689d30a66e50","block":22727688,"deployer":"0x6e26Dd347b57ba591Ee34292A2d828CCC17A1fDE","solc":"0.8.30","optimizerRuns":200,"evmVersion":"prague","deployedAt":"2026-09-25T18:06:14Z"}}
+{
+  "chainId": 5042,
+  "AdagBills": {
+    "address": "0x6F2199e0A04e5e8ba67c89C467b6DF168b01137E",
+    "txHash": "0x758e4463ec738c675e4d9615aff67d9864359c7a30b3a77bd7b2689d30a66e50",
+    "block": 22727688,
+    "deployer": "0x6e26Dd347b57ba591Ee34292A2d828CCC17A1fDE",
+    "solc": "0.8.30",
+    "optimizerRuns": 200,
+    "evmVersion": "prague",
+    "deployedAt": "2026-09-25T18:06:14Z"
+  },
+  "AdagBillsEnrol": {
+    "address": "0xaf6c47ae3e2ccd2cd829dd8a1dccb7a7665c08cb",
+    "txHash": "0xad01e84dfff670f8b63346d744c5690c14d07457f1ceeb23c43cfa51cdfc64b1",
+    "block": 22859681,
+    "deployer": "0x6e26Dd347b57ba591Ee34292A2d828CCC17A1fDE",
+    "solc": "0.8.30",
+    "optimizerRuns": 200,
+    "evmVersion": "prague",
+    "deployedAt": "2026-09-26T12:42:33Z"
+  }
+}
