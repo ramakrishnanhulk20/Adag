@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { encodeAbiParameters, encodeEventTopics, getAddress, keccak256, parseAbi, toHex } from 'viem';
 import { startMockUpstash } from '../../store/test/mock-upstash.mjs';
 
-const { readPaidWith, DIRECT_NOTE, DIRECT_MAX_BILLS } = await import('../paidIndex.ts');
+const { readPaidWith, DIRECT_NOTE, DIRECT_MAX_BILLS, SAFE_MARGIN_BLOCKS } = await import('../paidIndex.ts');
 const { createStore } = await import('../../store/upstash.ts');
 const { keys } = await import('../../store/keys.ts');
 const { LOG_PAGE_BLOCKS } = await import('../constants.ts');
@@ -147,7 +147,7 @@ test('the cursor never moves backwards, even when the RPC reports an older head'
   const a = deps({ store, logs: goodLogs() });
   const first = await readPaidWith(a.deps);
   const cursor = first.throughBlock;
-  assert.equal(cursor, a.state.head);
+  assert.equal(cursor, a.state.head - SAFE_MARGIN_BLOCKS);
   a.state.head = DEPLOY + 10n;
   const second = await readPaidWith(a.deps);
   assert.equal(second.throughBlock, cursor);
@@ -159,7 +159,7 @@ test('the cursor never moves backwards, even when the RPC reports an older head'
 test('each call scans at most LOG_MAX_PAGES windows and resumes where it stopped', async () => {
   const store = freshStore();
   const far = DEPLOY + 45n * LOG_PAGE_BLOCKS;
-  const logs = [paidLog({ id: 1n, block: DEPLOY + 1n }), paidLog({ id: 2n, block: far - 1n })];
+  const logs = [paidLog({ id: 1n, block: DEPLOY + 1n }), paidLog({ id: 2n, block: far - SAFE_MARGIN_BLOCKS - 5n })];
   const a = deps({ store, logs, head: far, delayMs: 0 });
   const one = await readPaidWith(a.deps);
   assert.equal(a.state.reads, 20);
@@ -168,9 +168,70 @@ test('each call scans at most LOG_MAX_PAGES windows and resumes where it stopped
   assert.match(one.note ?? '', /catching up/);
   await readPaidWith(a.deps);
   const three = await readPaidWith(a.deps);
-  assert.equal(three.throughBlock, far);
+  assert.equal(three.throughBlock, far - SAFE_MARGIN_BLOCKS);
   assert.equal(three.totals.count, 2);
   assert.equal(three.note, null);
+});
+
+// C64: one endpoint answers both the head and the logs. It lags the real chain, and like a real lagging node it
+// answers a range past its own head with fewer logs and no error.
+function laggingEndpoint(store, chainLogs) {
+  const node = { head: 0n, failOnWindow: null, windows: 0 };
+  const { deps: base } = deps({ store, logs: [], delayMs: 0 });
+  return {
+    node,
+    deps: {
+      ...base,
+      head: async () => node.head,
+      logs: async ({ fromBlock, toBlock }) => {
+        node.windows++;
+        if (node.failOnWindow !== null && node.windows === node.failOnWindow) throw new Error('the endpoint dropped the request');
+        return chainLogs.filter((l) => l.blockNumber >= fromBlock && l.blockNumber <= toBlock && l.blockNumber <= node.head);
+      },
+    },
+  };
+}
+
+test('a payment in blocks the endpoint had not reached yet is counted once it catches up, never skipped', async () => {
+  const store = freshStore();
+  const payAt = DEPLOY + 5_000n;
+  const chainLogs = [paidLog({ id: 1n, block: DEPLOY + 10n }), paidLog({ id: 2n, block: payAt, amount: 4_000_000n })];
+  const { node, deps: d } = laggingEndpoint(store, chainLogs);
+  node.head = payAt - 3n;
+  const early = await readPaidWith(d);
+  assert.equal(early.totals.count, 1);
+  assert.ok(early.throughBlock <= node.head - SAFE_MARGIN_BLOCKS, 'the cursor stays below the lagging head');
+  assert.ok(early.throughBlock < payAt, 'the unseen payment block is not marked as scanned');
+  node.head = payAt + 200n;
+  const later = await readPaidWith(d);
+  assert.equal(later.totals.count, 2);
+  assert.equal(later.totals.usdc, 5_000_000n);
+  assert.equal(later.throughBlock, node.head - SAFE_MARGIN_BLOCKS);
+});
+
+test('the cursor never passes the head minus the safety margin', async () => {
+  const store = freshStore();
+  const { node, deps: d } = laggingEndpoint(store, goodLogs());
+  for (const head of [DEPLOY + 5n, DEPLOY + 25n, DEPLOY + 700n, DEPLOY + LOG_PAGE_BLOCKS + 3n, DEPLOY + 3n * LOG_PAGE_BLOCKS]) {
+    node.head = head;
+    const r = await readPaidWith(d);
+    assert.ok(r.throughBlock <= head - SAFE_MARGIN_BLOCKS || r.throughBlock === DEPLOY - 1n, `head ${head}: cursor ${r.throughBlock}`);
+  }
+});
+
+test('a failure mid-scan keeps the cursor at the last complete window, and the next read counts that window once', async () => {
+  const store = freshStore();
+  const { node, deps: d } = laggingEndpoint(store, goodLogs());
+  node.head = DEPLOY + 3n * LOG_PAGE_BLOCKS + 100n;
+  node.failOnWindow = 3;
+  const broken = await readPaidWith(d);
+  assert.equal(broken.throughBlock, DEPLOY - 1n + 2n * LOG_PAGE_BLOCKS);
+  assert.equal(broken.totals.count, 2, 'only the two windows read in full are counted');
+  node.failOnWindow = null;
+  const mended = await readPaidWith(d);
+  assert.equal(mended.totals.count, 3);
+  assert.equal(mended.totals.eurc, 700_000n);
+  assert.equal(mended.throughBlock, node.head - SAFE_MARGIN_BLOCKS);
 });
 
 function directDeps(total, statusOf) {

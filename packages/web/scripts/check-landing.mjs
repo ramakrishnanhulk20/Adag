@@ -10,6 +10,7 @@ import { createPublicClient, hexToString, http, parseAbi } from 'viem';
 // The app's own constants, loaded through the same resolve hook the unit tests use, so no address is restated here.
 await import('../src/lib/guard/test/register.mjs');
 const { DEPLOYMENTS, USDC, EURC } = await import('../src/lib/pay/constants.ts');
+const { SAFE_MARGIN_BLOCKS } = await import('../src/lib/arc/paidIndex.ts');
 
 const BASE = process.env.CHECK_BASE_URL || 'http://localhost:3000';
 const RPC = process.env.ARC_RPC_URL || 'https://rpc.mainnet.arc.io';
@@ -64,6 +65,11 @@ if (live.paid?.ok) {
   check(v.billsPaid === paid.length, `bills paid matches Arc: ${v.billsPaid} = ${paid.length}`);
   check(v.billCount === Number(written), `bills written on both contracts matches Arc: ${v.billCount} = ${written}`);
   console.log(`      source: ${v.source}, through block ${v.throughBlock}${v.note ? `, note: ${v.note}` : ''}`);
+  if (v.source === 'index') {
+    // C64: the index only counts a range that ends a safety margin below its endpoint's head.
+    const head = await client.getBlockNumber();
+    check(BigInt(v.throughBlock) <= head - SAFE_MARGIN_BLOCKS, `the index stops at least ${SAFE_MARGIN_BLOCKS} blocks below the head: block ${v.throughBlock}, head now ${head}`);
+  }
 }
 if (live.latestBills?.ok) {
   const shown = live.latestBills.value.bills.map((b) => `${b.contract.toLowerCase()}:${b.id}`);

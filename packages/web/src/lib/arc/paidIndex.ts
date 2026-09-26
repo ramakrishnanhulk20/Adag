@@ -6,7 +6,7 @@ import { storeFromEnv } from "../store/env";
 import { keys } from "../store/keys";
 import type { Store } from "../store/upstash";
 import { adagAbi, BILL_STATUS_PAID } from "./abi";
-import { arcClient } from "./client";
+import { arcClient, arcPrimaryClient } from "./client";
 import { EURC, LOG_MAX_PAGES, LOG_PAGE_BLOCKS, USDC } from "./constants";
 
 // The landing page's paid figures and its newest payments. They come only from each contract's own BillPaid event
@@ -69,6 +69,9 @@ export const DIRECT_NOTE = `In the newest ${DIRECT_MAX_BILLS} bills of each cont
 const LEASE_MS = 60_000;
 // Well inside the lease, so a slow RPC cannot outlive it while still writing.
 const SCAN_BUDGET_MS = 25_000;
+// About 10 seconds of Arc blocks: a scan stops this far below the endpoint's own head, so blocks that node has only
+// just seen, or not yet fully indexed, are never marked as scanned (C64).
+export const SAFE_MARGIN_BLOCKS = 20n;
 const BILL_PAID = getAbiItem({ abi: adagAbi, name: "BillPaid" });
 const BILL_PAID_TOPIC = toEventSelector(BILL_PAID);
 const TX_HASH = /^0x[0-9a-fA-F]{64}$/;
@@ -195,14 +198,16 @@ async function advance(target: Target, store: Store, deps: PaidDeps): Promise<In
   }
   try {
     const start = decodeState(await store.get(indexKey), target.address) ?? fresh();
-    const head = await deps.head();
+    // C64: the head and every log below come from one endpoint (deps.head and deps.logs share it), and the scan ends
+    // SAFE_MARGIN_BLOCKS below that head. A failed window stops the scan with the cursor at the last complete one.
+    const safeHead = (await deps.head()) - SAFE_MARGIN_BLOCKS;
     const began = deps.now();
     let cursor = start.cursor;
     const found: Omit<PaidRow, "paidAt">[] = [];
     const seen = new Set<string>();
-    for (let page = 0; page < LOG_MAX_PAGES && cursor < head && deps.now() - began < SCAN_BUDGET_MS; page++) {
+    for (let page = 0; page < LOG_MAX_PAGES && cursor < safeHead && deps.now() - began < SCAN_BUDGET_MS; page++) {
       const fromBlock = cursor + 1n;
-      const toBlock = fromBlock + LOG_PAGE_BLOCKS - 1n < head ? fromBlock + LOG_PAGE_BLOCKS - 1n : head;
+      const toBlock = fromBlock + LOG_PAGE_BLOCKS - 1n < safeHead ? fromBlock + LOG_PAGE_BLOCKS - 1n : safeHead;
       let logs: RawLog[];
       try {
         logs = await deps.logs({ address: target.address, fromBlock, toBlock });
@@ -354,9 +359,10 @@ export function liveDeps(): PaidDeps {
   return {
     store: storeFromEnv(),
     targets: DEPLOYMENTS.map((d) => ({ address: d.address, deployBlock: d.deployBlock })),
-    head: () => arcClient.getBlockNumber({ cacheTime: 0 }),
+    // One endpoint, no fallback, for both: a lagging node must never supply the logs for a head another node reported.
+    head: () => arcPrimaryClient.getBlockNumber({ cacheTime: 0 }),
     logs: async ({ address, fromBlock, toBlock }) =>
-      (await arcClient.getLogs({ address, event: BILL_PAID, fromBlock, toBlock, strict: true })) as unknown as RawLog[],
+      (await arcPrimaryClient.getLogs({ address, event: BILL_PAID, fromBlock, toBlock, strict: true })) as unknown as RawLog[],
     paidLog: ({ address, billId, paidAt, head }) => searchPaidLog(address, billId, paidAt, head),
     blockTime: blockTimeOf,
     billCount: (contract) => arcClient.readContract({ address: contract, abi: adagAbi, functionName: "billCount" }),

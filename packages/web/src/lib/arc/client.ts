@@ -22,3 +22,10 @@ export const arcClient = createPublicClient({
   chain: arc,
   transport: fallback([http(RPC_PRIMARY, transportOptions), http(RPC_FALLBACK, transportOptions)], { rank: false, retryCount: 0 }),
 });
+
+// The primary endpoint alone, with no fallback: for reads that must agree with each other, such as a chain head and
+// the logs up to it (C64). If this endpoint fails, the read fails; it never quietly switches to another node.
+export const arcPrimaryClient = createPublicClient({
+  chain: arc,
+  transport: http(RPC_PRIMARY, transportOptions),
+});
