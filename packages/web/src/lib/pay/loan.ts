@@ -30,6 +30,19 @@ export function closeApproval(shares: bigint, totalBorrowAssets: bigint, totalBo
   return (debt * 1001n + 999n) / 1000n + 1n;
 }
 
+// C36: the most a repay by assets may name. Morpho turns assets into shares rounding down and subtracts them from the
+// position, so the assets must not exceed the shares' value rounded down, taken from totals accrued to this block.
+// Interest that accrues before the transaction lands only lowers the shares those assets buy, so the cap stays safe.
+export function repaySomeCap(shares: bigint, accruedTotalBorrowAssets: bigint, totalBorrowShares: bigint): bigint {
+  if (shares <= 0n) return 0n;
+  return (shares * (accruedTotalBorrowAssets + 1n)) / (totalBorrowShares + 1_000_000n);
+}
+
+// Morpho's SharesMathLib.toSharesDown: the borrow shares a repay of `assets` removes.
+export function sharesForRepay(assets: bigint, totalBorrowAssets: bigint, totalBorrowShares: bigint): bigint {
+  return (assets * (totalBorrowShares + 1_000_000n)) / (totalBorrowAssets + 1n);
+}
+
 // Morpho Blue's MathLib.wTaylorCompounded: e^(x*n) - 1 to three terms, in WAD, rounding each term down.
 function wTaylorCompounded(x: bigint, n: bigint): bigint {
   const firstTerm = x * n;

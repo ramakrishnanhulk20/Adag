@@ -54,7 +54,13 @@ bill)
     case "$currency_name" in USDC) currency=$USDC ;; EURC) currency=$EURC ;; *) echo "USDC or EURC" >&2; exit 1 ;; esac
     now=$(arc-cast block latest --field timestamp --rpc-url "$RPC")
     due=$((now + 7 * 86400))
-    arc-cast send "$ADAG" "createBill(address,uint256,uint64,bytes)" "$currency" "$amount" "$due" "$(arc-cast from-utf8 "$ref")" \
+    # "hex:0x..." passes the reference bytes as they are. Text with quotes or brackets does not survive the trip from
+    # Windows through Git Bash and wsl.exe intact, so a test that needs exact bytes sends them as hex.
+    case "$ref" in
+        hex:*) refbytes=${ref#hex:} ;;
+        *) refbytes=$(arc-cast from-utf8 "$ref") ;;
+    esac
+    arc-cast send "$ADAG" "createBill(address,uint256,uint64,bytes)" "$currency" "$amount" "$due" "$refbytes" \
         --unlocked --from "$PAYEE" --rpc-url "$RPC" --gas-price 20gwei >/dev/null
     arc-cast call "$ADAG" "billCount()(uint256)" --rpc-url "$RPC" | awk '{print $1}'
     ;;

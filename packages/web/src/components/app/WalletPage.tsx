@@ -15,6 +15,7 @@ import { readyToSign, useWallet, type WalletState } from "@/lib/wallet/useWallet
 import { BillsPaid, BillsWritten } from "./BillLists";
 import { Reading, RetryContext, Value, rise, type Cell } from "./cells";
 import { ConnectButton } from "./ConnectButton";
+import { ExportCsv } from "./ExportCsv";
 import { GetSetUp } from "./GetSetUp";
 import { LoanTicket } from "./LoanTicket";
 import { SMART_ACCOUNT_SENTENCE } from "./WalletNotice";
@@ -180,6 +181,7 @@ function Connected({ address, wallet }: { address: Address; wallet: WalletState 
           <BillsPaid address={address} />
         </div>
       </div>
+      <ExportCsv address={address} />
     </div>
     </RetryContext.Provider>
   );

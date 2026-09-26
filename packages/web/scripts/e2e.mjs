@@ -43,6 +43,8 @@ const morphoAbi = parseAbi(['function position(bytes32 id, address user) view re
 const adagAbi = parseAbi([
   'function bill(uint256 id) view returns ((address payee, uint8 status, uint64 due, address currency, uint64 createdAt, uint256 amount, address payer, uint64 paidAt, bytes ref))',
   'function loanToValue(address user, bytes32 marketId) view returns (uint256)',
+  'function billsOfPayee(address payee, uint256 offset, uint256 limit) view returns (uint256[] ids, uint256 total)',
+  'function paymentsOfPayer(address payer, uint256 offset, uint256 limit) view returns (uint256[] ids, uint256 total)',
 ]);
 const billPaidEvent = parseAbiItem('event BillPaid(uint256 indexed id, address indexed payer, address indexed payee, address currency, uint256 amount, bool loanChecked)');
 const fork = createPublicClient({ transport: http(FORK, { timeout: 60_000 }) });
@@ -169,7 +171,7 @@ async function connect(page, path) {
 // Reveals only fire in view, so walk the page before a full-page capture; then shoot 1440 dark and 375 light.
 // By default only the screens named with NEWEST_SHOTS are captured, which keeps a run short.
 // --all-shots captures every screen the run passes through, the older ones included.
-const NEWEST_SHOTS = 'p1-';
+const NEWEST_SHOTS = 'p4-';
 async function shoot(page, name) {
   const all = process.argv.includes('--all-shots');
   const file = name.startsWith(NEWEST_SHOTS) ? name : !all ? null : /^f\d/.test(name) ? name : `e2e-${name}`;
@@ -862,6 +864,114 @@ async function main() {
         /paid just now/i.test(justNow) && (await statusOf(W)) === 2, `stamp turned in ${seconds} s with no reload; card: ${justNow.replace(/\s*\n\s*/g, ' | ')}`);
     }
 
+    // (x) Repay some, then (y) Max and Close loan, on the payer's USDC loan from /app.
+    {
+      const { context, page } = await openPage({ account: PAYER });
+      await connect(page, '/app').catch(() => {});
+      const ticket = page.locator('[data-loan="USDC"]');
+      await ticket.waitFor({ timeout: 60_000 });
+      await page.waitForFunction(() => document.querySelector('[data-loan="USDC"]')?.getAttribute('data-ltv') !== '', null, { timeout: 60_000 });
+      const ltvBefore = Number(await ticket.getAttribute('data-ltv'));
+      const before = await positionOf(PAYER);
+      await ticket.getByRole('tab', { name: 'Repay some' }).click();
+      await ticket.locator('[data-field="repay-some"]').fill('0.10');
+      await page.waitForTimeout(1200);
+      await shoot(page, 'p4-x-repay');
+      await ticket.locator('[data-action="repay-some"]').click();
+      const dialog = page.getByRole('dialog', { name: /Borrowing through Morpho/ });
+      if (await dialog.isVisible({ timeout: 5_000 }).catch(() => false)) {
+        await dialog.getByRole('checkbox').check();
+        await dialog.getByRole('button', { name: 'Continue to payment' }).click();
+      }
+      const result = ticket.locator('[data-tx-result="repaid"]');
+      await result.waitFor({ timeout: 120_000 });
+      const firstText = await result.innerText();
+      await page.waitForFunction((b) => Number(document.querySelector('[data-loan="USDC"]')?.getAttribute('data-ltv')) < b, ltvBefore, { timeout: 60_000 }).catch(() => {});
+      const ltvAfter = Number(await ticket.getAttribute('data-ltv'));
+      const after = await positionOf(PAYER);
+      const allowanceAfter = await fork.readContract({ address: USDC, abi: tokenAbi, functionName: 'allowance', args: [PAYER, MORPHO] });
+      await shoot(page, 'p4-x-repaid');
+      record('(x) Repay some 0.10 USDC from /app: the loan-to-value falls, the fork shows fewer shares and the same pledge, no approval left',
+        ltvAfter < ltvBefore && after[1] < before[1] && after[2] === before[2] && allowanceAfter === 0n && firstText.startsWith('Repaid 0.10 USDC'),
+        `gauge ${ltvBefore}% -> ${ltvAfter}%; shares ${before[1]} -> ${after[1]}; pledge ${after[2]} sat unchanged; allowance ${allowanceAfter}; shown: "${firstText.split('\n')[0]}"`);
+
+      // (y) Max repays the whole rounded-down debt without a revert; the dust left behind is what Close loan clears.
+      await page.waitForTimeout(1500);
+      await ticket.locator('[data-action="repay-max"]').click();
+      const maxValue = await ticket.locator('[data-field="repay-some"]').inputValue();
+      await ticket.locator('[data-action="repay-some"]').click();
+      await page.waitForFunction((t) => {
+        const el = document.querySelector('[data-loan="USDC"] [data-tx-result="repaid"]');
+        return el && el.textContent && !el.textContent.startsWith(t.slice(0, 20));
+      }, firstText, { timeout: 120_000 });
+      const maxText = await result.innerText();
+      const dust = await positionOf(PAYER);
+      await ticket.getByRole('tab', { name: /Close loan|Take your bitcoin back/ }).click();
+      await ticket.locator('[data-action="close-loan"]').waitFor({ timeout: 30_000 });
+      await page.waitForFunction(() => !document.querySelector('[data-loan="USDC"] [data-action="close-loan"][disabled]'), null, { timeout: 60_000 }).catch(() => {});
+      await ticket.locator('[data-action="close-loan"]').click();
+      await ticket.locator('[data-tx-result="closed"]').waitFor({ timeout: 120_000 });
+      const end = await positionOf(PAYER);
+      await shoot(page, 'p4-y-closed');
+      record('(y) Max repays the rounded-down debt without reverting, leaves dust, and Close loan then clears the position',
+        maxText.startsWith(`Repaid ${maxValue}`) && dust[1] < after[1] / 1000n && end[1] === 0n && end[2] === 0n,
+        `Max filled ${maxValue} USDC; shown "${maxText.split('\n')[0]}"; shares after Max ${dust[1]} (dust); after Close ${end[1]} shares, ${end[2]} pledged`);
+      await context.close();
+    }
+
+    // (z) Export for your accountant: both CSV files, one row per bill, formulas neutralised.
+    {
+      const parseCsv = (text) => {
+        const rows = [];
+        let row = [];
+        let cell = '';
+        let quoted = false;
+        for (let i = 0; i < text.length; i++) {
+          const ch = text[i];
+          if (quoted) {
+            if (ch === '"' && text[i + 1] === '"') { cell += '"'; i++; }
+            else if (ch === '"') quoted = false;
+            else cell += ch;
+          } else if (ch === '"') quoted = true;
+          else if (ch === ',') { row.push(cell); cell = ''; }
+          else if (ch === '\r' && text[i + 1] === '\n') { row.push(cell); rows.push(row); row = []; cell = ''; i++; }
+          else cell += ch;
+        }
+        return rows;
+      };
+      const readDownload = async (page, action) => {
+        const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 120_000 }), page.locator(`[data-action="${action}"]`).click()]);
+        const { readFileSync } = await import('node:fs');
+        return { name: dl.suggestedFilename(), rows: parseCsv(readFileSync(await dl.path(), 'utf8')) };
+      };
+      const header = ['contract address', 'bill number', 'status', 'written at', 'paid at', 'supplier', 'payer', 'amount', 'currency', 'reference', 'transaction link', '40% check ran'];
+      const Z = newBill('USDC', 50_000, `hex:${stringToHex('=HYPERLINK("x")')}`);
+
+      const one = await openPage({ account: PAYEE });
+      await connect(one.page, '/app').catch(() => {});
+      await one.page.locator('[data-action="export-written"]:not([disabled])').waitFor({ timeout: 60_000 });
+      const written = await readDownload(one.page, 'export-written');
+      await shoot(one.page, 'p4-z-export');
+      await one.context.close();
+      const [, wroteTotal] = await fork.readContract({ address: ADAG, abi: adagAbi, functionName: 'billsOfPayee', args: [PAYEE, 0n, 1n] });
+      const zRow = written.rows.find((r) => r[1] === String(Z));
+
+      const two = await openPage({ account: PAYER });
+      await connect(two.page, '/app').catch(() => {});
+      await two.page.locator('[data-action="export-paid"]:not([disabled])').waitFor({ timeout: 60_000 });
+      const paid = await readDownload(two.page, 'export-paid');
+      await two.context.close();
+      const [, paidTotal] = await fork.readContract({ address: ADAG, abi: adagAbi, functionName: 'paymentsOfPayer', args: [PAYER, 0n, 1n] });
+      const linked = paid.rows.slice(1).filter((r) => r[10].startsWith('https://explorer.arc.io/tx/0x') && (r[11] === 'yes' || r[11] === 'no'));
+
+      record('(z) both CSV exports: the header, one row per bill, the formula reference neutralised, and transaction links for paid bills',
+        JSON.stringify(written.rows[0]) === JSON.stringify(header) && JSON.stringify(paid.rows[0]) === JSON.stringify(header)
+          && written.rows.length - 1 === Number(wroteTotal) && paid.rows.length - 1 === Number(paidTotal)
+          && zRow?.[9] === "'=HYPERLINK(\"x\")" && zRow?.[2] === 'open' && linked.length === paid.rows.length - 1
+          && /^adag-bills-written-0x.{4}\.\.\..{4}-\d{4}-\d{2}-\d{2}\.csv$/.test(written.name),
+        `${written.name}: ${written.rows.length - 1} rows for ${wroteTotal} bills written; bill #${Z} reference cell ${JSON.stringify(zRow?.[9])}; ${paid.name}: ${paid.rows.length - 1} rows for ${paidTotal} paid, ${linked.length} with a transaction link`);
+    }
+
     // The mobile menu open, and the wallet page before connecting.
     {
       const { context, page } = await openPage({ account: PAYER, width: 375, theme: 'light' });
@@ -893,7 +1003,7 @@ try {
   await main();
   const passed = results.filter((r) => r.ok).length;
   console.log(`\nconsole errors: ${consoleErrors.length}${consoleErrors.length ? `\n  ${consoleErrors.join('\n  ')}` : ''}`);
-  const allOk = passed === results.length && results.length === 23 && consoleErrors.length === 0;
+  const allOk = passed === results.length && results.length === 26 && consoleErrors.length === 0;
   console.log(allOk ? `ALL ${passed} SCENARIOS PASSED` : `${results.length - passed} of ${results.length} scenarios failed`);
   code = allOk ? 0 : 1;
 } catch (error) {

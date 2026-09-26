@@ -234,6 +234,22 @@ export function buildAddCollateral(payer: string, currency: Currency, amount: bi
 
 // ARCHITECTURE.md section 6, close a loan: repay by the live share count (repaying by assets leaves dust that blocks
 // the withdrawal), take every satoshi back, and reset the approval so none outlives the batch (C3).
+// Bring a loan down by an exact amount of the loan token, straight to Morpho, not through Adag. `cap` is repaySomeCap
+// from the caller's fresh read (C36); a builder that reads nothing cannot know it. A full repayment is Close loan,
+// which repays by shares. The approval equals the amount and Morpho pulls exactly that, so none is left over.
+export function buildRepaySome(payer: string, currency: Currency, assets: bigint, marketParams: MarketParams, cap: bigint): Batch {
+  const who = checkedPayer(payer);
+  const { c, params } = verifiedParams(currency, marketParams);
+  if (typeof assets !== "bigint" || assets <= 0n) throw new Error("The amount to repay must be more than zero.");
+  if (typeof cap !== "bigint" || assets > cap) {
+    throw new Error("That is more than this way of repaying can take. Use Close loan to repay everything.");
+  }
+  return batch([
+    approve(c.address, MORPHO, assets),
+    call(MORPHO, encodeFunctionData({ abi: morphoAbi, functionName: "repay", args: [params, assets, 0n, who, "0x"] })),
+  ]);
+}
+
 export function buildCloseLoan(
   payer: string,
   currency: Currency,

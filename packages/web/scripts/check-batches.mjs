@@ -30,7 +30,8 @@ process.emitWarning = (warning, ...rest) => {
 
 const pay = (file) => import(new URL(`../src/lib/pay/${file}`, import.meta.url).href);
 const { buildPayFromBalance, buildPayFromBitcoin, suggestPledge, buildCreateBill, buildAddCollateral, buildCloseLoan, buildPayMany, referenceBytes, BATCH_TARGETS, APPROVAL_SPENDERS } = await pay('build.ts');
-const { debtFromShares, closeApproval, accrueBorrowAssets } = await pay('loan.ts');
+const { debtFromShares, closeApproval, accrueBorrowAssets, repaySomeCap, sharesForRepay } = await pay('loan.ts');
+const { buildRepaySome } = await pay('build.ts');
 const { billCreatedIn, billsPaidIn, morphoEventsIn } = await pay('receipt.ts');
 const { decodeAdagError } = await pay('errors.ts');
 const { verifyMarketParams, paramsFromTuple } = await pay('market.ts');
@@ -456,6 +457,33 @@ async function main() {
       `stored totalBorrowAssets ${usdc(nMarket[2])}, accrued ${usdc(accruedTotal)}; the loan's debt ${usdc(debtFromShares(nShares, nMarket[2], nMarket[3]))} stored vs ${usdc(debtFromShares(nShares, accruedTotal, nMarket[3]))} accrued`,
       `stored-totals approval ${usdc(storedApproval)}: ${oldRes.ok ? 'ACCEPTED, which is wrong' : `refused, "${decodeAdagError(oldRes.revertData).text}"`}`,
       `accrued approval ${usdc(accruedApproval)}: ${newOut[0].ok ? `closed; Morpho Repay ${usdc(nRepay?.assets ?? 0n)}; after: ${newPos[1]} shares, ${newPos[2]} pledged, allowance ${newAllowance}` : `refused, "${decodeAdagError(newOut[0].revertData).text}"`}`]);
+
+  // (o) Repay some: 0.10 USDC off the demo payer's real loan, by amount, straight to Morpho.
+  reset();
+  const [, oShares] = await ethCall(pos());
+  const oMarket = await ethCall(mkt());
+  const oRateSpec = read(C.ADAPTIVE_CURVE_IRM, irmAbi, 'borrowRateView', [usdcParams, marketArg(oMarket)]);
+  const oTime = nextTime();
+  // The rate and the accrual are read for the very block the repay runs in, so the expected shares are exact.
+  const oRate = decode(oRateSpec, (await simulate([{ from: PAYER, ...oRateSpec }], oTime))[0].returnData);
+  const oAccrued = accrueBorrowAssets(oMarket[2], oRate, oTime - oMarket[4]);
+  const oCap = repaySomeCap(oShares, oAccrued, oMarket[3]);
+  const oAssets = 100_000n;
+  const oBuilt = buildRepaySome(PAYER, usdcCurrency, oAssets, usdcParams, oCap);
+  const oRes = await send({ from: PAYER, to: oBuilt.to, data: oBuilt.data }, { before: [pos()], after: [pos(), allowance(C.USDC)] });
+  const oRepay = oRes.ok ? morphoEventsIn(oRes.logs.map((l) => ({ ...l, removed: false }))).find((e) => e.name === 'Repay') : null;
+  const oExpected = sharesForRepay(oAssets, oAccrued, oMarket[3]);
+  const oFell = oRes.ok ? oRes.before[0][1] - oRes.after[0][1] : 0n;
+  const oOver = outcome(() => buildRepaySome(PAYER, usdcCurrency, oCap + 1n, usdcParams, oCap));
+  const oZero = outcome(() => buildRepaySome(PAYER, usdcCurrency, 0n, usdcParams, oCap));
+  record('(o) buildRepaySome repays 0.10 USDC by amount: shares fall by exactly the matching count, no approval left, over the cap refused',
+    oRes.ok && shapeProblems(oBuilt).length === 0 && oBuilt.calls.length === 2 && oRepay?.assets === oAssets && oRepay?.shares === oExpected
+      && oFell === oExpected && oRes.after[1] === 0n && oOver !== null && oZero !== null,
+    [`debt ${usdc(debtFromShares(oShares, oAccrued, oMarket[3]))}, cap (rounded down) ${usdc(oCap)}; ${oBuilt.calls.length} calls`,
+      oRes.ok
+        ? `Morpho Repay ${usdc(oRepay?.assets ?? 0n)} for ${oRepay?.shares} shares; expected ${oExpected}; position fell by ${oFell}; USDC allowance after ${oRes.after[1]}; gas ${oRes.gas}`
+        : `reverted: ${decodeAdagError(oRes.revertData).text}`,
+      `cap + 1: ${oOver ?? 'ACCEPTED'}`, `zero: ${oZero ?? 'ACCEPTED'}`]);
 
   const passed = results.filter((r) => r.ok).length;
   console.log();
