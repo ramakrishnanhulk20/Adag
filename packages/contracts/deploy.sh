@@ -3,6 +3,8 @@
 #   bash deploy.sh             same as --dry-run
 #   bash deploy.sh --dry-run   simulates against live mainnet as the deployer address. Never reads a key.
 #   bash deploy.sh --broadcast the real deploy. Reads one key from the repo .env, asks for a typed yes, then sends.
+# Each deployment has its own key in deployments/arc-mainnet.json. The first one (25 September, no enrol) stays
+# under "AdagBills"; this source is recorded under RECORD_KEY, and no other key in the file is ever rewritten.
 # Upstream forge cannot run Arc's EVM rules, so on Windows this hands itself to WSL Ubuntu, where arc-forge lives.
 set -euo pipefail
 set +x
@@ -23,6 +25,8 @@ ENV_FILE="$(cd ../.. && pwd)/.env"
 SCRIPT_FILE="script/DeployAdagBills.s.sol"
 BROADCAST_DIR="broadcast/DeployAdagBills.s.sol/${CHAIN_ID}"
 OUT_DIR="deployments"
+# verify.sh carries the same key. Change both together.
+RECORD_KEY="AdagBillsEnrol"
 EXPLORER="https://explorer.arc.io/address"
 # Arc pays gas in native USDC, which has 18 decimals, so these are USDC amounts in its smallest unit.
 MIN_BALANCE_WEI=100000000000000000
@@ -95,14 +99,20 @@ at_least "$balance" "$MIN_BALANCE_WEI" ||
 predicted="$(arc-cast compute-address "$DEPLOYER" --nonce "$nonce" | grep -oE '0x[0-9a-fA-F]{40}')"
 
 build_json() {
-    # args: file address txHash-or-empty block deployer deployedAt
+    # args: file key address txHash-or-empty block deployer deployedAt
+    # Adds or replaces only the given key. Every other key already in the file is written back unchanged.
     python3 - "$@" <<'PY'
 import json, os, subprocess, sys
-path, address, tx, block, deployer, at = sys.argv[1:7]
+path, key, address, tx, block, deployer, at = sys.argv[1:8]
 cfg = json.loads(subprocess.run(["arc-forge", "config", "--json"], check=True, capture_output=True, text=True).stdout)
-record = {
-    "chainId": 5042,
-    "AdagBills": {
+record = {"chainId": 5042}
+if os.path.exists(path):
+    with open(path) as f:
+        record = json.load(f)
+    if record.get("chainId") != 5042:
+        sys.exit(f"{path} is not an Arc mainnet record")
+record.update({
+    key: {
         "address": address,
         "txHash": tx or None,
         "block": int(block),
@@ -112,7 +122,7 @@ record = {
         "evmVersion": str(cfg["evm_version"]),
         "deployedAt": at,
     },
-}
+})
 tmp = path + ".tmp"
 with open(tmp, "w", newline="\n") as f:
     json.dump(record, f, indent=2)
@@ -159,15 +169,21 @@ mkdir -p "$OUT_DIR"
 
 if [ "$mode" = "dry-run" ]; then
     simulate
-    build_json "${OUT_DIR}/arc-mainnet.dry-run.json" "$SIM_ADDRESS" "" "$block_now" "$DEPLOYER" \
+    build_json "${OUT_DIR}/arc-mainnet.dry-run.json" "$RECORD_KEY" "$SIM_ADDRESS" "" "$block_now" "$DEPLOYER" \
         "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-    printf '\nDry run only. Nothing was sent and no key was read. Wrote %s/arc-mainnet.dry-run.json\n' "$OUT_DIR"
+    printf '\nDry run only. Nothing was sent and no key was read. Wrote "%s" in %s/arc-mainnet.dry-run.json\n' \
+        "$RECORD_KEY" "$OUT_DIR"
     exit 0
 fi
 
 # Broadcast from here on.
-[ ! -e "${OUT_DIR}/arc-mainnet.json" ] ||
-    die "${OUT_DIR}/arc-mainnet.json already exists. AdagBills is immutable, so a second deploy is a new contract. Move that file aside first if you really mean it."
+if [ -e "${OUT_DIR}/arc-mainnet.json" ]; then
+    python3 - "${OUT_DIR}/arc-mainnet.json" "$RECORD_KEY" <<'PY' ||
+import json, sys
+sys.exit(1 if sys.argv[2] in json.load(open(sys.argv[1])) else 0)
+PY
+        die "${OUT_DIR}/arc-mainnet.json already has a \"${RECORD_KEY}\" deployment. AdagBills is immutable, so another deploy is a new contract: give it a new RECORD_KEY here and in verify.sh first."
+fi
 
 read_env_value DEPLOYER_PRIVATE_KEY "$ENV_FILE" DEPLOYER_PRIVATE_KEY ||
     die "no deploy key found in ${ENV_FILE}. Add the deployer key there (see .env.example)."
@@ -222,9 +238,9 @@ block_time="$(arc-cast block "$block" --field timestamp --rpc-url "$RPC_URL")"
 is_uint "$block_time" || die "unexpected block timestamp '${block_time}'."
 deployed_at="$(date -u -d "@${block_time}" +%Y-%m-%dT%H:%M:%SZ)"
 
-build_json "${OUT_DIR}/arc-mainnet.json" "$address" "$tx_hash" "$block" "$DEPLOYER" "$deployed_at"
+build_json "${OUT_DIR}/arc-mainnet.json" "$RECORD_KEY" "$address" "$tx_hash" "$block" "$DEPLOYER" "$deployed_at"
 
 printf '\nAdagBills is live at %s (block %s, tx %s)\n' "$address" "$block" "$tx_hash"
-printf 'Wrote %s/arc-mainnet.json\n' "$OUT_DIR"
+printf 'Wrote "%s" in %s/arc-mainnet.json\n' "$RECORD_KEY" "$OUT_DIR"
 printf 'Explorer: %s/%s\n' "$EXPLORER" "$address"
 printf 'Next: bash packages/contracts/verify.sh\n'

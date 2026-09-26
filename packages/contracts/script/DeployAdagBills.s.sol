@@ -44,5 +44,7 @@ contract DeployAdagBills is Script {
         if (bills.MAX_LTV_WAD() != EXPECTED_MAX_LTV_WAD) revert WrongBytecode("MAX_LTV_WAD");
         if (bills.MARKET_USDC() != EXPECTED_MARKET_USDC) revert WrongBytecode("MARKET_USDC");
         if (bills.MARKET_EURC() != EXPECTED_MARKET_EURC) revert WrongBytecode("MARKET_EURC");
+        // The first deployment has no enrolledAt, so this call reverts if that older build was deployed by mistake.
+        if (bills.enrolledAt(deployer) != 0) revert WrongBytecode("enrolledAt");
     }
 }

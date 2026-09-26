@@ -4,8 +4,9 @@ pragma solidity ^0.8.30;
 // Fork tests for AdagBills on Arc mainnet: writing, voiding and paying bills from a cash balance through Memo
 // and Multicall3From, the views, the events, every revert, and price freshness.
 // Not covered here: payments that add Morpho debt and the 40% rule (loanToValue, collateralNeeded, LtvAboveLimit,
-// StalePrice and ZeroPrice inside pay, DebtRecorded) are in AdagLoanRule.t.sol; fuzz and invariant tests are in
-// AdagFuzz.t.sol and invariant/. EURC is only written, never paid, in this file. Results follow mainnet state at
+// StalePrice and ZeroPrice inside pay, DebtRecorded) are in AdagLoanRule.t.sol; enrol and the same-block refusal
+// are in AdagEnrol.t.sol; fuzz and invariant tests are in AdagFuzz.t.sol and invariant/. EURC is only written,
+// never paid, in this file. Results follow mainnet state at
 // the block run-tests.sh pins: the demo wallet must hold 3 USDC and no Morpho debt in either Adag market there.
 
 import {Vm} from "forge-std/Test.sol";

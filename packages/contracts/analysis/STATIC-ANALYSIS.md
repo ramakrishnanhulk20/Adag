@@ -160,3 +160,28 @@ The rule now records each payer's borrow shares and collateral per market, and r
 ## After the comment trim (25 September)
 
 The contract keeps almost no comments, by choice: only where needed, short and plain. All NatSpec was removed from `src/`; seven one-line comments remain where a reader would otherwise misread the code. solhint's NatSpec rules now fire on every function, constant and event. Verdict for all of them: accepted by design, the project's comment rule. slither is unchanged at 13 results, lint at 3. Behaviour is unchanged: 73 of 73 tests pass, and the deploy dry run reports the same gas.
+
+## After adding enrol (26 September)
+
+The next AdagBills deployment adds `enrol()`, the `enrolledAt` view, the `Enrolled` event and the `EnrolledThisBlock` error, and `pay` now refuses a payer whose enrol block is the current block. Re-run of `run-analysis.sh`: all three tools exit 0.
+
+`src/` now also holds `AdagGuard.sol` and two new interfaces (`IIrmMinimal.sol`, `IMorphoRepay.sol`), built by another work order in the same project. The output files therefore include their findings too: slither 37 results in total, solhint 195 warnings, lint 12. Only the AdagBills rows are judged here. The AdagGuard rows belong to that work order's own analysis.
+
+| Tool, AdagBills and its original interfaces only | Before | After |
+| --- | --- | --- |
+| slither | 13 | 16 |
+| solhint, `src/AdagBills.sol` | 79 | 92 |
+| solhint, the three original interfaces | 34 | 34 |
+| arc-forge lint | 3 | 3 |
+
+New findings, each with a verdict:
+
+| # | Tool and rule | Location | Meaning | Verdict |
+| --- | --- | --- | --- | --- |
+| S16 | slither incorrect-equality | `pay`, line 162, `_enrolledAt[msg.sender] == block.number` | A strict equality that slither flags because an attacker can sometimes steer the value compared. | Accepted by design. The equality is the rule itself (threat model C32): a payer is refused in exactly the block of their own enrolment, and in every later block they are not. Nobody but a block producer can change `block.number`, and it moves by one per block, so there is no value to steer. The detector exists for balances compared with `==`, which this is not. |
+| S17 | slither unused-return | `enrol`, line 195, `position` for the USDC market | Supply shares are thrown away. | False positive, same as S4: enrol records only borrow shares and collateral, the two values the new-debt rule compares. |
+| S18 | slither unused-return | `enrol`, line 196, `position` for the EURC market | Same. | False positive, same as S17. |
+| H12 | solhint use-natspec | event `Enrolled` line 97 (3), `enrol` line 194 (1), `enrolledAt` line 232 (5) | No `@notice`, `@param` or `@return`. | Accepted by design, the project's comment rule: no NatSpec in contracts, short comments only where a reader needs the why. |
+| H13 | solhint gas-indexed-events | event `Enrolled`, line 97, fields `usdcShares`, `usdcCollateral`, `eurcShares`, `eurcCollateral` | These four fields could be indexed. | False positive for the same reason as H6: indexing a word moves it from data to a topic and costs more gas per emit, not less, and nobody searches by an exact share count or collateral amount. The payer, the field an app filters on, is indexed. |
+
+Moved only: the slither timestamp rows and lint L1 to L3 now point at lines 287 and 320, S3 at line 341 and S15 at line 123. No verdict changed.

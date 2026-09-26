@@ -1,5 +1,5 @@
 # Deployments
 
-`arc-mainnet.json` is written by `bash deploy.sh --broadcast` once the receipt is in: `{"chainId":5042,"AdagBills":{"address":"0x...","txHash":"0x...","block":N,"deployer":"0x...","solc":"0.8.30","optimizerRuns":200,"evmVersion":"prague","deployedAt":"ISO time"}}`.
-`arc-mainnet.dry-run.json` is written by `bash deploy.sh --dry-run` with the same shape: the predicted address, `"txHash":null`, and the block the simulation ran against.
-`AdagBills.standard-json.json` is written by `bash verify.sh` and is the file to upload on explorer.arc.io.
+`arc-mainnet.json` holds one key per AdagBills deployment. `"AdagBills"` is the first one, deployed on 25 September 2026 without enrol, and stays live. `"AdagBillsEnrol"` is the deployment with enrol, written by `bash deploy.sh --broadcast` once the receipt is in. Each entry has the shape `{"address":"0x...","txHash":"0x...","block":N,"deployer":"0x...","solc":"0.8.30","optimizerRuns":200,"evmVersion":"prague","deployedAt":"ISO time"}`. A broadcast adds its own key and writes every other key back unchanged.
+`arc-mainnet.dry-run.json` is written by `bash deploy.sh --dry-run` with the same shape under the same key: the predicted address, `"txHash":null`, and the block the simulation ran against.
+`2026-09-25/` holds the first deployment's ABI and the Standard JSON input it was verified with, which embeds its exact source. `bash verify.sh` writes a later deployment's Standard JSON input into a folder named for its own deploy day, and that is the file to upload on explorer.arc.io.

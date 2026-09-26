@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# Publishes the AdagBills source for the address recorded in deployments/arc-mainnet.json.
+# Publishes the AdagBills source for the address recorded under RECORD_KEY in deployments/arc-mainnet.json.
+# Only the deployment built from today's src/ can be verified from it. The first deployment, under "AdagBills",
+# is already verified, and its Standard JSON input, with its exact source, is kept in deployments/2026-09-25/.
 # Always writes the Standard JSON input and runs Sourcify (no key). Runs Etherscan (ArcScan) only when
 # ETHERSCAN_API_KEY is set in the repo .env. Then prints the manual explorer.arc.io steps, because that
 # explorer blocks scripted submissions today (arc-node issue 425).
@@ -19,7 +21,8 @@ RPC_URL="https://rpc.mainnet.arc.io"
 CHAIN_ID=5042
 ENV_FILE="$(cd ../.. && pwd)/.env"
 RECORD="deployments/arc-mainnet.json"
-STD_JSON="deployments/AdagBills.standard-json.json"
+# deploy.sh carries the same key. Change both together.
+RECORD_KEY="AdagBillsEnrol"
 TARGET="src/AdagBills.sol:AdagBills"
 ARTIFACT="out/AdagBills.sol/AdagBills.json"
 ETHERSCAN_URL="https://api.etherscan.io/v2/api?chainid=${CHAIN_ID}"
@@ -52,17 +55,26 @@ read_env_value() {
 
 [ -f "$RECORD" ] || die "no deployment found at packages/contracts/${RECORD}. Run deploy.sh --broadcast first."
 
-read -r address solc runs evm < <(python3 - "$RECORD" "$CHAIN_ID" <<'PY'
+read -r address solc runs evm deployed_day < <(python3 - "$RECORD" "$CHAIN_ID" "$RECORD_KEY" <<'PY'
 import json, re, sys
 record = json.load(open(sys.argv[1]))
 if record.get("chainId") != int(sys.argv[2]):
     sys.exit("the deployment record is not for Arc mainnet")
-c = record["AdagBills"]
+c = record.get(sys.argv[3])
+if not c:
+    sys.exit(f"the deployment record has no \"{sys.argv[3]}\" entry yet. Run deploy.sh --broadcast first.")
 if not re.fullmatch(r"0x[0-9a-fA-F]{40}", str(c.get("address"))):
     sys.exit("the deployment record has no valid address")
-print(c["address"], c["solc"], c["optimizerRuns"], c["evmVersion"])
+day = str(c.get("deployedAt", ""))[:10]
+if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", day):
+    sys.exit("the deployment record has no valid deployedAt")
+print(c["address"], c["solc"], c["optimizerRuns"], c["evmVersion"], day)
 PY
-) || die "could not read ${RECORD}."
+) || die "could not read the \"${RECORD_KEY}\" deployment from ${RECORD}."
+
+# Each deployment's files live in a folder named for its deploy day, like the first one's in 2026-09-25/.
+STD_JSON="deployments/${deployed_day}/AdagBills.standard-json.json"
+mkdir -p "deployments/${deployed_day}"
 
 code="$(arc-cast code "$address" --rpc-url "$RPC_URL")"
 [ "${#code}" -gt 2 ] || die "no contract code at ${address} on Arc mainnet."

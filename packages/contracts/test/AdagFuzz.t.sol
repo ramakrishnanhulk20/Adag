@@ -2,19 +2,21 @@
 pragma solidity ^0.8.30;
 
 // Fuzz tests for AdagBills on an Arc mainnet fork: bill input validation, the 40% line against an independent
-// restatement of Morpho's maths, the collateral preview, loanToValue, and price drops after a loan. The second
-// contract measures each main action in its own transaction for analysis/GAS.md (run it with --isolate).
-// Not covered here: random sequences of actions (test/invariant), the EURC market in the price-drop and
-// collateral cases, fee-on-transfer or blocklisted tokens, and real signed transactions. Prices are moved with
-// vm.mockCall, not observed on chain. Results follow live mainnet state: the demo wallet must still hold
-// 0.00011 cirBTC, 4 USDC and no Morpho debt.
+// restatement of Morpho's maths, the collateral preview, loanToValue, price drops after a loan, and enrolments at
+// random moments between borrows, repays and payments (C32). The second contract measures each main action in its
+// own transaction for analysis/GAS.md (run it with --isolate).
+// Not covered here: random sequences across bills, payers and prices (test/invariant), the EURC market in the
+// price-drop, collateral and enrolment cases, fee-on-transfer or blocklisted tokens, and real signed transactions.
+// Prices are moved with vm.mockCall, not observed on chain. Results follow live mainnet state: the demo wallet must
+// still hold 0.00011 cirBTC, 4 USDC and no Morpho debt.
 
+import {Vm} from "forge-std/Test.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {AdagBills} from "../src/AdagBills.sol";
 import {IOracleMinimal} from "../src/interfaces/IOracleMinimal.sol";
 import {AdagFixture} from "./utils/AdagFixture.sol";
 import {ArcMainnet} from "./utils/ArcMainnet.sol";
-import {IMulticall3From} from "./utils/ArcInterfaces.sol";
+import {IMemo, IMulticall3From} from "./utils/ArcInterfaces.sol";
 
 contract AdagFuzzTest is AdagFixture {
     address internal constant PAYEE = address(0x5A11E5);
@@ -176,6 +178,75 @@ contract AdagFuzzTest is AdagFixture {
         assertAdagHoldsNothing();
     }
 
+    /// @dev Each step is one of: borrow outside Adag, repay part, enrol, pay a cash bill, borrow and pay in one
+    /// batch, or move to the next block. Every payment attempt is judged against C32.
+    function testFuzz_enrolAtRandomMoments_holdsC32(uint8[8] calldata ops, uint256[8] calldata sizes) public {
+        deal(ArcMainnet.CIRBTC, PAYER, 1e6);
+        // Native USDC has 18 decimals; the ERC-20 face reads this as 1,000 USDC.
+        vm.deal(PAYER, 1_000e18);
+        for (uint256 i; i < ops.length; ++i) {
+            uint256 op = ops[i] % 6;
+            if (op == 0) {
+                uint256 collateral = _bound(sizes[i], 1_000, 50_000);
+                uint256 ltvBps = _bound(sizes[i] >> 128, 1_000, 7_500);
+                uint256 borrow = borrowForLtv(MARKET_USDC, collateral, ltvBps * 1e14);
+                if (borrow > 0) tryBatch(PAYER, pledgeAndBorrowCalls(PAYER, MARKET_USDC, collateral, borrow));
+            } else if (op == 1) {
+                (, uint128 shares,) = MORPHO.position(MARKET_USDC, PAYER);
+                uint256 part = uint256(shares) * _bound(sizes[i], 1, 10_000) / 10_000;
+                if (part > 0) tryBatch(PAYER, repaySharesCalls(PAYER, MARKET_USDC, part));
+            } else if (op == 2) {
+                vm.prank(PAYER);
+                adag.enrol();
+            } else if (op == 3) {
+                uint256 id = makeBill(PAYEE, ArcMainnet.USDC, SMALL, REF);
+                _payAndJudge(cashCalls(id));
+            } else if (op == 4) {
+                uint256 id = makeBill(PAYEE, ArcMainnet.USDC, SMALL, REF);
+                _payAndJudge(concat(borrowCalls(PAYER, MARKET_USDC, _bound(sizes[i], 1e4, 2e6)), cashCalls(id)));
+            } else {
+                vm.roll(block.number + 1);
+            }
+        }
+    }
+
+    function _payAndJudge(IMulticall3From.Call3[] memory calls) internal {
+        (uint256 seenShares, uint256 seenCollateral) = adag.seenPosition(PAYER, MARKET_USDC);
+        bool enrolledThisBlock = adag.enrolledAt(PAYER) == block.number;
+
+        vm.recordLogs();
+        (bool ok, bytes memory ret) = tryBatch(PAYER, calls);
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+
+        // A borrow Morpho refuses stops the batch before Adag's step, so only a Memo failure carries Adag's error.
+        bool adagRefused = !ok && bytes4(ret) == IMemo.MemoFailed.selector;
+        if (enrolledThisBlock) {
+            assertFalse(ok, "paid in the block of its own enrolment");
+            if (adagRefused) assertEq(adagError(ret), abi.encodeWithSelector(AdagBills.EnrolledThisBlock.selector));
+            return;
+        }
+        if (!ok) {
+            if (adagRefused) _assertLtvAboveLimit(ret, MARKET_USDC);
+            return;
+        }
+        (, uint128 shares, uint128 collateral) = MORPHO.position(MARKET_USDC, PAYER);
+        bool riskier = shares != 0 && (shares > seenShares || collateral < seenCollateral);
+        assertEq(_loanChecked(logs), riskier, "whether the check ran differs from C32");
+        if (riskier) {
+            assertLe(independentDebt(MARKET_USDC, PAYER), independentLine(MARKET_USDC, PAYER), "checked debt above 40%");
+        }
+    }
+
+    function _loanChecked(Vm.Log[] memory logs) internal view returns (bool) {
+        for (uint256 i; i < logs.length; ++i) {
+            if (logs[i].emitter == address(adag) && logs[i].topics[0] == AdagBills.BillPaid.selector) {
+                (,, bool loanChecked) = abi.decode(logs[i].data, (address, uint256, bool));
+                return loanChecked;
+            }
+        }
+        revert("no BillPaid event");
+    }
+
     function _withPledge(uint256 collateral, IMulticall3From.Call3[] memory tail)
         internal
         view
@@ -222,6 +293,12 @@ contract AdagGasScenarios is AdagFixture {
         uint256 id = makeBill(PAYEE, ArcMainnet.USDC, 1e6, "INV-1");
         vm.prank(PAYEE);
         adag.voidBill(id);
+    }
+
+    function test_gas_enrol() public {
+        borrowDirect(PAYER, ArcMainnet.MARKET_USDC, 10_000, borrowForLtv(ArcMainnet.MARKET_USDC, 10_000, 0.6e18));
+        vm.prank(PAYER);
+        adag.enrol();
     }
 
     function test_gas_cashPayBatch() public {

@@ -29,8 +29,9 @@ contract AdagHandler is AdagFixture {
     address[4] internal payees;
     address[2] internal payers;
     mapping(uint256 id => Ghost) internal ghosts;
-    /// @dev The position at the last payment whose 40% check passed, per payer and market.
-    mapping(address payer => mapping(bytes32 marketId => Pair)) internal lastAccepted;
+    /// @dev The position at the last payment whose 40% check passed, or at the last enrolment, per payer and market.
+    mapping(address payer => mapping(bytes32 marketId => Pair)) internal lastAcceptedOrEnrolled;
+    mapping(address payer => uint256 blockNumber) internal lastEnrolBlock;
 
     uint256 public created;
     uint256 public paidUsdc;
@@ -43,6 +44,7 @@ contract AdagHandler is AdagFixture {
     uint256 public idBreaks;
     uint256 public decisionBreaks;
     uint256 public dominanceBreaks;
+    uint256 public sameBlockBreaks;
     string public firstBreak;
 
     uint256 public successfulPays;
@@ -51,6 +53,8 @@ contract AdagHandler is AdagFixture {
     uint256 public refusedOverLine;
     uint256 public refusedOther;
     uint256 public reuseAttempts;
+    uint256 public enrolments;
+    uint256 public refusedSameBlock;
 
     /// @dev The real oracle prices at deploy, and a per-market factor in basis points that price moves adjust.
     uint256 internal usdcBasePrice;
@@ -148,9 +152,41 @@ contract AdagHandler is AdagFixture {
         tryBatch(payer, repaySharesCalls(payer, marketId, part));
     }
 
+    // Time passing is also the only way to a new block, which a payer needs after enrolling.
     function passTime(uint256 secondsAhead) external {
         vm.warp(block.timestamp + _bound(secondsAhead, 1, 2 days));
+        vm.roll(block.number + 1);
         _syncMocks();
+    }
+
+    function enrol(uint256 payerSeed) external {
+        _syncMocks();
+        address payer = payers[payerSeed % payers.length];
+        vm.prank(payer);
+        adag.enrol();
+        enrolments++;
+        (, uint128 usdcShares, uint128 usdcCollateral) = MORPHO.position(ArcMainnet.MARKET_USDC, payer);
+        (, uint128 eurcShares, uint128 eurcCollateral) = MORPHO.position(ArcMainnet.MARKET_EURC, payer);
+        _noteEnrolment(payer, Pair(usdcShares, usdcCollateral), Pair(eurcShares, eurcCollateral));
+    }
+
+    /// @dev The one-transaction path C32 forbids: borrow past the line, enrol the new debt, and pay with it.
+    function borrowEnrolAndPay(uint256 payerSeed, uint256 collateral, uint256 ltvBps, uint256 idSeed) external {
+        _syncMocks();
+        if (created == 0) return;
+        address payer = payers[payerSeed % payers.length];
+        collateral = _bound(collateral, 1_000, 100_000);
+        if (collateral > CIRBTC.balanceOf(payer)) return;
+        uint256 borrow = borrowForLtv(ArcMainnet.MARKET_USDC, collateral, _bound(ltvBps, 4_100, 7_000) * 1e14);
+        if (borrow == 0) return;
+        IMulticall3From.Call3[] memory enrolCall = new IMulticall3From.Call3[](1);
+        enrolCall[0] = call3(address(adag), abi.encodeCall(AdagBills.enrol, ()));
+        uint256 id = _pickBill(idSeed);
+        _pay(
+            id,
+            payer,
+            concat(concat(pledgeAndBorrowCalls(payer, ArcMainnet.MARKET_USDC, collateral, borrow), enrolCall), cashCalls(id))
+        );
     }
 
     function movePrice(bool eurc, uint256 moveBps) external {
@@ -212,6 +248,7 @@ contract AdagHandler is AdagFixture {
         if (!ok) {
             if (g.status != AdagBills.Status.Open) refusedNotOpen++;
             else if (_isAdagError(ret, AdagBills.LtvAboveLimit.selector)) refusedOverLine++;
+            else if (_isAdagError(ret, AdagBills.EnrolledThisBlock.selector)) refusedSameBlock++;
             else refusedOther++;
             if (adag.bill(id).status != g.status) {
                 statusBreaks++;
@@ -220,6 +257,12 @@ contract AdagHandler is AdagFixture {
             return;
         }
         successfulPays++;
+        // Every batch here that enrols does so before its payment, so an enrolment in the logs came first.
+        _noteEnrolmentInLogs(logs, payer);
+        if (lastEnrolBlock[payer] == block.number) {
+            sameBlockBreaks++;
+            _note("a payment went through in the block of the payer's enrolment");
+        }
         if (g.status != AdagBills.Status.Open) {
             statusBreaks++;
             _note("a bill that was not open was paid");
@@ -266,12 +309,32 @@ contract AdagHandler is AdagFixture {
         }
 
         if (checked) {
-            lastAccepted[payer][marketId] = Pair(shares, collateral);
+            lastAcceptedOrEnrolled[payer][marketId] = Pair(shares, collateral);
         } else if (shares != 0) {
-            Pair memory accepted = lastAccepted[payer][marketId];
+            Pair memory accepted = lastAcceptedOrEnrolled[payer][marketId];
             if (shares > accepted.shares || collateral < accepted.collateral) {
                 dominanceBreaks++;
-                _note("an unchecked position with debt is less safe than the last one a check accepted");
+                _note("an unchecked position with debt is less safe than the last one accepted or enrolled");
+            }
+        }
+    }
+
+    function _noteEnrolment(address payer, Pair memory usdc, Pair memory eurc) internal {
+        lastEnrolBlock[payer] = block.number;
+        lastAcceptedOrEnrolled[payer][ArcMainnet.MARKET_USDC] = usdc;
+        lastAcceptedOrEnrolled[payer][ArcMainnet.MARKET_EURC] = eurc;
+    }
+
+    // An enrolment inside a batch is only visible through its event, since the batch moves the position after it.
+    function _noteEnrolmentInLogs(Vm.Log[] memory logs, address payer) internal {
+        for (uint256 i; i < logs.length; ++i) {
+            if (
+                logs[i].emitter == address(adag) && logs[i].topics[0] == AdagBills.Enrolled.selector
+                    && logs[i].topics[1] == bytes32(uint256(uint160(payer)))
+            ) {
+                (uint256 usdcShares, uint256 usdcCollateral, uint256 eurcShares, uint256 eurcCollateral) =
+                    abi.decode(logs[i].data, (uint256, uint256, uint256, uint256));
+                _noteEnrolment(payer, Pair(usdcShares, usdcCollateral), Pair(eurcShares, eurcCollateral));
             }
         }
     }

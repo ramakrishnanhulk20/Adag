@@ -102,7 +102,8 @@ export function checkedAddress(value, label) {
 }
 
 const artifactUrl = new URL('../out/AdagBills.sol/AdagBills.json', import.meta.url);
-const publishedAbiUrl = new URL('../deployments/AdagBills.abi.json', import.meta.url);
+// The ABI of the deployment recorded under "AdagBills" in arc-mainnet.json, the first one, from 25 September.
+const publishedAbiUrl = new URL('../deployments/2026-09-25/AdagBills.abi.json', import.meta.url);
 const deploymentUrl = new URL('../deployments/arc-mainnet.json', import.meta.url);
 
 // A local arc-forge build when there is one; otherwise the ABI published beside the deployment, which is all a
@@ -110,7 +111,7 @@ const deploymentUrl = new URL('../deployments/arc-mainnet.json', import.meta.url
 export function loadAdagAbi() {
   if (existsSync(artifactUrl)) return JSON.parse(readFileSync(artifactUrl, 'utf8'));
   if (!existsSync(publishedAbiUrl)) {
-    throw new Error('Neither a local build (packages/contracts/out) nor deployments/AdagBills.abi.json was found.');
+    throw new Error('Neither a local build (packages/contracts/out) nor deployments/2026-09-25/AdagBills.abi.json was found.');
   }
   return { abi: JSON.parse(readFileSync(publishedAbiUrl, 'utf8')), deployedBytecode: null };
 }

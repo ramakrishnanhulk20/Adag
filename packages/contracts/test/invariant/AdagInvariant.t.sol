@@ -3,15 +3,14 @@ pragma solidity ^0.8.30;
 
 // Invariant tests for AdagBills on an Arc mainnet fork. AdagHandler runs random sequences of bill writing, voiding,
 // cash and loan-backed payments, Morpho borrowing and repaying outside Adag, attempts to reuse a recorded share
-// count on different collateral, time passing and price moves, and
-// these seven rules must hold after every step.
+// count on different collateral, enrolments, a borrow, enrol and pay in one batch, time passing and price moves,
+// and these seven rules must hold after every step.
 // Not covered here: liquidations, token pauses and blocklists, more than two payers, feeds that go stale on their
 // own (the handler keeps them fresh so loans can happen; staleness is proven in AdagLoanRule), and real signed
 // transactions. Payers are funded with deal(): each gets 0.05 cirBTC, 1,000 USDC and 1,000 EURC, which replaces
 // the demo wallet's real balances for this file.
 
-import {AdagBills} from "../../src/AdagBills.sol";
-import {AdagFixture} from "../utils/AdagFixture.sol";
+import {AdagBills} from "../../src/AdagBills.sol";import {AdagFixture} from "../utils/AdagFixture.sol";
 import {ArcMainnet} from "../utils/ArcMainnet.sol";
 import {AdagHandler} from "./AdagHandler.sol";
 
@@ -30,7 +29,7 @@ contract AdagInvariantTest is AdagFixture {
         }
         handler = new AdagHandler(adag, payees, payers);
 
-        bytes4[] memory selectors = new bytes4[](9);
+        bytes4[] memory selectors = new bytes4[](11);
         selectors[0] = AdagHandler.createBill.selector;
         selectors[1] = AdagHandler.voidBill.selector;
         selectors[2] = AdagHandler.payFromBalance.selector;
@@ -40,6 +39,8 @@ contract AdagInvariantTest is AdagFixture {
         selectors[6] = AdagHandler.passTime.selector;
         selectors[7] = AdagHandler.movePrice.selector;
         selectors[8] = AdagHandler.reuseRecordedShares.selector;
+        selectors[9] = AdagHandler.enrol.selector;
+        selectors[10] = AdagHandler.borrowEnrolAndPay.selector;
         targetContract(address(handler));
         targetSelector(FuzzSelector({addr: address(handler), selectors: selectors}));
         // Left free, the fuzzer draws callers from addresses it finds in state, and Arc refuses any call from an
@@ -98,11 +99,13 @@ contract AdagInvariantTest is AdagFixture {
         }
     }
 
-    /// I7 (C10, the backend-gate finding): after every successful payment, in each market where the payer has
-    /// debt, either that payment ran the 40% check or the live position is no less safe than the last one a check
-    /// accepted (shares no higher, collateral no lower). Also: whether the check ran matches the rule exactly.
+    /// I7 (C10, C32): after every successful payment, in each market where the payer has debt, either that payment
+    /// ran the 40% check or the live position is no less safe than the last one a check accepted or an enrolment
+    /// recorded (shares no higher, collateral no lower). No payment goes through in the block of the payer's own
+    /// enrolment. Also: whether the check ran matches the rule exactly.
     function invariant_I7_uncheckedDebtIsDominated() public view {
         assertEq(handler.dominanceBreaks(), 0, handler.firstBreak());
+        assertEq(handler.sameBlockBreaks(), 0, handler.firstBreak());
         assertEq(handler.decisionBreaks(), 0, handler.firstBreak());
     }
 }

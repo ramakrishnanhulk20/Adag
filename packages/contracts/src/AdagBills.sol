@@ -77,6 +77,7 @@ contract AdagBills is ReentrancyGuardTransient {
     mapping(address payee => uint256[] ids) private _payeeBills;
     mapping(address payer => uint256[] ids) private _payerPayments;
     mapping(address payer => mapping(bytes32 marketId => Seen)) private _seen;
+    mapping(address payer => uint64 blockNumber) private _enrolledAt;
 
     event BillCreated(
         uint256 indexed id, address indexed payee, address indexed currency, uint256 amount, uint64 due, bytes ref
@@ -93,6 +94,9 @@ contract AdagBills is ReentrancyGuardTransient {
     event DebtRecorded(
         address indexed payer, bytes32 indexed marketId, uint256 borrowShares, uint256 collateral, bool checked
     );
+    event Enrolled(
+        address indexed payer, uint256 usdcShares, uint256 usdcCollateral, uint256 eurcShares, uint256 eurcCollateral
+    );
 
     error ZeroAmount();
     error ReferenceTooLong(uint256 length);
@@ -108,6 +112,7 @@ contract AdagBills is ReentrancyGuardTransient {
     error ZeroPrice();
     error LtvAboveLimit(bytes32 marketId, uint256 borrowed, uint256 maxBorrow);
     error PageTooLarge(uint256 limit);
+    error EnrolledThisBlock();
 
     function createBill(address currency, uint256 amount, uint64 due, bytes calldata ref)
         external
@@ -153,6 +158,8 @@ contract AdagBills is ReentrancyGuardTransient {
         if (status != Status.Open) revert BillNotOpen(id, status);
         address payee = b.payee;
         if (msg.sender == payee) revert SelfPayment();
+        // Otherwise one batch could borrow, enrol the new debt and pay with it unchecked.
+        if (_enrolledAt[msg.sender] == block.number) revert EnrolledThisBlock();
 
         b.status = Status.Paid;
         b.payer = msg.sender;
@@ -183,6 +190,16 @@ contract AdagBills is ReentrancyGuardTransient {
         emit BillPaid(id, msg.sender, payee, address(token), amount, usdcPos.mustCheck || eurcPos.mustCheck);
     }
 
+    // Accepts the caller's existing loans as they stand, with no 40% check, so later payments only check new debt.
+    function enrol() external nonReentrant {
+        (, uint128 usdcShares, uint128 usdcCollateral) = _MORPHO.position(MARKET_USDC, msg.sender);
+        (, uint128 eurcShares, uint128 eurcCollateral) = _MORPHO.position(MARKET_EURC, msg.sender);
+        _seen[msg.sender][MARKET_USDC] = Seen(usdcShares, usdcCollateral);
+        _seen[msg.sender][MARKET_EURC] = Seen(eurcShares, eurcCollateral);
+        _enrolledAt[msg.sender] = uint64(block.number);
+        emit Enrolled(msg.sender, usdcShares, usdcCollateral, eurcShares, eurcCollateral);
+    }
+
     function bill(uint256 id) external view returns (Bill memory) {
         return _bills[id];
     }
@@ -210,6 +227,10 @@ contract AdagBills is ReentrancyGuardTransient {
     function seenPosition(address payer, bytes32 marketId) external view returns (uint256 shares, uint256 collateral) {
         Seen memory seen = _seen[payer][marketId];
         return (seen.shares, seen.collateral);
+    }
+
+    function enrolledAt(address payer) external view returns (uint64 blockNumber) {
+        return _enrolledAt[payer];
     }
 
     function loanToValue(address user, bytes32 marketId) external view returns (uint256 ltvWad) {

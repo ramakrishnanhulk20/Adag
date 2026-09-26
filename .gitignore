@@ -32,3 +32,7 @@ packages/contracts/deployments/*.dry-run.json
 
 # Raw source images before they are sized for the app
 design/incoming/
+
+# Separate build folders used while two contracts are built in parallel
+packages/contracts/out-guard/
+packages/contracts/cache-guard/
