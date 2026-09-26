@@ -109,3 +109,104 @@ contract AdagInvariantTest is AdagFixture {
         assertEq(handler.decisionBreaks(), 0, handler.firstBreak());
     }
 }
+
+// The negative control for I7's same-block detector (C32): the handler must count a break when a contract lets a
+// payment through in the block of the payer's own enrolment, and stay silent on the real AdagBills.
+// The broken contract is AdagBills' own runtime code with one opcode changed: the block.number read in pay's
+// enrol-block guard becomes chainid, so the guard compares the enrol block with 5042 and never fires. Everything
+// else is byte for byte the real contract, and AdagBills sets no state in its constructor, so placing this code
+// at an address is the same as deploying it.
+// Not covered here: random sequences (AdagInvariantTest runs those), and the other I7 counters on their own.
+contract AdagSameBlockDetectorTest is AdagFixture {
+    address internal constant GUARDLESS = address(0xADA9BAD);
+
+    AdagHandler internal realHandler;
+    AdagHandler internal brokenHandler;
+
+    function setUp() public override {
+        super.setUp();
+        address[4] memory payees = [makeAddr("payee 1"), makeAddr("payee 2"), makeAddr("payee 3"), makeAddr("payee 4")];
+        address[2] memory payers = [PAYER, makeAddr("payer 2")];
+        for (uint256 i; i < payers.length; ++i) {
+            deal(ArcMainnet.CIRBTC, payers[i], 5e6);
+            deal(ArcMainnet.EURC, payers[i], 1_000e6);
+            vm.deal(payers[i], 1_000e18);
+        }
+        vm.etch(GUARDLESS, _guardlessCode());
+        vm.label(GUARDLESS, "AdagBills without the enrol-block guard");
+        realHandler = new AdagHandler(adag, payees, payers);
+        brokenHandler = new AdagHandler(AdagBills(GUARDLESS), payees, payers);
+    }
+
+    function test_detector_firesWhenGuardRemoved_oneBatch() public {
+        brokenHandler.createBill(0, false, 1e6);
+        brokenHandler.borrowEnrolAndPay(0, 50_000, 6_000, 0);
+
+        assertEq(brokenHandler.successfulPays(), 1, "the broken contract refused the one-batch payment");
+        assertEq(brokenHandler.sameBlockBreaks(), 1, "the detector missed a borrow, enrol and pay in one batch");
+        assertEq(brokenHandler.firstBreak(), "a payment went through in the block of the payer's enrolment");
+    }
+
+    function test_detector_firesWhenGuardRemoved_twoTransactions() public {
+        brokenHandler.createBill(0, false, 1e6);
+        brokenHandler.enrol(0);
+        brokenHandler.payFromBalance(1, 0);
+
+        assertEq(brokenHandler.successfulPays(), 1, "the broken contract refused the same-block payment");
+        assertEq(brokenHandler.sameBlockBreaks(), 1, "the detector missed an enrol and a pay in one block");
+    }
+
+    function test_detector_silentOnRealContract() public {
+        realHandler.createBill(0, false, 1e6);
+        realHandler.borrowEnrolAndPay(0, 50_000, 6_000, 0);
+        realHandler.enrol(1);
+        realHandler.payFromBalance(1, 1);
+
+        assertEq(realHandler.refusedSameBlock(), 2, "the real contract did not refuse both same-block payments");
+        assertEq(realHandler.successfulPays(), 0);
+        assertEq(realHandler.sameBlockBreaks(), 0, realHandler.firstBreak());
+    }
+
+    /// @dev Tries each block.number opcode in AdagBills' runtime code and keeps the one whose swap leaves enrol
+    /// recording its block but lets a same-block payment through. Exactly one must qualify, so a compiler change
+    /// that moves or merges the guard fails here instead of weakening the control.
+    function _guardlessCode() internal returns (bytes memory patched) {
+        bytes memory code = address(adag).code;
+        uint256 hits;
+        for (uint256 i; i < code.length; ++i) {
+            uint8 op = uint8(code[i]);
+            // PUSH1 to PUSH32 carry 1 to 32 bytes of data, which are not opcodes.
+            if (op >= 0x60 && op <= 0x7f) {
+                i += op - 0x5f;
+                continue;
+            }
+            if (op != 0x43) continue;
+            bytes memory candidate = bytes.concat(code);
+            candidate[i] = 0x46;
+            if (_letsSameBlockPayThrough(candidate)) {
+                patched = candidate;
+                hits++;
+            }
+        }
+        assertEq(hits, 1, "expected exactly one block.number read whose swap removes only the guard");
+    }
+
+    function _letsSameBlockPayThrough(bytes memory candidate) internal returns (bool through) {
+        uint256 snapshot = vm.snapshotState();
+        vm.etch(GUARDLESS, candidate);
+        AdagBills variant = AdagBills(GUARDLESS);
+        vm.prank(makeAddr("payee 1"));
+        uint256 id = variant.createBill(ArcMainnet.USDC, 1e6, 0, "");
+        vm.prank(PAYER);
+        variant.enrol();
+        if (variant.enrolledAt(PAYER) == block.number) {
+            vm.prank(PAYER);
+            USDC.approve(GUARDLESS, 1e6);
+            vm.prank(PAYER);
+            try variant.pay(id) {
+                through = true;
+            } catch {}
+        }
+        vm.revertToState(snapshot);
+    }
+}
