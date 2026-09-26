@@ -8,6 +8,7 @@ import { HeroAction } from "./HeroAction";
 const LINKS = [
   { label: "How it works", href: "#how" },
   { label: "Safety", href: "#safety" },
+  { label: "Proof", href: "#proof" },
   { label: "Docs", href: "/docs" },
 ];
 

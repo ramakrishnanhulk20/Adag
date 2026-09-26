@@ -352,6 +352,9 @@
   row-gap: 6px;
   align-items: baseline;
 }
+[data-pl="paid-row"] {
+  opacity: 0;
+}
 .pl-tx {
   opacity: 0;
   padding-top: 8px;

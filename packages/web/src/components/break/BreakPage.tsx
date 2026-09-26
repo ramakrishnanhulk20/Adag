@@ -6,13 +6,16 @@ import Link from "next/link";
 import { motion } from "motion/react";
 import { Button } from "@/components/Button";
 import { Hallmark } from "@/components/Hallmark";
-import { CHECKS, GROUP_NOTES, GROUPS, RESIDUALS, type CheckInfo, type CheckResult } from "@/lib/break/catalogue";
+import { CHECKS, GROUP_NOTES, GROUPS, LEGEND, RESIDUALS, type CheckInfo, type CheckResult } from "@/lib/break/catalogue";
+import { billHref } from "@/lib/pay/billId";
+import { ADAG_BILLS } from "@/lib/pay/constants";
 import { ATTACK_SCRIPT_PATH, GUARD_ATTACK_SCRIPT_PATH } from "@/lib/break/constants";
 import { useBreakRun, type BreakRun } from "./useBreakRun";
 import { VerdictStamp, type StampKind } from "./VerdictStamp";
 
 const EASE = [0.16, 1, 0.3, 1] as const;
 const TOTAL = CHECKS.length;
+const BILL_ONE = billHref(ADAG_BILLS, 1n);
 const DATE = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "UTC" });
 
 // Set once the repository is public. Until then the terminal line is left out rather than pointing nowhere.
@@ -138,9 +141,14 @@ export function BreakPage() {
         <Link href="/" className="font-display text-[22px] font-semibold tracking-[0.08em] text-text transition-colors duration-200 hover:text-gold">
           ADAG
         </Link>
-        <Hallmark tone="quiet" className="hidden md:inline-flex">
-          Nothing is signed or sent
-        </Hallmark>
+        <div className="flex items-center gap-6">
+          <Link href="/docs" className="link-draw type-ui text-text/88 transition-colors duration-200 hover:text-text">
+            Docs
+          </Link>
+          <Hallmark tone="quiet" className="hidden md:inline-flex">
+            Nothing is signed or sent
+          </Hallmark>
+        </div>
       </header>
 
       <section className="bk-hero" aria-labelledby="break-title">
@@ -171,6 +179,38 @@ export function BreakPage() {
           <Tally run={run} />
         </div>
       </section>
+
+      {run.phase === "done" && (
+        <motion.section
+          className="bk-after"
+          aria-label="What the stamps mean, and where to go next"
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, ease: EASE }}
+        >
+          <dl className="bk-legend">
+            {LEGEND.map((item) => (
+              <div key={item.verdict} className="bk-legend-item">
+                <dt className="bk-legend-stamp">
+                  <VerdictStamp kind={item.verdict} />
+                </dt>
+                <dd className="type-body text-text/88">
+                  <span className="font-semibold text-text">{item.term}:</span> {item.means}
+                </dd>
+              </div>
+            ))}
+          </dl>
+          <nav aria-label="Next" className="bk-next">
+            <Button href={BILL_ONE} variant="secondary">
+              Bill #1
+            </Button>
+            <Button href="/docs/security/threat-model" variant="secondary">
+              Threat model
+            </Button>
+            <Button href="/pay">Pay a bill</Button>
+          </nav>
+        </motion.section>
+      )}
 
       {run.state.length > 0 && (
         <motion.section className="bk-state" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease: EASE }}>

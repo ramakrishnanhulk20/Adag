@@ -79,6 +79,9 @@ export function buildTimeline(stage: HTMLElement, { stamps, gapless = false }: {
       if (paid) tw.fromTo(paid, { opacity: 0, scale: 1.35, rotation: 5 }, { opacity: 1, scale: 1, rotation: 0, duration: 0.05, ease: "back.out(2.4)" }, at);
       tw.to(card, { keyframes: { x: [-2, 2, -1, 0] }, duration: 0.03 }, at + 0.035);
       if (tx) tw.fromTo(tx, { opacity: 0, y: 4 }, { opacity: 1, y: 0, duration: 0.03, ease: "power2.out" }, at + 0.04);
+      // The "Paid" date is only true once the stamp lands, so it appears with it rather than while the bill reads OPEN.
+      const paidRow = Array.from(card.querySelectorAll('[data-pl="paid-row"]'));
+      tw.fromTo(paidRow, { opacity: 0 }, { opacity: 1, duration: 0.03, ease: "power2.out" }, at + 0.03);
     });
   }
 

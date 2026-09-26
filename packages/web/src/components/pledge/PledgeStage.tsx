@@ -26,7 +26,14 @@ type Beat = 1 | 3 | 4 | 5 | 6;
 type Caption = { head: string; sub?: string };
 type Story = { honesty: string; captions: Record<Beat, Caption> };
 
-const idList = (bills: StageBill[]) => bills.map((b) => (b.first ? `#${b.id} (first deployment)` : `#${b.id}`)).join(", ");
+// Two contracts can each have a bill #1, so the title names the bills by what they are, not by number.
+function replayOf(bills: StageBill[]): string {
+  const onFirst = bills.filter((b) => b.first).length;
+  const spansBoth = onFirst > 0 && onFirst < bills.length;
+  if (bills.length === 2 && spansBoth) return "Replay of two real bills, one on each Adag contract";
+  if (bills.length === 1) return `Replay of one real bill${onFirst ? ", on Adag's first contract" : ""}, paid on Arc`;
+  return `Replay of ${countWord(bills.length).toLowerCase()} real bills${spansBoth ? " across both Adag contracts" : ""}, paid on Arc`;
+}
 
 function tell(state: PledgeState, bills: StageBills | null, pledge: Pledge | null): Story {
   const cap = pledge ? formatPercentWad(pledge.maxLtvWad) : "40%";
@@ -46,7 +53,6 @@ function tell(state: PledgeState, bills: StageBills | null, pledge: Pledge | nul
       captions: { 1: { head: "The bills could not be read from Arc.", sub: "No bill is invented to fill the stage. Try again in a minute." }, ...shared, 5: { head: "" } },
     };
   }
-  const ids = idList(bills.bills);
   const them = n === 1 ? "it" : "them";
   // Only paid bills ever reach the stage; with none, it shows no bill rather than an open one anyone could write.
   if (bills.mode === "none") {
@@ -56,13 +62,12 @@ function tell(state: PledgeState, bills: StageBills | null, pledge: Pledge | nul
     };
   }
   const due = `${countWord(n)} real ${billWord} ${n === 1 ? "is" : "are"} due.`;
-  const Bills = n === 1 ? "Bill" : "Bills";
   return {
-    honesty: `Replay of ${billWord} ${ids}, paid on Arc. Numbers read live.`,
+    honesty: `${replayOf(bills.bills)}. Numbers read live.`,
     captions: {
       1: {
         head: due,
-        sub: `${Bills} ${ids} ${n === 1 ? "was" : "were"} really paid on Arc. The pledge is what a new wallet would put up today to pay ${them} from bitcoin.`,
+        sub: `${n === 1 ? "It was" : n === 2 ? "Both were" : "All were"} really paid on Arc. The pledge is what a new wallet would put up today to pay ${them} from bitcoin.`,
       },
       ...shared,
       5: {

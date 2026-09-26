@@ -73,6 +73,35 @@
   color: var(--muted);
 }
 
+/* After a run: what the stamps mean, and three ways onward. */
+.bk-after {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  margin: 0 20px 48px;
+  padding: 24px 20px;
+  border: 1px solid var(--rule-strong);
+  border-radius: 4px;
+  background-color: var(--raised);
+}
+.bk-legend {
+  display: grid;
+  gap: 16px;
+}
+.bk-legend-item {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+}
+.bk-legend-stamp {
+  justify-self: start;
+}
+.bk-next {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
 .bk-state {
   display: flex;
   flex-direction: column;
@@ -246,6 +275,30 @@
 }
 
 @media (width >= 48rem) {
+  .bk-after {
+    margin: 0 6vw 56px;
+    padding: 32px 36px;
+    flex-direction: row;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 40px;
+  }
+  .bk-legend {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px 36px;
+    max-width: 60rem;
+  }
+  .bk-legend-item {
+    grid-template-columns: 8.5rem 1fr;
+    align-items: center;
+    gap: 16px;
+  }
+  .bk-next {
+    flex: none;
+    flex-direction: column;
+    align-items: stretch;
+    width: 13rem;
+  }
   .bk-nav {
     height: 72px;
     padding: 0 6vw;

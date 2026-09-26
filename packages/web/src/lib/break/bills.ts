@@ -3,6 +3,7 @@ import { CIRBTC, MARKET_USDC, MORPHO, USDC, USDC_MARKET_ORACLE } from "@/lib/arc
 import { ADAG_BILLS } from "@/lib/pay/constants";
 import { adagAbi, erc20Abi, m3fAbi, memoAbi, morphoAbi, oracleAbi } from "./abi";
 import type { CheckId } from "./catalogue";
+import { publicReason, SuiteError } from "./errors";
 import { BILL_AMOUNT, DEMO_PAYEE, DEMO_PAYER, MEMO, MULTICALL3_FROM, RANDOM_TOKEN, STRANGER, WETH } from "./constants";
 import {
   approve,
@@ -108,14 +109,14 @@ export async function runBills(pin: Pin, row: Row, state: (lines: string[]) => v
     const res = await simulate([...ctx.setup, ...blocks], pin.number);
     for (const blk of res.slice(0, ctx.setup.length)) {
       const bad = blk.find((r) => !r.ok);
-      if (bad) throw new Error(`setup block failed: ${outcome(bad)}`);
+      if (bad) throw new SuiteError(`setup block failed: ${outcome(bad)}`);
     }
     return res.slice(ctx.setup.length);
   };
   const reads = async (steps: Step[]) => {
     const res = await sim([{ time: t(1), calls: steps.map((s) => tx(DEMO_PAYER, s)) }]);
     const bad = res[0]!.findIndex((r) => !r.ok);
-    if (bad >= 0) throw new Error(`baseline read ${bad + 1} failed: ${outcome(res[0]![bad]!)}`);
+    if (bad >= 0) throw new SuiteError(`baseline read ${bad + 1} failed: ${outcome(res[0]![bad]!)}`);
     return res[0]!;
   };
   const newBills = (n: number): SimBlock => ({
@@ -124,7 +125,7 @@ export async function runBills(pin: Pin, row: Row, state: (lines: string[]) => v
   });
   const written = (res: SimResult[]) => {
     const bad = res.find((r) => !r.ok);
-    if (bad) throw new Error(`setup createBill failed: ${outcome(bad)}`);
+    if (bad) throw new SuiteError(`setup createBill failed: ${outcome(bad)}`);
   };
   const firstNewId = () => ctx.count + 1n;
 
@@ -201,12 +202,12 @@ export async function runBills(pin: Pin, row: Row, state: (lines: string[]) => v
   if (!status[0]) problems.push("the BTC/USD price is stale, so every loan check would stop at StalePrice first");
   if (allowance !== 0n) problems.push("the demo wallet still has a USDC allowance to Adag");
   if (balance < 2_000000n) problems.push("the demo wallet holds under 2 USDC, too little to repay and re-borrow in A2");
-  if (problems.length) throw new Error(`The live state is not the one these attacks were written for: ${problems.join("; ")}.`);
+  if (problems.length) throw new SuiteError(`The live state is not the one these attacks were written for: ${problems.join("; ")}.`);
 
   state([
     `AdagBills ${ADAG}. Demo wallet ${DEMO_PAYER}: loan ${usdc(ctx.debt)} against ${btc(ctx.collateral)} pledged, loan-to-value ${pct(ctx.ltv)}.`,
     ctx.setup.length
-      ? `Setup block before every simulation: the supplier writes bill #${ctx.paidId} and the demo wallet pays it from cash, so Adag records the loan as it stands today.`
+      ? `Before each attack, the simulation writes bill #${ctx.paidId} and pays it from cash, so Adag starts from today's loan.`
       : `Bill #${ctx.paidId} is paid by the demo wallet, and Adag's record of its loan is current.`,
     `Supplier ${DEMO_PAYEE}. Simulated stranger ${STRANGER}. Bitcoin at ${usdPrice(ctx.price)} USDC, from the USDC market's oracle.`,
   ]);
@@ -539,7 +540,7 @@ export async function runEach(attacks: [() => Promise<void>, CheckId[]][], row: 
     try {
       await attack();
     } catch (e) {
-      const reason = `could not run: ${((e as Error).message || "unknown error").slice(0, 200)}`;
+      const reason = `could not run: ${publicReason(e)}`;
       for (const id of ids) row(id, false, reason, reason, null);
     }
   }

@@ -46,8 +46,12 @@ export function BillCard({ bill, index, count }: { bill: StageBill; index: numbe
             <dd className="type-address break-all text-text">{bill.payee}</dd>
             <dt className="type-micro text-muted">From</dt>
             <dd className="type-address text-text">{short(bill.payer)}</dd>
-            <dt className="type-micro text-muted">Paid</dt>
-            <dd className="type-micro text-text">{formatDate(bill.paidAt)}</dd>
+            <dt data-pl="paid-row" className="type-micro text-muted">
+              Paid
+            </dt>
+            <dd data-pl="paid-row" className="type-micro text-text">
+              {formatDate(bill.paidAt)}
+            </dd>
             {bill.first && (
               <>
                 <dt className="type-micro text-muted">On</dt>

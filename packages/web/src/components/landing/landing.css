@@ -82,9 +82,45 @@
   line-height: 1;
 }
 
+/* Section "After you pay": four plates; hovering one lifts its rule to gold. */
+.after-plate {
+  position: relative;
+}
+.after-plate::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  background-color: var(--gold);
+  transform: scaleX(0);
+  transform-origin: 0 50%;
+  transition: transform 400ms var(--ease-film);
+}
+.after-plate:hover::before,
+.after-plate:focus-within::before {
+  transform: scaleX(1);
+}
+.after-glyph {
+  flex: none;
+  transition: transform 300ms var(--ease-film);
+}
+.after-plate:hover .after-glyph {
+  transform: translateY(-2px);
+}
+.after-key {
+  max-width: 34ch;
+  padding: 10px 0 10px 16px;
+  border-left: 2px solid var(--gold);
+  font-weight: 500;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .receipt-line {
     transition: none;
     opacity: 1;
+  }
+  .after-plate::before,
+  .after-glyph {
+    transition: none;
   }
 }

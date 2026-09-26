@@ -258,9 +258,17 @@ export const PREMISE_LINE =
 // One plain line under each group heading, saying what the rows run against.
 export const GROUP_NOTES: Record<Group, string> = {
   [BILLS]: "Against the current AdagBills and the demo wallet's real Morpho loan.",
-  [ENROL]: "enrol records a loan a payer already had, so that payer's next payments are checked against it.",
+  [ENROL]: "Recording (enrol) saves a loan the payer already had, so that payer's next payments are checked against it.",
   [GUARD]: `Against the live AdagGuard. ${PREMISE_LINE} Nothing of AdagGuard, Morpho or the oracle is overwritten.`,
 };
+
+// What each stamp means, in the words a reader without the threat model needs.
+export const LEGEND: { verdict: Expect; term: string; means: string }[] = [
+  { verdict: "refused", term: "Refused", means: "the chain said no." },
+  { verdict: "held", term: "Held", means: "it ran, and nothing it protects moved." },
+  { verdict: "by-design", term: "Allowed by design", means: "a known, accepted gap that only affects the attacker's own loan." },
+  { verdict: "allowed", term: "Allowed", means: "the chain allowed it, and the threat model says that is correct." },
+];
 
 // The named residuals: allowed on purpose, each linked to where the threat model names it.
 export const RESIDUALS: Partial<Record<CheckId, { text: string; href: string }>> = {

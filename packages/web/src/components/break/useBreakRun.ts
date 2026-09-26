@@ -78,8 +78,9 @@ export function useBreakRun() {
       if (!finished) current = closeOut(current, "could not run: the answer ended early");
       else if (current.phase === "done" && CHECKS.some((c) => !current.results[c.id])) current = closeOut(current, "could not run: no answer for this check");
     } catch (e) {
+      // C62: the browser's own error text is never shown; the page says what happened in its own words.
       const aborted = (e as Error).name === "AbortError";
-      current = closeOut(current, `could not run: ${aborted ? "no answer within 150 seconds" : (e as Error).message}`);
+      current = closeOut(current, `could not run: ${aborted ? "no answer within 150 seconds" : "the page lost its connection to the server, try again"}`);
     } finally {
       window.clearTimeout(timer);
     }

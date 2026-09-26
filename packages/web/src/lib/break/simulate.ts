@@ -1,5 +1,6 @@
 import { decodeErrorResult, decodeEventLog, isAddressEqual, toHex, type Abi, type Address, type Hex } from "viem";
 import { adagAbi, guardErrorsAbi, memoAbi } from "./abi";
+import { SuiteError } from "./errors";
 import {
   RATE_LIMIT_WAIT_MS,
   SIM_MAX_RESPONSE_CHARS,
@@ -72,7 +73,7 @@ async function once(p: Provider, method: string, params: unknown[]): Promise<unk
       });
       status = res.status;
       const text = await res.text();
-      if (text.length > SIM_MAX_RESPONSE_CHARS) throw new Error(`${p.name} sent an answer that was too large.`);
+      if (text.length > SIM_MAX_RESPONSE_CHARS) throw new SuiteError(`${p.name} sent an answer that was too large.`);
       try {
         json = JSON.parse(text);
       } catch {
@@ -85,17 +86,20 @@ async function once(p: Provider, method: string, params: unknown[]): Promise<unk
     } catch (e) {
       const name = (e as Error).name;
       if (name === "TimeoutError" || name === "AbortError") throw new TimedOut(`${p.name} ${method}: no answer in ${SIM_TIMEOUT_MS / 1000}s`);
-      throw new Error(scrub(`${p.name} ${method}: ${(e as Error).message.slice(0, 160)}`, p));
+      // C62: the library's own words stay in the server log, scrubbed of the endpoint; the page gets a fixed sentence.
+      console.warn(scrub(`[break] ${p.name} ${method}: ${String((e as Error).message).slice(0, 160)}`, p));
+      throw new SuiteError(`${p.name} did not answer ${method}, try again`);
     }
     const err = json?.error ?? { message: `HTTP ${status}` };
-    if (isTimeout(status, err)) throw new TimedOut(scrub(`${p.name} ${method}: ${(err.message ?? "timed out").slice(0, 160)}`, p));
+    if (isTimeout(status, err)) throw new TimedOut(`${p.name} ${method} timed out`);
     if (attempt === 0 && isRateLimit(status, err)) {
       await sleep(RATE_LIMIT_WAIT_MS);
       continue;
     }
-    throw new Error(scrub(`${p.name} ${method} failed: ${(err.message ?? JSON.stringify(err)).slice(0, 160)}`, p));
+    console.warn(scrub(`[break] ${p.name} ${method} refused: ${String(err.message ?? JSON.stringify(err)).slice(0, 160)}`, p));
+    throw new SuiteError(`${p.name} refused ${method}, try again`);
   }
-  throw new Error(`${p.name} ${method} failed twice.`);
+  throw new SuiteError(`${p.name} ${method} failed twice.`);
 }
 
 // A timed-out call is tried once more on the same endpoint, then once on the other. If that also times out, the
@@ -110,7 +114,7 @@ async function rpc(method: string, params: unknown[]): Promise<unknown> {
       if (!(e instanceof TimedOut)) throw e;
     }
   }
-  throw new Error(SIM_TIMED_OUT);
+  throw new SuiteError(SIM_TIMED_OUT);
 }
 
 export const simChainId = async () => Number(await rpc("eth_chainId", []));
@@ -118,7 +122,7 @@ export const simChainId = async () => Number(await rpc("eth_chainId", []));
 // The simulating node's own latest block, so a simulation pinned to it is sure to exist on the node that runs it.
 export async function simHead(): Promise<{ number: bigint; timestamp: bigint }> {
   const blk = (await rpc("eth_getBlockByNumber", ["latest", false])) as { number?: string; timestamp?: string } | null;
-  if (!blk?.number || !blk.timestamp) throw new Error("The simulating node returned no latest block.");
+  if (!blk?.number || !blk.timestamp) throw new SuiteError("The simulating node returned no latest block.");
   return { number: BigInt(blk.number), timestamp: BigInt(blk.timestamp) };
 }
 
@@ -133,9 +137,9 @@ export async function simulate(blocks: SimBlock[], atBlock: bigint): Promise<Sim
   const result = (await rpc("eth_simulateV1", [{ blockStateCalls, validation: false, traceTransfers: false }, toHex(atBlock)])) as
     | { calls?: RawCall[] }[]
     | null;
-  if (!Array.isArray(result) || result.length !== blocks.length) throw new Error("eth_simulateV1 returned an unexpected shape.");
+  if (!Array.isArray(result) || result.length !== blocks.length) throw new SuiteError("eth_simulateV1 returned an unexpected shape.");
   return result.map((blk, i) => {
-    if (!Array.isArray(blk.calls) || blk.calls.length !== blocks[i]!.calls.length) throw new Error("eth_simulateV1 returned an unexpected shape.");
+    if (!Array.isArray(blk.calls) || blk.calls.length !== blocks[i]!.calls.length) throw new SuiteError("eth_simulateV1 returned an unexpected shape.");
     return blk.calls.map((c) => ({
       ok: c.status === "0x1",
       gas: BigInt(c.gasUsed ?? "0x0"),

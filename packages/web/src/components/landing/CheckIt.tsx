@@ -56,7 +56,7 @@ export function CheckIt() {
   const proofs = [first, ...STATIC_PROOFS];
 
   return (
-    <section aria-labelledby="check-title" className="landing-section border-t border-rule bg-bg px-5 py-16 md:px-[6vw] md:py-20">
+    <section id="proof" aria-labelledby="check-title" className="landing-section scroll-mt-20 border-t border-rule bg-bg px-5 py-16 md:px-[6vw] md:py-20">
       <div className="grid gap-10 md:grid-cols-12 md:gap-8">
         <Reveal className="md:col-span-3">
           <p className="type-label text-gold">Proof</p>

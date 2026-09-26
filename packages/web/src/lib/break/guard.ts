@@ -5,6 +5,7 @@ import { ADAG_GUARD } from "@/lib/guard/constants";
 import { OTHER_USDC_CIRBTC_MARKET } from "@/lib/pay/constants";
 import { erc20Abi, morphoAbi, oracleAbi } from "./abi";
 import { PREMISE_LINE, type CheckId } from "./catalogue";
+import { SuiteError } from "./errors";
 import { DEMO_PAYEE, DEMO_PAYER, GUARD_STRANGER, NO_LOAN_WALLET } from "./constants";
 import { runEach } from "./bills";
 import {
@@ -54,7 +55,7 @@ const read = (to: Address, abi: typeof erc20Abi | typeof morphoAbi | typeof orac
 });
 
 export async function runGuard(pin: Pin, row: Row, state: (lines: string[]) => void): Promise<void> {
-  if (!ADAG_GUARD) throw new Error("AdagGuard is not deployed on this build.");
+  if (!ADAG_GUARD) throw new SuiteError("AdagGuard is not deployed on this build.");
   const guard = ADAG_GUARD;
 
   const bal = (who: Address) => read(USDC, erc20Abi, "balanceOf", [who]);
@@ -66,16 +67,16 @@ export async function runGuard(pin: Pin, row: Row, state: (lines: string[]) => v
   const protect = (who: Address = DEMO_PAYER, market: Hex = MU) => g(GUARD_STRANGER, "protect", [who, market]);
   const quote = (who: Address = DEMO_PAYER, market: Hex = MU) => g(GUARD_STRANGER, "quote", [who, market]);
   const num = (r: SimResult) => {
-    if (!r.ok) throw new Error(`a balance read failed: ${outcome(r)}`);
+    if (!r.ok) throw new SuiteError(`a balance read failed: ${outcome(r)}`);
     return decodeFunctionResult({ abi: erc20Abi, functionName: "balanceOf", data: r.returnData });
   };
   const repaidOf = (r: SimResult) => (r.ok ? decodeFunctionResult({ abi: guardAbi, functionName: "protect", data: r.returnData }) : null);
   const quoteOf = (r: SimResult) => {
-    if (!r.ok) throw new Error(`quote failed: ${outcome(r)}`);
+    if (!r.ok) throw new SuiteError(`quote failed: ${outcome(r)}`);
     return decodeFunctionResult({ abi: guardAbi, functionName: "quote", data: r.returnData });
   };
   const ruleOf = (r: SimResult) => {
-    if (!r.ok) throw new Error(`ruleOf failed: ${outcome(r)}`);
+    if (!r.ok) throw new SuiteError(`ruleOf failed: ${outcome(r)}`);
     return decodeFunctionResult({ abi: guardAbi, functionName: "ruleOf", data: r.returnData });
   };
   const decodePos = (r: SimResult) => decodeFunctionResult({ abi: morphoAbi, functionName: "position", data: r.returnData });
@@ -103,7 +104,7 @@ export async function runGuard(pin: Pin, row: Row, state: (lines: string[]) => v
     pin.number,
   );
   const bad = base[0]!.findIndex((r) => !r.ok);
-  if (bad >= 0) throw new Error(`guard baseline read ${bad + 1} failed: ${outcome(base[0]![bad]!)}`);
+  if (bad >= 0) throw new SuiteError(`guard baseline read ${bad + 1} failed: ${outcome(base[0]![bad]!)}`);
   const p = decodeFunctionResult({ abi: morphoAbi, functionName: "idToMarketParams", data: base[0]![0]!.returnData });
   const params: Params = { loanToken: p[0], collateralToken: p[1], oracle: p[2], irm: p[3], lltv: p[4] };
   verifyUsdcParams(params);
@@ -118,8 +119,8 @@ export async function runGuard(pin: Pin, row: Row, state: (lines: string[]) => v
   const liveShares = BigInt(livePos[1]);
   const collateral = BigInt(livePos[2]);
   const liveDebt = debtUp(liveShares, BigInt(liveMkt[2]), BigInt(liveMkt[3]));
-  if (liveShares === 0n) throw new Error("The payer has no USDC-market loan, so these attacks have nothing to aim at.");
-  if (liveUsdc < 1_000000n) throw new Error(`The payer holds ${usdc(liveUsdc)}; these attacks assume at least 1 USDC.`);
+  if (liveShares === 0n) throw new SuiteError("The payer has no USDC-market loan, so these attacks have nothing to aim at.");
+  if (liveUsdc < 1_000000n) throw new SuiteError(`The payer holds ${usdc(liveUsdc)}; these attacks assume at least 1 USDC.`);
 
   // The shared premise, as guard-attack.mjs builds it: the payer clears any live guard rule and approval, so every
   // row starts with neither, then borrows or repays on Morpho to put the loan at 38.00% (loanPremise).
@@ -161,7 +162,7 @@ export async function runGuard(pin: Pin, row: Row, state: (lines: string[]) => v
   const run = async (blocks: SimBlock[]) => {
     const res = await simulate([premise, ...blocks], pin.number);
     const failed = res[0]!.find((r) => !r.ok);
-    if (failed) throw new Error(`the premise block failed: ${outcome(failed)}`);
+    if (failed) throw new SuiteError(`the premise block failed: ${outcome(failed)}`);
     return { premise: res[0]!, rest: res.slice(1) };
   };
 
@@ -172,8 +173,8 @@ export async function runGuard(pin: Pin, row: Row, state: (lines: string[]) => v
   const pUsdc = num(dry.premise[premiseCalls.length + 2]!);
   const pDebt = debtUp(BigInt(pPos[1]), BigInt(pMkt[2]), BigInt(pMkt[3]));
   const pLtv = ltvOf(pDebt, collateral, price);
-  if (pct(pLtv) !== pct(PREMISE_LTV)) throw new Error(`The simulated premise left the loan at ${pct(pLtv)}, not ${pct(PREMISE_LTV)}.`);
-  if (pUsdc < least) throw new Error(`The payer holds ${usdc(pUsdc)} after the premise; these attacks assume at least 1 USDC.`);
+  if (pct(pLtv) !== pct(PREMISE_LTV)) throw new SuiteError(`The simulated premise left the loan at ${pct(pLtv)}, not ${pct(PREMISE_LTV)}.`);
+  if (pUsdc < least) throw new SuiteError(`The payer holds ${usdc(pUsdc)} after the premise; these attacks assume at least 1 USDC.`);
   let need = 0n;
 
   state([
@@ -189,7 +190,7 @@ export async function runGuard(pin: Pin, row: Row, state: (lines: string[]) => v
       { time: t(2), calls: [protect(), protect(), bal(DEMO_PAYER)] },
       { time: t(3), calls: [protect(), bal(DEMO_PAYER)] },
     ]);
-    if (!rest[0]![0]!.ok || !rest[0]![1]!.ok) throw new Error(`setup (rule and approval) failed: ${outcome(rest[0]!.find((r) => !r.ok)!)}`);
+    if (!rest[0]![0]!.ok || !rest[0]![1]!.ok) throw new SuiteError(`setup (rule and approval) failed: ${outcome(rest[0]!.find((r) => !r.ok)!)}`);
     need = quoteOf(rest[0]![2]!)[1];
     const a = repaidOf(rest[1]![0]!);
     const b = repaidOf(rest[1]![1]!);
@@ -199,7 +200,7 @@ export async function runGuard(pin: Pin, row: Row, state: (lines: string[]) => v
     row(
       "G6",
       pass,
-      pass ? `Held. The first protect repaid ${usdc(a!)}, exactly what brings the loan back to 30%; the two repeats found nothing to do and moved nothing.` : `Did not behave as documented: repaid ${shown}.`,
+      pass ? `Held. The first time, the guard repaid ${usdc(a!)}, exactly what brings the loan back to 30%; the two repeats found nothing to do and moved nothing.` : `Did not behave as documented: repaid ${shown}.`,
       `repaid ${shown}`,
       rest[1]![0]!.gas,
     );
@@ -212,7 +213,7 @@ export async function runGuard(pin: Pin, row: Row, state: (lines: string[]) => v
       { time: t(2), calls: [quote(), protect(), bal(DEMO_PAYER), allowance(DEMO_PAYER, guard), bal(guard)] },
       { time: t(3), calls: [protect(), bal(DEMO_PAYER)] },
     ]);
-    if (!rest[0]![0]!.ok || !rest[0]![1]!.ok) throw new Error("setup (rule and a 0.1 USDC approval) failed");
+    if (!rest[0]![0]!.ok || !rest[0]![1]!.ok) throw new SuiteError("setup (rule and a 0.1 USDC approval) failed");
     const quoted = quoteOf(rest[1]![0]!)[1];
     const first = repaidOf(rest[1]![1]!);
     const pulled = num(rest[0]![2]!) - num(rest[1]![2]!);
@@ -224,7 +225,7 @@ export async function runGuard(pin: Pin, row: Row, state: (lines: string[]) => v
       "G1",
       pass,
       pass
-        ? `Held. The loan needed ${usdc(need)}, but the payer approved only ${usdc(cap)}: protect repaid exactly that, the approval fell to zero, and the second protect repaid nothing.`
+        ? `Held. The loan needed ${usdc(need)}, but the payer approved only ${usdc(cap)}: the guard repaid exactly that, the approval fell to zero, and the second time it repaid nothing.`
         : `Did not behave as documented: first ${first === null ? outcome(rest[1]![1]!) : `repaid ${usdc(first)}`}, pulled ${usdc(pulled)}, approval left ${usdc(left)}.`,
       `first protect ${first === null ? outcome(rest[1]![1]!) : `repaid ${usdc(first)}`}, pulled ${usdc(pulled)}, approval left ${usdc(left)}; second protect ${second === null ? outcome(rest[2]![0]!) : `repaid ${usdc(second)}`}; guard holds ${usdc(guardHolds)}`,
       rest[1]![1]!.gas,
@@ -239,7 +240,7 @@ export async function runGuard(pin: Pin, row: Row, state: (lines: string[]) => v
         calls: [protect(DEMO_PAYER, OTHER_USDC_CIRBTC_MARKET), g(DEMO_PAYER, "setRule", [LOOK_ALIKE, TRIGGER, TARGET, 0n]), protect(DEMO_PAYER, LOOK_ALIKE), bal(DEMO_PAYER), protect(DEMO_PAYER, MARKET_EURC), bal(DEMO_PAYER)],
       },
     ]);
-    if (!rest[0]!.every((r) => r.ok)) throw new Error("setup (rule and approval) failed");
+    if (!rest[0]!.every((r) => r.ok)) throw new SuiteError("setup (rule and approval) failed");
     const [other, setLook, protLook, balBefore, eurc, balAfter] = rest[1]! as SimResult[];
     const aPass = !other!.ok && outcome(other!) === `BadMarket(${OTHER_USDC_CIRBTC_MARKET})`;
     row("G2a", aPass, aPass ? "Refused. The other real USDC/cirBTC market is not one of AdagGuard's two fixed markets." : `Not refused as expected: ${outcome(other!)}.`, outcome(other!), other!.gas);
@@ -257,7 +258,7 @@ export async function runGuard(pin: Pin, row: Row, state: (lines: string[]) => v
     row(
       "G2c",
       cPass,
-      cPass ? "Held. In the EURC market the payer has no loan and no rule, so protect repaid nothing and no USDC moved." : `Did not behave as documented: ${eurcRepaid === null ? outcome(eurc!) : `repaid ${usdc(eurcRepaid)}`}; payer USDC moved ${usdc(moved)}.`,
+      cPass ? "Held. In the EURC market the payer has no loan and no rule, so the guard repaid nothing and no USDC moved." : `Did not behave as documented: ${eurcRepaid === null ? outcome(eurc!) : `repaid ${usdc(eurcRepaid)}`}; payer USDC moved ${usdc(moved)}.`,
       `${eurcRepaid === null ? outcome(eurc!) : `repaid ${usdc(eurcRepaid)}`}; payer USDC moved ${usdc(moved)}`,
       eurc!.gas,
     );
@@ -268,7 +269,7 @@ export async function runGuard(pin: Pin, row: Row, state: (lines: string[]) => v
       { time: t(1), overrides: STRANGER_FUNDS, calls: [rule(500000000000000000n, 400000000000000000n), approveGuard(1_000000n), bal(DEMO_PAYER)] },
       { time: t(2), calls: [quote(), protect(), bal(DEMO_PAYER)] },
     ]);
-    if (!rest[0]![0]!.ok || !rest[0]![1]!.ok) throw new Error("setup (a 50% / 40% rule) failed");
+    if (!rest[0]![0]!.ok || !rest[0]![1]!.ok) throw new SuiteError("setup (a 50% / 40% rule) failed");
     const [wouldAct, amount, ltv] = quoteOf(rest[1]![0]!);
     const repaid = repaidOf(rest[1]![1]!);
     const event = emitted(rest[1]![1]!);
@@ -276,7 +277,7 @@ export async function runGuard(pin: Pin, row: Row, state: (lines: string[]) => v
     row(
       "G3",
       pass,
-      pass ? `Held. The loan at ${pct(ltv)} is under the payer's 50% trigger, so protect repaid nothing, emitted nothing and moved nothing.` : `Did not behave as documented: quote ${wouldAct} (${usdc(amount)}); protect ${repaid === null ? outcome(rest[1]![1]!) : `repaid ${usdc(repaid)}`}.`,
+      pass ? `Held. The loan at ${pct(ltv)} is under the payer's 50% trigger, so the guard repaid nothing, emitted nothing and moved nothing.` : `Did not behave as documented: quote ${wouldAct} (${usdc(amount)}); protect ${repaid === null ? outcome(rest[1]![1]!) : `repaid ${usdc(repaid)}`}.`,
       `quote would act ${wouldAct} (${usdc(amount)}) at ${pct(ltv)}; protect ${repaid === null ? outcome(rest[1]![1]!) : `repaid ${usdc(repaid)}`}, event ${event ? "emitted" : "none"}`,
       rest[1]![1]!.gas,
     );
@@ -288,7 +289,7 @@ export async function runGuard(pin: Pin, row: Row, state: (lines: string[]) => v
       { time: t(1), overrides: STRANGER_FUNDS, calls: [rule(TRIGGER, TARGET, expiry), approveGuard(1_000000n), quote(), bal(DEMO_PAYER)] },
       { time: expiry, calls: [quote(), protect(), bal(DEMO_PAYER)] },
     ]);
-    if (!rest[0]![0]!.ok || !rest[0]![1]!.ok) throw new Error("setup (a rule that expires in 60 seconds) failed");
+    if (!rest[0]![0]!.ok || !rest[0]![1]!.ok) throw new SuiteError("setup (a rule that expires in 60 seconds) failed");
     const early = quoteOf(rest[0]![2]!);
     const late = quoteOf(rest[1]![0]!);
     const repaid = repaidOf(rest[1]![1]!);
@@ -296,7 +297,7 @@ export async function runGuard(pin: Pin, row: Row, state: (lines: string[]) => v
     row(
       "G4",
       pass,
-      pass ? `Held. Before expiry the rule would have repaid ${usdc(early[1])}; at the expiry second it is inert, and protect repaid nothing.` : `Did not behave as documented: before expiry ${early[0]}; at expiry ${late[0]}; protect ${repaid === null ? outcome(rest[1]![1]!) : usdc(repaid)}.`,
+      pass ? `Held. Before expiry the rule would have repaid ${usdc(early[1])}; at the expiry second it is inert, and the guard repaid nothing.` : `Did not behave as documented: before expiry ${early[0]}; at expiry ${late[0]}; protect ${repaid === null ? outcome(rest[1]![1]!) : usdc(repaid)}.`,
       `before expiry quote would act ${early[0]} (${usdc(early[1])}); at expiry quote would act ${late[0]}, protect ${repaid === null ? outcome(rest[1]![1]!) : `repaid ${usdc(repaid)}`}`,
       rest[1]![1]!.gas,
     );
@@ -315,7 +316,7 @@ export async function runGuard(pin: Pin, row: Row, state: (lines: string[]) => v
         ],
       },
     ]);
-    if (!rest[0]![0]!.ok) throw new Error("setup (payer rule) failed");
+    if (!rest[0]![0]!.ok) throw new SuiteError("setup (payer rule) failed");
     const [clear, set, payerRule, strangerRule] = rest[1]! as SimResult[];
     const pr = ruleOf(payerRule!);
     const sr = ruleOf(strangerRule!);
@@ -346,7 +347,7 @@ export async function runGuard(pin: Pin, row: Row, state: (lines: string[]) => v
       { time: t(2), calls: [tx(DEMO_PAYER, { to: USDC, data: encodeFunctionData({ abi: erc20Abi, functionName: "transfer", args: [DEMO_PAYEE, pUsdc - keep] }) }), bal(DEMO_PAYER)] },
       { time: t(3), calls: [protect(), bal(DEMO_PAYER), bal(guard)] },
     ]);
-    if (!rest[0]!.every((r) => r.ok) || !rest[1]![0]!.ok) throw new Error("setup (rule, approval, and moving most of the payer's USDC away) failed");
+    if (!rest[0]!.every((r) => r.ok) || !rest[1]![0]!.ok) throw new SuiteError("setup (rule, approval, and moving most of the payer's USDC away) failed");
     const held = num(rest[1]![1]!);
     const repaid = repaidOf(rest[2]![0]!);
     const after = num(rest[2]![1]!);
@@ -355,7 +356,7 @@ export async function runGuard(pin: Pin, row: Row, state: (lines: string[]) => v
     row(
       "G7",
       pass,
-      pass ? `Held. The loan needed ${usdc(need)} but the wallet held ${usdc(held)}: protect repaid exactly that, did not revert, and AdagGuard kept nothing.` : `Did not behave as documented: ${repaid === null ? outcome(rest[2]![0]!) : `repaid ${usdc(repaid)}`}; wallet now ${usdc(after)}.`,
+      pass ? `Held. The loan needed ${usdc(need)} but the wallet held ${usdc(held)}: the guard repaid exactly that, did not revert, and kept nothing.` : `Did not behave as documented: ${repaid === null ? outcome(rest[2]![0]!) : `repaid ${usdc(repaid)}`}; wallet now ${usdc(after)}.`,
       `${repaid === null ? outcome(rest[2]![0]!) : `repaid ${usdc(repaid)}`}; wallet now ${usdc(after)}; guard holds ${usdc(guardHolds)}`,
       rest[2]![0]!.gas,
     );
@@ -382,8 +383,8 @@ export async function runGuard(pin: Pin, row: Row, state: (lines: string[]) => v
         ],
       },
     ]);
-    if (!rest[0]!.every((r) => r.ok)) throw new Error("setup (rule and a 2 USDC approval) failed");
-    if (!rest[1]![0]!.ok) throw new Error(`accrueInterest failed: ${outcome(rest[1]![0]!)}`);
+    if (!rest[0]!.every((r) => r.ok)) throw new SuiteError("setup (rule and a 2 USDC approval) failed");
+    if (!rest[1]![0]!.ok) throw new SuiteError(`accrueInterest failed: ${outcome(rest[1]![0]!)}`);
     const p0 = decodePos(rest[1]![1]!);
     const m0 = decodeMkt(rest[1]![2]!);
     const cap = debtDown(BigInt(p0[1]), BigInt(m0[2]), BigInt(m0[3]));
@@ -396,7 +397,7 @@ export async function runGuard(pin: Pin, row: Row, state: (lines: string[]) => v
       "G8",
       pass,
       pass
-        ? `Held. At a zero price protect repaid ${usdc(repaid!)}, the debt rounded down, so Morpho's share maths could not underflow; ${usdc(left!)} of debt is left and AdagGuard kept nothing.`
+        ? `Held. At a zero price the guard repaid ${usdc(repaid!)}, the debt rounded down, so Morpho's share maths could not underflow; ${usdc(left!)} of debt is left and AdagGuard kept nothing.`
         : `Did not behave as documented: quote ${wouldAct} ${usdc(quoted)}; protect ${repaid === null ? outcome(rest[1]![4]!) : usdc(repaid)} against ${usdc(cap)}.`,
       `quote ${wouldAct} at ${pct(ltv)}, ${usdc(quoted)}; protect ${repaid === null ? outcome(rest[1]![4]!) : `repaid ${usdc(repaid)}`} against a rounded-down debt of ${usdc(cap)}; debt left ${left === null ? "?" : usdc(left)}; guard holds ${usdc(guardHolds)}`,
       rest[1]![4]!.gas,
@@ -409,7 +410,7 @@ export async function runGuard(pin: Pin, row: Row, state: (lines: string[]) => v
       { time: t(1), overrides: STRANGER_FUNDS, calls: [approveGuard(1_000000n), bal(DEMO_PAYER)] },
       { time: t(2), overrides: crash(), calls: [quote(), protect(), bal(DEMO_PAYER), protect(NO_LOAN_WALLET), quote(NO_LOAN_WALLET)] },
     ]);
-    if (!rest[0]![0]!.ok) throw new Error("setup (a 1 USDC approval, no rule) failed");
+    if (!rest[0]![0]!.ok) throw new SuiteError("setup (a 1 USDC approval, no rule) failed");
     const before = num(rest[0]![1]!);
     const [wouldAct, amount, ltv] = quoteOf(rest[1]![0]!);
     const repaid = repaidOf(rest[1]![1]!);
@@ -419,7 +420,7 @@ export async function runGuard(pin: Pin, row: Row, state: (lines: string[]) => v
       "G9a",
       aPass,
       aPass
-        ? "Held. Even at a zero price, a payer with an approval but no rule is left alone: protect repaid nothing and no USDC moved."
+        ? "Held. Even at a zero price, a payer with an approval but no rule is left alone: the guard repaid nothing and no USDC moved."
         : `Did not behave as documented: quote ${wouldAct} (${usdc(amount)}); protect ${repaid === null ? outcome(rest[1]![1]!) : usdc(repaid)}; USDC moved ${usdc(moved)}.`,
       `quote would act ${wouldAct} at ${pct(ltv)} (${usdc(amount)}); protect ${repaid === null ? outcome(rest[1]![1]!) : `repaid ${usdc(repaid)}`}; payer USDC moved ${usdc(moved)}`,
       rest[1]![1]!.gas,

@@ -1,6 +1,7 @@
 import { CHAIN_ID } from "@/lib/arc/constants";
 import { BILL_IDS, runBills } from "./bills";
 import { CHECKS, type CheckId, type CheckResult, type RunLine } from "./catalogue";
+import { publicReason, SuiteError } from "./errors";
 import { GUARD_IDS, runGuard } from "./guard";
 import { tidy, type Row } from "./kit";
 import { primaryProvider, simChainId, simHead, startUsage } from "./simulate";
@@ -11,7 +12,7 @@ export async function runSuite(emit: (line: RunLine) => void): Promise<void> {
   startUsage();
   const provider = primaryProvider();
   const chain = await simChainId();
-  if (chain !== CHAIN_ID) throw new Error(`${provider} reports chain ${chain}, not Arc mainnet ${CHAIN_ID}.`);
+  if (chain !== CHAIN_ID) throw new SuiteError(`${provider} reports chain ${chain}, not Arc mainnet ${CHAIN_ID}.`);
   const pin = await simHead();
   emit({ type: "start", block: pin.number.toString(), timestamp: Number(pin.timestamp), total: CHECKS.length, cached: false, ageSeconds: 0, provider });
 
@@ -47,7 +48,7 @@ export async function runSuite(emit: (line: RunLine) => void): Promise<void> {
       await part(pin, row, state);
     } catch (e) {
       // C19: a part that could not start never shows its rows as refused.
-      const reason = `could not run: ${((e as Error).message || "unknown error").slice(0, 200)}`;
+      const reason = `could not run: ${publicReason(e)}`;
       for (const id of ids) row(id, false, reason, reason, null);
     }
   }

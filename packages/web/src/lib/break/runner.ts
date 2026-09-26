@@ -1,4 +1,5 @@
 import { RUN_CACHE_MS } from "./constants";
+import { publicReason } from "./errors";
 import type { RunLine } from "./catalogue";
 import { providersUsed } from "./simulate";
 import { runSuite } from "./suite";
@@ -35,7 +36,7 @@ async function execute(run: Run) {
       providers: providersUsed(),
       summary:
         passed === results.length
-          ? `All ${results.length} checks behaved as the threat model says: every attack was refused or held, and the named residuals (A4, and E5 for enrol) behaved exactly as documented.`
+          ? `All ${results.length} checks behaved as the threat model says: every attack was refused or held. The two known, accepted gaps, A4 and E5, behaved as the threat model says: each only affects the attacker's own loan.`
           : [
               broken ? `${broken} of ${results.length} checks did not behave as expected.` : null,
               notRun ? `${notRun} could not run this time; nothing is claimed for ${notRun === 1 ? "it" : "them"}.` : null,
@@ -45,7 +46,7 @@ async function execute(run: Run) {
     });
   } catch (e) {
     run.failed = true;
-    push({ type: "fatal", reason: `could not run: ${((e as Error).message || "unknown error").slice(0, 240)}` });
+    push({ type: "fatal", reason: `could not run: ${publicReason(e)}` });
   } finally {
     run.done = true;
     run.finishedAt = Date.now();

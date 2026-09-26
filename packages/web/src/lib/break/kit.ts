@@ -4,6 +4,7 @@ import { OTHER_USDC_CIRBTC_MARKET } from "@/lib/pay/constants";
 import { erc20Abi } from "./abi";
 import type { CheckId } from "./catalogue";
 import { MOCK_ORACLE_CODE } from "./constants";
+import { SuiteError } from "./errors";
 import { decodeRevert, type Call, type SimResult } from "./simulate";
 
 export const STATUS = ["None", "Open", "Paid", "Void"] as const;
@@ -66,7 +67,7 @@ export type LoanNow = { shares: bigint; collateral: bigint; price: bigint; total
 // borrow or repay on Morpho that puts the loan at `level`, following Morpho's own rounding (shares minted rounded
 // up on a borrow, burned rounded down on a repay, debt read back rounded up), so it lands at or just under it.
 export function loanPremise(b: LoanNow, level: bigint): { kind: "borrow" | "repay" | "none"; amount: bigint } {
-  if (b.shares === 0n || b.collateral === 0n) throw new Error("The payer has no USDC-market loan with collateral behind it, so no premise can place it at a level.");
+  if (b.shares === 0n || b.collateral === 0n) throw new SuiteError("The payer has no USDC-market loan with collateral behind it, so no premise can place it at a level.");
   const value = (b.collateral * b.price) / ORACLE_SCALE;
   const maxDebt = (value * level) / WAD;
   const P = b.totalAssets + 1n;
@@ -116,13 +117,13 @@ export function verifyUsdcParams(p: Params) {
     isAddressEqual(p.oracle, USDC_MARKET_ORACLE) &&
     isAddressEqual(p.irm, ADAPTIVE_CURVE_IRM) &&
     p.lltv === USDC_MARKET_LLTV;
-  if (!same) throw new Error("Morpho's USDC market params do not match the fixed market.");
+  if (!same) throw new SuiteError("Morpho's USDC market params do not match the fixed market.");
 }
 
 // Runtime code for the mock oracle: a fixed price, and the real oracle's feeds so the freshness checks still read Chainlink.
 export function mockOracleCode(price: bigint, baseFeed: Address, quoteFeed: Address): Hex {
   const swap = (code: string, sentinel: string, value: string) => {
-    if (code.split(sentinel).length !== 2) throw new Error(`MockOracle sentinel ${sentinel.slice(0, 8)} not found exactly once.`);
+    if (code.split(sentinel).length !== 2) throw new SuiteError(`MockOracle sentinel ${sentinel.slice(0, 8)} not found exactly once.`);
     return code.replace(sentinel, value);
   };
   let code = MOCK_ORACLE_CODE.toLowerCase();
