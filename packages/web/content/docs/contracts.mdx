@@ -1,21 +1,23 @@
 ---
 title: Contracts and addresses
-description: Every address Adag uses on Arc mainnet, the deployment, the live proof and how to rerun it yourself.
+description: Every address Adag uses on Arc mainnet, the three deployments, the live proofs, the attack suites and the contract reference.
 ---
 
 Everything below is on Arc mainnet, chain `5042`. Explorer: [explorer.arc.io](https://explorer.arc.io). Every address is fixed in the app when it is built, and nothing read from the chain or a link can replace one.
 
-## AdagBills
+## Adag's contracts
 
-| | |
-| --- | --- |
-| Address | [`0x6F2199e0A04e5e8ba67c89C467b6DF168b01137E`](https://explorer.arc.io/address/0x6F2199e0A04e5e8ba67c89C467b6DF168b01137E) |
-| Source | Verified with an exact match on [Sourcify](https://repo.sourcify.dev/5042/0x6F2199e0A04e5e8ba67c89C467b6DF168b01137E) and on [explorer.arc.io](https://explorer.arc.io/address/0x6F2199e0A04e5e8ba67c89C467b6DF168b01137E?tab=contract) |
-| Deployed | Transaction [`0x758e...6e50`](https://explorer.arc.io/tx/0x758e4463ec738c675e4d9615aff67d9864359c7a30b3a77bd7b2689d30a66e50), block 22,727,688 |
-| Compiler | solc 0.8.30, optimizer 200 runs, EVM prague |
-| Owner | None. No admin, no upgrade, no pause |
+Each is an exact source match on Sourcify and on explorer.arc.io, compiled with solc 0.8.30, optimizer 200 runs, EVM prague. None has an owner, an admin key, an upgrade path or a pause switch.
 
-## Arc and Morpho contracts Adag uses
+| Contract | Address | Deployed |
+| --- | --- | --- |
+| **AdagBills**, the bill book the app uses | [`0xaf6C47ae3e2ccD2Cd829Dd8a1DcCb7a7665c08cB`](https://explorer.arc.io/address/0xaf6C47ae3e2ccD2Cd829Dd8a1DcCb7a7665c08cB) ([Sourcify](https://repo.sourcify.dev/5042/0xaf6C47ae3e2ccD2Cd829Dd8a1DcCb7a7665c08cB)) | [`0xad01...64b1`](https://explorer.arc.io/tx/0xad01e84dfff670f8b63346d744c5690c14d07457f1ceeb23c43cfa51cdfc64b1), block 22,859,681, 26 September 2026, 2,227,984 gas, 0.044560 USDC |
+| **AdagGuard**, the loan guard | [`0x9A3F3eE50Ae108124C7Cf54a1b68c14fe5800806`](https://explorer.arc.io/address/0x9A3F3eE50Ae108124C7Cf54a1b68c14fe5800806) ([Sourcify](https://repo.sourcify.dev/5042/0x9A3F3eE50Ae108124C7Cf54a1b68c14fe5800806)) | [`0xa969...1e1c`](https://explorer.arc.io/tx/0xa969222d5ec16e0481063d2f1426ae86c56414665b1ab27da880f04859291e1c), block 22,859,780, 26 September 2026, 1,778,869 gas, 0.035577 USDC |
+| AdagBills, first deployment, kept as history | [`0x6F2199e0A04e5e8ba67c89C467b6DF168b01137E`](https://explorer.arc.io/address/0x6F2199e0A04e5e8ba67c89C467b6DF168b01137E) ([Sourcify](https://repo.sourcify.dev/5042/0x6F2199e0A04e5e8ba67c89C467b6DF168b01137E)) | [`0x758e...6e50`](https://explorer.arc.io/tx/0x758e4463ec738c675e4d9615aff67d9864359c7a30b3a77bd7b2689d30a66e50), block 22,727,688, 25 September 2026 |
+
+The first deployment has no way to record an existing loan. It stays live and immutable, and its bills open at `/bill/first/N`; the app writes every new bill to the current AdagBills. The two deployments both number bills from 1, so a bill is always the pair (contract, id).
+
+## Arc, Morpho, Chainlink and Safe contracts Adag uses
 
 | What | Address |
 | --- | --- |
@@ -29,8 +31,11 @@ Everything below is on Arc mainnet, chain `5042`. Explorer: [explorer.arc.io](ht
 | Oracle, USDC market | [`0x2AA87fF48933Ce6aBA240BEE916Fc2e6Ec1e51Ab`](https://explorer.arc.io/address/0x2AA87fF48933Ce6aBA240BEE916Fc2e6Ec1e51Ab) |
 | Oracle, EURC market | [`0x6945246777DfdF4744D957323857F797Ec19Ca1e`](https://explorer.arc.io/address/0x6945246777DfdF4744D957323857F797Ec19Ca1e) |
 | Interest rate model, both markets | [`0xF02615d094Fc02fC031C35fe705e175aA4653f20`](https://explorer.arc.io/address/0xF02615d094Fc02fC031C35fe705e175aA4653f20) |
-| Chainlink BTC/USD | [`0x7777547914e03BCbB04Ae034942765a0dbb26aE3`](https://explorer.arc.io/address/0x7777547914e03BCbB04Ae034942765a0dbb26aE3) |
-| Chainlink EUR/USD | [`0xa4266689D107aF71c7dBE975cfB92aB40E7b4EFE`](https://explorer.arc.io/address/0xa4266689D107aF71c7dBE975cfB92aB40E7b4EFE) |
+| Chainlink BTC/USD, the feed the oracles read | [`0x7777547914e03BCbB04Ae034942765a0dbb26aE3`](https://explorer.arc.io/address/0x7777547914e03BCbB04Ae034942765a0dbb26aE3) |
+| Chainlink EUR/USD, the feed the oracles read | [`0xa4266689D107aF71c7dBE975cfB92aB40E7b4EFE`](https://explorer.arc.io/address/0xa4266689D107aF71c7dBE975cfB92aB40E7b4EFE) |
+| BTC/USD aggregator, whose `AnswerUpdated` wakes the keeper | [`0x733FE1bA02ea9003C3CFbf5dcc41cf685fF64362`](https://explorer.arc.io/address/0x733FE1bA02ea9003C3CFbf5dcc41cf685fF64362) |
+| EUR/USD aggregator | [`0xCEDbC96d866EBe46dcbeF8Ed12F9feA2C464d88F`](https://explorer.arc.io/address/0xCEDbC96d866EBe46dcbeF8Ed12F9feA2C464d88F) |
+| Safe MultiSendCallOnly v1.4.1, the batch a Safe payment runs | [`0x9641d764fc13c8B624c04430C7356C1C7C8102e2`](https://explorer.arc.io/address/0x9641d764fc13c8B624c04430C7356C1C7C8102e2) |
 
 ## The two Morpho markets
 
@@ -39,19 +44,44 @@ Everything below is on Arc mainnet, chain `5042`. Explorer: [explorer.arc.io](ht
 | USDC lent against cirBTC | [`0xc2db905f...225815d`](https://app.morpho.org/arc/market/0xc2db905f174e5defcce01d321b09f15f78856a36a21b90cc7e1abbc29225815d) | 86% |
 | EURC lent against cirBTC | [`0x6ea1ea96...137daf4`](https://app.morpho.org/arc/market/0x6ea1ea96a1cc671615f3a3bdf51481c5b79e362a8b634396e680d1070137daf4) | 86% |
 
-A second, smaller USDC/cirBTC market exists on Arc with a different oracle. Adag never uses it: market details must hash to one of the two ids above before anything is signed.
+A second, smaller USDC/cirBTC market exists on Arc with a different oracle. Adag never uses it: market details must hash to one of the two ids above before anything is signed, and both contracts refuse any other id.
 
-## The live proof
+## The live proofs
 
-One command proves the whole promise on Arc mainnet: a supplier bills 1 USDC, and the payer settles it from bitcoin in one signature, with the bitcoin pledged and not sold.
+### A bill paid from bitcoin, and a loan recorded, on the current AdagBills
 
 ```bash
 node packages/contracts/prove-it/prove-it.mjs
 ```
 
-That is a dry run: every step is simulated from a real mainnet block with `eth_simulateV1`, so balances, the Morpho market and the price feed are live, and nothing is signed or sent. The same script with `--broadcast` sends it for real. It checks the chain id is 5042 before anything else, and it exits 0 only if every check passes: the supplier's USDC rose by exactly the bill, `BillPaid` came from AdagBills, the Memo carried the right bill and reference, and the payer's bitcoin, in the wallet plus pledged, did not change.
+That is a dry run on the current AdagBills: every step is simulated from a real mainnet block with `eth_simulateV1`, so balances, the Morpho market and the price feed are live, and nothing is signed or sent. It also proves the promise of recording a loan, as a real borrower above 40%. The same script with `--broadcast` sends the payment for real, and `--target first` runs it against the first deployment. It checks the chain id is 5042 before anything else, and it exits 0 only if every check passes.
 
-It was first run for real on 25 September 2026:
+It was run for real on 26 September 2026:
+
+| Step | Transaction | Gas | Fee |
+| --- | --- | ---: | ---: |
+| Supplier writes bill #1: 1.00 USDC, reference ADAG-PROOF-0001 | [`0x87b4...035e`](https://explorer.arc.io/tx/0x87b47f99accd3ba7d1a844f5b9c8f5e408e32bf871f21b72376ca31be487035e) | 196,806 | 0.004133 USDC |
+| Payer pledges 0.00002943 cirBTC, borrows 1.00 USDC and pays bill #1 through Memo, in one signature | [`0x7dba...3ad0`](https://explorer.arc.io/tx/0x7dba4d03f85fd5c323c2172252e55a8d9ed00f0903a2a0ccf1313a84687e3ad0) | 394,110 | 0.008276 USDC |
+
+Read back from the chain afterwards: bill #1 is Paid, `BillPaid` came from AdagBills with `loanChecked` true, the supplier's USDC rose by exactly 1.000000, no bitcoin was sold, and the payer's loan sat at 39.07%, under the 40% line. The same run simulated the recording promise on a real borrower at 70.26%: a cash payment was refused before recording; after recording, borrowing more in the paying batch was refused, and the same bill paid from cash went through.
+
+### The guard's first repayment
+
+```bash
+node packages/contracts/prove-it/guard-prove.mjs
+```
+
+Run for real on 26 September 2026: the demo payer set a rule of 35% down to 30% and approved 1 USDC, and a second wallet called `protect`.
+
+| Step | Transaction | Gas | Fee |
+| --- | --- | ---: | ---: |
+| Payer sets the rule and approves 1 USDC, in one signature | [`0x80bb...1ceb`](https://explorer.arc.io/tx/0x80bb926d550fbf485931a6a8939d01d5157f6c45cfad0b78c549f25c3d861ceb) | 180,883 | 0.003799 USDC |
+| A second wallet calls `protect`: repaid 0.464348 USDC, 39.07% to 30.00% | [`0xb54f...9880`](https://explorer.arc.io/tx/0xb54f4242b994d30f62022ceb395122bc3a1a83ca63220a970c5448085b5c9880) | 211,485 | 0.004441 USDC |
+| The same wallet calls `protect` again at the same price: repaid 0 | [`0x60f9...8a37`](https://explorer.arc.io/tx/0x60f9ad40a0b4ad6caacd71d81aed447b4e58c8f86a600f9f3e9271625b538a37) | 112,339 | 0.002359 USDC |
+
+`quote` for that block said it would repay 0.464348 USDC, and `protect` repaid exactly that from the payer's own wallet. The payer's approval fell by exactly the repayment, AdagGuard held nothing before or after, and no bitcoin was sold.
+
+### The first deployment, 25 September 2026
 
 | Step | Transaction | Gas | Fee |
 | --- | --- | ---: | ---: |
@@ -59,16 +89,81 @@ It was first run for real on 25 September 2026:
 | Supplier writes bill #1: 1.00 USDC, reference ADAG-PROOF-0001 | [`0x13fb...f888`](https://explorer.arc.io/tx/0x13fb435c909476dc6e1da618d43fc3f81b856e3d97c52cdb1f948904d20af888) | 196,734 | 0.004131 USDC |
 | Payer pledges 0.00003133 cirBTC, borrows 1.00 USDC and pays bill #1 through Memo, in one signature | [`0x6987...2292`](https://explorer.arc.io/tx/0x6987964bddd7f8a8fe2a59d6de9baaa6ac37b8a720aae5900d8cb9af0eaf2292) | 406,167 | 0.008530 USDC |
 
-Read back from the chain afterwards: bill #1 is Paid, the supplier's USDC rose by exactly 1.000000, and the payer's Morpho loan sits at 38.08% of the bitcoin's value, exactly the position Adag recorded. The loan was left open on purpose, so the app has a real bitcoin-backed position to show.
+The records of all three runs are in `packages/contracts/deployments/`: `prove-it-2026-09-26.md`, `guard-prove-2026-09-26.md` and `prove-it-2026-09-25.md`.
 
-## The attack suite
+## The attack suites
 
 ```bash
 node packages/contracts/prove-it/attack.mjs
+node packages/contracts/prove-it/guard-attack.mjs
 ```
 
-This tries to break the live contract, with the demo wallet's real Morpho loan, in 18 simulated attacks: paying a paid bill again, re-borrowing the same shares against less bitcoin, new debt past 40%, paying your own bill, fake currencies, zero amounts, over-long references, cancelling someone else's bill, paying without an allowance, a 25% price drop, and a lying RPC. Nothing is signed or sent. It prints each attack, what should stop it and the decoded revert, and exits 0 only if every row behaves as the threat model says. The full results are on [Audit status](/docs/security/audit-status), and you can [try some yourself](/docs/security/break).
+Each tries to break the live contracts with the demo wallet's real Morpho loan, simulated from a real mainnet block, with nothing signed or sent, and exits 0 only if every row behaves as the threat model says. The latest runs against the live contracts:
+
+| Suite | Target | Block | Result |
+| --- | --- | --- | --- |
+| `attack.mjs` | AdagBills | 22,863,576 | 23 of 23 |
+| `attack.mjs` | AdagBills, first deployment | 22,863,531 | 18 of 18 |
+| `guard-attack.mjs` | AdagGuard | 22,863,638 | 14 of 14 |
+
+The rows are on [Audit status](/docs/security/audit-status#the-attack-suites-on-live-state), and you can [run some yourself](/docs/security/break).
 
 ## Reading Adag from your own code
 
-The ABI is in the repository at `packages/contracts/deployments/AdagBills.abi.json`. Amounts are integers in base units: 6 decimals for USDC and EURC, 8 for cirBTC. A bill's status is `0` None, `1` Open, `2` Paid, `3` Void. Treat a bill as paid only from `bill(id).status`, or from a `BillPaid` event emitted by AdagBills' address. A `Memo` event on its own proves nothing.
+The ABIs are in the repository at `packages/contracts/deployments/2026-09-26/AdagBills.abi.json` and `AdagGuard.abi.json`, next to the Standard JSON inputs each was verified with; the first deployment's are in `2026-09-25/`. Amounts are integers in base units: 6 decimals for USDC and EURC, 8 for cirBTC. A bill's status is `0` None, `1` Open, `2` Paid, `3` Void. Treat a bill as paid only from `bill(id).status` on its own contract, or from a `BillPaid` event emitted by that contract's address. A `Memo` event on its own proves nothing.
+
+## AdagBills reference
+
+It fixes Morpho, USDC, EURC, cirBTC, the two market ids, the 40% line (`MAX_LTV_WAD = 0.4e18`), the price windows (26 hours for BTC/USD, 96 hours for EUR/USD), the reference cap (140 bytes) and the page size (100) as public constants.
+
+| Function | Who calls it | What it does |
+| --- | --- | --- |
+| `createBill(address currency, uint256 amount, uint64 due, bytes ref) returns (uint256 id)` | A supplier | Writes an Open bill payable to the caller. Emits `BillCreated` |
+| `voidBill(uint256 id)` | The bill's supplier | Cancels an Open bill. Emits `BillVoided` |
+| `pay(uint256 id)` | A payer through Memo in a Multicall3From batch, or a Safe directly | Refuses a payer who enrolled in this block, marks the bill Paid, records the payer's position in both markets, moves exactly the amount and checks the supplier was credited, then runs the 40% check if the position became riskier. Emits `DebtRecorded`, then `BillPaid` |
+| `enrol()` | A borrower, or a Safe | Records the caller's own Morpho position in both markets and the block. Moves no tokens. Emits `Enrolled` |
+
+| View | What it returns |
+| --- | --- |
+| `bill(uint256 id)` | `(payee, status, due, currency, createdAt, amount, payer, paidAt, ref)` |
+| `billCount()` | Bills ever written, the highest id |
+| `billsOfPayee(address, uint256 offset, uint256 limit)`, `paymentsOfPayer(address, uint256 offset, uint256 limit)` | Bill ids, oldest first, and the total; at most 100 per page |
+| `seenPosition(address payer, bytes32 marketId)` | The shares and collateral last recorded, at a payment or at `enrol` |
+| `enrolledAt(address payer)` | The block the payer last enrolled in, or 0 |
+| `loanToValue(address user, bytes32 marketId)` | Debt over collateral value, WAD, rounded up |
+| `collateralNeeded(address user, bytes32 marketId, uint256 extraBorrow)` | Extra cirBTC so debt plus `extraBorrow` sits at or under 40% |
+| `priceStatus(bytes32 marketId)` | Whether new debt would pass the freshness check now, and each feed's update time |
+
+| Event | Meaning |
+| --- | --- |
+| `BillCreated(uint256 indexed id, address indexed payee, address indexed currency, uint256 amount, uint64 due, bytes ref)` | A bill was written |
+| `BillVoided(uint256 indexed id, address indexed payee)` | A bill was cancelled |
+| `BillPaid(uint256 indexed id, address indexed payer, address indexed payee, address currency, uint256 amount, bool loanChecked)` | The proof of payment |
+| `DebtRecorded(address indexed payer, bytes32 indexed marketId, uint256 borrowShares, uint256 collateral, bool checked)` | A new position recorded for the payer |
+| `Enrolled(address indexed payer, uint256 usdcShares, uint256 usdcCollateral, uint256 eurcShares, uint256 eurcCollateral)` | A borrower recorded their existing position |
+
+Errors: `ZeroAmount`, `ReferenceTooLong`, `UnsupportedCurrency`, `UnknownBill`, `BillNotOpen`, `NotPayee`, `SelfPayment`, `EnrolledThisBlock` (recorded in this block: pay from the next one), `PayeeNotCredited`, `BadMarket`, `BadFeed`, `StalePrice`, `ZeroPrice`, `LtvAboveLimit`, `PageTooLarge`. Through a batch they arrive wrapped in Memo's `MemoFailed(bytes returnData)`.
+
+## AdagGuard reference
+
+It fixes Morpho, USDC, EURC, cirBTC, the same two market ids and the page size (100). A rule is `(triggerWad, targetWad, expiry)` in WAD, with `expiry` 0 for no end date. The borrower's approval of the loan token to AdagGuard is the most it can ever take.
+
+| Function | Who calls it | What it does |
+| --- | --- | --- |
+| `setRule(bytes32 marketId, uint64 triggerWad, uint64 targetWad, uint64 expiry)` | The borrower | Stores the caller's own rule and adds the caller to the list of rule holders. Emits `RuleSet` |
+| `clearRule(bytes32 marketId)` | The borrower | Deletes the caller's rule; never reads Morpho, so it always works. Emits `RuleCleared` |
+| `protect(address borrower, bytes32 marketId) returns (uint256 repaid)` | Anyone | At or above the trigger and before the end date, pulls from the borrower's wallet only what brings the loan back to the target, capped by the approval, the balance and the debt rounded down, and repays it to Morpho for the borrower. Otherwise returns 0 and emits nothing. Emits `Protected` |
+
+| View | What it returns |
+| --- | --- |
+| `ruleOf(address borrower, bytes32 marketId)` | The rule, all zeros for none |
+| `quote(address borrower, bytes32 marketId)` | `(wouldAct, amount, ltvWad)` from the same computation `protect` runs |
+| `holderCount()`, `holders(uint256 offset, uint256 limit)` | The rule holders, at most 100 per page |
+
+| Event | Meaning |
+| --- | --- |
+| `RuleSet(address indexed borrower, bytes32 indexed marketId, uint64 triggerWad, uint64 targetWad, uint64 expiry)` | A rule was saved |
+| `RuleCleared(address indexed borrower, bytes32 indexed marketId)` | A rule was stopped |
+| `Protected(address indexed borrower, bytes32 indexed marketId, uint256 repaid, uint256 ltvBeforeWad, uint256 ltvAfterWad)` | The guard repaid part of a loan |
+
+Errors: `BadMarket`, `ZeroTarget`, `TargetNotBelowTrigger`, `TriggerNotBelowLiquidation`, `ExpiryInPast`, `NoRule`, `PageTooLarge`, and three that undo a `protect` whose books do not balance: `RepaidNotPulled`, `GuardBalanceChanged`, `MorphoAllowanceLeft`.

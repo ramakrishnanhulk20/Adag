@@ -1,13 +1,17 @@
 ---
 title: FAQ
-description: Straight answers about company use, bitcoin price drops, custody, the 40% cap, wallets, costs, audits, Arc and stale prices.
+description: Straight answers about company use, Safe payments, bitcoin price drops, the loan guard, recording a loan, alerts, custody, the 40% cap, wallets, costs, audits, Arc and stale prices.
 ---
 
 ## Can a company use Adag?
 
 Yes, and it is who Adag is built for first: a business or crypto team that holds bitcoin and pays suppliers in dollars or euros. The basket pays up to 10 bills in one signature, grouped by currency, each with the supplier's invoice number attached and each payable only once. The loan it draws is capped at 40% of the bitcoin's value by the contract.
 
-Today the paying wallet must be an ordinary wallet that signs its own transactions, such as MetaMask or Rabby, held by whoever on the finance team is trusted to sign. A Safe multisig cannot pay through Adag yet, because Arc's batching acts as the wallet that signed the transaction and a Safe does not sign its own. Safe payments are on the list in [What's next](/docs#whats-next). Today, every payment is public on Arc with its bill number, amount, reference and transaction link, and [Your wallet](/app) lists the bills and loans.
+It can pay from an ordinary wallet held by whoever on the finance team is trusted to sign, or from the company's Safe, where the payment waits for the owners' signatures. Every payment is public on Arc with its bill number, amount, reference and transaction link, [Your wallet](/app) lists the bills and loans, and its export gives your accountant a CSV of them.
+
+## Can my Safe pay?
+
+Yes, for bills on the current AdagBills. A bill or a basket of up to 10 becomes one proposal in the Safe's queue. Before any owner signs, the app reads from the Safe on Arc that it is a Safe of version 1.3.0 or later, that the connected wallet is an owner, and the nonce, and runs the batch as the Safe would. The other owners confirm it in Safe's own app, and it executes as one all-or-nothing batch: if any step fails, nothing moves and the Safe's nonce is not used up. Whether a bill is paid is read from AdagBills, never from Safe's service. Details on [Safe payments](/docs/safe).
 
 ## What if bitcoin falls?
 
@@ -15,7 +19,19 @@ Nothing happens to your payment: the supplier was paid in full the moment the tr
 
 Adag lets a payment take the loan up to 40% of the bitcoin's value. Morpho only liquidates at 86%. A loan taken at exactly 40% would need bitcoin to fall about 53.5% before Morpho could liquidate it. In practice the app pledges 5% more than the minimum, so a fresh loan usually sits nearer 38%, and bitcoin would have to fall about 55.8%.
 
-After the payment, the loan is an ordinary Morpho loan in your name. Adag does not watch it. Interest adds to it slowly. If bitcoin falls a long way, you can pledge more cirBTC or close the loan from [Your wallet](/app), or repay part of it on Morpho's own app, to move away from Morpho's line.
+After the payment, the loan is an ordinary Morpho loan in your name, and interest adds to it slowly. If you set the [loan guard](/docs/loan-guard), it repays part of the loan from your own USDC or EURC when it crosses your trigger, back down to your target. You can also pledge more cirBTC, repay some or close the loan from [Your wallet](/app), and [Telegram alerts](/docs/alerts) can tell you when a loan passes a level you choose.
+
+## Does the guard stop liquidation?
+
+It lowers the chance; it does not remove it. The guard repays only what brings the loan back to your target, only from your own wallet, and only up to the approval you gave it. It cannot act if your wallet holds none of the loan's currency, if the approval is used up, or if nobody calls `protect`. A single price jump from below your trigger to past 86% outruns it, and interest can carry a loan across the trigger between two price updates. Adag's keeper calls `protect` when Chainlink's price updates and once a day, but anyone may call it, you included.
+
+## What does recording my loan change?
+
+Only what Adag counts as new. A wallet that borrowed on Morpho before it used Adag has a recorded position of zero, so its whole loan counts as new debt at its first payment, and above 40% that payment is refused even from cash. `enrol()` records your position exactly as Morpho reports it, in one signature, with no money moving. From the next block on, a cash payment goes through, while borrowing more, or taking collateral away, is still checked against the 40% line. It does not change your loan or make it safer. Recording and paying in the same block is refused, so new debt cannot be borrowed, recorded and spent at once.
+
+## Who can see that I have alerts?
+
+Nobody but you. No page and no server route answers whether a wallet has alerts or which chat it uses, and every answer is the same either way. Linking, changing your levels and stopping alerts each need a message your wallet signs; `/stop` in the chat works too. A chat that already gets alerts for one wallet cannot be taken over by another. More on [Telegram alerts](/docs/alerts).
 
 ## Where is the bitcoin?
 
@@ -25,7 +41,7 @@ When you pay from bitcoin, your cirBTC is pledged as collateral in your own Morp
 
 ## Can Adag take my bitcoin?
 
-No. Your cirBTC is pledged to Morpho, in your own name, and only you can withdraw it. Morpho can take it only by liquidation, if the loan reaches its 86% line. AdagBills has no function that moves cirBTC, no owner, no admin key and no upgrade path. The only token movement the contract can cause is the exact bill amount, from you, to that bill's supplier, inside the call that marks the bill paid.
+No. Your cirBTC is pledged to Morpho, in your own name, and only you can withdraw it. Morpho can take it only by liquidation, if the loan reaches its 86% line. Neither AdagBills nor AdagGuard has a function that moves cirBTC, an owner, an admin key or an upgrade path. The only token movement AdagBills can cause is the exact bill amount, from you, to that bill's supplier, inside the call that marks the bill paid. The only one AdagGuard can cause is a repayment of your own loan from your own USDC or EURC, within the approval you gave it and never past your target.
 
 The one thing to be aware of is the page itself. Your wallet signs a batch built by this website, and a compromised website could build a harmful batch. That risk is named in the [security overview](/docs/security), and it is why every address the app uses is fixed at build time and published on [Contracts and addresses](/docs/contracts).
 
@@ -37,7 +53,7 @@ Because paying a bill should not be a leveraged bet. At 86% a small price move c
 
 Plain wallets that sign their own transactions, such as MetaMask and Rabby. Arc's batching runs each call as the wallet that signed the transaction, which is what lets one signature pledge, borrow and pay.
 
-Smart-contract wallets (Safe, ERC-4337 accounts, Circle's smart wallets) cannot pay through Adag, and neither can sponsored or relayed transactions. A wallet upgraded under EIP-7702 can pay as long as it sends its own transaction, which was tested on a mainnet fork. When you connect, the app reads your wallet's code on Arc and tells you plainly if it cannot pay.
+A Safe pays through its own path, as one Safe transaction its owners approve (see [Can my Safe pay?](#can-my-safe-pay)). Other smart-contract wallets (ERC-4337 accounts, Circle's smart wallets) cannot pay through Adag, and neither can sponsored or relayed transactions. A wallet upgraded under EIP-7702 can pay as long as it sends its own transaction, which was tested on a mainnet fork. When you connect, the app reads your wallet's code on Arc and tells you plainly if it cannot pay.
 
 ## What does it cost?
 
@@ -51,12 +67,15 @@ Adag charges no fee: the contract has no way to take one. You pay Arc's network 
 | Pay three bills in one signature | about 0.017 USDC |
 | Close a loan in full | about 0.003 USDC |
 | Cancel a bill | about 0.0006 USDC |
+| Record an existing loan, once | about 0.002 USDC |
+| Set a loan guard rule, first time | about 0.003 USDC |
+| A guard repayment, paid by whoever calls it (usually Adag's keeper) | about 0.004 USDC |
 
 Morpho's borrow rate moves with demand. The live rate, read from the chain, is on the landing page.
 
 ## Is it audited?
 
-Not by an outside firm. It is self-audited, with the evidence published: 73 tests including fuzzing and invariants, three static analysis tools with no real bugs, three separate reviews by a reviewer who did not write the code (one found a contract bypass, fixed before deploy; the last found three app issues, fixed before release), an 18-attack suite run against the live contract, and source verification on Sourcify and explorer.arc.io. See [Audit status](/docs/security/audit-status).
+Not by an outside firm. It is self-audited, with the evidence published: a threat model of 60 rules, each part written before the code it covers; 131 tests including 8 fuzz tests and 12 invariants; three static analysis tools with no real bugs in either contract; separate reviews by a reviewer who did not write the code, of both contracts and of the app; two security passes over the web app and its server routes, with every finding fixed or closed with a reason; attack suites run against the live contracts; and source verification on Sourcify and explorer.arc.io. See [Audit status](/docs/security/audit-status).
 
 ## Why Arc?
 

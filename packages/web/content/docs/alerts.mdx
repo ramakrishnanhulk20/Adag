@@ -1,0 +1,36 @@
+---
+title: Telegram alerts
+description: A message when a loan gets close to a level you choose, and one each time the loan guard repays. Linked with a one-time code and a message your wallet signs.
+---
+
+Alerts tell you on Telegram when one of your loans rises past a level you set, and each time the [loan guard](/docs/loan-guard) repays part of it. They are best effort: they never cause a transaction, and the guard does not depend on them.
+
+## Linking a chat
+
+On [Alerts](/app/protect), with your wallet connected:
+
+1. **Get Telegram alerts** gives you a one-time code inside a link to Adag's bot. The code is random, works for ten minutes, and can be used once.
+2. Open the link and press **Start** in Telegram. The bot tells the page which chat pressed it.
+3. Your wallet signs a message that names the action, this site, chain 5042, the code, the chat's name and id, and an expiry. Signing costs nothing and sends no transaction.
+4. The chat gets a message that alerts are on for your wallet, named in full.
+
+The chat always comes from Telegram itself, never from a form. A chat that already gets alerts for one wallet cannot be taken by another wallet's link: the attempt is refused, and the chat is told which wallet tried. To switch wallets, send `/stop` in the chat first. If your wallet moves to a new chat, the old chat is told.
+
+## What the alerts say
+
+Fixed words, numbers and Adag's own address, sent as plain text with nothing formatted:
+
+- your loan in USDC or EURC has passed one of your levels, with its loan-to-value;
+- the guard repaid a given amount, with the loan-to-value before and after.
+
+Nothing written by anyone else ever appears in an alert: no bill reference, no name, no link but Adag's own. Levels are 60% and 75% until you set your own, one to three of them, each between 5% and 85%. A level alerts once as the loan rises past it, and again only after the loan has fallen back below it.
+
+## Changing or stopping them
+
+**Sign and save levels** and **Stop alerts for this wallet** each ask your wallet to sign a message with a fresh nonce and an expiry, used once. Sending `/stop` in the chat also stops them, with no signature, because only that chat can send it.
+
+## Who can see that you have alerts
+
+Nobody but you. No page and no server route answers whether a wallet has alerts or which chat it uses; the answers are the same either way. This page remembers only what your own browser did after your wallet signed. The server keeps the link between your wallet and your chat in its store, with nothing else about you.
+
+Alerts link a wallet that can sign a message. A Safe cannot sign the link message, so alerts cover a wallet's own loans.

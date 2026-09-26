@@ -1,0 +1,64 @@
+---
+title: The loan guard
+description: AdagGuard repays part of your own loan from your own USDC or EURC when it crosses a trigger you choose, just enough to bring it back to your target.
+---
+
+A loan against bitcoin moves with the price. Adag keeps it at or under 40% at the moment you pay, but after that the price keeps moving, and Morpho liquidates at 86%. The loan guard is the part that watches afterwards.
+
+You choose a **trigger**, a **target** and how much USDC or EURC the guard may use. When the loan reaches the trigger, the guard repays part of it from your own wallet, only as much as brings it back to the target. Your bitcoin stays pledged and is never sold.
+
+It lives in its own contract, [AdagGuard](https://explorer.arc.io/address/0x9A3F3eE50Ae108124C7Cf54a1b68c14fe5800806), which has no owner, no admin key, no upgrade path and no pause switch, and holds no tokens between calls.
+
+## Setting it up
+
+On each loan in [Your wallet](/app), open **Protect this loan** and choose:
+
+- **Trigger**: the loan-to-value at which the guard steps in, below Morpho's 86% line.
+- **Target**: where it repays down to, below the trigger.
+- **How much it may use**: an amount of the loan's own currency, USDC for a USDC loan and EURC for a EURC loan.
+- **An end date**, if you want one. With none, it stays on until you stop it.
+
+One signature approves exactly the amount you typed to AdagGuard and saves the rule. Before you sign, the page shows what the rule would do at today's price: either that it would not act, or that it will repay about a given amount within minutes because the loan is already past the trigger.
+
+<Callout type="warn" title="The approval is the most it can ever take">
+  The amount you approve is a lifetime ceiling. Each time the guard acts it repays only what brings the loan back to your target, and the approval shrinks by that much. It never approves more than you typed, and never an unlimited amount. On Arc, USDC also pays the network fee, so a USDC rule can use USDC this wallet needs for gas and leave it without enough to send a transaction.
+</Callout>
+
+The loan card then shows the rule, the approval standing beside it, and what the guard would repay right now.
+
+## What happens when the loan crosses the trigger
+
+`protect(borrower, market)` is open to anyone: Adag's keeper, you, or a stranger. That is on purpose. It can only ever repay your own loan, from your own approval, down to your own target, so whoever calls it cannot do anything else with it.
+
+When it runs, AdagGuard:
+
+1. brings Morpho's interest up to date and reads the loan and the oracle price, the same price Morpho liquidates on;
+2. does nothing unless the loan is at or above your trigger and the rule has not ended;
+3. works out the smallest repayment that brings the loan to your target or just under, and caps it at your remaining approval, your wallet's balance and the debt rounded down;
+4. pulls exactly that from your wallet and repays it to Morpho on your behalf;
+5. checks that Morpho took exactly what was pulled, and that no tokens and no approval stayed behind in the guard, or undoes everything.
+
+A second call at the same price finds the loan already at the target and repays nothing. `quote(borrower, market)` gives the same answer for free, from the same computation, so anyone can see what a call would do before sending it.
+
+## The keeper
+
+Adag runs a keeper so you do not have to watch the price. It wakes when Chainlink's BTC/USD or EUR/USD aggregator on Arc publishes a new price, through a signed QuickNode webhook, and once a day on a schedule as a fallback. Each run reads the rule holders from AdagGuard in pages, drops any with no debt or no approval with two cheap reads, asks `quote` about the rest, and calls `protect` for the loans that need it, riskiest first.
+
+The keeper's wallet holds gas only and can send exactly one kind of transaction: `protect`. It spends at most 0.5 USDC of gas in any hour. Because anyone can call `protect`, you never depend on it: you can call it yourself.
+
+## Stopping it
+
+**Stop protecting** on the loan card clears the rule and sets the approval to 0 in the same transaction. Closing the loan in full stops its guard too. `clearRule` never reads Morpho, so it always works.
+
+## What the guard does not promise
+
+The guard lowers the chance of liquidation. It does not remove it.
+
+- It cannot act if your wallet holds none of the loan's currency, if the approval is used up, or if nobody calls `protect`.
+- A single price jump from below the trigger to past 86% outruns it.
+- Interest can carry a loan across the trigger between two price updates, and the keeper wakes on price updates and the daily run.
+- It acts on the oracle's price, the one Morpho liquidates on. If that price is wrong, so is the guard's reaction.
+
+## Proven on mainnet
+
+On 26 September 2026 the demo payer set a rule of 35% down to 30% and approved 1 USDC. A second wallet then called `protect`: it repaid 0.464348 USDC of the payer's own loan from the payer's own wallet, taking it from 39.07% to 30.00%, and the approval fell by exactly that. A repeat call at the same price repaid 0. The transactions are on [Contracts and addresses](/docs/contracts#the-live-proofs), and 14 attacks against the live contract are on [Audit status](/docs/security/audit-status).

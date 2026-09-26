@@ -11,27 +11,45 @@ description: Self-audited, with every result published. What was tested, what wa
 
 | Step | Result |
 | --- | --- |
-| Threat model before code | Written first, with 24 invariants as the definition of done; 6 more for the app layer added at the final review; C31 to C57 written before the code for the components now being built |
-| Tests | 73 passing |
-| Fuzzing | 5 fuzz tests at 1,000 runs each |
-| Invariants | 7, each at 256 runs of 64 random calls |
-| Static analysis | slither, solhint and arc-forge lint: 0 real bugs |
-| Separate reviews | 3: the second found a bypass, fixed before deploy; the third found three app-layer issues, fixed before release |
-| Attack suite on live state | 18 of 18 behave as the threat model says |
-| Live proof on mainnet | A real bill paid from a bitcoin-backed loan |
-| Source verification | Exact match on Sourcify and explorer.arc.io |
+| Threat model before code | C1 to C60, each part written before the code it covers |
+| Tests | 131 passing, in 13 suites, on a fork of Arc mainnet |
+| Fuzzing | 8 fuzz tests at 1,000 runs each |
+| Invariants | 12, each at 256 runs of 64 random calls: 7 for AdagBills, 5 for AdagGuard; plus 5 negative controls that show each detector firing when its protection is removed |
+| Static analysis | slither, solhint and arc-forge lint over both contracts: 0 real bugs |
+| Separate reviews | Of the first contract: the threat model, then the code, which found a bypass fixed before deploy. Of the app: three issues, fixed before release. Of the new contracts: the threat model for them before code, then the code at the backend gate, cleared |
+| Web security passes | 2: the web app and its supply chain, then the keeper, alerts and Safe routes. Every finding fixed or closed with a reason |
+| Attack suites on live state | AdagBills 23 of 23, AdagGuard 14 of 14, the first deployment 18 of 18 |
+| Live proofs on mainnet | A bill paid from a bitcoin-backed loan on each AdagBills deployment, and the guard's first repayment |
+| Source verification | Exact match on Sourcify and explorer.arc.io for all three contracts |
 
 ## Threat model first
 
-Before any contract code, the design was reviewed from a plain description of what Adag does, with security deliberately left out of that description so the review had to reason from scratch. The output is the [threat model](/docs/security/threat-model): what kind of system this is, who can attack it and how, and 24 numbered invariants in section C. Three of them cover features that were never built (a fee sponsor, delegated wallets, an admin), and the contract and the app were built against the rest. The final review added six more for the app layer, C25 to C30, each naming the file and function that upholds it.
+Before any contract code, the design was reviewed from a plain description of what Adag does, with security deliberately left out of that description so the review had to reason from scratch. The output is the [threat model](/docs/security/threat-model): what kind of system this is, who can attack it and how, and numbered invariants in section C that are the definition of done.
 
-A separate reviewer has since written C31 to C57, before any of their code, for the next components: a second AdagBills deployment that lets an existing Morpho borrower enrol, AdagGuard, alerts and Safe payments. They are being built against those invariants now, and none of them is live yet.
+It grew in four steps, each written before the code it covers:
+
+- **C1 to C24**, before the first contract. Three cover features that were never built (a fee sponsor, delegated wallets, an admin).
+- **C25 to C30**, for the app, from the review of the finished app, each naming the file and function that upholds it.
+- **C31 to C57**, before a line of AdagGuard, recording a loan, the keeper, alerts or Safe payments was written, by a separate reviewer working from a plain description of them.
+- **C58 to C60**, from the code review of those components.
 
 ## Tests
 
-73 tests, all passing. The fork tests run against a copy of Arc mainnet state, so Morpho, the oracles and the tokens are the real deployed contracts. The 73 include 5 fuzz tests at 1,000 runs each, and 7 invariants, each checked over 256 runs of 64 random calls.
+131 tests in 13 suites, all passing on a fork of Arc mainnet pinned to block 22,727,600, so Morpho, the oracles and the tokens are the real deployed contracts:
 
-One invariant, I7, guards the new-debt rule. It asserts that every position with debt which Adag accepted without a check is at least as safe as the last one a check approved. With the older, weaker rule put back, I7 fails within 5 calls.
+| Area | Tests |
+| --- | ---: |
+| Bills: writing, cancelling, paying, every refusal, freshness | 24 |
+| The loan rule: the 40% boundary, the bypass, stale prices, closing, three bills at once | 25 |
+| Recording an existing loan | 10 |
+| The loan guard: rules, `protect`, its caps and its refusals, `quote`, the holder list | 30 |
+| Fuzz tests, 1,000 runs each | 8 |
+| Invariants, 256 runs of 64 calls each | 12 |
+| Negative controls for the invariant detectors | 5 |
+| Arc itself: Multicall3From, Memo, nested batches, both markets | 5 |
+| Gas scenarios | 12 |
+
+Two invariants carry the most weight. For AdagBills, I7 asserts that every position with debt which Adag accepted without a check is at least as safe as the last one a check approved; with the older, weaker rule put back, I7 fails within 5 calls. For AdagGuard, I2 asserts that the guard never pulls more than was approved, across random sequences of rules, approvals, price moves and calls to `protect`, and a negative control removes the debt cap from a copy of the contract to show the handler reporting the break.
 
 To rerun them, from the repository root:
 
@@ -41,64 +59,124 @@ bash packages/contracts/run-tests.sh
 
 ## Static analysis
 
-Three tools over the contract and its interfaces: slither with all detectors on, solhint's recommended rules, and arc-forge lint. None found a bug that changes what the contract does. Every finding is listed in `packages/contracts/analysis/STATIC-ANALYSIS.md` with a verdict and a reason: false positives (for example, reentrancy patterns on calls to Morpho, which makes no callback, while `pay` holds a reentrancy guard), and deliberate choices (for example, timestamps used for the 26 and 96 hour price windows). The one ordering finding a first run raised was removed by recording positions before the token transfer, so no storage write now follows a state-changing external call.
+Three tools over both contracts and their interfaces: slither with all detectors on, solhint's recommended rules, and arc-forge lint. AdagBills gave 86 findings on its first run, and recording a loan added a few more rows, each judged the same way; AdagGuard gave 94. None is a bug that changes what a contract does. Every finding is listed in `packages/contracts/analysis/STATIC-ANALYSIS.md` with a verdict and a reason: false positives (for example, reentrancy patterns on calls to Morpho, which makes no callback, while both contracts hold a reentrancy guard), and deliberate choices (for example, timestamps used for the 26 and 96 hour price windows, and the strict equality that refuses a payment in the block of the payer's own record).
 
 ```bash
 bash packages/contracts/analysis/run-analysis.sh
 ```
 
-## Three separate reviews
+## Separate reviews
 
-All three were done by a reviewer that did not write the code. None is a third-party audit.
+Each was done by a reviewer that did not write the code. None is a third-party audit.
 
-The first was the threat model review above, before any code existed.
+**The first contract.** The threat model review came first, before any code existed. The code review of the finished backend, before deploy, found two real problems:
 
-The second was a code review of the finished backend, before deploy. It found two real problems:
+1. **A way around the 40% line.** The first version of the new-debt rule remembered only your borrow shares. The reviewer showed it could be skipped: pay once, close the loan outside Adag, then re-open it with exactly the recorded number of shares against far less bitcoin. The fix records both shares and pledged collateral, and runs the check whenever you have debt and either shares went up or collateral went down. The attack suite tries exactly this against the live contracts on every run and it is refused (A2b below).
+2. **The proof script trusted the RPC for market details.** It now proves them by hashing them to the fixed market id and comparing the oracle, rate model and liquidation line to known values.
 
-1. **A way around the 40% line.** The first version of the new-debt rule remembered only your borrow shares. The reviewer showed it could be skipped: pay once, close the loan outside Adag, then re-open it with exactly the recorded number of shares against far less bitcoin. The shares matched, so the check was skipped. The fix records both shares and pledged collateral, and runs the check whenever you have debt and either shares went up or collateral went down. The attack suite now tries exactly this against the live contract and it is refused (A2b below).
-2. **The proof script trusted the RPC for market details.** It now proves them by hashing them to the fixed market id and comparing the oracle, rate model and liquidation line to known values, so a lying RPC cannot steer a pledge into Arc's other USDC/cirBTC market.
+A follow-up review checked both fixes across every sequence of a payer's own actions and cleared the contract to deploy.
 
-A follow-up review checked both fixes across every sequence of a payer's own actions, found nothing else to change, and cleared the contract to deploy.
+**The app.** A code review of the finished app, before release, found three problems, all fixed before release: a funding choice in the basket could change without a click (medium, now C26); paying from balance was offered with no fee reserve (low, now C25); and the loan close missed interest since the market's last update (low, now C28). It also proposed the six app-layer invariants C25 to C30.
 
-The third was a code review of the finished app, before release. It read the app's money paths, its API routes and the changes to the proof script. It found three problems, all fixed before release:
+**The new contracts.** A separate reviewer wrote the threat model for AdagGuard, recording a loan, the keeper, alerts and Safe payments (C31 to C57) before their code. Two design decisions came out of it: the approval is the guard's lifetime ceiling, with no per-step maximum and no cooldown, because a cooldown could block the second protection a loan needs in a fast fall; and bill identity is the pair (contract, id), because both deployments number bills from 1. The finished contracts were then reviewed at the backend gate, before deploy, and cleared. The review of the code built on them added C58 to C60.
 
-1. **A funding choice could change without a click** (medium). In the basket of several bills, the 30-second refresh could replace a payer's chosen source, from balance to bitcoin. A choice that becomes invalid is now cleared, never replaced (C26).
-2. **No fee reserve when paying from balance** (low). Arc takes the fee from the same USDC balance, yet paying from balance was offered to a payer holding exactly the bill amount. The app now checks that the balance covers every USDC the batch moves out plus the worst-case fee before it asks for a signature (C25).
-3. **The loan close missed recent interest** (low). It sized its approval from Morpho's stored totals, which leave out the interest since the market's last update. The debt is now accrued to the current block before the approval is sized (C28).
+## Web security passes
 
-It checked and found sound: every approval exact, with its target and spender asserted on every call; market details hashed to the fixed market id before use; every onBehalf and receiver the payer; receipts read only from Adag's and Morpho's own logs; each bill read again right before paying; and the proof script's `--broadcast` gate. It also proposed six invariants for the app layer that the standard did not yet state. They are now C25 to C30 in the [threat model](/docs/security/threat-model).
+Two passes attacked the web app and its server routes directly, with every finding fixed or closed with a reason.
 
-## The attack suite on live state
+**Pass 1: the web app and its supply chain.**
 
-`node packages/contracts/prove-it/attack.mjs` simulates each attack from a real mainnet block against the deployed contract and the demo wallet's real Morpho loan. Nothing is signed or sent. The run at block 22,729,988 on 25 September 2026:
+| Finding | Outcome |
+| --- | --- |
+| No security headers, so any page could be framed (medium) | Fixed: a content security policy, framing refused, and the usual headers on every page |
+| Anyone could put their own text on the home page through a bill reference (medium) | Fixed: the home page shows only paid bills, from each contract's own `BillPaid` event, and no references |
+| The live-figure routes and the attack runner had no request limits (low) | The live figures are now cached at the edge for 15 seconds; attack runs are shared and spaced per server |
+| One character was dropped from references on the home page (low) | Fixed |
+| A basket link could print any text on the pay page (low) | Fixed: at most three short items are shown, with a count of the rest |
+| Test-only settings were read from the page at runtime (info) | Fixed: written into the build, so a real build carries no test path |
+| Three npm advisories in a dependency of the docs' diagram library (info) | Closed with a reason: the affected functions never ship and the diagrams are the repository's own |
+| The wallet metadata named a fixed domain (info) | Fixed: the site's own address from its settings |
 
-| # | Attack | What stopped it | Result |
-| --- | --- | --- | --- |
-| A1 | A stranger pays bill #1 a second time | `BillNotOpen(1, Paid)` | Pass |
-| A2a | Close and re-borrow the same shares against a quarter of the bitcoin, about 152% | Morpho's own 86% line: "insufficient collateral" | Pass |
-| A2b | Close and re-borrow the same shares against less bitcoin, about 60%, which Morpho allows | Adag: collateral fell, so the 40% check ran: `LtvAboveLimit` | Pass |
-| A3 | Borrow to about 50% and pay a new bill in the same batch | Adag: shares rose, `LtvAboveLimit` | Pass |
-| A4 | The named gap: pay from cash, then borrow to 60% after Adag's step; next block, pay again | First allowed as documented; the next payment refused with `LtvAboveLimit` | Pass |
-| A5 | The supplier pays their own bill | `SelfPayment()` | Pass |
-| A6.1 to A6.3 | Write a bill in cirBTC, WETH, or a random address | `UnsupportedCurrency` | Pass |
-| A6.4 | Write a bill for zero | `ZeroAmount()` | Pass |
-| A6.5 | Write a bill with a 141-byte reference | `ReferenceTooLong(141)` | Pass |
-| A7a | A stranger cancels someone else's open bill | `NotPayee` | Pass |
-| A7b | The supplier cancels a bill that was already paid | `BillNotOpen(1, Paid)` | Pass |
-| A8 | Pay through Memo without approving Adag | The transfer fails, the whole batch reverts | Pass |
-| A9a | Simulated 25% price drop, loan now 50.78%: pay a bill from cash, no new debt | Allowed: a price drop never blocks a cash payment | Pass |
-| A9b | Same drop: borrow a little more and pay | `LtvAboveLimit` | Pass |
-| A10a, A10b | The proof script pointed at an RPC that reports the wrong chain | The script stops before doing anything | Pass |
+**Pass 2: the keeper, alerts and Safe routes.**
 
-The full tables of every run, with the exact amounts and decoded reverts, are in `packages/contracts/deployments/attacks-2026-09-25.md`.
+| Finding | Outcome |
+| --- | --- |
+| A protection about to run was not counted when checking a payment's balance (medium) | Fixed: the pay screens keep aside what the guard is about to take (C45) |
+| The Safe routes could be used to spend Adag's Safe service quota (medium) | Fixed: per-client and overall limits, and the routes refuse to run without the store that enforces them |
+| Rate limits trusted a client address the caller could set (medium) | Fixed: the address comes from the hosting provider's own header |
+| A shared Start link could move someone's alerts to another wallet (low) | Fixed: a chat that already gets alerts cannot be taken by another wallet, and a chat is told when a wallet tries or leaves |
+| Webhook replay keys depended on the nonce's format (low) | Fixed: keyed on a hash of the exact nonce that was verified |
+| A holder could make the keeper spend gas on a protection that does nothing (low) | Closed with a reason: bounded at 0.5 USDC of gas in any hour, and junk holders are dropped before any simulation (C42) |
+| No start-up check of the server settings (info) | Fixed: the server says at start which features are off |
 
-## Live proof and verification
+## The attack suites on live state
 
-The contract is verified with an exact match on [Sourcify](https://repo.sourcify.dev/5042/0x6F2199e0A04e5e8ba67c89C467b6DF168b01137E) and on [explorer.arc.io](https://explorer.arc.io/address/0x6F2199e0A04e5e8ba67c89C467b6DF168b01137E?tab=contract), so the code you read is the code that runs. The first real bitcoin-backed payment, with its three transactions, is on [Contracts and addresses](/docs/contracts#the-live-proof).
+`node packages/contracts/prove-it/attack.mjs` and `guard-attack.mjs` simulate each attack from a real mainnet block against the deployed contracts and the demo wallet's real Morpho loan. Nothing is signed or sent. The full tables, with exact amounts and decoded reverts, are in `packages/contracts/deployments/attacks-2026-09-26.md` and `attacks-2026-09-26-guard.md`.
+
+**AdagBills, at block 22,863,576, 23 of 23:**
+
+| # | Attack | What stopped it |
+| --- | --- | --- |
+| A1 | A stranger pays bill #1 a second time | `BillNotOpen(1, Paid)` |
+| A2a | Close and re-borrow the same shares against a quarter of the bitcoin, about 152% | Morpho's own 86% line: "insufficient collateral" |
+| A2b | Close and re-borrow the same shares against less bitcoin, about 60%, which Morpho allows | Adag: collateral fell, so the 40% check ran: `LtvAboveLimit` |
+| A3 | Borrow to about 50% and pay a new bill in the same batch | Adag: shares rose, `LtvAboveLimit` |
+| A4 | The named gap: pay from cash, then borrow to 60% after Adag's step; next block, pay again | First allowed as documented; the next payment refused with `LtvAboveLimit` |
+| A5 | The supplier pays their own bill | `SelfPayment()` |
+| A6.1 to A6.5 | Write a bill in cirBTC, WETH or a random address, for zero, or with a 141-byte reference | `UnsupportedCurrency`, `ZeroAmount()`, `ReferenceTooLong(141)` |
+| A7a, A7b | A stranger cancels someone else's bill; the supplier cancels a paid bill | `NotPayee`, `BillNotOpen(1, Paid)` |
+| A8 | Pay through Memo without approving Adag | The transfer fails, the whole batch reverts |
+| A9a, A9b | Simulated 25% price drop: pay from cash; then borrow a little more and pay | Cash allowed, a price drop never blocks it; new debt refused with `LtvAboveLimit` |
+| A10a, A10b | The proof script pointed at an RPC that reports the wrong chain | The script stops before doing anything |
+| E1 | Record a loan and pay in one batch | `EnrolledThisBlock()` |
+| E2 | Borrow more, record that debt and pay, all in one batch | `EnrolledThisBlock()` |
+| E3 | A stranger records, then the demo wallet pays in the same block | The stranger's record is its own; the demo wallet's record is unchanged |
+| E4 | Record in one block; in the next, close and re-borrow the same shares against less bitcoin, then pay | Collateral fell below the record, so the 40% check ran: `LtvAboveLimit` |
+| E5 | The named residual: borrow to 60% and record in one block, pay from cash in the next | Allowed as documented: only the payer's own position carries the risk |
+
+**AdagGuard, at block 22,863,638, 14 of 14:**
+
+| # | Attack | What stopped it |
+| --- | --- | --- |
+| G1 | Pull more than the approval, twice | The first repaid exactly the approval, the second nothing |
+| G2a, G2b | Use the other USDC/cirBTC market, or an id one digit away | `BadMarket` |
+| G2c | Protect in the EURC market, with a USDC approval and no EURC loan or rule | Nothing moved |
+| G3 | Protect a loan under its trigger | Repaid 0, no event |
+| G4 | Protect at the second the rule ends | Repaid 0: an ended rule is inert |
+| G5a, G5b | A stranger clears or overwrites the payer's rule | `NoRule` for the stranger; the payer's rule unchanged |
+| G6 | Protect three times at the same price | The first repaid what the target needed, the next two nothing |
+| G7 | The wallet holds less than the loan needs | Repaid only what the wallet held, no revert |
+| G8 | Simulated price crash to zero | Repaid up to the debt rounded down, no revert, nothing left in the guard |
+| G9a, G9b | A zero price with no rule; a wallet with no loan | Nothing moved |
+| G10 | Call owner, withdraw, rescue, pause and upgrade functions | None exist; only `setRule`, `clearRule` and `protect` change state |
+
+The first deployment was attacked at block 22,863,531 as well, and all 18 of its checks behaved as the threat model says.
+
+## Live proofs and verification
+
+All three contracts are verified with an exact match on Sourcify and on explorer.arc.io, so the code you read is the code that runs. The live runs, with every transaction, are on [Contracts and addresses](/docs/contracts#the-live-proofs): bill #1 on the current AdagBills paid from a bitcoin-backed loan with the 40% check run, the guard's first repayment from 39.07% to 30.00% with a repeat that repaid nothing, and bill #1 on the first deployment the day before. The promise of recording a loan was proven on a real borrower above 40%, simulated on live state because only that borrower could sign.
+
+The guard's proof reproduces its live repayment to the digit. Pinned to block 22,867,200, just before the real transactions, `node packages/contracts/prove-it/guard-prove.mjs --block 22867200` prints:
+
+```text
+Running
+  tx 1 setRule 35% / 30% (payer)          gas   129,321
+  tx 2 approve 1 USDC to AdagGuard (payer)  gas    55,438
+  quote (free read): would act true, repay 0.464348 USDC, loan-to-value now 39.07%
+  tx 3 protect (stranger)                 gas   211,485   repaid 0.464348 USDC
+  tx 4 protect again (stranger)           gas   112,339   repaid 0.000000 USDC
+
+Receipt
+  Protected  borrower 0x6e26Dd347b57ba591Ee34292A2d828CCC17A1fDE, repaid 0.464348 USDC, loan-to-value 39.07% to 30.00%
+  payer loan        2.000004 USDC before, 1.535656 USDC after; loan-to-value 39.07% to 30.00% (exactly 29.9999843715080089%, target 30.0000000000000000%)
+  payer bitcoin     0.00011973 cirBTC before, 0.00011973 cirBTC after (wallet plus pledged), sold 0.00000000 cirBTC
+```
+
+On today's state the live loan already sits at the target, so the same script first has the payer borrow on Morpho to 38.00% inside the simulation, prints that step as a simulated premise, and then proves the same repayment down to 30.00%.
 
 ## What this does not cover
 
-- No outside firm has reviewed the contract or the app.
-- The web app is covered by the threat model's rules, its own checks and the final review, not by an outside audit. A compromised page build is a named non-goal.
-- The live proof paid one USDC bill. The EURC market and multi-bill batches are covered by tests on a mainnet fork, not by a live mainnet payment.
-- Adag relies on Morpho, the oracles and the token contracts being correct. It fails closed on their errors, and nothing more.
+- No outside firm has reviewed the contracts or the app.
+- The web app and its server routes are covered by the threat model's rules, their own tests, the app review and the two passes, not by an outside audit. A compromised page build is a named non-goal.
+- The live proofs paid one USDC bill on each deployment and made one guard repayment. The EURC market, multi-bill batches, Safe payments and the keeper's full path from a price update to `protect` are covered by tests on a mainnet fork, not by a live mainnet run.
+- Adag relies on Morpho, the oracles, the token contracts, Telegram, Safe's service and the RPC being correct and available. It fails closed on their errors, and nothing more.

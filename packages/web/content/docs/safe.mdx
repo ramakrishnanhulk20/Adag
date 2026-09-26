@@ -1,0 +1,31 @@
+---
+title: Safe payments
+description: Pay a bill or a basket of bills from a company's Safe, checked on chain before any owner signs and executed as one all-or-nothing batch.
+---
+
+A company that holds its treasury in a Safe can pay suppliers from it. The payment is one Safe transaction: the owners approve it the way they approve anything else, and it runs as a single batch that lands whole or not at all.
+
+## How it works
+
+1. On a bill, or a basket of up to 10 bills, choose **Pay from a Safe** and pick the Safe. For each currency, choose the Safe's balance or a loan against the Safe's own cirBTC, exactly as a wallet would.
+2. Before anyone signs, the app reads from the Safe contract on Arc that it is a Safe of version 1.3.0 or later, that the connected wallet is one of its owners, and the Safe's current nonce. It then runs the whole batch as the Safe would, on live state.
+3. You sign the Safe transaction with your owner wallet. The server checks it all again from the chain, the batch's shape, the Safe, the owner and the transaction hash against the Safe's own, and proposes it to the Safe's queue through Safe's Transaction Service.
+4. The other owners confirm it in Safe's own app, and it can be executed once enough have signed. Adag's page shows the signatures so far.
+5. Each bill turns Paid on its own contract, with its `BillPaid` event. The page reads that from AdagBills, never from the service.
+
+## What the batch contains
+
+A Safe payment runs through Safe's `MultiSendCallOnly` contract on Arc, and every call inside is a plain call with no value to an address fixed when the app was built: Morpho for the pledge and the borrow (both on behalf of the Safe), exact approvals to Morpho or AdagBills, and `AdagBills.pay(N)` for each bill. There is no Memo step, because Memo needs an ordinary wallet as the sender; each bill is still paid exactly once and named in its own `BillPaid` event.
+
+The transaction's gas price, gas token, refund receiver and gas fields are all zero, so if any step fails the whole execution reverts and the Safe's nonce is not used up. A proposal can go stale while owners sign: a price moves or a bill is paid another way. It then reverts at execution and nothing moves, so check the bills again before executing an old proposal.
+
+## An existing loan
+
+A Safe that already borrows on Morpho above 40% records its loan the same way a wallet does, with `enrol`, but in a Safe transaction of its own, as the only call in it. The owners approve it like any other. Once it has executed, payments from the Safe open.
+
+## What it does not cover
+
+- Safe payments are for bills on the current AdagBills. A bill on the first deployment is paid from an ordinary wallet.
+- The loan guard and Telegram alerts are set from an ordinary wallet's own loans; a Safe cannot sign the alerts link message.
+- Safe's Transaction Service is run by Safe. If it is down, a proposal waits; nothing about a payment's status ever depends on it.
+- A malicious owner is a matter for the Safe's own threshold.

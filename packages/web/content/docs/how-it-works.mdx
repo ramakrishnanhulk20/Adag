@@ -1,11 +1,11 @@
 ---
 title: How it works
-description: One signature, five calls, and the rule inside the contract that keeps every loan at or under 40%.
+description: One signature, five calls, the rule inside the contract that keeps every loan at or under 40%, recording an existing loan, and the guard that watches it afterwards.
 ---
 
 When you pay a bill from bitcoin, your wallet signs one transaction. That transaction runs five calls in order, all of them as you. If any one of them fails, the whole transaction is undone and nothing happened.
 
-A company paying a run of supplier bills signs the same way: up to 10 bills in one transaction, grouped by currency, each paid through its own Memo call with the supplier's invoice number, and the contract's 40% check still applied to every payment that adds debt.
+A company paying a run of supplier bills signs the same way: up to 10 bills in one transaction, grouped by currency, each paid through its own Memo call with the supplier's invoice number, and the contract's 40% check still applied to every payment that adds debt. A company that pays from its Safe gets the same bills in one Safe transaction instead: see [Safe payments](/docs/safe).
 
 ## The one-signature batch
 
@@ -19,8 +19,8 @@ These are the five calls, in the order the app builds them. `P` is the pledge, `
 
 A few rules hold for every batch the app builds:
 
-- Every call targets an address fixed when the app was built: AdagBills, Morpho, Memo, Multicall3From or one of the three tokens. Nothing in a link or an RPC answer can change a target, a receiver or an amount.
-- Approvals go only to Morpho or AdagBills, for exactly the amount that batch uses.
+- Every call targets an address fixed when the app was built: AdagBills, AdagGuard, Morpho, Memo, Multicall3From or one of the three tokens. Nothing in a link or an RPC answer can change a target, a receiver or an amount.
+- Approvals go only to the contract that uses them, for exactly the amount that batch uses.
 - Every call is marked "must succeed". There is no partial success.
 - Market details fetched from the chain must hash to the fixed market id before they go into a call, so a lying RPC cannot swap in a different market.
 
@@ -36,7 +36,7 @@ Two small contracts that ship with Arc make the single signature possible.
 
 **Memo** (`0x5294E9927c3306DcBaDb03fe70b92e01cCede505`) wraps the payment call and emits a `Memo` event carrying the bill number and your reference, so the supplier's invoice number travels with the money.
 
-A Memo event on its own proves nothing, because anyone can emit one with any bill number. Adag's app treats a bill as paid only when AdagBills' own storage says so, or when there is a `BillPaid` event from AdagBills' address, tied to a transaction hash and log index.
+A Memo event on its own proves nothing, because anyone can emit one with any bill number. Adag's app treats a bill as paid only when that bill's own AdagBills says so in storage, or when there is a `BillPaid` event from that contract's address, tied to a transaction hash and log index.
 
 ## Why this only works on Arc
 
@@ -47,7 +47,7 @@ A Memo event on its own proves nothing, because anyone can emit one with any bil
 
 ## The new-debt rule
 
-The 40% check lives inside AdagBills' `pay` function, so it applies however the transaction was built: by this app, by a script, or by hand.
+The 40% check lives inside AdagBills' `pay` function, so it applies however the transaction was built: by this app, by a Safe, by a script, or by hand.
 
 On every payment, for both markets, Adag compares your live Morpho position with the last one it recorded for you. The check runs whenever you have debt and your position has become riskier by your own action since then: more borrow shares, or less pledged collateral. When it runs:
 
@@ -64,6 +64,24 @@ A payment from your balance that adds no new debt is never blocked by a price dr
 
 The first version of this rule compared borrow shares only. A separate review found it could be skipped: pay once, close the loan outside Adag, then re-open it with exactly the recorded share count against far less bitcoin. The rule now records both shares and collateral, and a randomised invariant test that includes that exact attack fails within 5 calls if the old rule is put back. See [Audit status](/docs/security/audit-status).
 
+## Recording an existing loan
+
+A wallet that Adag has never seen has a recorded position of zero, so any loan it already holds counts as new debt at its first payment. If that loan is above 40%, the payment is refused, even one paid from cash.
+
+`enrol()` fixes that. It takes no arguments and records the caller's own Morpho position in both markets, exactly as Morpho reports it in that block. No money moves, and nobody can record a position for someone else. From then on Adag judges only what you borrow after the record: a cash payment that adds no debt goes through, and borrowing more, or taking collateral away, is checked against the 40% line as before.
+
+Recording and paying in the same block is refused (`EnrolledThisBlock`), so new debt cannot be borrowed, recorded and spent in one batch. The promise is that a payment through Adag is never the action that takes a position above 40%.
+
+<Callout type="warn" title="The named residual of recording">
+  Someone who borrows outside Adag, records it in one block and pays from cash in the next has their earlier borrowing forgiven by the record. That is what recording means, and it affects only their own position. The attack suite runs exactly this every time and shows it behaving as documented.
+</Callout>
+
+This was proven on 26 September 2026 on a real borrower's wallet at 70.26%, simulated on live state because only that borrower could sign: a cash payment was refused before recording; after recording, borrowing more in the paying batch was refused, and the same bill paid from cash went through. A Safe records its loan in its own Safe transaction.
+
+## After the payment: the loan guard
+
+Adag checks the 40% line at the moment you pay. After that, [AdagGuard](/docs/loan-guard) can watch the loan: you set a trigger and a target and approve an amount of the loan's currency, and once the loan passes the trigger anyone may call `protect`, which repays only what brings the loan back to your target, from your own wallet. Adag's keeper calls it when Chainlink's price updates, and [Telegram alerts](/docs/alerts) tell you when a loan gets close. A payment that would take your loan past your own trigger says so before you sign, and the pay screens keep aside what the guard is about to take.
+
 ## Diagrams
 
 ### System overview
@@ -74,50 +92,59 @@ flowchart LR
     App["Adag web app"]
     Wallet["Wallet (plain EOA)"]
   end
-  RPC["Arc public RPC"]
+  subgraph Server["Adag server routes"]
+    Keeper["Keeper run"]
+    Hook["Price webhook"]
+    Alerts["Alerts and Telegram"]
+    SafeR["Safe routes"]
+    Store[("Key-value store")]
+  end
+  QN["QuickNode webhook"]
+  TG["Telegram bot"]
+  STS["Safe Transaction Service"]
+  RPC["Arc RPC"]
   subgraph Arc["Arc mainnet, chain 5042"]
     M3F["Multicall3From"]
     Memo["Memo"]
     Adag["AdagBills"]
+    Guard["AdagGuard"]
+    Safe["Payer's Safe"]
     Morpho["Morpho Blue"]
-    MU["Market USDC / cirBTC"]
-    ME["Market EURC / cirBTC"]
-    OU["Oracle, USDC market"]
-    OE["Oracle, EURC market"]
-    BTCF["Chainlink BTC/USD"]
-    EURF["Chainlink EUR/USD"]
-    USDC["USDC"]
-    EURC["EURC"]
-    CIR["cirBTC"]
+    OR["Market oracles"]
+    AGG["Chainlink aggregators, BTC/USD and EUR/USD"]
+    TOK["USDC, EURC, cirBTC"]
   end
   App -- "views and logs" --> RPC
   App -- "one batch to sign" --> Wallet
   Wallet -- "one transaction" --> M3F
-  Wallet -- "createBill, voidBill" --> Adag
-  M3F -- "as the wallet" --> CIR
-  M3F -- "as the wallet" --> USDC
-  M3F -- "as the wallet" --> EURC
+  Wallet -- "createBill, voidBill, enrol" --> Adag
+  M3F -- "as the wallet" --> TOK
   M3F -- "as the wallet" --> Morpho
   M3F -- "as the wallet" --> Memo
+  M3F -- "setRule, clearRule, as the wallet" --> Guard
   Memo -- "pay, as the wallet" --> Adag
-  Adag -- "position, market, accrue" --> Morpho
-  Adag -- "price, feed ids" --> OU
-  Adag -- "price, feed ids" --> OE
-  Adag -- "freshness" --> BTCF
-  Adag -- "freshness" --> EURF
-  Adag -- "payer to payee" --> USDC
-  Adag -- "payer to payee" --> EURC
-  Morpho --- MU
-  Morpho --- ME
-  MU --- OU
-  ME --- OE
-  OU --- BTCF
-  OE --- BTCF
-  OE --- EURF
-  Morpho -- "holds pledged" --> CIR
+  App -- "list, propose, status" --> SafeR
+  SafeR --> STS
+  Safe -- "one MultiSendCallOnly batch, pay as the Safe" --> Adag
+  Adag -- "position, accrue" --> Morpho
+  Adag -- "price, freshness" --> OR
+  Adag -- "payer to supplier" --> TOK
+  Guard -- "pull within the approval" --> TOK
+  Guard -- "repay for the borrower" --> Morpho
+  Guard -- "price" --> OR
+  OR --- AGG
+  AGG -- "AnswerUpdated" --> QN
+  QN -- "signed delivery" --> Hook
+  Hook --> Keeper
+  Keeper -- "quote, then protect" --> Guard
+  App -- "code, link, levels" --> Alerts
+  Alerts -- "plain text" --> TG
+  Keeper --- Store
+  Alerts --- Store
+  SafeR --- Store
 ```
 
-Multicall3From and Memo reach their targets through Arc's CallFrom precompile, which is why the wallet, not the batch contract, is the sender Morpho, the tokens and AdagBills see.
+Multicall3From and Memo reach their targets through Arc's CallFrom precompile, which is why the wallet, not the batch contract, is the sender Morpho, the tokens, AdagBills and AdagGuard see. The keeper's wallet holds gas only and can send one thing: `protect`.
 
 ### One bitcoin-backed payment, end to end
 
@@ -139,7 +166,7 @@ sequenceDiagram
   Adag-->>Payee: BillCreated, bill id N
   Payee->>Payer: sends the link to bill N
   Payer->>App: opens bill N
-  App->>Adag: bill(N), priceStatus, collateralNeeded
+  App->>Adag: bill(N), priceStatus, collateralNeeded, seenPosition
   App->>Morpho: idToMarketParams, hash must equal MARKET_USDC
   App->>W: one aggregate3 batch, allowFailure false on every call
   Payer->>W: signs once
@@ -151,7 +178,7 @@ sequenceDiagram
   M3F->>USDC: approve(AdagBills, amount), sender is the payer
   M3F->>Memo: memo(AdagBills, pay(N), N, ref), sender is the payer
   Memo->>Adag: pay(N), sender is the payer
-  Note over Adag: marks bill N Paid, then records both markets
+  Note over Adag: refuses a payer who enrolled in this block, then marks bill N Paid and records both markets
   Adag->>Morpho: position of the payer in both markets
   Adag->>USDC: balanceOf payee, transferFrom payer to payee, balanceOf payee
   Note over Adag: reverts unless the payee rose by the amount
@@ -168,23 +195,30 @@ sequenceDiagram
 
 ```mermaid
 flowchart TD
-  Web["packages/web"] --> ABI["deployments/AdagBills.abi.json"]
-  Web --> Addr["deployments/arc-mainnet.json"]
+  Web["packages/web"] --> ABI["ABIs from deployments/2026-09-26"]
+  Web --> Addr["deployments/*.json"]
   Web --> Viem["viem"]
-  Prove["prove-it/lib.mjs"] --> ABI
+  Prove["prove-it scripts"] --> ABI
   Prove --> Viem
-  Adag["AdagBills.sol"] --> RG["OZ ReentrancyGuardTransient"]
-  Adag --> SE["OZ SafeERC20"]
-  Adag --> MA["OZ Math"]
+  Adag["AdagBills.sol"] --> OZ["OpenZeppelin: ReentrancyGuardTransient, SafeERC20, Math"]
+  Guard["AdagGuard.sol"] --> OZ
+  Guard --> ES["OpenZeppelin EnumerableSet"]
   Adag --> IM["IMorphoMinimal"]
   Adag --> IO["IOracleMinimal"]
   Adag --> IC["IChainlinkFeed"]
+  Guard --> IM
+  Guard --> IR["IMorphoRepay"]
+  Guard --> II["IIrmMinimal"]
+  Guard --> IO
   IM -.-> Morpho["Morpho Blue"]
+  IR -.-> Morpho
+  II -.-> IRM["Adaptive curve rate model"]
   IO -.-> Oracles["MorphoChainlinkOracleV2 x2"]
   IC -.-> Feeds["Chainlink BTC/USD, EUR/USD"]
-  SE -.-> Tokens["USDC, EURC"]
+  Oracles -.-> Feeds
   Web -.-> Arc["Multicall3From, Memo"]
   Web -.-> Adag
+  Web -.-> Guard
 ```
 
 Solid arrows are code dependencies. Dotted arrows are calls to deployed contracts.

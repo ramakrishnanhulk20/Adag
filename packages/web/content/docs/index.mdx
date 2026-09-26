@@ -1,13 +1,13 @@
 ---
 title: Overview
-description: Pay your suppliers in dollars or euros from bitcoin you pledge instead of sell. What Adag is, who it is for, and why it exists.
+description: Pay your suppliers in dollars or euros from bitcoin you pledge instead of sell. What Adag is, who it is for, and what is live today.
 ---
 
-Adag lets a company pay its suppliers in USDC or EURC from bitcoin it holds and does not sell. You sign once. In that one signature the bitcoin (as cirBTC) is pledged on Morpho, exactly the bill amount is borrowed against it, and the supplier is paid with the invoice number attached. A run of up to 10 bills goes in the same one signature. The bitcoin stays pledged in your name, never sold, and you can take it back whenever you repay. Where the bitcoin itself is held is answered in the [FAQ](/docs/faq#where-is-the-bitcoin).
+Adag lets a company pay its suppliers in USDC or EURC from bitcoin it holds and does not sell. You sign once. In that one signature the bitcoin (as cirBTC) is pledged on Morpho, exactly the bill amount is borrowed against it, and the supplier is paid with the invoice number attached. A run of up to 10 bills goes in the same one signature, from an ordinary wallet or from the company's Safe. The bitcoin stays pledged in your name, never sold, and you can take it back whenever you repay. Where the bitcoin itself is held is answered in the [FAQ](/docs/faq#where-is-the-bitcoin).
 
-Adag refuses any payment that would push your loan past 40% of the bitcoin's value. Morpho, the lending market underneath, only liquidates at 86%, so a loan at Adag's cap would need bitcoin to fall about 53.5% before Morpho could liquidate it (0.40 / 0.86, before interest). The [landing page](/#safety) shows that price live.
+Adag refuses any payment that would push your loan past 40% of the bitcoin's value. Morpho, the lending market underneath, only liquidates at 86%, so a loan at Adag's cap would need bitcoin to fall about 53.5% before Morpho could liquidate it (0.40 / 0.86, before interest). The [landing page](/#safety) shows that price live. After the payment, the [loan guard](/docs/loan-guard) can repay part of the loan from your own USDC or EURC when it crosses a line you choose, and [Telegram alerts](/docs/alerts) tell you when a loan gets close.
 
-It runs on Arc mainnet today. The contract is live, verified, and has already paid a real bill from a bitcoin-backed loan.
+It runs on Arc mainnet today: two contracts, live and verified, that have already paid a real bill from a bitcoin-backed loan and made a real repayment for a borrower.
 
 ## The name
 
@@ -15,13 +15,13 @@ Adag comes from the Tamil word அடகு, *adagu*, which means a pledge. Fami
 
 ## Who it is for
 
-Adag is first for businesses and crypto teams that hold bitcoin in their treasury and pay suppliers in dollars or euros. Today that usually means selling bitcoin, or borrowing on a lending app and then paying each invoice by hand. With Adag the finance lead puts a run of supplier bills in one basket, up to 10, and pays them in one signature: each payment carries the supplier's invoice number, each bill can be paid only once, and the contract refuses any payment that would take the loan past 40% of the bitcoin's value. Circle mints cirBTC for institutions, not individuals, so a company that already holds bitcoin through Circle is the closest fit.
+Adag is first for businesses and crypto teams that hold bitcoin in their treasury and pay suppliers in dollars or euros. Today that usually means selling bitcoin, or borrowing on a lending app and then paying each invoice by hand. With Adag the finance lead puts a run of supplier bills in one basket, up to 10, and pays them in one signature, or proposes them to the company's Safe for its owners to approve: each payment carries the supplier's invoice number, each bill can be paid only once, and the contract refuses any payment that would take the loan past 40% of the bitcoin's value. Circle mints cirBTC for institutions, not individuals, so a company that already holds bitcoin through Circle is the closest fit.
 
 Individuals who hold cirBTC are just as welcome. Paying rent or a single invoice works the same way, one bill or ten.
 
-Pledging bitcoin and borrowing exactly the bill means it is never sold, as long as the loan stays well clear of Morpho's line, and Adag keeps the loan small.
+Pledging bitcoin and borrowing exactly the bill means it is never sold, as long as the loan stays well clear of Morpho's line. Adag keeps the loan small at payment, and the guard can keep it small afterwards.
 
-It is also for the suppliers being paid. A supplier writes a bill on Arc and shares a link, then receives USDC or EURC with their own invoice number on the payment, whether the customer paid from a stablecoin balance or from bitcoin. The supplier never touches bitcoin.
+It is also for the suppliers being paid. A supplier writes a bill on Arc and shares a link, then receives USDC or EURC with their own invoice number on the payment, whether the customer paid from a stablecoin balance, from bitcoin or from a Safe. The supplier never touches bitcoin.
 
 ## What makes it different
 
@@ -32,34 +32,35 @@ It is also for the suppliers being paid. A supplier writes a bill on Arc and sha
 | Signatures to pay ten bills | A sale, then one per bill | Three to borrow, then one per bill | One |
 | Supplier sees the invoice number | Rarely | No | Yes, attached on Arc |
 | Stops you borrowing too much | Not applicable | No, up to 86% | Yes, 40% cap in the contract |
+| Repays part of the loan before it gets close to liquidation | Not applicable | Only if you do it by hand | Yes, the loan guard, within the approval you set |
 | Proof the supplier was paid | A receipt you trust | Your own records | Checked on chain in the same call |
 
 ## What Adag is, exactly
 
-A single contract, [AdagBills](https://explorer.arc.io/address/0x6F2199e0A04e5e8ba67c89C467b6DF168b01137E), plus this web app.
+Two contracts on Arc mainnet, plus this web app and a few server routes.
 
-- The contract is a public bill book. A supplier writes a bill (who is paid, how much, which currency, a reference of up to 140 bytes). Anyone else can pay it, exactly once.
-- A bill is marked paid only if the supplier's balance rose by the full amount inside the same call. That check lives in the contract, not in the app.
-- The contract has no owner, no admin key, no upgrade path and no pause switch. It never holds tokens between calls.
-- The app reads everything it shows from Arc. There is no database and no account to create.
+- **[AdagBills](https://explorer.arc.io/address/0xaf6C47ae3e2ccD2Cd829Dd8a1DcCb7a7665c08cB)** is a public bill book. A supplier writes a bill (who is paid, how much, which currency, a reference of up to 140 bytes). Anyone else can pay it, exactly once. A bill is marked paid only if the supplier's balance rose by the full amount inside the same call. A borrower whose Morpho loan was already open records it once with `enrol`, so Adag judges only what they borrow from then on.
+- **[AdagGuard](https://explorer.arc.io/address/0x9A3F3eE50Ae108124C7Cf54a1b68c14fe5800806)** repays a borrower's own Morpho loan down to the borrower's own target, from the borrower's own approval, whoever calls it.
+- Neither contract has an owner, an admin key, an upgrade path or a pause switch, and neither holds tokens between calls.
+- The app reads every bill, payment and loan it shows from Arc. There is no account to create. The server keeps only what cannot live on chain: the keeper's lease, rate limits, and the links between wallets and Telegram chats.
+
+The first AdagBills deployment, from 25 September 2026, stays live as history: it has no way to record an existing loan, and its bills open at `/bill/first/N`. Every address is on [Contracts and addresses](/docs/contracts).
 
 <Callout type="success" title="Proven on mainnet">
-  On 25 September 2026 a supplier billed 1.00 USDC, and a payer settled it from a cirBTC-backed Morpho loan in one signature. The supplier's balance rose by exactly 1.000000 USDC, no bitcoin was sold, and the loan sat at 38.08% of the bitcoin's value. The transactions are listed on [Contracts and addresses](/docs/contracts).
+  On 26 September 2026 a supplier billed 1.00 USDC on the current AdagBills, and a payer settled it from a cirBTC-backed Morpho loan in one signature, with the 40% check run: the supplier's balance rose by exactly 1.000000 USDC, no bitcoin was sold, and the loan sat at 39.07%. The same day a second wallet called the guard's `protect` on that loan and repaid 0.464348 USDC from the payer's own wallet, taking it from 39.07% to 30.00%; a repeat at the same price repaid nothing. The transactions are on [Contracts and addresses](/docs/contracts#the-live-proofs).
 </Callout>
 
 ## What's next
 
-None of these is live yet. They are the next pieces for a company paying from its treasury.
+None of these is live yet.
 
-- **Export for your accountant.** A file per payment run with the bill number, supplier, amount, currency, loan drawn and transaction link.
-- **Repay some.** Pay down part of a loan from the wallet page, not only close it in full.
-- **A loan guard.** Alerts well before Morpho's line, and automatic repayment from a stablecoin balance you set aside.
-- **Safe multisig payments**, so a treasury that needs two or more signers can pay through Adag.
-- **Enrol an existing Morpho loan.** A contract version that lets a company that already borrows against cirBTC pay bills from that loan.
+- **Payroll from a bitcoin treasury.** Many bills, one signature, on a schedule, so a company that holds bitcoin can pay its people and suppliers without selling it.
+- **An API for wallets and neobanks**, so they can offer "pay with your bitcoin" to their own users, with Adag's 40% line and the loan guard underneath.
 
 ## Where to go next
 
-- [How it works](/docs/how-it-works): the one-signature batch, why it only works on Arc, and the rule that keeps loans at 40%.
-- [Getting started](/docs/getting-started): paying a run of supplier bills from a company treasury, paying one bill, and writing one.
+- [How it works](/docs/how-it-works): the one-signature batch, the rule that keeps loans at 40%, recording an existing loan, and why it only works on Arc.
+- [Getting started](/docs/getting-started): paying a run of supplier bills, paying one bill, protecting a loan, and writing a bill.
+- [The loan guard](/docs/loan-guard), [Safe payments](/docs/safe) and [Telegram alerts](/docs/alerts).
 - [Security overview](/docs/security): what is protected, and what is deliberately not.
 - [FAQ](/docs/faq): what happens if bitcoin falls, which wallets work, and what it costs.

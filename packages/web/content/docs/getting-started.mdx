@@ -1,11 +1,11 @@
 ---
 title: Getting started
-description: Pay a run of supplier bills from a company treasury, pay a single bill, or write one and get paid in USDC or EURC.
+description: Pay a run of supplier bills from a company treasury or its Safe, pay a single bill, record an existing loan, protect a loan, or write a bill and get paid in USDC or EURC.
 ---
 
 ## What you need
 
-- A plain wallet such as MetaMask or Rabby. Smart-contract wallets (Safe, ERC-4337 accounts, Circle's smart wallets) cannot pay through Adag, because Arc's batching acts as the wallet that signed the transaction, and a smart wallet does not sign its own transactions. A wallet upgraded under EIP-7702 works as long as it sends its own transaction (tested on a mainnet fork).
+- A plain wallet such as MetaMask or Rabby, or a Safe with a plain wallet as one of its owners. Other smart-contract wallets (ERC-4337 accounts, Circle's smart wallets) cannot pay through Adag, because Arc's batching acts as the wallet that signed the transaction, and such a wallet does not sign its own transactions; a Safe pays through its own path instead ([Safe payments](/docs/safe)). A wallet upgraded under EIP-7702 works as long as it sends its own transaction (tested on a mainnet fork).
 - Arc mainnet in that wallet: chain id `5042`, RPC `https://rpc.mainnet.arc.io`, explorer `https://explorer.arc.io`. Arc's gas token is USDC.
 - A little USDC for fees. A bitcoin-backed payment costs about 0.008 USDC in gas.
 - To pay from bitcoin: cirBTC in your wallet. To pay from a balance: the bill's currency, USDC or EURC.
@@ -14,12 +14,15 @@ description: Pay a run of supplier bills from a company treasury, pay a single b
 
 The usual shape: a company holds bitcoin, owes several suppliers this week, and does not want to sell.
 
-1. **Set up the paying wallet.** An ordinary wallet the finance team controls, holding the cirBTC you are willing to pledge and a little USDC for fees. Safe multisigs cannot pay through Adag today (see the [FAQ](/docs/faq#can-a-company-use-adag)).
+1. **Set up the paying account.** An ordinary wallet the finance team controls, or the company's Safe, holding the cirBTC you are willing to pledge and a little USDC for fees. A Safe payment is proposed to the Safe's queue and executed once its owners approve it; the steps are on [Safe payments](/docs/safe).
 2. **Collect the bills.** Each supplier writes a bill on Adag with their own invoice number as the reference, and sends you its link. Suppliers need nothing but a wallet.
 3. **Fill the basket.** On [Pay a bill](/pay), paste up to 10 bill numbers or links. Adag reads every bill from Arc and shows who it pays, how much and in which currency. Bills that are already paid, cancelled, unknown or written by your own wallet are set apart and not paid.
 4. **Choose how each currency is paid.** The bills are grouped by currency. For each group, pay from the wallet's USDC or EURC balance, or from a loan against its cirBTC. The loan shows the pledge and where the loan will sit against Adag's 40% line and Morpho's 86%.
-5. **Sign once.** One transaction pays every bill in the basket, each with its own invoice number in its own Memo. If any step fails, nothing moves.
-6. **Check the result.** Each bill turns Paid with a link to the payment on explorer.arc.io, and a supplier with the bill's page open sees it turn Paid within seconds. [Your wallet](/app) lists the loan and the bills.
+5. **Sign once.** One transaction pays every bill in the basket, each with its own invoice number in its own Memo. If any step fails, nothing moves. From a Safe, this is the proposal your owners approve.
+6. **Check the result.** Each bill turns Paid with a link to the payment on explorer.arc.io, and a supplier with the bill's page open sees it turn Paid within seconds. [Your wallet](/app) lists the loan and the bills, and its export gives your accountant a CSV of every bill with its transaction link.
+7. **Protect the loan and turn on alerts**, if you want the loan watched from here on: see below.
+
+If the paying account already borrowed on Morpho before it used Adag and that loan is above 40%, the first payment is refused, even from cash, until the loan is recorded: see [Record an existing loan](#record-an-existing-loan).
 
 ## Pay a bill
 
@@ -47,14 +50,24 @@ The rest are grouped by currency. For each group, choose your balance or a loan 
 
 A basket link carries only the bill numbers, like `/pay/basket?bills=12,13,14`, so you can send it on.
 
+### Record an existing loan
+
+If your wallet already borrowed against cirBTC on Morpho before it used Adag, Adag has never seen that loan, so it counts as new debt at your first payment. Above 40%, that payment is refused, even one paid from cash.
+
+The pay page says so and offers **Record my existing loan**: one signature, `enrol()`, no money moves. It records your position exactly as Morpho reports it. From the next block on, a payment from cash goes through, and borrowing more is checked against the 40% line as usual. Recording does not change your loan or make it safer; it tells Adag to judge only what you borrow from now on. A Safe records its loan in its own Safe transaction. More on [How it works](/docs/how-it-works#recording-an-existing-loan).
+
 ### Your loan afterwards
 
-The loan is an ordinary Morpho loan in your own name. Adag checks the 40% line once, at payment, and does not watch it after that. Interest accrues slowly, and if bitcoin falls far enough, Morpho can liquidate at 86%.
+The loan is an ordinary Morpho loan in your own name. Interest accrues slowly, and if bitcoin falls far enough, Morpho can liquidate at 86%. Adag checks the 40% line at payment; after that, the loan guard watches it if you set one.
 
 [Your wallet](/app) shows each loan with its loan-to-value against Adag's 40% line and Morpho's 86% line, how far bitcoin can fall, and the live borrow rate. From there, each in one signature:
 
+- **Protect this loan**: a trigger, a target, and an approval of exactly the USDC or EURC the guard may use, which is the most it can ever take. When the loan crosses the trigger, the guard repays only what brings it back to the target, from your own wallet. The steps and the limits are on [The loan guard](/docs/loan-guard). **Stop protecting** clears the rule and sets the approval to 0 together.
 - **Add cirBTC** to lower the loan-to-value. It adds no debt.
-- **Close the loan** to repay it in full and take all your cirBTC back. The page shows the amount to repay and whether your wallet holds enough; the approval it uses is reset to zero in the same signature.
+- **Repay some** to bring the loan down by an exact amount.
+- **Close the loan** to repay it in full and take all your cirBTC back. The page shows the amount to repay and whether your wallet holds enough; the approval it uses is reset to zero in the same signature, and the loan's guard stops too.
+
+For Telegram messages when a loan gets close, and each time the guard repays, link a chat on [Alerts](/app/protect): see [Telegram alerts](/docs/alerts).
 
 You can also do either on Morpho's own app: the [USDC market](https://app.morpho.org/arc/market/0xc2db905f174e5defcce01d321b09f15f78856a36a21b90cc7e1abbc29225815d) or the [EURC market](https://app.morpho.org/arc/market/0x6ea1ea96a1cc671615f3a3bdf51481c5b79e362a8b634396e680d1070137daf4). There, repay by your full share count, not by an amount, or a tiny remainder of debt blocks the withdrawal.
 
@@ -69,7 +82,7 @@ A bill is a record on Arc: who is paid (always the wallet that wrote it), the cu
 
 Writing a bill costs about 0.004 USDC in gas, and up to about 0.006 USDC with a full 140-byte reference. Your bills and their status are listed on [Your wallet](/app).
 
-By hand, without this site: call `createBill(currency, amount, due, ref)` on [AdagBills on explorer.arc.io](https://explorer.arc.io/address/0x6F2199e0A04e5e8ba67c89C467b6DF168b01137E?tab=write_contract), with the amount in base units (six decimals, so 125.50 USDC is `125500000`), `due` as a Unix timestamp or `0`, and the reference as hex bytes. The bill number is in the transaction's `BillCreated` event.
+By hand, without this site: call `createBill(currency, amount, due, ref)` on [AdagBills on explorer.arc.io](https://explorer.arc.io/address/0xaf6C47ae3e2ccD2Cd829Dd8a1DcCb7a7665c08cB?tab=write_contract), with the amount in base units (six decimals, so 125.50 USDC is `125500000`), `due` as a Unix timestamp or `0`, and the reference as hex bytes. The bill number is in the transaction's `BillCreated` event.
 
 ### After it is paid
 

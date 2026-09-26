@@ -1,11 +1,13 @@
 ---
 title: Try to break it
-description: Run sixteen real attacks against the live contract in one click, and see why each one is refused.
+description: Run real attacks against the live contracts in one click, in three groups, and see why each one is refused.
 ---
 
 Reading that a contract refuses something is one thing. Watching it refuse is better.
 
-[The break page](/break) runs sixteen real attacks against the live AdagBills, simulated on Arc mainnet's current state. Nothing is signed or sent. For each attack it shows what was tried, the rule that should stop it with its number in the [threat model](/docs/security/threat-model), and the contract's actual answer. The attacks include:
+[The break page](/break) runs real attacks against the live AdagBills and AdagGuard, simulated on Arc mainnet's current state. Nothing is signed or sent. For each attack it shows what was tried, the rule that should stop it with its number in the [threat model](/docs/security/threat-model), and the contract's actual answer. The attacks come in three groups.
+
+**Paying bills**, for example:
 
 - paying a bill that is already paid;
 - closing the loan and re-borrowing the same shares against less bitcoin;
@@ -16,14 +18,33 @@ Reading that a contract refuses something is one thing. Watching it refuse is be
 - paying without an allowance;
 - a simulated 25% bitcoin price drop, where a cash payment still goes through and any new debt is refused.
 
+**Recording an existing loan**, for example:
+
+- recording and paying in the same batch;
+- borrowing more, recording that debt and paying with it, all at once;
+- a stranger recording, hoping to change someone else's record;
+- recording, then closing the loan and re-borrowing against less bitcoin;
+- the named residual: borrowing outside Adag, recording in one block and paying from cash in the next, which is allowed by design and affects only that payer's own position.
+
+**The loan guard**, for example:
+
+- repeating `protect` at the same price, which finds nothing left to repay;
+- pulling more than the approval, or more than the wallet holds;
+- using another Morpho market, or an id one digit away from Adag's;
+- calling `protect` under the trigger, or after the rule has ended;
+- a stranger clearing or overwriting someone else's rule;
+- a simulated crash of the price to zero, where the repayment is capped at the debt;
+- calling the owner, pause, rescue or upgrade functions a drain would need, which do not exist.
+
 <Callout type="idea" title="Why this exists">
-  The 40% line lives in the contract, not in this website. These attacks go straight to the contract, the way someone building transactions by hand would, so the website's own checks play no part.
+  The 40% line and the guard's limits live in the contracts, not in this website. These attacks go straight to the contracts, the way someone building transactions by hand would, so the website's own checks play no part.
 </Callout>
 
-## The full suite, from the repository
+## The full suites, from the repository
 
 ```bash
 node packages/contracts/prove-it/attack.mjs
+node packages/contracts/prove-it/guard-attack.mjs
 ```
 
-It runs the same attacks plus two more that point the proof script at a lying RPC, 18 in all, and prints each one, what should stop it and the decoded revert. The latest results are on [Audit status](/docs/security/audit-status#the-attack-suite-on-live-state).
+They run the same attacks and more, including two that point the proof script at a lying RPC, and print each one, what should stop it and the decoded revert. The latest runs against the live contracts behaved as the threat model says in every row: 23 of 23 for AdagBills and 14 of 14 for AdagGuard. The rows are on [Audit status](/docs/security/audit-status#the-attack-suites-on-live-state).

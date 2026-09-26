@@ -3,23 +3,43 @@ title: Security overview
 description: What Adag protects, how it does it, and the risks it deliberately leaves to you or to others.
 ---
 
-Adag moves real money for people who cannot read what they sign: a wallet shows a batch of calls as a blob of hex. So the design starts from one question. If the page, the link or the RPC is wrong, what is the worst that can happen? The answer we built to is that the worst case is a transaction that reverts, never one that loses money.
+Adag moves real money for people who cannot read what they sign: a wallet shows a batch of calls as a blob of hex. So the design starts from one question. If the page, the link, the RPC or a server route is wrong, what is the worst that can happen? The answer we built to is that the worst case is a transaction that reverts, never one that loses money.
 
-The full list of rules is the [threat model](/docs/security/threat-model), written before any contract code and used as the definition of done. It now also covers the components being built next (a second AdagBills deployment with enrol, AdagGuard, alerts and Safe payments), written before their code, and they are being built against it. This page is the short version, for what is live today.
+The full list of rules is the [threat model](/docs/security/threat-model), C1 to C60, used as the definition of done. Each part was written before the code it covers: C1 to C24 before the first contract, C25 to C30 for the app, C31 to C57 before AdagGuard, recording a loan, the keeper, alerts and Safe payments, and C58 to C60 from the review of that code. This page is the short version.
 
 ## What is protected, and how
 
 ### Your bitcoin cannot be taken by Adag
 
-cirBTC is pledged to Morpho in your own name. AdagBills has no function that moves cirBTC, no owner and no upgrade path. The only token movement Adag can cause is the exact bill amount, from the payer, to that bill's supplier, in that bill's currency, inside the call that marks the bill paid.
+cirBTC is pledged to Morpho in your own name. Neither AdagBills nor AdagGuard has a function that moves cirBTC, an owner or an upgrade path. The only token movement AdagBills can cause is the exact bill amount, from the payer, to that bill's supplier, in that bill's currency, inside the call that marks the bill paid.
 
 ### A bill is paid once, and only when the money really arrived
 
-The contract marks a bill paid only if the supplier's balance rose by at least the bill amount within the same call, measured before and after the transfer. A second payment of the same bill reverts. Paying your own bill is refused. A cancelled bill can never be paid.
+The contract marks a bill paid only if the supplier's balance rose by at least the bill amount within the same call, measured before and after the transfer. A second payment of the same bill reverts. Paying your own bill is refused. A cancelled bill can never be paid. Two AdagBills deployments are live and both number bills from 1, so a bill is always the pair (contract, id), and a payment built for one can never pay the other.
 
 ### A payment never pushes your loan past 40%
 
 The check runs inside the contract on live Morpho and oracle state, whenever a payment adds debt or leaves the loan riskier than the last position Adag accepted. It needs a fresh price. If any read it needs fails, the payment reverts: unreadable means over the limit. See [the new-debt rule](/docs/how-it-works#the-new-debt-rule).
+
+### Recording a loan cannot be used to slip debt past the line
+
+`enrol()` takes no arguments and writes only the caller's own record, exactly what Morpho reports in that block. It moves no tokens. A payment in the same block as the caller's record is refused, so debt cannot be borrowed, recorded and spent in one batch. The promise is that a payment through Adag is never the action that takes a position above 40%. The one named residual, recording in one block and paying from cash in the next, forgives only debt that was already there, on the payer's own position.
+
+### The loan guard can only repay your own loan, within your approval
+
+AdagGuard repays a borrower's own Morpho loan, from that borrower's own wallet, to no target but theirs. Each `protect` repays only what brings the loan back to the target, capped by the approval, the wallet's balance and the debt rounded down, and the approval is the lifetime ceiling. Only the borrower can set or clear their rule. After every repayment the contract checks that Morpho took exactly what was pulled and that no tokens and no approval stayed behind, or it undoes the call. The app never builds an unlimited approval or one above what you typed, and stopping the guard clears the rule and the approval together. See [The loan guard](/docs/loan-guard).
+
+### The keeper can only pay gas for `protect`
+
+The keeper's wallet holds gas only, and the one transaction it can build is `protect(borrower, market)` to AdagGuard, checked again from its bytes before it signs. It acts only when `quote` at the latest block says the guard would act, spends at most 0.5 USDC of gas in any hour, runs one at a time behind a lease, and wakes only on a correctly signed price webhook or its own scheduled run. It reads the rule holders from the chain, a few pages per run, and drops any with no debt or no approval before it spends anything on them.
+
+### Alerts cannot be taken over, and say nothing anyone else wrote
+
+Linking a chat needs a one-time code, a Start press from that chat, and a message the wallet signs that names the chat. A chat that already gets alerts for one wallet cannot be taken by another. Every change is signed and every nonce is used once. Alerts are fixed text and numbers, sent with no formatting, and name the wallet in full. No route tells anyone whether a wallet has alerts. See [Telegram alerts](/docs/alerts).
+
+### A Safe payment is checked on chain before anyone signs
+
+The Safe, its version, the signing owner, the nonce and the transaction hash are read from the Safe contract itself, and the batch is run as the Safe would, before the owner signs; the server checks it all again before proposing. The batch can only reach fixed addresses, carries no value and no refund, and reverts whole if any step fails. Whether a bill is paid always comes from AdagBills, never from Safe's service. See [Safe payments](/docs/safe).
 
 ### Bills are what they say
 
@@ -27,15 +47,19 @@ A bill's supplier is always the wallet that wrote it, so nobody can write a bill
 
 ### The page cannot be steered by a link
 
-From a link the app reads one thing, a bill number. Every other value (supplier, amount, currency) is read from the contract. Every call the app builds targets an address fixed at build time, every approval is exact and goes only to Morpho or AdagBills, and every call must succeed or the whole batch undoes itself. The app builds nothing unless your wallet is on Arc.
+From a link the app reads one thing, a bill number. Every other value (supplier, amount, currency) is read from the contract. Every call the app builds targets an address fixed at build time, every approval is exact and goes only to the contract that uses it, and every call must succeed or the whole batch undoes itself. The app builds nothing unless your wallet is on Arc.
 
 ### What you are shown is what the contract will use
 
-The supplier and the amount on the bill page are decoded from the same record the payment reads. Addresses are shown in full and checksummed. References are shown as plain text only: never a link, never formatted, with direction-changing characters removed.
+The supplier and the amount on the bill page are decoded from the same record the payment reads. Addresses are shown in full and checksummed. References are shown as plain text only: never a link, never formatted, with direction-changing characters removed. The home page shows only paid bills, from each contract's own `BillPaid` event, and no bill references at all.
 
 ### Status comes only from Adag
 
-"Paid" on any Adag screen comes from AdagBills' storage or its own `BillPaid` event, never from a Memo event, which anyone can emit. A read that fails shows "unavailable", never zero and never paid.
+"Paid" on any Adag screen comes from the bill's own AdagBills: its storage or its own `BillPaid` event, never a Memo event, which anyone can emit, and never Safe's service. A read that fails shows "unavailable", never zero and never paid.
+
+### The server fails closed
+
+Every server key lives only in server settings, never in the page. Each route answers with a plain refusal when its key is missing, and the server says at start which features are off. Webhooks are checked against their senders' signatures over the exact bytes received, every route caps its request size and rate, and the server fetches only from fixed addresses.
 
 ## What Adag does not defend against
 
@@ -43,16 +67,17 @@ These are named on purpose, so nobody assumes otherwise.
 
 - **Who a supplier really is.** A bill from someone pretending to be your landlord is a valid bill. Adag shows exactly who and how much; judging who is your job.
 - **Morpho, the oracles or the token contracts being wrong,** paused, blocklisting or upgraded. Adag fails closed on their reverts and zeros, nothing more.
-- **A compromised wallet, browser or operating system.**
-- **A compromised page build or hosting.** Pinned dependencies and no third-party scripts reduce the odds; they do not remove them. A payer signing a batch cannot detect a compromised page.
-- **Watching your loan after payment.** Interest accrues, prices move, and Morpho liquidates at 86%. Adag checks the line once, at payment.
-- **A payer going above 40% by using Morpho directly.** The line applies to payments made through Adag.
-- **Privacy.** Every bill, amount, reference and payer is public on chain.
+- **A compromised wallet, browser or operating system,** or a compromised Telegram account or phone.
+- **A compromised page build or hosting.** Pinned dependencies, a content security policy and no third-party scripts reduce the odds; they do not remove them. A payer signing a batch cannot detect a compromised page.
+- **Liquidation itself.** The guard cannot act with no balance, no approval or nobody calling `protect`; a single price jump past 86% outruns it; and interest can cross the trigger between price updates. Alerts are best effort.
+- **A payer going above 40% by using Morpho directly,** or through the named residual of recording a loan. Adag's line applies to payments made through Adag.
+- **A malicious Safe owner.** That is a matter for the Safe's own threshold.
+- **Privacy of what is on chain.** Every bill, amount, reference, payer, rule and repayment is public.
 - **Front-running.** Adag's flows have no slippage to extract.
-- **Availability** of the public RPC or the hosting.
+- **Availability** of the RPC, Telegram, Safe's service or the hosting.
 - **How other explorers display Memo data.**
 - **Due dates.** A due date is shown, not enforced.
 
 ## How it was checked
 
-Self-audited, with the evidence published: 73 tests including fuzzing and invariants, static analysis with no real bugs, three separate reviews, an 18-attack suite run against the live contract, and source verification on two services. The details, including the contract bypass one review found, the three app issues the last one found, and how each was fixed, are on [Audit status](/docs/security/audit-status).
+Self-audited, with the evidence published: 131 tests including 8 fuzz tests and 12 invariants; static analysis of both contracts with no real bugs; separate reviews of both contracts and the app; two security passes over the web app and its server routes; attack suites run against the live contracts; and source verification on two services. The details, including what each review found and how it was fixed, are on [Audit status](/docs/security/audit-status).
