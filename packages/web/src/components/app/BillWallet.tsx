@@ -32,6 +32,7 @@ import { RetryContext, Value, rise, type Cell } from "./cells";
 import { ConnectButton } from "./ConnectButton";
 import { GetSetUp } from "./GetSetUp";
 import { PayActions } from "./PayActions";
+import { SafeEntry } from "./SafeEntry";
 import { VoidAction } from "./VoidAction";
 import { SMART_ACCOUNT_SENTENCE } from "./WalletNotice";
 
@@ -255,6 +256,9 @@ function ConnectedWallet({ address, bill, wallet, justPaid, paidTxUrl }: Connect
           )}
         </div>
       </div>
+
+      {/* Outside the grid: the pay panel above fills its row's full height, so anything stacked under it would overflow. */}
+      <SafeEntry bills={[bill]} available={!isPayee && open && !actedHere && reason === null && Boolean(currency)} className="mt-6" />
 
       <motion.div {...rise(4)} className="mt-6">
         <PriceLine priceStatus={priceStatus} symbol={currency?.symbol ?? "USDC"} chainNow={head.data?.timestamp ?? null} />

@@ -10,7 +10,9 @@ import { createRequire } from 'node:module';
 import { existsSync, mkdirSync, rmSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
-import { createPublicClient, http, parseAbi, parseAbiItem, parseEventLogs, stringToHex } from 'viem';
+import { createServer } from 'node:http';
+import { createPublicClient, encodeFunctionData, getAddress, http, keccak256, parseAbi, parseAbiItem, parseEventLogs, stringToHex } from 'viem';
+import { privateKeyToAccount } from 'viem/accounts';
 
 const WEB = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 // Screenshots are proof for review, not part of the product, so they land in an ignored folder unless told otherwise:
@@ -73,6 +75,7 @@ async function billPaidLog(id) {
 }
 
 const nextBin = resolve(WEB, 'node_modules/next/dist/bin/next');
+const MOCK_PORT = 8599;
 const appEnv = {
   ...process.env,
   NEXT_DIST_DIR: DIST,
@@ -80,6 +83,9 @@ const appEnv = {
   NEXT_PUBLIC_ADAG_E2E: '1',
   ARC_RPC_URL: FORK,
   ARC_RPC_FALLBACK_URL: FORK,
+  // The Safe routes talk to the harness's stand-in Transaction Service, never Safe's real one, and with a dummy key.
+  SAFE_API_KEY: 'e2e-mock-key',
+  SAFE_TX_SERVICE_URL: `http://127.0.0.1:${MOCK_PORT}/api`,
 };
 
 function buildApp() {
@@ -143,6 +149,8 @@ function walletScript({ account, fork, chainOverride, addArcFlow }) {
       }
       if (method === 'wallet_switchEthereumChain' || method === 'wallet_addEthereumChain') throw Object.assign(new Error('User rejected the request.'), { code: 4001 });
       if (method === 'eth_sendTransaction') return forward(method, [{ ...params[0], from: account }]);
+      // A Safe owner's EIP-712 signature comes from the harness, which holds that owner's test key.
+      if (method === 'eth_signTypedData_v4' && typeof window.__e2eSign === 'function') return window.__e2eSign(params[1]);
       return forward(method, params);
     },
     on(event, fn) { (listeners[event] ||= []).push(fn); },
@@ -151,10 +159,11 @@ function walletScript({ account, fork, chainOverride, addArcFlow }) {
 }
 
 let browser;
-async function openPage({ account, chainOverride = null, width = 1440, theme = 'dark', noWallet = false, addArcFlow = false }) {
+async function openPage({ account, chainOverride = null, width = 1440, theme = 'dark', noWallet = false, addArcFlow = false, signer = null }) {
   const context = await browser.newContext({ viewport: { width, height: width < 600 ? 812 : 900 }, colorScheme: theme, hasTouch: width < 600 });
   await context.addCookies([{ name: 'adag-theme', value: theme, url: APP }]);
   if (!noWallet) await context.addInitScript(walletScript, { account, fork: FORK, chainOverride, addArcFlow });
+  if (signer) await context.exposeFunction('__e2eSign', (json) => signTypedJson(signer, json));
   const page = await context.newPage();
   page.on('console', (m) => m.type() === 'error' && consoleErrors.push(`${page.url()}: ${m.text()}`));
   page.on('pageerror', (e) => consoleErrors.push(`${page.url()}: pageerror ${e.message}`));
@@ -171,7 +180,7 @@ async function connect(page, path) {
 // Reveals only fire in view, so walk the page before a full-page capture; then shoot 1440 dark and 375 light.
 // By default only the screens named with NEWEST_SHOTS are captured, which keeps a run short.
 // --all-shots captures every screen the run passes through, the older ones included.
-const NEWEST_SHOTS = 'p4-';
+const NEWEST_SHOTS = 'a1-';
 async function shoot(page, name) {
   const all = process.argv.includes('--all-shots');
   const file = name.startsWith(NEWEST_SHOTS) ? name : !all ? null : /^f\d/.test(name) ? name : `e2e-${name}`;
@@ -197,6 +206,55 @@ async function shoot(page, name) {
 }
 
 const sends = (page) => page.evaluate(() => window.__walletLog.filter((m) => m === 'eth_sendTransaction').length);
+const signRequests = (page) => page.evaluate(() => window.__walletLog.filter((m) => m === 'eth_signTypedData_v4').length);
+
+// Signs an eth_signTypedData_v4 request as a Safe owner with that owner's test key. The JSON carries numbers as
+// strings, so the SafeTx integers become bigints before viem hashes them.
+async function signTypedJson(account, json) {
+  const t = JSON.parse(json);
+  const { EIP712Domain: _domain, ...types } = t.types;
+  const m = t.message;
+  const message = { ...m, value: BigInt(m.value), safeTxGas: BigInt(m.safeTxGas), baseGas: BigInt(m.baseGas), gasPrice: BigInt(m.gasPrice), nonce: BigInt(m.nonce), operation: Number(m.operation) };
+  return account.signTypedData({ domain: { ...t.domain, chainId: Number(t.domain.chainId) }, types, primaryType: t.primaryType, message });
+}
+
+// A stand-in for Safe's Transaction Service, only the endpoints api-kit calls. It keeps proposals in memory; the
+// harness adds the second owner's confirmation and marks execution itself.
+const mockSafe = { proposals: new Map(), owners: new Map(), thresholds: new Map() };
+function startMockSafeService() {
+  const server = createServer((req, res) => {
+    const reply = (status, body) => {
+      res.writeHead(status, { 'content-type': 'application/json' });
+      res.end(body === undefined ? '' : JSON.stringify(body));
+    };
+    let raw = '';
+    req.on('data', (c) => { raw += c; });
+    req.on('end', () => {
+      const url = new URL(req.url, 'http://mock');
+      let m;
+      if (req.method === 'POST' && (m = /^\/api\/v2\/safes\/(0x[0-9a-fA-F]{40})\/multisig-transactions\/$/.exec(url.pathname))) {
+        const b = JSON.parse(raw);
+        const safe = m[1].toLowerCase();
+        mockSafe.proposals.set(b.contractTransactionHash.toLowerCase(), {
+          safe: m[1], to: b.to, value: b.value, data: b.data, operation: b.operation, safeTxGas: b.safeTxGas, baseGas: b.baseGas, gasPrice: b.gasPrice,
+          gasToken: b.gasToken, refundReceiver: b.refundReceiver, nonce: Number(b.nonce), safeTxHash: b.contractTransactionHash,
+          confirmationsRequired: mockSafe.thresholds.get(safe) ?? 1, confirmations: [{ owner: b.sender, signature: b.signature }],
+          isExecuted: false, isSuccessful: null, transactionHash: null, origin: b.origin,
+        });
+        return reply(201);
+      }
+      if (req.method === 'GET' && (m = /^\/api\/v2\/multisig-transactions\/(0x[0-9a-fA-F]{64})\/$/.exec(url.pathname))) {
+        const tx = mockSafe.proposals.get(m[1].toLowerCase());
+        return tx ? reply(200, tx) : reply(404, { detail: 'Not found.' });
+      }
+      if (req.method === 'GET' && (m = /^\/api\/v1\/owners\/(0x[0-9a-fA-F]{40})\/safes\/$/.exec(url.pathname))) {
+        return reply(200, { safes: mockSafe.owners.get(m[1].toLowerCase()) ?? [] });
+      }
+      return reply(404, { detail: 'Not found.' });
+    });
+  });
+  return new Promise((resolve) => server.listen(MOCK_PORT, '127.0.0.1', () => resolve(server)));
+}
 
 async function main() {
   console.log('e2e: starting the Arc fork in WSL');
@@ -212,6 +270,7 @@ async function main() {
 
   console.log('e2e: building the app against the fork (.next-e2e) and serving it on :3400');
   buildApp();
+  const mockService = await startMockSafeService();
   const app = await startApp();
   browser = await chromium.launch();
 
@@ -328,7 +387,8 @@ async function main() {
       await page.evaluate(() => { window.__adagE2EPledgePercent = 70; });
       await page.locator('[data-action="pay-bitcoin"]:not([disabled])').waitFor({ timeout: 60_000 });
       await page.locator('[data-action="pay-bitcoin"]').click();
-      if (await page.getByRole('dialog').isVisible().catch(() => false)) {
+      // The disclaimer can open a beat after the click, so give it a moment before deciding it is not there.
+      if (await page.getByRole('dialog').waitFor({ timeout: 5_000 }).then(() => true, () => false)) {
         await page.getByRole('dialog').getByRole('checkbox').check();
         await page.getByRole('dialog').getByRole('button', { name: 'Continue to payment' }).click();
       }
@@ -972,6 +1032,176 @@ async function main() {
         `${written.name}: ${written.rows.length - 1} rows for ${wroteTotal} bills written; bill #${Z} reference cell ${JSON.stringify(zRow?.[9])}; ${paid.name}: ${paid.rows.length - 1} rows for ${paidTotal} paid, ${linked.length} with a transaction link`);
     }
 
+    // (aa) to (cc): paying from a Safe. A 2-of-2 Safe v1.4.1 is created on the fork through Arc's SafeProxyFactory,
+    // owned by two fresh test keys. Proposals go to the harness's stand-in Transaction Service, never Safe's real one.
+    const safeE2EAbi = parseAbi([
+      'function setup(address[] _owners, uint256 _threshold, address to, bytes data, address fallbackHandler, address paymentToken, uint256 payment, address paymentReceiver)',
+      'function createProxyWithNonce(address _singleton, bytes initializer, uint256 saltNonce) returns (address proxy)',
+      'function nonce() view returns (uint256)',
+      'function execTransaction(address to, uint256 value, bytes data, uint8 operation, uint256 safeTxGas, uint256 baseGas, uint256 gasPrice, address gasToken, address refundReceiver, bytes signatures) payable returns (bool)',
+    ]);
+    const SAFE_FACTORY = '0x4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67';
+    const SAFE_L2 = '0x29fcB43b46531BcA003ddC8FCB67FFE91900C762';
+    const SAFE_HANDLER = '0xfd0732Dc9E303f09fCEf3a7388Ad10A83459Ec99';
+    const ZERO = '0x0000000000000000000000000000000000000000';
+    const OWNER1 = privateKeyToAccount(keccak256(stringToHex('adag e2e safe owner one')));
+    const OWNER2 = privateKeyToAccount(keccak256(stringToHex('adag e2e safe owner two')));
+    const sendFork = async (to, data) => {
+      const hash = await rpc('eth_sendTransaction', [{ from: PAYER, to, data, gas: '0x2dc6c0' }]);
+      return fork.waitForTransactionReceipt({ hash });
+    };
+    const setup = encodeFunctionData({ abi: safeE2EAbi, functionName: 'setup', args: [[OWNER1.address, OWNER2.address], 2n, ZERO, '0x', SAFE_HANDLER, ZERO, 0n, ZERO] });
+    const create = encodeFunctionData({ abi: safeE2EAbi, functionName: 'createProxyWithNonce', args: [SAFE_L2, setup, 5042n] });
+    const SAFE = getAddress(`0x${(await rpc('eth_call', [{ from: PAYER, to: SAFE_FACTORY, data: create }, 'latest'])).slice(26)}`);
+    const created = await sendFork(SAFE_FACTORY, create);
+    await rpc('anvil_setBalance', [SAFE, `0x${(5n * 10n ** 18n).toString(16)}`]);
+    const funded = forkScript('send', PAYER, CIRBTC, 'transfer(address,uint256)', SAFE, '3000');
+    mockSafe.owners.set(OWNER1.address.toLowerCase(), [SAFE]);
+    mockSafe.owners.set(OWNER2.address.toLowerCase(), [SAFE]);
+    mockSafe.thresholds.set(SAFE.toLowerCase(), 2);
+    console.log(`  Safe ${SAFE} on the fork (2 of 2: ${OWNER1.address}, ${OWNER2.address}); created ${created.status}; cirBTC funding ${funded}`);
+    const safeNonce = () => fork.readContract({ address: SAFE, abi: safeE2EAbi, functionName: 'nonce' });
+    // The second owner confirms, then anyone executes with both signatures, sorted by owner address.
+    const confirmAndExecute = async (proposal) => {
+      const typed = {
+        domain: { chainId: 5042, verifyingContract: SAFE },
+        types: { SafeTx: [
+          { name: 'to', type: 'address' }, { name: 'value', type: 'uint256' }, { name: 'data', type: 'bytes' }, { name: 'operation', type: 'uint8' },
+          { name: 'safeTxGas', type: 'uint256' }, { name: 'baseGas', type: 'uint256' }, { name: 'gasPrice', type: 'uint256' }, { name: 'gasToken', type: 'address' },
+          { name: 'refundReceiver', type: 'address' }, { name: 'nonce', type: 'uint256' },
+        ] },
+        primaryType: 'SafeTx',
+        message: {
+          to: proposal.to, value: BigInt(proposal.value), data: proposal.data, operation: Number(proposal.operation), safeTxGas: BigInt(proposal.safeTxGas),
+          baseGas: BigInt(proposal.baseGas), gasPrice: BigInt(proposal.gasPrice), gasToken: proposal.gasToken, refundReceiver: proposal.refundReceiver, nonce: BigInt(proposal.nonce),
+        },
+      };
+      const second = await OWNER2.signTypedData(typed);
+      proposal.confirmations.push({ owner: OWNER2.address, signature: second });
+      const signatures = `0x${[...proposal.confirmations].sort((x, y) => (x.owner.toLowerCase() < y.owner.toLowerCase() ? -1 : 1)).map((c) => c.signature.slice(2)).join('')}`;
+      const m = typed.message;
+      const exec = encodeFunctionData({ abi: safeE2EAbi, functionName: 'execTransaction', args: [m.to, m.value, m.data, m.operation, m.safeTxGas, m.baseGas, m.gasPrice, m.gasToken, m.refundReceiver, signatures] });
+      const receipt = await sendFork(SAFE, exec);
+      proposal.isExecuted = receipt.status === 'success';
+      proposal.isSuccessful = receipt.status === 'success';
+      proposal.transactionHash = receipt.transactionHash;
+      return receipt;
+    };
+    const lastProposal = () => [...mockSafe.proposals.values()].at(-1);
+    const proposeFromUi = async (page, choice) => {
+      // Nothing may sit on top of the entry: the bill page once let the price line cover it.
+      const covered = await page.evaluate(() => {
+        const b = document.querySelector('[data-action="safe-open"]');
+        b.scrollIntoView({ block: 'center' });
+        const r = b.getBoundingClientRect();
+        const hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+        return hit && b.contains(hit) ? null : String(hit?.textContent).slice(0, 60);
+      });
+      if (covered) throw new Error(`"Pay from a Safe" is covered by: ${covered}`);
+      await page.locator('[data-action="safe-open"]').first().click();
+      await page.locator('[data-field="safe-address"]').fill(SAFE);
+      await page.locator('[data-action="safe-check"]').click();
+      await page.locator('[data-safe-verified]').waitFor({ timeout: 60_000 });
+      await page.waitForFunction(() => document.querySelectorAll('[data-safe-choice]:not([disabled])').length > 0, null, { timeout: 60_000 });
+      if (choice) await page.locator(`[data-safe-choice="USDC-${choice}"]`).check();
+    };
+
+    // (aa) A basket from the Safe's bitcoin: one owner proposes in the UI, the other confirms, the harness executes.
+    {
+      const bills2 = [newBill('USDC', 100_000, 'E2E-AA-1'), newBill('USDC', 100_000, 'E2E-AA-2')];
+      const { context, page } = await openPage({ account: OWNER1.address, signer: OWNER1 });
+      await page.goto(`${APP}/pay/basket?bills=${bills2.join(',')}`, { waitUntil: 'networkidle', timeout: 120_000 });
+      await page.getByRole('button', { name: 'Connect wallet' }).first().click();
+      await page.locator('[data-action="safe-open"]').waitFor({ timeout: 60_000 });
+      await page.locator('[data-action="safe-open"]').click();
+      const listedButton = page.getByRole('button', { name: `${SAFE.slice(0, 6)}…${SAFE.slice(-4)}` });
+      await listedButton.waitFor({ timeout: 30_000 }).catch(() => {});
+      const listed = await listedButton.count();
+      await page.locator('[data-action="safe-open"]').click();
+      await proposeFromUi(page, null);
+      await page.locator('[data-safe-choice="USDC-bitcoin"]:checked').waitFor({ timeout: 30_000 });
+      await shoot(page, 'a1-aa-safe');
+      await page.locator('[data-action="safe-propose"]').click();
+      const dialog = page.getByRole('dialog', { name: /Borrowing through Morpho/ });
+      if (await dialog.isVisible({ timeout: 5_000 }).catch(() => false)) {
+        await dialog.getByRole('checkbox').check();
+        await dialog.getByRole('button', { name: 'Continue to payment' }).click();
+      }
+      await page.locator('[data-safe-status]').waitFor({ timeout: 120_000 });
+      await page.getByText('1 of 2 signatures').waitFor({ timeout: 30_000 });
+      await shoot(page, 'a1-aa-proposed');
+      const proposal = lastProposal();
+      const nonceBefore = await safeNonce();
+      const receipt = await confirmAndExecute(proposal);
+      if (receipt.status !== 'success') {
+        const trace = await rpc('debug_traceTransaction', [receipt.transactionHash, { tracer: 'callTracer' }]).catch((e) => ({ error: e.message }));
+        console.log(`  (aa) execution ${receipt.status}: ${JSON.stringify(trace).slice(0, 1500)}`);
+      }
+      await page.locator('[data-safe-paid]').waitFor({ timeout: 45_000 }).catch(async (e) => {
+        console.log(`  (aa) still waiting: ${await page.locator('[data-safe-status]').innerText().catch(() => 'no status panel')}`);
+        throw e;
+      });
+      await page.waitForTimeout(800);
+      await shoot(page, 'a1-aa-paid');
+      const records = await Promise.all(bills2.map((id) => fork.readContract({ address: ADAG, abi: adagAbi, functionName: 'bill', args: [id] })));
+      const safeLoan = await fork.readContract({ address: MORPHO, abi: morphoAbi, functionName: 'position', args: [MARKET_USDC, SAFE] });
+      const allowUsdc = await fork.readContract({ address: USDC, abi: tokenAbi, functionName: 'allowance', args: [SAFE, ADAG] });
+      const allowBtc = await fork.readContract({ address: CIRBTC, abi: tokenAbi, functionName: 'allowance', args: [SAFE, MORPHO] });
+      const signed = await signRequests(page);
+      const sent = await sends(page);
+      await context.close();
+      record(`(aa) a Safe pays bills #${bills2.join(', #')} from its bitcoin: proposed in the UI, confirmed and executed, the Safe the payer with the loan, no allowance left`,
+        listed === 1 && proposal?.origin === 'Adag' && receipt.status === 'success' && (await safeNonce()) === nonceBefore + 1n
+          && records.every((r) => r.status === 2 && r.payer.toLowerCase() === SAFE.toLowerCase()) && safeLoan[1] > 0n && allowUsdc === 0n && allowBtc === 0n && signed === 1 && sent === 0,
+        `picker listed the Safe: ${listed === 1}; proposal nonce ${proposal?.nonce}, origin ${proposal?.origin}; execution ${receipt.status}; bills paid by ${records.map((r) => r.payer).join(', ')}; Safe's borrow shares ${safeLoan[1]}; allowances ${allowUsdc} and ${allowBtc}; wallet signature requests ${signed}, sends ${sent}`);
+    }
+
+    // (bb) A bill someone else pays between proposal and execution: the whole execution reverts and the nonce survives.
+    {
+      const BB = newBill('USDC', 100_000, 'E2E-BB');
+      const { context, page } = await openPage({ account: OWNER1.address, signer: OWNER1 });
+      await connect(page, `/bill/${BB}`).catch(() => {});
+      await proposeFromUi(page, 'balance');
+      await page.locator('[data-action="safe-propose"]').click();
+      await page.locator('[data-safe-status]').waitFor({ timeout: 120_000 });
+      const proposal = lastProposal();
+      const paidBySomeoneElse = [
+        forkScript('send', PAYER, USDC, 'approve(address,uint256)', ADAG, '100000'),
+        forkScript('send', PAYER, ADAG, 'pay(uint256)', String(BB)),
+      ];
+      const nonceBefore = await safeNonce();
+      const receipt = await confirmAndExecute(proposal);
+      const nonceAfter = await safeNonce();
+      const record_ = await fork.readContract({ address: ADAG, abi: adagAbi, functionName: 'bill', args: [BB] });
+      // Paid by someone else is not paid by the Safe (C53): the card keeps waiting.
+      await page.waitForTimeout(7_000);
+      const safePaidShown = await page.locator('[data-safe-paid]').count();
+      await shoot(page, 'a1-bb-reverted');
+      await context.close();
+      record(`(bb) bill #${BB} paid by someone else after the Safe's proposal: the Safe's execution reverts as a whole and its nonce is not used`,
+        paidBySomeoneElse.every((x) => x.includes('"status":"0x1"')) && receipt.status === 'reverted' && nonceAfter === nonceBefore && record_.payer.toLowerCase() === PAYER.toLowerCase() && safePaidShown === 0,
+        `the other payment: ${paidBySomeoneElse.join(' ')}; Safe execution ${receipt.status}; Safe nonce ${nonceBefore} -> ${nonceAfter}; bill payer ${record_.payer}; Safe card shows paid: ${safePaidShown > 0}`);
+    }
+
+    // (cc) A Safe the connected wallet does not own is refused before any signature is asked for.
+    {
+      const CC = newBill('USDC', 100_000, 'E2E-CC');
+      const { context, page } = await openPage({ account: PAYER });
+      await connect(page, `/bill/${CC}`).catch(() => {});
+      await page.locator('[data-action="safe-open"]').first().click();
+      await page.locator('[data-field="safe-address"]').fill(SAFE);
+      await page.locator('[data-action="safe-check"]').click();
+      const problem = page.locator('[data-safe-problem]');
+      await problem.waitFor({ timeout: 60_000 });
+      const text = await problem.innerText();
+      const proposeShown = await page.locator('[data-action="safe-propose"]').count();
+      await shoot(page, 'a1-cc-refused');
+      const signed = await signRequests(page);
+      await context.close();
+      record('(cc) a Safe the connected wallet does not own is refused before any signature, with no way to propose',
+        text.includes('not an owner') && proposeShown === 0 && signed === 0, `shown: "${text}"; propose button ${proposeShown}; signature requests ${signed}`);
+    }
+
     // The mobile menu open, and the wallet page before connecting.
     {
       const { context, page } = await openPage({ account: PAYER, width: 375, theme: 'light' });
@@ -995,6 +1225,7 @@ async function main() {
   } finally {
     await browser?.close();
     stopApp(app);
+    mockService.close();
   }
 }
 
@@ -1003,7 +1234,7 @@ try {
   await main();
   const passed = results.filter((r) => r.ok).length;
   console.log(`\nconsole errors: ${consoleErrors.length}${consoleErrors.length ? `\n  ${consoleErrors.join('\n  ')}` : ''}`);
-  const allOk = passed === results.length && results.length === 26 && consoleErrors.length === 0;
+  const allOk = passed === results.length && results.length === 29 && consoleErrors.length === 0;
   console.log(allOk ? `ALL ${passed} SCENARIOS PASSED` : `${results.length - passed} of ${results.length} scenarios failed`);
   code = allOk ? 0 : 1;
 } catch (error) {

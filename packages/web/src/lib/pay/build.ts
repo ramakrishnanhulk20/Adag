@@ -15,6 +15,9 @@ import {
   type MarketParams,
 } from "./constants";
 import { assertMarketConstants, currencyOf, verifyMarketParams } from "./market";
+import { MULTISEND_CALL_ONLY } from "../safe/constants";
+import { assertSafeInnerCalls, assertSafeTxShape, encodeMultiSend, type SafeInnerCall } from "../safe/multisend";
+import { safeTxFor } from "../safe/typedData";
 
 // The fields of bill(id), exactly as the contract returns them, plus the id they were read for.
 export type Bill = {
@@ -272,6 +275,62 @@ export function buildCloseLoan(
   if (collateral > 0n) calls.push(withdraw);
   calls.push(approve(c.address, MORPHO, 0n));
   return batch(calls);
+}
+
+export type SafeBatch = { to: Address; data: Hex; operation: 1; value: 0n; inner: SafeInnerCall[] };
+
+// A payment from a Safe: the same plan rules as buildPayMany, but the Safe itself is the payer, so every bill is
+// paid by calling AdagBills.pay(id) directly (no Memo, no Multicall3From: both need an ordinary wallet as sender).
+// The calls run inside one MultiSendCallOnly batch that the Safe reaches by delegatecall. Adag's own BillPaid still
+// names each bill. Asserts C51 and C55 on its own output before returning it.
+export function buildSafeBatch(safe: Address, bills: Bill[], plan: BasketPlan): SafeBatch {
+  const who = checkedPayer(safe);
+  if (bills.length === 0) throw new Error("Add at least one bill to pay.");
+  if (bills.length > MAX_BASKET_BILLS) throw new Error(`One Safe payment pays at most ${MAX_BASKET_BILLS} bills.`);
+  const seen = new Set<bigint>();
+  const totals = new Map<Currency, bigint>();
+  for (const b of bills) {
+    if (seen.has(b.id)) throw new Error(`Bill #${b.id} is in the payment twice; paying it twice would undo the whole batch.`);
+    seen.add(b.id);
+    const c = payableCurrency(b, who);
+    totals.set(c, (totals.get(c) ?? 0n) + b.amount);
+  }
+  const groups = CURRENCIES.filter((c) => totals.has(c));
+  const plans = new Map<Currency, GroupPlan>();
+  for (const c of groups) {
+    const p = plan[c.symbol];
+    if (!p) throw new Error(`Choose how the Safe pays the ${c.symbol} bills.`);
+    if (p.from === "bitcoin") {
+      if (typeof p.pledge !== "bigint" || p.pledge < 0n) throw new Error("The pledge must be zero or more satoshis.");
+      verifiedParams(c, p.marketParams);
+    } else if (p.from !== "balance") {
+      throw new Error(`Choose how the Safe pays the ${c.symbol} bills.`);
+    }
+    plans.set(c, p);
+  }
+
+  const inner: SafeInnerCall[] = [];
+  const plain = (to: Address, data: Hex): SafeInnerCall => ({ to, value: 0n, data, operation: 0 });
+  const approveInner = (token: Address, spender: Address, amount: bigint) => plain(token, encodeFunctionData({ abi: erc20Abi, functionName: "approve", args: [spender, amount] }));
+  for (const c of groups) {
+    const p = plans.get(c)!;
+    if (p.from !== "bitcoin") continue;
+    if (p.pledge > 0n) {
+      inner.push(
+        approveInner(CIRBTC, MORPHO, p.pledge),
+        plain(MORPHO, encodeFunctionData({ abi: morphoAbi, functionName: "supplyCollateral", args: [c.params, p.pledge, who, "0x"] })),
+      );
+    }
+    inner.push(plain(MORPHO, encodeFunctionData({ abi: morphoAbi, functionName: "borrow", args: [c.params, totals.get(c)!, 0n, who, who] })));
+  }
+  for (const c of groups) inner.push(approveInner(c.address, ADAG_BILLS, totals.get(c)!));
+  for (const b of bills) inner.push(plain(ADAG_BILLS, encodeFunctionData({ abi: adagAbi, functionName: "pay", args: [b.id] })));
+
+  assertSafeInnerCalls(who, inner);
+  const batch: SafeBatch = { to: MULTISEND_CALL_ONLY, data: encodeMultiSend(inner), operation: 1, value: 0n, inner };
+  // The outer shape too, with a placeholder nonce: the real nonce is read from the Safe right before signing (C52).
+  assertSafeTxShape(who, safeTxFor(batch, 0n));
+  return batch;
 }
 
 export const APPROVAL_SPENDERS = SPENDERS;

@@ -31,7 +31,17 @@ process.emitWarning = (warning, ...rest) => {
 const pay = (file) => import(new URL(`../src/lib/pay/${file}`, import.meta.url).href);
 const { buildPayFromBalance, buildPayFromBitcoin, suggestPledge, buildCreateBill, buildAddCollateral, buildCloseLoan, buildPayMany, referenceBytes, BATCH_TARGETS, APPROVAL_SPENDERS } = await pay('build.ts');
 const { debtFromShares, closeApproval, accrueBorrowAssets, repaySomeCap, sharesForRepay } = await pay('loan.ts');
-const { buildRepaySome } = await pay('build.ts');
+const { buildRepaySome, buildSafeBatch } = await pay('build.ts');
+const safeLib = (file) => import(new URL(`../src/lib/safe/${file}`, import.meta.url).href);
+const S = await safeLib('constants.ts');
+const { safeAbi, safeProxyFactoryAbi } = await safeLib('abi.ts');
+const { safeTxFor, safeTxHash, safeTxTypedData } = await safeLib('typedData.ts');
+const { assertSafeTxShape } = await safeLib('multisend.ts');
+const { privateKeyToAccount } = await import('viem/accounts');
+const { keccak256, parseAbi } = await import('viem');
+const transferAbi = parseAbi(['function transfer(address to, uint256 amount) returns (bool)']);
+const { toEventSelector } = await import('viem');
+const EXECUTION_SUCCESS = toEventSelector('ExecutionSuccess(bytes32,uint256)');
 const { billCreatedIn, billsPaidIn, morphoEventsIn } = await pay('receipt.ts');
 const { decodeAdagError } = await pay('errors.ts');
 const { verifyMarketParams, paramsFromTuple } = await pay('market.ts');
@@ -484,6 +494,69 @@ async function main() {
         ? `Morpho Repay ${usdc(oRepay?.assets ?? 0n)} for ${oRepay?.shares} shares; expected ${oExpected}; position fell by ${oFell}; USDC allowance after ${oRes.after[1]}; gas ${oRes.gas}`
         : `reverted: ${decodeAdagError(oRes.revertData).text}`,
       `cap + 1: ${oOver ?? 'ACCEPTED'}`, `zero: ${oZero ?? 'ACCEPTED'}`]);
+
+  // (p) A Safe pays: a real Safe v1.4.1 deployed inside the simulation through Arc's SafeProxyFactory, funded by the
+  // demo payer, with a throwaway owner key. The batch is buildSafeBatch's, signed as EIP-712 and run through the
+  // Safe's own execTransaction: once from the Safe's balance, once from the Safe's bitcoin.
+  const owner = privateKeyToAccount(keccak256(stringToHex('adag check-batches safe owner')));
+  const safeRun = async (label, from) => {
+    reset();
+    const bill = await writeBill(usdcCurrency, 200_000n, `P-${label}`);
+    const setup = encodeFunctionData({
+      abi: safeAbi,
+      functionName: 'setup',
+      args: [[owner.address], 1n, S.ZERO_ADDRESS, '0x', S.SAFE_FALLBACK_HANDLER, S.ZERO_ADDRESS, 0n, S.ZERO_ADDRESS],
+    });
+    const create = encodeFunctionData({ abi: safeProxyFactoryAbi, functionName: 'createProxyWithNonce', args: [S.SAFE_L2_SINGLETON, setup, BigInt(Date.now()) + (from === 'bitcoin' ? 1n : 0n)] });
+    const deployed = await send({ from: PAYER, to: S.SAFE_PROXY_FACTORY, data: create });
+    if (!deployed.ok) throw new Error(`The Safe could not be deployed in the simulation: ${decodeAdagError(deployed.revertData).text}`);
+    const safe = getAddress(decodeFunctionResult({ abi: safeProxyFactoryAbi, functionName: 'createProxyWithNonce', data: deployed.returnData }));
+    // The demo payer funds the Safe: USDC for the balance run and the fee-free batch, cirBTC for the bitcoin run.
+    const fundUsdc = await send({ from: PAYER, to: C.USDC, data: encodeFunctionData({ abi: transferAbi, functionName: 'transfer', args: [safe, 500_000n] }) });
+    const fundBtc = from === 'bitcoin' ? await send({ from: PAYER, to: C.CIRBTC, data: encodeFunctionData({ abi: transferAbi, functionName: 'transfer', args: [safe, 2_000n] }) }) : { ok: true };
+    if (!fundUsdc.ok || !fundBtc.ok) throw new Error('The Safe could not be funded in the simulation.');
+
+    let plan = { USDC: { from: 'balance' } };
+    if (from === 'bitcoin') {
+      const needed = decode(read(C.ADAG_BILLS, adagAbi, 'collateralNeeded', [safe, C.MARKET_USDC, 0n]),
+        (await simulate([{ from: PAYER, ...read(C.ADAG_BILLS, adagAbi, 'collateralNeeded', [safe, C.MARKET_USDC, bill.amount]) }]))[0].returnData);
+      plan = { USDC: { from: 'bitcoin', pledge: suggestPledge(needed), marketParams: usdcParams } };
+    }
+    const batch = buildSafeBatch(safe, [bill], plan);
+    const tx = safeTxFor(batch, 0n);
+    assertSafeTxShape(safe, tx);
+    const localHash = safeTxHash(safe, tx);
+    const chainHash = decode(read(safe, safeAbi, 'getTransactionHash', [tx.to, tx.value, tx.data, tx.operation, tx.safeTxGas, tx.baseGas, tx.gasPrice, tx.gasToken, tx.refundReceiver, tx.nonce]),
+      (await simulate([{ from: PAYER, ...read(safe, safeAbi, 'getTransactionHash', [tx.to, tx.value, tx.data, tx.operation, tx.safeTxGas, tx.baseGas, tx.gasPrice, tx.gasToken, tx.refundReceiver, tx.nonce]) }]))[0].returnData);
+    const signature = await owner.signTypedData(safeTxTypedData(safe, tx));
+    const exec = encodeFunctionData({ abi: safeAbi, functionName: 'execTransaction', args: [tx.to, tx.value, tx.data, tx.operation, tx.safeTxGas, tx.baseGas, tx.gasPrice, tx.gasToken, tx.refundReceiver, signature] });
+    const allowanceOf = (token, spender) => read(token, erc20Abi, 'allowance', [safe, spender]);
+    const res = await send({ from: PAYER, to: safe, data: exec }, {
+      before: [payeeBal()],
+      after: [payeeBal(), read(C.ADAG_BILLS, adagAbi, 'bill', [bill.id]), allowanceOf(C.USDC, C.ADAG_BILLS), allowanceOf(C.CIRBTC, C.MORPHO), read(C.MORPHO, morphoAbi, 'position', [C.MARKET_USDC, safe]), read(safe, safeAbi, 'nonce')],
+    });
+    if (!res.ok) return { ok: false, detail: [`${label}: execTransaction reverted: ${decodeAdagError(res.revertData).text}`] };
+    const logs = res.logs.map((l) => ({ ...l, removed: false }));
+    const paid = billsPaidIn(logs, [bill.id]).get(bill.id);
+    // By selector: Safe 1.3.0 and 1.4.1 differ in whether txHash is indexed, but the event's signature is the same.
+    const executed = logs.some((l) => isAddressEqual(l.address, safe) && l.topics[0] === EXECUTION_SUCCESS);
+    const [payeeAfter, record, usdcAllowance, btcAllowance, position, nonceAfter] = res.after;
+    const rise = payeeAfter - res.before[0];
+    const ok = executed && localHash.toLowerCase() === chainHash.toLowerCase() && paid && isAddressEqual(paid.payer, safe) && rise === bill.amount
+      && record.status === C.BILL_STATUS.Paid && isAddressEqual(record.payer, safe) && usdcAllowance === 0n && btcAllowance === 0n && nonceAfter === 1n
+      && (from === 'bitcoin' ? position[1] > 0n && paid.loanChecked === true : position[1] === 0n);
+    return {
+      ok,
+      detail: [
+        `${label}: Safe ${safe} (1 of 1 owner ${owner.address}); ${batch.inner.length} inner calls via MultiSendCallOnly ${batch.to}; hash ${localHash === chainHash ? 'matches' : 'DIFFERS FROM'} getTransactionHash`,
+        `ExecutionSuccess ${executed}; BillPaid #${bill.id} payer ${paid ? (isAddressEqual(paid.payer, safe) ? 'the Safe' : paid.payer) : 'none'}, loanChecked ${paid?.loanChecked}; payee +${usdc(rise)}; allowances left ${usdcAllowance} and ${btcAllowance}; Safe's Morpho borrow shares ${position[1]}; nonce ${nonceAfter}; gas ${res.gas}`,
+      ],
+    };
+  };
+  const pBalance = await safeRun('from the Safe balance', 'balance');
+  const pBitcoin = await safeRun('from the Safe bitcoin', 'bitcoin');
+  record("(p) a Safe pays through buildSafeBatch and its own execTransaction: from balance and from bitcoin, the payee credited exactly, the Safe the payer",
+    pBalance.ok && pBitcoin.ok, [...pBalance.detail, ...pBitcoin.detail]);
 
   const passed = results.filter((r) => r.ok).length;
   console.log();

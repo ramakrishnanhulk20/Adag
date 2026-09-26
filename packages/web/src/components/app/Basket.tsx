@@ -36,6 +36,7 @@ import { ConnectButton } from "./ConnectButton";
 import { FeeLine } from "./FeeLine";
 import { GetSetUp, type SetupNeed } from "./GetSetUp";
 import { MorphoDisclaimer } from "./MorphoDisclaimer";
+import { SafeEntry } from "./SafeEntry";
 import { BusyLabel, TxMessage, type TxState } from "./TxProgress";
 import { usdHint, useUsdPrice } from "./usdPrice";
 
@@ -463,6 +464,8 @@ export function Basket({ items, dropped, droppedCount = dropped.length }: { item
           </div>
         </div>
       )}
+
+      {me && <SafeEntry bills={payable} available={n > 0 && !paid && !busy} className="mt-8" />}
 
       {paid && (
         <motion.div

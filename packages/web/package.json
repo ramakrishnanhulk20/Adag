@@ -10,6 +10,8 @@
     "postinstall": "fumadocs-mdx"
   },
   "dependencies": {
+    "@safe-global/api-kit": "5.0.3",
+    "@safe-global/protocol-kit": "8.0.7",
     "@tanstack/react-query": "5.103.2",
     "fumadocs-core": "16.15.14",
     "fumadocs-mdx": "15.4.5",
