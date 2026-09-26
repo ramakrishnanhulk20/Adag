@@ -42,6 +42,42 @@ export const arc = defineChain({
 
 const ENV_PATH = new URL('../../../.env', import.meta.url);
 
+// The public demo wallets from the first live run (deployments/prove-it-2026-09-25.md). Dry runs and the attack
+// suite only read and simulate, so they need addresses, never keys.
+export const DEMO_PAYER = getAddress('0x6e26Dd347b57ba591Ee34292A2d828CCC17A1fDE');
+export const DEMO_PAYEE = getAddress('0xc95DE79125A9D7fCfE17f35C7Dbe0e88725Ad93B');
+
+// Reads the named values when .env exists, without failing on missing names. Used where a public default is fine.
+function readEnvIfPresent(names) {
+  if (!existsSync(ENV_PATH)) return {};
+  const wanted = new Set(names);
+  const out = {};
+  for (const line of readFileSync(ENV_PATH, 'utf8').split(/\r?\n/)) {
+    const eq = line.indexOf('=');
+    if (eq < 1) continue;
+    const name = line.slice(0, eq).trim();
+    if (!wanted.has(name)) continue;
+    const value = line.slice(eq + 1).trim().replace(/^["']|["']$/g, '');
+    if (value) out[name] = value;
+  }
+  return out;
+}
+
+// The payer and payee for a dry run: both from .env when set there, otherwise the public demo wallets.
+export function dryRunAddresses() {
+  const env = readEnvIfPresent(['DEPLOYER_ADDRESS', 'PAYEE_ADDRESS']);
+  if (env.DEPLOYER_ADDRESS && env.PAYEE_ADDRESS) {
+    return { payer: checkedAddress(env.DEPLOYER_ADDRESS, 'DEPLOYER_ADDRESS'), payee: checkedAddress(env.PAYEE_ADDRESS, 'PAYEE_ADDRESS'), fromEnv: true };
+  }
+  if (env.DEPLOYER_ADDRESS || env.PAYEE_ADDRESS) {
+    throw new Error('.env sets only one of DEPLOYER_ADDRESS and PAYEE_ADDRESS. Set both, or neither to use the public demo wallets.');
+  }
+  return { payer: DEMO_PAYER, payee: DEMO_PAYEE, fromEnv: false };
+}
+
+export const demoWalletsNote = () =>
+  `No DEPLOYER_ADDRESS or PAYEE_ADDRESS in .env, so using the public demo wallets: payer ${DEMO_PAYER}, payee ${DEMO_PAYEE}.`;
+
 // Returns only the names asked for. Every other line of .env is skipped without being kept, so a key that was
 // not requested never enters this process's memory. Missing or blank names fail loudly without echoing values.
 export function readEnv(names) {
@@ -66,13 +102,17 @@ export function checkedAddress(value, label) {
 }
 
 const artifactUrl = new URL('../out/AdagBills.sol/AdagBills.json', import.meta.url);
+const publishedAbiUrl = new URL('../deployments/AdagBills.abi.json', import.meta.url);
 const deploymentUrl = new URL('../deployments/arc-mainnet.json', import.meta.url);
 
+// A local arc-forge build when there is one; otherwise the ABI published beside the deployment, which is all a
+// run against the live contract needs. deployedBytecode is null in that case.
 export function loadAdagAbi() {
-  if (!existsSync(artifactUrl)) {
-    throw new Error('packages/contracts/out/AdagBills.sol/AdagBills.json is missing. Build it with run-tests.sh first.');
+  if (existsSync(artifactUrl)) return JSON.parse(readFileSync(artifactUrl, 'utf8'));
+  if (!existsSync(publishedAbiUrl)) {
+    throw new Error('Neither a local build (packages/contracts/out) nor deployments/AdagBills.abi.json was found.');
   }
-  return JSON.parse(readFileSync(artifactUrl, 'utf8'));
+  return { abi: JSON.parse(readFileSync(publishedAbiUrl, 'utf8')), deployedBytecode: null };
 }
 
 // Returns the deployed address, or null when the file does not exist yet. A file that exists but names another
@@ -123,8 +163,8 @@ export const oracleAbi = parseAbi([
 // Arc's native balance is the USDC balance (18 decimals); this gives a simulated address some, nothing else.
 export const nativeBalance = (address, wei) => ({ [address]: { balance: toHex(wei) } });
 
-const mockOracleUrl = new URL('../../../reference/rnd/option-a/MockOracle.json', import.meta.url);
-// Simulation only: runtime code for the R&D MockOracle with its three sentinels patched to a fixed price and
+const mockOracleUrl = new URL('./mock/MockOracle.json', import.meta.url);
+// Simulation only: runtime code for mock/MockOracle.sol with its three sentinels patched to a fixed price and
 // the real oracle's feeds, so Adag's freshness check still reads the real Chainlink feeds.
 export function mockOracleCode(price, baseFeed, quoteFeed) {
   const swap = (code, sentinel, value) => {

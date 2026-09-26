@@ -195,9 +195,26 @@ const txLine = (i, t) => {
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (args.selfTest) return selfTest();
-  const env =L.readEnv(['DEPLOYER_ADDRESS', 'PAYEE_ADDRESS']);
-  const payer = L.checkedAddress(env.DEPLOYER_ADDRESS, 'DEPLOYER_ADDRESS');
-  const payee = L.checkedAddress(env.PAYEE_ADDRESS, 'PAYEE_ADDRESS');
+  // A dry run needs only public addresses and falls back to the demo wallets. --broadcast signs real transactions,
+  // so it insists on .env and stops here, before any network call, when that is missing.
+  let payer;
+  let payee;
+  let demoNote = null;
+  if (args.broadcast) {
+    let env;
+    try {
+      env = L.readEnv(['DEPLOYER_ADDRESS', 'PAYEE_ADDRESS']);
+    } catch (e) {
+      throw new Stop(`--broadcast signs real transactions on Arc mainnet, so it needs DEPLOYER_ADDRESS, PAYEE_ADDRESS and both private keys in .env at the repo root. ${e.message}`);
+    }
+    payer = L.checkedAddress(env.DEPLOYER_ADDRESS, 'DEPLOYER_ADDRESS');
+    payee = L.checkedAddress(env.PAYEE_ADDRESS, 'PAYEE_ADDRESS');
+  } else {
+    const found = L.dryRunAddresses();
+    payer = found.payer;
+    payee = found.payee;
+    if (!found.fromEnv) demoNote = L.demoWalletsNote();
+  }
   if (payer === payee) throw new Stop('DEPLOYER_ADDRESS and PAYEE_ADDRESS are the same wallet; Adag refuses a self-payment.');
   const roles = { payer, payee };
 
@@ -230,6 +247,9 @@ async function main() {
     // A few blocks behind the head, so dRPC is sure to have the block Circle's node just served.
     const head = await L.circle.getBlockNumber();
     const pin = await L.circle.getBlock({ blockNumber: head - 3n });
+    if (!deployed && !artifact.deployedBytecode) {
+      throw new Stop('Adag is not deployed and there is no local build to inject. Build it with run-tests.sh, or add deployments/arc-mainnet.json.');
+    }
     const inject = deployed ? null : { address: adag, code: artifact.deployedBytecode.object };
     exec = new DryRun({ pin, inject, roles });
     now = pin.timestamp;
@@ -238,6 +258,7 @@ async function main() {
     line(deployed
       ? `Adag at ${adag} (from deployments/arc-mainnet.json).`
       : `Adag is not deployed yet, so AdagBills' runtime code from out/AdagBills.sol is injected at the placeholder ${adag} inside the simulation.`);
+    if (demoNote) line(demoNote);
   }
 
   // (0) Starting state and the stop checks.
@@ -399,7 +420,7 @@ async function main() {
     const shares = live.pos[1];
     const collateral = live.pos[2];
     if (shares === 0n) throw new Stop('The payer has no borrow shares to repay.');
-    // Repaying by the live share count, not by assets, is what clears the position to exactly zero (RD-BRIEF 1e).
+    // Repaying by the live share count, not by assets, is what clears the position to exactly zero; repaying by assets leaves dust that blocks the withdrawal.
     const debt = L.toAssetsUp(shares, live.market[2], live.market[3]);
     const approval = debt + (debt + 999n) / 1000n;
     if (live.usdc < approval) throw new Stop(`Closing needs ${L.usdc(approval)} of USDC to repay; the payer holds ${L.usdc(live.usdc)}.`);

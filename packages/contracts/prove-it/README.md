@@ -34,7 +34,8 @@ refusing the other one.
 
 ## Commands
 
-Run from the repo root. Install once with `npm install` inside `packages/contracts/prove-it`.
+Run from the repo root. Install once with `npm ci` inside `packages/contracts/prove-it`. No build is needed: without a
+local arc-forge build in `packages/contracts/out`, the scripts read AdagBills' ABI from `deployments/AdagBills.abi.json`.
 
 ```
 node packages/contracts/prove-it/prove-it.mjs
@@ -49,15 +50,15 @@ sent, and no private key is read. If `packages/contracts/deployments/arc-mainnet
 the dry run places AdagBills' compiled code from `packages/contracts/out` at a placeholder address inside the
 simulation and says so in the output.
 
-`--broadcast` is for Ram only. It refuses to run without the deployment file, checks each private key in
+`--broadcast` is for the owner of the demo wallets only: it sends real transactions and spends their USDC. It refuses to run without the deployment file, checks each private key in
 `.env` belongs to its address, prints the full plan with every amount, and sends nothing until you type `yes`.
 Each transaction prints an `https://explorer.arc.io/tx/` link.
 
 ## What it reads from .env
 
-- Dry run: `DEPLOYER_ADDRESS` (the payer) and `PAYEE_ADDRESS` only.
-- `--broadcast`: also `DEPLOYER_PRIVATE_KEY` and `PAYEE_PRIVATE_KEY`, held in memory to sign and never
-  printed, logged or written anywhere.
+- Dry run and the attack suite: `DEPLOYER_ADDRESS` (the payer) and `PAYEE_ADDRESS`, both optional. Without them, both scripts use the public demo wallets from the first live run, payer `0x6e26Dd347b57ba591Ee34292A2d828CCC17A1fDE` and payee `0xc95DE79125A9D7fCfE17f35C7Dbe0e88725Ad93B`, and say so. No key is read.
+- `--broadcast`: `DEPLOYER_ADDRESS`, `PAYEE_ADDRESS`, `DEPLOYER_PRIVATE_KEY` and `PAYEE_PRIVATE_KEY`, all required. Without a
+  `.env`, it stops before any network call. The keys are held in memory to sign and never printed, logged or written anywhere.
 
 ## What --broadcast spends
 
@@ -98,7 +99,8 @@ table of each attack, what should stop it and the decoded revert, appends the sa
 `packages/contracts/deployments/attacks-<date>.md`, and exits 0 only if every row passes.
 
 The only state overrides are native USDC for a simulated stranger, fresh bills written by the payee in an
-earlier simulated block, and the mock oracle for the labelled price drop. Adag and Morpho state are never
+earlier simulated block, and the mock oracle for the labelled price drop (`mock/MockOracle.sol`, compiled runtime code in
+`mock/MockOracle.json`). Adag and Morpho state are never
 changed.
 
 ## What it does not cover
@@ -110,5 +112,5 @@ changed.
   proves those.
 - The gas costs are dry-run measurements at one base fee. A real run pays the fee of its own block.
 - It does not check that the code at the deployed address matches the compiled AdagBills.
-- It does not attack Adag. It shows the happy path works; it does not try to break the 40% cap, the price
-  freshness check or the pay-once rule.
+- The proof itself does not attack Adag. It shows the happy path works; `attack.mjs` above is what tries to break the
+  40% cap, the price freshness check and the pay-once rule.

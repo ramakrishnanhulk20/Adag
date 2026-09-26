@@ -12,7 +12,7 @@ Run on 25 September 2026.
 | Real bug | 0 | Nothing that moves money wrongly, skips a check or breaks a rule in the threat model. |
 | Real, documentation only | 27 | Missing NatSpec on public constants, events and two return values. A comment-only edit to `src/AdagBills.sol` clears all 27. Listed as recommendations below. |
 | False positive | 18 | The tool's pattern matched, but the danger it looks for cannot happen here. Reason given per row. |
-| Accepted by design | 41 | A true observation about a deliberate choice, tied to the threat model or `DECISIONS.md`. |
+| Accepted by design | 41 | A true observation about a deliberate choice, tied to the threat model or ARCHITECTURE.md. |
 
 By tool: slither 14, solhint 65 (plus 4 from a rule later switched off, see below), arc-forge lint 3.
 
@@ -65,9 +65,9 @@ WSL has no `ensurepip` and no password-free sudo, so the virtual environment was
 | S7 | unused-return | `_debt`, line 362, `position` | Medium | Same. | False positive. Supply shares are not part of the debt. |
 | S8 | unused-return | `_debt`, line 365, `market` | Medium | Same. | False positive. Only total borrow assets and shares enter the debt formula (C10). |
 | S9 | timestamp | `pay`, lines 185 and 186 | Low | Slither thinks the balance comparison depends on the block time. | False positive. The time only goes into `paidAt` on the same bill; slither's tracking marks the whole bill record, so the amount read back from it looks time-tainted. The C1 check compares two token balances and nothing else. |
-| S10 | timestamp | `priceStatus`, line 301 | Low | The returned freshness flag depends on the block time. | Accepted by design. This view reports the same freshness rule `pay` enforces (`DECISIONS.md`, preview views and `priceStatus`). A block producer can move the time by seconds; the windows are 26 and 96 hours. |
-| S11 | timestamp | `_checkLoan`, line 325 | Low | The choice to accrue interest depends on the block time. | Accepted by design. It copies Morpho's own shape (`BlueBundlesV1.requireMaxLtv`, verified in `DECISIONS.md`). Morpho's `accrueInterest` does nothing when no time has passed, so either branch gives the same debt figure (C10). |
-| S12 | timestamp | `_readFeed`, line 358 | Low | Price freshness depends on the block time. | Accepted by design. This is the 26 hour BTC/USD and 96 hour EUR/USD rule (`DECISIONS.md`, threat model C11). Seconds of drift cannot matter against windows of hours. |
+| S10 | timestamp | `priceStatus`, line 301 | Low | The returned freshness flag depends on the block time. | Accepted by design. This view reports the same freshness rule `pay` enforces. A block producer can move the time by seconds; the windows are 26 and 96 hours. |
+| S11 | timestamp | `_checkLoan`, line 325 | Low | The choice to accrue interest depends on the block time. | Accepted by design. It copies Morpho's own shape (`BlueBundlesV1.requireMaxLtv` in Morpho's bundler source). Morpho's `accrueInterest` does nothing when no time has passed, so either branch gives the same debt figure (C10). |
+| S12 | timestamp | `_readFeed`, line 358 | Low | Price freshness depends on the block time. | Accepted by design. This is the 26 hour BTC/USD and 96 hour EUR/USD rule (threat model C11 and C24). Seconds of drift cannot matter against windows of hours. |
 | S13 | naming-convention | `IOracleMinimal.BASE_FEED_1()`, line 10 | Informational | The function name is not mixedCase. | False positive. The name must match Morpho's `MorphoChainlinkOracleV2` getter exactly, because the function selector comes from the name. Renaming would break the call. |
 | S14 | naming-convention | `IOracleMinimal.QUOTE_FEED_1()`, line 12 | Informational | Same. | False positive, same reason as S13. |
 
@@ -93,13 +93,13 @@ All are warnings; solhint reported 0 errors.
 | H4 | use-natspec | `loanToValue` 252, `collateralNeeded` 269 | 4 | No `@return` tag for the named return value (two warnings per function). | Real, documentation only. Recommend `@return ltvWad ...` and `@return extraCollateral ...`. |
 | H5 | gas-struct-packing | struct `FeedRead`, line 41 | 1 | The struct's fields could be ordered to fill fewer storage slots. | False positive. `FeedRead` only ever lives in memory, where every field takes a full word whatever the order. It is never stored. |
 | H6 | gas-indexed-events | `DebtRecorded` fields `borrowShares` and `checked`, line 91 | 2 | These fields could be indexed. | False positive. An event can index at most three fields and two are taken, so both cannot be indexed. Moving a word from data to an index costs about 119 more gas per emit, not less, and nobody searches by an exact share count or a true/false flag. |
-| H7 | gas-strict-inequalities | `_readFeed` 358:36 and 358:68, `_params` 388:20, `_page` 399:13 | 4 | A `<=` or `>=` could be made strict to save about 3 gas. | Accepted by design. Each bound is the stated rule: a feed time no later than now and an age "no older than" the limit (C11, `DECISIONS.md` freshness windows); a market whose liquidation line is at or below 40% is refused (fail closed, C11 and C12); an offset at or past the end returns an empty page. Making them strict changes behaviour by one unit to save 3 gas. |
+| H7 | gas-strict-inequalities | `_readFeed` 358:36 and 358:68, `_params` 388:20, `_page` 399:13 | 4 | A `<=` or `>=` could be made strict to save about 3 gas. | Accepted by design. Each bound is the stated rule: a feed time no later than now and an age "no older than" the limit (C11 and C24, the freshness windows); a market whose liquidation line is at or below 40% is refused (fail closed, C11 and C12); an offset at or past the end returns an empty page. Making them strict changes behaviour by one unit to save 3 gas. |
 
 ### src/interfaces (30)
 
 | # | Rule | Location | Count | Meaning | Verdict |
 | --- | --- | --- | --- | --- | --- |
-| H8 | use-natspec | `IOracleMinimal`, lines 6 to 12: no `@title`, no `@author`, no `@notice` on `price`, `BASE_FEED_1`, `QUOTE_FEED_1` | 5 | Missing NatSpec tags. | Accepted by design. These interfaces are minimal copies of Morpho's audited contracts, checked line by line against Morpho's source (`DECISIONS.md`, R&D brief sources). They are never deployed and are not Adag's API. Each already has a file-level `@notice` saying what it mirrors; the full docs are upstream. |
+| H8 | use-natspec | `IOracleMinimal`, lines 6 to 12: no `@title`, no `@author`, no `@notice` on `price`, `BASE_FEED_1`, `QUOTE_FEED_1` | 5 | Missing NatSpec tags. | Accepted by design. These interfaces are minimal copies of Morpho's audited contracts, checked line by line against Morpho's source (Morpho Blue v1.0.0 `Morpho.sol` and `BlueBundlesV1.sol`). They are never deployed and are not Adag's API. Each already has a file-level `@notice` saying what it mirrors; the full docs are upstream. |
 | H9 | use-natspec | `IMorphoMinimal`, lines 14 to 37: no `@title`, no `@author`; no `@notice`, `@param` or `@return` on `idToMarketParams`, `position`, `market`, `accrueInterest` | 20 | Missing NatSpec tags. | Accepted by design, same reason as H8. |
 | H10 | use-natspec | `IChainlinkFeed`, lines 5 to 6: no `@title`, no `@author`, no `@notice` or `@return` on `latestRoundData` | 5 | Missing NatSpec tags. | Accepted by design, same reason as H8, mirroring Chainlink's `AggregatorV3Interface`. |
 
@@ -109,7 +109,7 @@ All are warnings; solhint reported 0 errors.
 | --- | --- | --- | --- | --- | --- |
 | H11 | import-path-check | `AdagBills.sol` lines 4 to 7 (IERC20, SafeERC20, Math, ReentrancyGuardTransient) | 4 | solhint could not find the imported file. | False positive. The files exist through the `@openzeppelin/contracts/` remapping in `foundry.toml`; arc-forge compiles them. The rule is off, see Configuration. |
 
-## Recommended source edits (not made: `src/` is outside this work order)
+## Recommended source edits (not made in this first pass)
 
 1. H2: add a `@notice` line to each of the 11 public constants.
 2. H3: add `@notice` and one `@param` per field to the 4 events.
@@ -117,7 +117,7 @@ All are warnings; solhint reported 0 errors.
 
 After those edits, re-running the script should show 38 solhint warnings, exactly rows H1 and H5 to H10. Slither and arc-forge lint would not change.
 
-## After WO-2c
+## After the first round of source changes
 
 Re-run on 25 September 2026 after three source changes to `src/AdagBills.sol`:
 1. `createBill` picks the market from the currency first and reads only that market, so a broken USDC market no longer blocks EURC bills.
@@ -135,15 +135,15 @@ The tables above keep the line numbers of the first run. The output files in thi
 
 What changed:
 - **Gone:** S1 (the write now comes before the call inside `_applyNewDebtRule`), H2 (11), H3 (12) and H4 (4). The 38 solhint warnings left are exactly rows H1 and H5 to H10.
-- **Still there, S2:** `pay`, lines 203 to 229. What remains is across markets: the EURC market's write (lines 349 and 355) follows the USDC market's `accrueInterest` call (line 364) inside the same `pay`. Same verdict as before: false positive. The call goes to the fixed Morpho address, which makes no callback, `pay` holds the reentrancy guard, and a failed check reverts the whole call. Clearing it would mean reading and storing both markets' shares before running either check, which WO-2c did not ask for.
+- **Still there, S2:** `pay`, lines 203 to 229. What remains is across markets: the EURC market's write (lines 349 and 355) follows the USDC market's `accrueInterest` call (line 364) inside the same `pay`. Same verdict as before: false positive. The call goes to the fixed Morpho address, which makes no callback, `pay` holds the reentrancy guard, and a failed check reverts the whole call. Clearing it would mean reading and storing both markets' shares before running either check, which that round did not include.
 - **New, S15:** uninitialized-local, `createBill`, `marketId`, line 158. False positive, same as S3: each branch either sets it or reverts before it is read.
 - **Moved only:** S3 is now at line 419, the slither timestamp rows at 364 and 397, lint L1 to L3 at 364:13, 397:36 and 397:68, and solhint H7 at 397, 427 and 438.
 
-## After the head chef's ordering change (25 September)
+## After the ordering change (25 September)
 
 `pay` now records both markets' borrow shares before the token transfer, then runs the 40% checks, then emits `DebtRecorded` and `BillPaid` last. Behaviour is unchanged (a failed check still reverts everything), and no storage write follows an external call that can change state. Re-run of `run-analysis.sh`: slither reports 13 results, with no reentrancy finding left (S2 is gone); all three tools exit 0. 48 of 48 tests pass.
 
-## After WO-5 (new-debt rule closes the reused-shares bypass)
+## After the new-debt rule change (closing the reused-shares bypass)
 
 The rule now records each payer's borrow shares and collateral per market, and runs the 40% check whenever the payer has debt and the position is less safe than the recorded one: more shares, or less collateral. `seenShares` is replaced by `seenPosition`, and `DebtRecorded` gains a `collateral` field. Re-run of `run-analysis.sh`: all three tools exit 0.
 
@@ -159,4 +159,4 @@ The rule now records each payer's borrow shares and collateral per market, and r
 
 ## After the comment trim (25 September)
 
-Ram asked for almost no comments in the contract: only where needed, short and plain. All NatSpec was removed from `src/`; seven one-line comments remain where a reader would otherwise misread the code. solhint's NatSpec rules now fire on every function, constant and event. Verdict for all of them: accepted by design, Ram's rule. slither is unchanged at 13 results, lint at 3. Behaviour is unchanged: 73 of 73 tests pass, and the deploy dry run reports the same gas.
+The contract keeps almost no comments, by choice: only where needed, short and plain. All NatSpec was removed from `src/`; seven one-line comments remain where a reader would otherwise misread the code. solhint's NatSpec rules now fire on every function, constant and event. Verdict for all of them: accepted by design, the project's comment rule. slither is unchanged at 13 results, lint at 3. Behaviour is unchanged: 73 of 73 tests pass, and the deploy dry run reports the same gas.

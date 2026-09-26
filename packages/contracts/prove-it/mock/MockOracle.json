@@ -1,0 +1,46 @@
+{
+  "compiler": "0.8.30+commit.73712a01.Emscripten.clang",
+  "evmVersion": "prague",
+  "abi": [
+    {
+      "inputs": [],
+      "name": "BASE_FEED_1",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "QUOTE_FEED_1",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "price",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    }
+  ],
+  "deployedBytecode": "0x6080604052348015600e575f5ffd5b5060043610603a575f3560e01c806356095e1114603e578063a035b1fe146071578063f50a471814609e575b5f5ffd5b73c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c05b6040516001600160a01b0390911681526020015b60405180910390f35b6040517f5eed5eed5eed5eed5eed5eed5eed5eed5eed5eed5eed5eed5eed5eed5eed5eed81526020016068565b73b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0605456fea26469706673582212201fec25d6656a12d436ad0fdc9b8c2cd0337a54d28d81ce2932aef82e564bb67164736f6c634300081e0033"
+}

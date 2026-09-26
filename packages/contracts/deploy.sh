@@ -2,7 +2,7 @@
 # Deploys AdagBills to Arc mainnet.
 #   bash deploy.sh             same as --dry-run
 #   bash deploy.sh --dry-run   simulates against live mainnet as the deployer address. Never reads a key.
-#   bash deploy.sh --broadcast Ram's command. Reads one key from the repo .env, asks for a typed yes, then sends.
+#   bash deploy.sh --broadcast the real deploy. Reads one key from the repo .env, asks for a typed yes, then sends.
 # Upstream forge cannot run Arc's EVM rules, so on Windows this hands itself to WSL Ubuntu, where arc-forge lives.
 set -euo pipefail
 set +x

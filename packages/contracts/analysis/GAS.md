@@ -1,6 +1,6 @@
 # Gas: what each Adag action costs
 
-Measured on 25 September 2026 on a fork of Arc mainnet with Arc Foundry (arc-forge 1.7.1-dev), solc 0.8.30, optimizer 200 runs. Re-measured after WO-5, when the loan rule began recording collateral as well as borrow shares: payments cost 413 (cash) to 2,212 (three bills) gas more than before.
+Measured on 25 September 2026 on a fork of Arc mainnet with Arc Foundry (arc-forge 1.7.1-dev), solc 0.8.30, optimizer 200 runs. Re-measured after the loan rule began recording collateral as well as borrow shares: payments cost 413 (cash) to 2,212 (three bills) gas more than before.
 
 Arc charges fees in USDC. At the network's 20 gwei floor, every 1,000,000 gas costs 0.02 USDC, so the most expensive action below costs under 2 cents.
 

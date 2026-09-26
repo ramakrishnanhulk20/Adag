@@ -6,9 +6,10 @@ pragma solidity ^0.8.30;
 // adding or withdrawing collateral outside Adag, stale and broken price feeds, a market Morpho reports wrongly, the
 // oracles' feed layout, the collateral preview, the full loan close, three bills in one signature, and the
 // residual the threat model accepts (C10).
-// Not covered here: fuzz and invariant tests on the money maths and batch-size limits (WO-3), and real signed
-// transactions. Price moves and feed failures are simulated with vm.mockCall, not observed on chain. Results
-// follow live mainnet state: the demo wallet must still hold 0.00011 cirBTC, 4 USDC and no Morpho debt.
+// Not covered here: fuzz and invariant tests on the money maths and batch-size limits (AdagFuzz.t.sol and
+// invariant/), and real signed transactions. Price moves and feed failures are simulated with vm.mockCall, not
+// observed on chain. Results follow mainnet state at the block run-tests.sh pins: the demo wallet must hold
+// 0.00011 cirBTC, 4 USDC and no Morpho debt there.
 
 import {Vm} from "forge-std/Test.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";

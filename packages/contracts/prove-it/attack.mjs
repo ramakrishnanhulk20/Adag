@@ -20,9 +20,9 @@ const STRANGER = getAddress(`0x${keccak256(stringToHex('adag attack stranger')).
 const RANDOM_TOKEN = getAddress(`0x${keccak256(stringToHex('adag attack random token')).slice(-40)}`);
 const STRANGER_FUNDS = L.nativeBalance(STRANGER, 100n * 10n ** 18n);
 
-const env = L.readEnv(['DEPLOYER_ADDRESS', 'PAYEE_ADDRESS']);
-const demo = L.checkedAddress(env.DEPLOYER_ADDRESS, 'DEPLOYER_ADDRESS');
-const payee = L.checkedAddress(env.PAYEE_ADDRESS, 'PAYEE_ADDRESS');
+const wallets = L.dryRunAddresses();
+const demo = wallets.payer;
+const payee = wallets.payee;
 const adag = L.loadDeployment();
 if (!adag) throw new Error('packages/contracts/deployments/arc-mainnet.json is missing: there is no live Adag to attack.');
 const adagAbi = L.loadAdagAbi().abi;
@@ -246,7 +246,7 @@ async function A8() {
     `${outcome(r)}; bill ${status}`, !r.ok && status === 'Open');
 }
 
-// Not an attack: the rule's promise when the price falls. SIMULATED PRICE DROP: the R&D MockOracle replaces the
+// Not an attack: the rule's promise when the price falls. SIMULATED PRICE DROP: mock/MockOracle.sol replaces the
 // USDC market's oracle with a price 25% lower, from the second simulated block on. Morpho and Adag both see it.
 async function A9() {
   const id = firstNewId();
@@ -314,6 +314,7 @@ async function main() {
   await baseline();
   const when = new Date(Number(ctx.pin.timestamp) * 1000).toISOString();
   const state = [
+    ...(wallets.fromEnv ? [] : [L.demoWalletsNote()]),
     `Block ${ctx.pin.number} (${when}), dRPC eth_simulateV1, Adag ${adag}.`,
     `Demo wallet ${demo}: loan ${L.usdc(ctx.debt)} (${ctx.shares} shares) against ${L.btc(ctx.collateral)} pledged, loan-to-value ${pct(ctx.ltv)}; wallet ${L.usdc(ctx.usdc)}, ${L.btc(ctx.btc)}. Adag last recorded ${ctx.seen[0]} shares and ${L.btc(ctx.seen[1])}.`,
     `Payee ${payee}. Simulated stranger ${STRANGER}. Bill #1 is ${STATUS[ctx.bill1.status]}; ${ctx.count} bills written so far. BTC price ${L.btcPrice(ctx.price)}.`,
