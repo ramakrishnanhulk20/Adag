@@ -96,7 +96,7 @@ function Reading({ slow }: { slow: boolean }) {
 
 const Unavailable = () => <span className="font-display text-[1.5rem] italic text-muted">unavailable</span>;
 
-export function PledgeStage({ pending = false }: { pending?: boolean }) {
+export function PledgeStage() {
   const state = usePledge();
   const pinRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
@@ -265,7 +265,7 @@ export function PledgeStage({ pending = false }: { pending?: boolean }) {
                     exit={{ opacity: 0, y: 8 }}
                     transition={{ duration: 0.6, ease: EASE }}
                   >
-                    <HeroAction href="/pay" variant="primary" pending={pending}>
+                    <HeroAction href="/pay" variant="primary">
                       Pay a bill
                     </HeroAction>
                   </motion.div>

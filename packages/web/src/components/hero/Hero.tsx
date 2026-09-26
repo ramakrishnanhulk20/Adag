@@ -12,8 +12,7 @@ import { LiveTicker } from "./LiveTicker";
 
 const HERO_ID = "top";
 
-// pending: the pages the buttons open are built in later work orders, so for now they explain instead of navigating.
-export function Hero({ pending = false }: { pending?: boolean }) {
+export function Hero() {
   return (
     <LiveData>
       <section id={HERO_ID} className="relative isolate overflow-hidden bg-bg md:flex md:min-h-svh md:flex-col" aria-labelledby="hero-title">
@@ -40,7 +39,7 @@ export function Hero({ pending = false }: { pending?: boolean }) {
           <div data-hero-handover className="hero-scrim hero-handover" />
         </div>
 
-        <HeroNav pending={pending} />
+        <HeroNav />
 
         <div
           data-hero-copy
@@ -67,10 +66,10 @@ export function Hero({ pending = false }: { pending?: boolean }) {
             refuses any payment that would push the loan past 40% of the bitcoin&apos;s value.
           </p>
           <div className="hero-in-3 mt-5 flex gap-3 md:mt-8">
-            <HeroAction href="/pay" variant="primary" pending={pending} className="flex w-full md:inline-flex md:w-auto">
+            <HeroAction href="/pay" variant="primary" className="flex w-full md:inline-flex md:w-auto">
               Pay a bill
             </HeroAction>
-            <HeroAction href="/bill/new" variant="secondary" pending={pending} className="hidden md:inline-flex">
+            <HeroAction href="/bill/new" variant="secondary" className="hidden md:inline-flex">
               Write a bill
             </HeroAction>
           </div>

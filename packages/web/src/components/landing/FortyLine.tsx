@@ -2,7 +2,7 @@ import "./landing.css";
 import { Hallmark } from "@/components/Hallmark";
 import { ADAG_BILLS } from "@/lib/arc/constants";
 import { FortyGauge } from "./FortyGauge";
-import { PendingLink } from "./PendingLink";
+import Link from "next/link";
 import { Reveal } from "./Reveal";
 
 const CONTRACT = `https://explorer.arc.io/address/${ADAG_BILLS}`;
@@ -36,7 +36,7 @@ const FACTS: Fact[] = [
 ];
 
 // Section 5: the pinned 40% while the facts scroll past. Reduced motion drops the pin and shows everything at once.
-export function FortyLine({ pending }: { pending: boolean }) {
+export function FortyLine() {
   return (
     <section id="safety" aria-labelledby="safety-title" className="landing-section scroll-mt-20 border-t border-rule bg-bg px-5 py-24 md:px-[6vw] md:py-36">
       <div className="grid gap-16 md:grid-cols-12 md:gap-8">
@@ -69,9 +69,9 @@ export function FortyLine({ pending }: { pending: boolean }) {
                 <p className="mt-5 flex flex-wrap gap-x-6 gap-y-2">
                   {fact.links.map((link) =>
                     link.internal ? (
-                      <PendingLink key={link.label} href={link.href} pending={pending} className="type-label text-gold">
+                      <Link key={link.label} href={link.href} className="link-draw type-label text-gold">
                         {link.label}
-                      </PendingLink>
+                      </Link>
                     ) : (
                       <a key={link.label} href={link.href} target="_blank" rel="noopener noreferrer" className="link-draw type-label text-gold">
                         {link.label}

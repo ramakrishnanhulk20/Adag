@@ -3,11 +3,10 @@ import Link from "next/link";
 import { ThemeControl } from "@/components/ThemeControl";
 import { HeroAction } from "@/components/hero/HeroAction";
 import { ADAG_BILLS } from "@/lib/arc/constants";
-import { PendingLink } from "./PendingLink";
 import { Reveal } from "./Reveal";
 
 // Section 8: the last ask, then the footer. "Powered by Morpho" is required by Morpho's UI rules (ARCHITECTURE.md section 8).
-export function CloseAndFooter({ pending }: { pending: boolean }) {
+export function CloseAndFooter() {
   return (
     <>
       <section aria-labelledby="close-title" className="landing-section border-t border-rule bg-bg px-5 py-28 md:px-[6vw] md:py-40">
@@ -19,7 +18,7 @@ export function CloseAndFooter({ pending }: { pending: boolean }) {
               </h2>
             </Reveal>
             <Reveal delay={0.08} className="mt-10">
-              <HeroAction href="/pay" variant="primary" pending={pending}>
+              <HeroAction href="/pay" variant="primary">
                 Pay a bill
               </HeroAction>
             </Reveal>
@@ -45,9 +44,9 @@ export function CloseAndFooter({ pending }: { pending: boolean }) {
             <Link href="/docs" className="link-draw hover:text-gold">
               Docs
             </Link>
-            <PendingLink href="/terms" pending={pending} className="hover:text-gold">
+            <Link href="/terms" className="link-draw hover:text-gold">
               Terms of Use
-            </PendingLink>
+            </Link>
             <a href={`https://explorer.arc.io/address/${ADAG_BILLS}`} target="_blank" rel="noopener noreferrer" className="link-draw hover:text-gold">
               The contract
             </a>

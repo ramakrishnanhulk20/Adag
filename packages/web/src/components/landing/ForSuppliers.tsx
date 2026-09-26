@@ -7,7 +7,7 @@ import { Reveal } from "./Reveal";
 const STEPS = ["Write a bill", "Share its link", "Get paid in USDC or EURC, invoice number attached"];
 
 // Section 6: the supplier's side, with one real bill read from Arc.
-export function ForSuppliers({ pending }: { pending: boolean }) {
+export function ForSuppliers() {
   return (
     <section aria-labelledby="suppliers-title" className="landing-section border-t border-rule bg-bg px-5 py-24 md:px-[6vw] md:py-36">
       <div className="grid gap-14 md:grid-cols-12 md:items-center md:gap-8">
@@ -31,7 +31,7 @@ export function ForSuppliers({ pending }: { pending: boolean }) {
             </ol>
           </Reveal>
           <Reveal delay={0.24} className="mt-10">
-            <HeroAction href="/bill/new" variant="secondary" pending={pending}>
+            <HeroAction href="/bill/new" variant="secondary">
               Write a bill
             </HeroAction>
           </Reveal>

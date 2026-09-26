@@ -230,7 +230,7 @@
 .pl-hallmark {
   --gold: var(--coin-mid);
   --hm-ground: rgb(var(--ink-rgb));
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   letter-spacing: 0.06em;
   text-transform: none;
 }
@@ -591,9 +591,6 @@
     top: 61%;
     display: block;
     translate: -50% 0;
-  }
-  .pl-hallmark {
-    font-size: 0.75rem;
   }
   .pl-cards {
     position: absolute;

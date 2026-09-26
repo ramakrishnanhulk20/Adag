@@ -13,7 +13,7 @@ const LINKS = [
 
 const SOLID_AFTER_PX = 80;
 
-export function HeroNav({ pending }: { pending: boolean }) {
+export function HeroNav() {
   const [solid, setSolid] = useState(false);
   const [open, setOpen] = useState(false);
   const menuId = useId();
@@ -66,7 +66,7 @@ export function HeroNav({ pending }: { pending: boolean }) {
         </div>
         <div className="flex items-center gap-3">
           <ThemeControl variant="cycle" tipAlign="end" />
-          <HeroAction href="/app" variant="secondary" size="sm" pending={pending} tipAlign="end" className="hidden md:inline-flex">
+          <HeroAction href="/app" variant="secondary" size="sm" className="hidden md:inline-flex">
             Open app
           </HeroAction>
           <button
@@ -111,10 +111,10 @@ export function HeroNav({ pending }: { pending: boolean }) {
               ))}
             </nav>
             <div className="mt-10 flex flex-col gap-3">
-              <HeroAction href="/bill/new" variant="secondary" pending={pending} className="flex w-full">
+              <HeroAction href="/bill/new" variant="secondary" className="flex w-full">
                 Write a bill
               </HeroAction>
-              <HeroAction href="/app" variant="secondary" pending={pending} className="flex w-full">
+              <HeroAction href="/app" variant="secondary" className="flex w-full">
                 Open app
               </HeroAction>
             </div>

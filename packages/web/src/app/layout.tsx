@@ -10,9 +10,35 @@ import { ThemeProvider } from "@/components/ThemeProvider";
 import { Providers } from "@/lib/wallet/Providers";
 import { THEME_COOKIE, parseThemeChoice, serverResolvedTheme, themeHeadScript } from "@/lib/theme";
 
+// Absolute links in shared cards need the real origin: set explicitly, else Vercel's production domain, else local dev.
+function siteUrl(): URL {
+  if (process.env.NEXT_PUBLIC_SITE_URL) return new URL(process.env.NEXT_PUBLIC_SITE_URL);
+  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) return new URL(`https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`);
+  return new URL("http://localhost:3000");
+}
+
+const TAGLINE = "Pay your bills with your bitcoin, without selling it.";
+const DESCRIPTION =
+  "Pledge your bitcoin on Morpho, borrow exactly the bill, and pay your supplier in USDC or EURC in one signature on Arc. Adag refuses any payment that would push the loan past 40%.";
+
 export const metadata: Metadata = {
-  title: "Adag",
-  description: "Pay the bill. Keep the bitcoin. Adag pays suppliers in USDC or EURC against bitcoin pledged on Morpho, on Arc.",
+  metadataBase: siteUrl(),
+  title: { default: `Adag · ${TAGLINE}`, template: "%s · Adag" },
+  description: DESCRIPTION,
+  applicationName: "Adag",
+  openGraph: {
+    type: "website",
+    siteName: "Adag",
+    locale: "en",
+    title: `Adag · ${TAGLINE}`,
+    description: DESCRIPTION,
+    url: "/",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: `Adag · ${TAGLINE}`,
+    description: DESCRIPTION,
+  },
 };
 
 export const viewport: Viewport = {

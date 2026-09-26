@@ -159,11 +159,11 @@ export default function LabPage() {
           </Hallmark>
         </div>
         <div className="flex items-center gap-5">
-          <Link href="/lab/hero" className="link-draw type-micro text-muted hover:text-gold">
-            Hero
+          <Link href="/" className="link-draw type-micro text-muted hover:text-gold">
+            Home
           </Link>
-          <Link href="/lab/landing" className="link-draw type-micro text-muted hover:text-gold">
-            Landing
+          <Link href="/lab/pledge" className="link-draw type-micro text-muted hover:text-gold">
+            Pledge
           </Link>
           <ThemeControl variant="cycle" />
         </div>

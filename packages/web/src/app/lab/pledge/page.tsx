@@ -19,7 +19,7 @@ export default function PledgeLabPage() {
         </div>
         <p className="type-micro text-muted">Scroll to play the signature moment</p>
       </section>
-      <PledgeStage pending />
+      <PledgeStage />
       <section className="flex h-[60vh] items-start bg-bg px-5 pt-16 md:px-[6vw]">
         <Hallmark tone="quiet">04 · One signature</Hallmark>
       </section>
