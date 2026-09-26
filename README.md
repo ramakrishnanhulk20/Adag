@@ -27,15 +27,17 @@
 
 ## Overview
 
-Adag lets you pay a real bill in USDC or EURC with bitcoin you do not sell. You sign once. In that one signature your bitcoin (as cirBTC) is pledged on Morpho, exactly the bill amount is borrowed against it, and your supplier is paid with the invoice number attached. The bitcoin stays yours, in your name, and you can take it back whenever you repay.
+Adag lets you pay a real bill in USDC or EURC with bitcoin you do not sell. You sign once. In that one signature your bitcoin (as cirBTC) is pledged on Morpho, exactly the bill amount is borrowed against it, and your supplier is paid with the invoice number attached. The bitcoin stays pledged in your name, never sold, and you can take it back whenever you repay.
 
-Adag refuses any payment that would push your loan past 40% of the bitcoin's value. Morpho, the lending market underneath, only liquidates at 86%, so there is a wide gap between the most Adag will let you borrow and the point where you could lose anything.
+Adag refuses any payment that would push your loan past 40% of the bitcoin's value. Morpho, the lending market underneath, only liquidates at 86%, so a loan at Adag's cap would need bitcoin to fall about 53.5% before Morpho could liquidate it (0.40 / 0.86, before interest). The landing page shows that price live.
+
+Where the bitcoin is: cirBTC is Circle's wrapped bitcoin, backed 1:1 by bitcoin held by Circle International Bermuda, with public reserve addresses on [circle.com/cirbtc](https://www.circle.com/cirbtc). When pledged it sits in your own Morpho position and is not lent out. Adag never holds it.
 
 It runs on Arc mainnet today. The contract is live, verified, and has already paid a real bill from a bitcoin-backed loan.
 
 | | Selling bitcoin to pay | Borrowing on a lending app yourself | Adag |
 | --- | --- | --- | --- |
-| Keeps your bitcoin | No | Yes | Yes |
+| Your bitcoin is never sold | No | Yes | Yes |
 | Signatures to pay one bill | Several, across services | Four or five | One |
 | Supplier sees the invoice number | Rarely | No | Yes, attached on Arc |
 | Stops you borrowing too much | Not applicable | No, up to 86% | Yes, 40% cap in the contract |
@@ -51,7 +53,7 @@ Under the hood it is one contract, AdagBills, and this web app. The contract is 
 - **Or pay from a USDC or EURC balance**, in the same one signature, with no loan.
 - **Pay several bills in one signature.** Up to 10 bills, grouped by currency, each currency paid from your balance or from bitcoin, in one batch that lands whole or not at all.
 - **A loan that stays small.** The contract refuses any payment that pushes the loan past 40% of the bitcoin's value. The app proposes the pledge the contract itself computes, plus a 5% margin.
-- **Your bitcoin stays yours.** It is pledged to Morpho in your own name. The wallet page shows each loan live and lets you add collateral or close the loan in full to take your cirBTC back.
+- **Pledged, never sold.** Your cirBTC stays pledged to Morpho in your own name. The wallet page shows each loan live and lets you add collateral or close the loan in full to take your cirBTC back.
 - **Nothing to trust in the link.** From a link the app reads only the bill number. Who is paid, how much and in which currency all come from the contract.
 
 ### For suppliers

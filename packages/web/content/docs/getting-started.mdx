@@ -16,11 +16,11 @@ description: Pay a bill from your balance or your bitcoin, or write one and get 
 2. Check the bill. Adag reads it straight from Arc and shows who it pays (the full, checksummed address), the amount and currency, the reference exactly as written, and whether it is still open. Nothing on this screen comes from the link except the bill number.
 3. Connect your wallet. If it is on another network, the app asks you to switch to Arc and builds nothing until you do.
 4. Choose how to pay.
-   - **From your balance** if you hold enough USDC or EURC. Two calls: approve, then pay.
+   - **From your balance** if you hold enough USDC or EURC. Two calls, approve and pay, in one signature.
    - **From bitcoin** if you want to keep your stablecoins. The app shows the cirBTC it will pledge (what the contract asks for, plus a 5% margin), the loan it will take, and where your loan will sit against the 40% line and Morpho's 86%.
 5. The first time you borrow through Adag, read and accept Morpho's disclaimer.
 6. Sign once. The app shows each step as Arc confirms it.
-7. When the bill turns Paid, you get a link to the payment on the explorer. The supplier sees the same thing on their side.
+7. When the bill turns Paid, you get a link to the payment on the explorer. The supplier sees the bill as Paid the next time they open or reload its page.
 
 <Callout type="info" title="If new loans are paused">
   If the bitcoin price feed is older than 26 hours, the contract will not accept new debt, and the app says so before you sign. Paying from your balance still works.

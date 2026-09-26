@@ -1,11 +1,11 @@
 ---
 title: Overview
-description: Pay a bill in dollars or euros with bitcoin you keep. What Adag is, who it is for, and why it exists.
+description: Pay a bill in dollars or euros with bitcoin you pledge instead of sell. What Adag is, who it is for, and why it exists.
 ---
 
-Adag lets you pay a real bill in USDC or EURC with bitcoin you do not sell. You sign once. In that one signature your bitcoin (as cirBTC) is pledged on Morpho, exactly the bill amount is borrowed against it, and your supplier is paid with the invoice number attached. The bitcoin stays yours, in your name, and you can take it back whenever you repay.
+Adag lets you pay a real bill in USDC or EURC with bitcoin you do not sell. You sign once. In that one signature your bitcoin (as cirBTC) is pledged on Morpho, exactly the bill amount is borrowed against it, and your supplier is paid with the invoice number attached. The bitcoin stays pledged in your name, never sold, and you can take it back whenever you repay. Where the bitcoin itself is held is answered in the [FAQ](/docs/faq#where-is-the-bitcoin).
 
-Adag refuses any payment that would push your loan past 40% of the bitcoin's value. Morpho, the lending market underneath, only liquidates at 86%, so there is a wide gap between the most Adag will let you borrow and the point where you could lose anything.
+Adag refuses any payment that would push your loan past 40% of the bitcoin's value. Morpho, the lending market underneath, only liquidates at 86%, so a loan at Adag's cap would need bitcoin to fall about 53.5% before Morpho could liquidate it (0.40 / 0.86, before interest). The [landing page](/#safety) shows that price live.
 
 It runs on Arc mainnet today. The contract is live, verified, and has already paid a real bill from a bitcoin-backed loan.
 
@@ -15,7 +15,7 @@ Adag comes from the Tamil word அடகு, *adagu*, which means a pledge. Fami
 
 ## Who it is for
 
-Adag is for people who hold bitcoin and have bills to pay. Selling bitcoin to pay rent or a supplier means giving the asset up for good. Pledging it and borrowing exactly the bill keeps it, as long as the loan stays small against the bitcoin, and Adag keeps it small.
+Adag is for people who hold bitcoin and have bills to pay. Selling bitcoin to pay rent or a supplier means giving the asset up for good. Pledging it and borrowing exactly the bill means it is never sold, as long as the loan stays well clear of Morpho's line, and Adag keeps the loan small.
 
 It is also for the suppliers they pay. A supplier writes a bill on Arc and shares a link, then receives USDC or EURC with their own invoice number on the payment, whether the customer paid from a stablecoin balance or from bitcoin. The supplier never touches bitcoin.
 
@@ -23,7 +23,7 @@ It is also for the suppliers they pay. A supplier writes a bill on Arc and share
 
 | | Selling bitcoin to pay | Borrowing on a lending app yourself | Adag |
 | --- | --- | --- | --- |
-| Keeps your bitcoin | No | Yes | Yes |
+| Your bitcoin is never sold | No | Yes | Yes |
 | Signatures to pay one bill | Several, across services | Four or five | One |
 | Supplier sees the invoice number | Rarely | No | Yes, attached on Arc |
 | Stops you borrowing too much | Not applicable | No, up to 86% | Yes, 40% cap in the contract |

@@ -1,4 +1,5 @@
 import "./landing.css";
+import Link from "next/link";
 import { Hallmark } from "@/components/Hallmark";
 import { PledgeStill } from "./PledgeStill";
 import { Reveal } from "./Reveal";
@@ -30,6 +31,20 @@ export function PledgedNotSold() {
             <p className="type-lead mt-5 max-w-[34ch] text-text/88">
               Adag, from the Tamil word <em className="font-display text-[1.12em] italic">adagu</em>, a pledge, does the same
               with bitcoin, on Arc.
+            </p>
+          </Reveal>
+          <Reveal delay={0.32}>
+            <p className="type-micro mt-8 max-w-[52ch] border-t border-rule pt-5 leading-[1.7] text-muted">
+              <Link href="/docs/faq#where-is-the-bitcoin" className="link-draw text-gold">
+                Where is the bitcoin?
+              </Link>{" "}
+              <span className="normal-case tracking-normal">
+                cirBTC is Circle&apos;s wrapped bitcoin, backed 1:1 and held by Circle, with{" "}
+                <a href="https://www.circle.com/cirbtc" target="_blank" rel="noopener noreferrer" className="text-text underline decoration-rule-strong underline-offset-4 transition-colors duration-200 hover:text-gold hover:decoration-gold">
+                  public reserves
+                </a>
+                . Pledged, it sits in your own Morpho position and is not lent out. Adag never holds it.
+              </span>
             </p>
           </Reveal>
         </div>

@@ -68,21 +68,16 @@ export function FortyGauge() {
             <dd className="type-number text-gold">{formatUsdPrice(price * cap)}</dd>
           </div>
           {lltv !== null && (
-            <>
-              <div className="flex flex-col gap-1.5">
-                <dt className="type-label text-muted">Liquidated past</dt>
-                <dd className="type-number text-text/88">{formatUsdPrice(price * lltv)}</dd>
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <dt className="type-label text-muted">Fall to reach it</dt>
-                <dd className="type-number">{((1 - cap / lltv) * 100).toFixed(1)}%</dd>
-              </div>
-            </>
+            <div className="col-span-2 flex flex-col gap-1.5 border-t border-rule pt-6">
+              <dt className="type-label max-w-[40ch] text-muted">Morpho liquidates a loan at Adag&apos;s cap if bitcoin falls to</dt>
+              {/* A loan at the cap owes price x cap; Morpho acts once that debt reaches its own line, at price x cap / lltv. */}
+              <dd className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+                <span className="type-number text-text/88">{formatUsdPrice((price * cap) / lltv)}</span>
+                <span className="type-label text-gold">a {((1 - cap / lltv) * 100).toFixed(1)}% fall</span>
+              </dd>
+            </div>
           )}
-          <p className="type-micro col-span-2 text-muted">
-            Per 1 cirBTC, at the live price from the USDC market&apos;s oracle on Arc · a loan at the cap would need bitcoin to fall that far before
-            Morpho could liquidate it
-          </p>
+          <p className="type-micro col-span-2 text-muted">Per 1 cirBTC, at the live price from the USDC market&apos;s oracle on Arc</p>
         </dl>
       )}
     </div>

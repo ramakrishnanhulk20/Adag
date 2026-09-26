@@ -10,7 +10,7 @@ When you pay a bill from bitcoin, your wallet signs one transaction. That transa
 These are the five calls, in the order the app builds them. `P` is the pledge, `A` the bill amount, `C` the bill's currency (USDC or EURC), `N` the bill number and `R` the invoice reference.
 
 1. `cirBTC.approve(Morpho, P)`: let Morpho take exactly the pledge.
-2. `Morpho.supplyCollateral(params, P, payer, 0x)`: pledge the bitcoin. It stays in your name.
+2. `Morpho.supplyCollateral(params, P, payer, 0x)`: pledge the bitcoin. It stays pledged in your name, never sold.
 3. `Morpho.borrow(params, A, 0, payer, payer)`: borrow exactly the bill, to your own wallet.
 4. `C.approve(AdagBills, A)`: let Adag move exactly that amount.
 5. `Memo.memo(AdagBills, payData(N), memoId(N), R)`: pay bill `N` through Memo, with the reference attached.

@@ -19,7 +19,7 @@ import { usePledge, type PledgeState } from "./usePledge";
 import { usePledgeMotion } from "./usePledgeMotion";
 
 const EASE = [0.16, 1, 0.3, 1] as const;
-const CHAPTERS = ["The coin", "The bills", "The pledge", "The loan", "Paid", "Still yours"];
+const CHAPTERS = ["The coin", "The bills", "The pledge", "The loan", "Paid", "Never sold"];
 const CHAPTER_STARTS = [0, 0.12, 0.3, 0.48, 0.62, 0.8];
 
 type Beat = 1 | 3 | 4 | 5 | 6;
@@ -35,7 +35,7 @@ function tell(state: PledgeState, bills: StageBills | null, pledge: Pledge | nul
   const shared = {
     3: { head: "Your bitcoin is pledged, not sold.", sub: "It sits on Morpho as collateral, in your name." },
     4: { head: `Adag borrows exactly the ${billWord}.`, sub: `And refuses anything past ${cap} of the bitcoin's value.` },
-    6: { head: "Still yours.", sub: "Repay any time and the bitcoin comes back." },
+    6: { head: "Never sold.", sub: "It stays pledged in your name. Repay any time to take it back." },
   };
   if (state.status === "loading") {
     return { honesty: "Reading Arc", captions: { 1: { head: "Reading the latest bills from Arc." }, ...shared, 5: { head: "" } } };
@@ -149,8 +149,23 @@ export function PledgeStage() {
               viewport={{ once: true, amount: 0.3 }}
               transition={{ duration: 0.8, ease: EASE }}
             >
+              {/* The label follows the beat, read from the timeline's --p like the chapter bar, so it never re-renders per frame. */}
               <Hallmark as="h2" className="pl-title">
-                <span id="pledge-title">03 · The pledge</span>
+                <span id="pledge-title">
+                  03 ·{" "}
+                  <span className="pl-beat-names" aria-hidden="true">
+                    {CHAPTERS.map((name, i) => (
+                      <span
+                        key={name}
+                        className="pl-beat-name"
+                        style={{ "--start": CHAPTER_STARTS[i], "--end": CHAPTER_STARTS[i + 1] ?? 2 } as React.CSSProperties}
+                      >
+                        {name}
+                      </span>
+                    ))}
+                  </span>
+                  <span className="sr-only">Paying bills from pledged bitcoin, in six beats</span>
+                </span>
               </Hallmark>
             </motion.div>
             <motion.div
@@ -197,14 +212,16 @@ export function PledgeStage() {
                 </div>
               </div>
               <div data-pl="tag-1" className="pl-tag pl-tag-1">
-                <Hallmark className="pl-hallmark">{btc ? `${btc} cirBTC${usd ? ` · ${usd}` : ""} · yours` : "Your cirBTC"}</Hallmark>
+                <Hallmark className="pl-hallmark">{btc ? `${btc} cirBTC${usd ? ` · ${usd}` : ""} · in your wallet` : "Your cirBTC"}</Hallmark>
               </div>
               <div data-pl="tag-3" className="pl-tag pl-tag-3">
                 <Hallmark className="pl-hallmark">Pledged on Morpho · still in your name</Hallmark>
               </div>
               <div data-pl="tag-6" className="pl-tag pl-tag-6">
                 <Hallmark className="pl-hallmark pl-hallmark-wrap">
-                  {btc ? `Still yours: ${btc} cirBTC. Repay any time to take it back.` : "Still yours. Repay any time to take it back."}
+                  {btc
+                    ? `${btc} cirBTC, pledged in your name, never sold. Repay any time to take it back.`
+                    : "Pledged in your name, never sold. Repay any time to take it back."}
                 </Hallmark>
               </div>
             </div>

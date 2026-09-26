@@ -11,9 +11,15 @@ Adag lets a payment take the loan up to 40% of the bitcoin's value. Morpho only 
 
 After the payment, the loan is an ordinary Morpho loan in your name. Adag does not watch it. Interest adds to it slowly. If bitcoin falls a long way, you can repay some of the loan or pledge more cirBTC to move away from Morpho's line.
 
+## Where is the bitcoin?
+
+cirBTC is Circle's wrapped bitcoin. Each cirBTC is backed 1:1 by bitcoin held by Circle International Bermuda, which publishes its reserve addresses on [circle.com/cirbtc](https://www.circle.com/cirbtc). So the bitcoin itself sits with Circle, and what you hold on Arc is cirBTC.
+
+When you pay from bitcoin, your cirBTC is pledged as collateral in your own Morpho position. Morpho does not lend collateral out: it stays in your position until you repay and withdraw it, or until Morpho liquidates it if the loan ever reaches Morpho's line. Adag never holds it, not even for a moment inside the payment: the cirBTC moves from your wallet straight into your Morpho position.
+
 ## Can Adag take my bitcoin?
 
-No. Your cirBTC is pledged to Morpho, in your own name, and only you can withdraw it. AdagBills has no function that moves cirBTC, no owner, no admin key and no upgrade path. The only token movement the contract can cause is the exact bill amount, from you, to that bill's supplier, inside the call that marks the bill paid.
+No. Your cirBTC is pledged to Morpho, in your own name, and only you can withdraw it. Morpho can take it only by liquidation, if the loan reaches its 86% line. AdagBills has no function that moves cirBTC, no owner, no admin key and no upgrade path. The only token movement the contract can cause is the exact bill amount, from you, to that bill's supplier, inside the call that marks the bill paid.
 
 The one thing to be aware of is the page itself. Your wallet signs a batch built by this website, and a compromised website could build a harmful batch. That risk is named in the [security overview](/docs/security), and it is why every address the app uses is fixed at build time and published on [Contracts and addresses](/docs/contracts).
 

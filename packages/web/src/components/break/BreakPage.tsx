@@ -7,7 +7,7 @@ import { motion } from "motion/react";
 import { Button } from "@/components/Button";
 import { Hallmark } from "@/components/Hallmark";
 import { CHECKS, type CheckInfo, type CheckResult } from "@/lib/break/catalogue";
-import { ATTACK_SCRIPT_PATH, REPO_URL, THREAT_MODEL_PATH } from "@/lib/break/constants";
+import { ATTACK_SCRIPT_PATH } from "@/lib/break/constants";
 import { useBreakRun, type BreakRun } from "./useBreakRun";
 import { VerdictStamp, type StampKind } from "./VerdictStamp";
 
@@ -16,14 +16,8 @@ const TOTAL = CHECKS.length;
 const GROUPS = Array.from(new Set(CHECKS.map((c) => c.group)));
 const DATE = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "UTC" });
 
-function RepoFile({ path, anchor, children }: { path: string; anchor?: string; children: React.ReactNode }) {
-  if (!REPO_URL) return <span className="type-address text-muted">{path}</span>;
-  return (
-    <a href={`${REPO_URL}/blob/main/${path}${anchor ?? ""}`} target="_blank" rel="noopener noreferrer" className="link-draw text-gold">
-      {children}
-    </a>
-  );
-}
+// Set once the repository is public. Until then the terminal line is left out rather than pointing nowhere.
+const REPO_URL = (process.env.NEXT_PUBLIC_REPO_URL ?? "").replace(/\/+$/, "");
 
 function useElapsed(running: boolean, since: number) {
   const [now, setNow] = useState(since);
@@ -90,9 +84,9 @@ function Row({ info, result, running }: { info: CheckInfo; result: CheckResult |
             {info.id === "A4" && result.verdict === "by-design" && (
               <p className="type-micro mt-2 text-muted">
                 Allowed by design, caught on the next payment. The named residual under C10 in{" "}
-                <RepoFile path={THREAT_MODEL_PATH} anchor="#loan-safety">
+                <Link href="/docs/security/threat-model#loan-safety" className="link-draw text-gold">
                   the threat model
-                </RepoFile>
+                </Link>
                 .
               </p>
             )}
@@ -213,9 +207,14 @@ export function BreakPage() {
 
       <footer className="bk-footer type-micro">
         <span>{block ? `Simulated at Arc block ${block} · ${when}` : "Every run is pinned to Arc's latest block"}</span>
-        <span>
-          The same suite runs from the terminal: <RepoFile path={ATTACK_SCRIPT_PATH}>attack.mjs</RepoFile>
-        </span>
+        {REPO_URL && (
+          <span>
+            The same suite runs from the terminal:{" "}
+            <a href={`${REPO_URL}/blob/main/${ATTACK_SCRIPT_PATH}`} target="_blank" rel="noopener noreferrer" className="link-draw text-gold">
+              attack.mjs
+            </a>
+          </span>
+        )}
         <span>Powered by Morpho</span>
       </footer>
     </div>

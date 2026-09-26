@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Hero } from "@/components/hero/Hero";
 import { LiveData } from "@/components/hero/LiveData";
+import { CheckIt } from "@/components/landing/CheckIt";
 import { CloseAndFooter } from "@/components/landing/CloseAndFooter";
 import { FortyLine } from "@/components/landing/FortyLine";
 import { ForSuppliers } from "@/components/landing/ForSuppliers";
@@ -26,6 +27,7 @@ export default function Home() {
         <PledgeStage />
         <OneSignature />
         <FortyLine />
+        <CheckIt />
         <ForSuppliers />
         <Ledger />
         <CloseAndFooter />

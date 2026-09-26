@@ -8,7 +8,8 @@ export const BEAT_SECONDS = [0.6, 0.8, 0.7, 0.6, 0.9, 0.8] as const;
 // The photographed coin is 13.00% of the image tall and 14.33% wide, so a face-on coin lies down at this ratio.
 const LIE_FLAT = (0.13 * 1792) / (0.1433 * 2400);
 
-export function buildTimeline(stage: HTMLElement, { stamps }: { stamps: boolean }): gsap.core.Timeline {
+// gapless: phones hold multi-line captions in a narrow box, so the old one is fully gone before the new one appears.
+export function buildTimeline(stage: HTMLElement, { stamps, gapless = false }: { stamps: boolean; gapless?: boolean }): gsap.core.Timeline {
   const q = gsap.utils.selector(stage);
   const pl = (name: string) => q(`[data-pl="${name}"]`);
   const cap = (beat: number) => q(`[data-pl-cap="${beat}"]`);
@@ -35,7 +36,7 @@ export function buildTimeline(stage: HTMLElement, { stamps }: { stamps: boolean 
   };
   const swapCaption = (from: number, to: number, at: number) => {
     tw.to(cap(from), { opacity: 0, y: -14, duration: 0.03, ease: "power2.in" }, at);
-    tw.fromTo(cap(to), { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.04, ease: "power2.out" }, at + 0.02);
+    tw.fromTo(cap(to), { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.04, ease: "power2.out" }, at + (gapless ? 0.03 : 0.02));
   };
 
   // 1. The coin hangs in the light.
@@ -81,7 +82,7 @@ export function buildTimeline(stage: HTMLElement, { stamps }: { stamps: boolean 
     });
   }
 
-  // 6. Still yours: the camera eases back and the coin lifts out of the slot, glowing.
+  // 6. Never sold: the camera eases back and the coin lifts out of the slot, glowing.
   swapCaption(5, 6, 0.8);
   tw.to(pl("tag-3"), { opacity: 0, duration: 0.03 }, 0.8);
   tw.to(push, { scale: 1, duration: 0.15, ease: "power2.out" }, 0.8);

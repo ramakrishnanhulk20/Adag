@@ -39,6 +39,18 @@
 .pl-title {
   margin-bottom: 20px;
 }
+/*
+  All six names share one cell so the mark keeps its width; only the one whose beat holds --p is visible.
+  The outgoing name is gone by end - 0.001 and the incoming one only starts there, so two never show at once.
+*/
+.pl-beat-names {
+  display: inline-grid;
+  vertical-align: bottom;
+}
+.pl-beat-name {
+  grid-area: 1 / 1;
+  opacity: calc(clamp(0, (var(--p) - var(--start)) * 1000 + 1, 1) * clamp(0, (var(--end) - var(--p)) * 1000 - 1, 1));
+}
 
 /* Every caption shares one box; the timeline cross-fades them. The first sets the box's height. */
 .pl-captions {

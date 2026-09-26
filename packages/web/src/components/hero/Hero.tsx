@@ -1,4 +1,5 @@
 import "./hero.css";
+import Link from "next/link";
 import { Hallmark } from "@/components/Hallmark";
 import { ThemeImage } from "@/components/ThemeImage";
 import { images } from "@/lib/images";
@@ -73,6 +74,13 @@ export function Hero() {
               Write a bill
             </HeroAction>
           </div>
+          {/* Phones have room for one button, so suppliers get a quiet line instead of losing the way in. */}
+          <p className="hero-in-3 type-micro mt-3 text-text/88 [text-shadow:0_0_10px_var(--bg),0_0_3px_var(--bg)] md:hidden">
+            Sending a bill?{" "}
+            <Link href="/bill/new" className="link-draw text-gold">
+              Write one
+            </Link>
+          </p>
         </div>
 
         <div className="hero-in-late relative z-10 px-5 pt-6 pb-14 md:px-[6vw] md:pt-4 md:pb-6">

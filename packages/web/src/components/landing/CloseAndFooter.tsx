@@ -14,7 +14,7 @@ export function CloseAndFooter() {
           <div className="md:col-span-7">
             <Reveal>
               <h2 id="close-title" className="type-h2 max-w-[12ch]">
-                The bill is due. <em className="text-gold italic">The bitcoin stays.</em>
+                The bill is due. <em className="text-gold italic">The bitcoin stays pledged.</em>
               </h2>
             </Reveal>
             <Reveal delay={0.08} className="mt-10">

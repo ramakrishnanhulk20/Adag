@@ -5,7 +5,7 @@ import { useEffect, useRef } from "react";
 // ARCHITECTURE.md section 6, "Pay from bitcoin", in its exact order and wording.
 const CALLS = [
   { code: "cirBTC.approve(Morpho, P)", plain: "Let Morpho take the pledge, and nothing more." },
-  { code: "Morpho.supplyCollateral(params, P, payer, 0x)", plain: "Pledge the bitcoin. It stays in your name." },
+  { code: "Morpho.supplyCollateral(params, P, payer, 0x)", plain: "Pledge the bitcoin. It stays pledged in your name, never sold." },
   { code: "Morpho.borrow(params, A, 0, payer, payer)", plain: "Borrow exactly the bill." },
   { code: "C.approve(AdagBills, A)", plain: "Let Adag move exactly that amount." },
   { code: "Memo.memo(AdagBills, payData(N), memoId(N), R)", plain: "Pay the supplier, invoice number attached." },
