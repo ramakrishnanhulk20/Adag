@@ -2,14 +2,16 @@
 // eth_simulateV1 on dRPC, starting from one real mainnet block, against the deployed contract and the demo
 // wallet's real loan. Nothing is signed or sent, and no key is read.
 //
-//   node packages/contracts/prove-it/attack.mjs                  the first deployment, as recorded
-//   node packages/contracts/prove-it/attack.mjs --target enrol   AdagBills with enrol: A1 to A10 plus E1 to E5
+//   node packages/contracts/prove-it/attack.mjs                  AdagBills with enrol, the contract Adag uses now:
+//                                                                A1 to A10 plus E1 to E5 (--target current, or enrol)
+//   node packages/contracts/prove-it/attack.mjs --target first   the first deployment: A1 to A10
 //
 // State overrides are used for three things only: giving a simulated stranger some native USDC, the payee
 // writing fresh bills in an earlier simulated block, and in A9 alone a mock oracle labelled as a simulated
-// price drop. Adag and Morpho state are never overridden. With --target enrol before that deploy, the local build
-// is placed as code at its predicted address, and a fresh contract has no bills, so one setup block starts every
-// simulation: the payee writes a bill and the demo wallet pays it from cash, which records its real loan.
+// price drop. Adag and Morpho state are never overridden. With the current target before its deploy, the local build
+// is placed as code at its predicted address. When the target has no bill the demo wallet paid, or its record of
+// the demo loan no longer matches the live loan (a fresh contract, or the loan moved since), one setup block starts
+// every simulation: the payee writes a bill and the demo wallet pays it from cash, which records its real loan.
 import { spawnSync } from 'node:child_process';
 import { appendFileSync, existsSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -17,13 +19,13 @@ import { getAddress, keccak256, stringToHex } from 'viem';
 import * as L from './lib.mjs';
 
 function targetArg(argv) {
-  let target = 'first';
+  let target = L.DEFAULT_TARGET;
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--target') target = argv[++i];
     else if (argv[i].startsWith('--target=')) target = argv[i].slice('--target='.length);
-    else throw new Error(`Unknown option ${argv[i]}. The only option is --target first or --target enrol.`);
+    else throw new Error(`Unknown option ${argv[i]}. The only option is --target. ${L.TARGET_HELP}`);
   }
-  if (!L.TARGETS[target]) throw new Error(`Unknown target ${target}. Use --target first or --target enrol.`);
+  if (!L.TARGETS[target]) throw new Error(`Unknown target ${target}. ${L.TARGET_HELP}`);
   return target;
 }
 
@@ -91,13 +93,11 @@ async function baseline() {
   ctx.params = { loanToken: p[0], collateralToken: p[1], oracle: p[2], irm: p[3], lltv: p[4] };
   L.verifyMarketParams(ctx.params, L.MARKET_USDC);
   L.assertUsdcMarketConstants(ctx.params);
-  if (!first) {
-    if (!target.deployed) {
-      const code = await L.circle.getCode({ address: adag });
-      if (code && code !== '0x') throw new Error(`${adag}, the predicted address for ${target.key}, already holds code. Run the deploy dry run again.`);
-    }
-    await setupPaidBill();
+  if (!first && !target.deployed) {
+    const code = await L.circle.getCode({ address: adag });
+    if (code && code !== '0x') throw new Error(`${adag}, the predicted address for ${target.key}, already holds code. Run the deploy dry run again.`);
   }
+  await setupPaidBill();
   const r = await readBlock([
     L.read('pos', L.MORPHO, L.morphoAbi, 'position', [L.MARKET_USDC, demo]),
     L.read('market', L.MORPHO, L.morphoAbi, 'market', [L.MARKET_USDC]),
@@ -114,6 +114,8 @@ async function baseline() {
     L.read('allow', L.USDC, L.erc20Abi, 'allowance', [demo, adag]),
   ]);
   Object.assign(ctx, r);
+  // The live contract may already hold an enrolment for the demo wallet; E1 and E3 check it does not change.
+  ctx.demoEnrolledAt = first ? 0n : (await readBlock([L.read('at', adag, adagAbi, 'enrolledAt', [demo])])).at;
   ctx.shares = r.pos[1];
   ctx.collateral = r.pos[2];
   ctx.debt = L.toAssetsUp(ctx.shares, r.market[2], r.market[3]);
@@ -350,7 +352,7 @@ function A10() {
     ['A10a', `${L.WRITE_RPC} reports chain 1`, stub('0x1', '0x13b2'), `${L.WRITE_RPC} reports chain 1, not Arc mainnet 5042`],
     ['A10b', `${L.WRITE_RPC} reports 5042 but ${L.SIM_RPC} reports chain 1`, stub('0x13b2', '0x1'), `${L.SIM_RPC} reports chain 1, not Arc mainnet 5042`],
   ];
-  const targetFlag = first ? [] : ['--target', target.name];
+  const targetFlag = ['--target', target.name];
   for (const [id, label, code, want] of cases) {
     const p = spawnSync(process.execPath, ['--import', `data:text/javascript,${encodeURIComponent(code)}`, proveIt, ...targetFlag], { encoding: 'utf8', timeout: 60_000 });
     const stopped = (p.stderr || '').split('\n').find((s) => s.startsWith('STOPPED:')) ?? `exit ${p.status}, no STOPPED line`;
@@ -378,7 +380,7 @@ async function E1() {
   const block = decodeAdag('enrolledAt', at);
   row('E1', 'Enrol and pay a new bill from cash in one batch', 'Adag: a payer whose enrol block is this block is refused (C32)',
     `${outcome(r)}; bill ${status}; enrol block after ${block}`,
-    !r.ok && outcome(r) === 'MemoFailed(EnrolledThisBlock())' && status === 'Open' && block === 0n);
+    !r.ok && outcome(r) === 'MemoFailed(EnrolledThisBlock())' && status === 'Open' && block === ctx.demoEnrolledAt);
 }
 
 async function E2() {
@@ -418,7 +420,7 @@ async function E3() {
   row('E3', 'A stranger calls enrol, then the demo wallet pays a bill from cash in the same block',
     'Adag: enrol takes no arguments and writes only the caller\'s own record (C31)',
     `stranger enrol ${outcome(enrol)} (its enrol block ${sAt}); demo recorded ${b[0]} shares, ${L.btc(b[1])} before and ${a[0]} shares, ${L.btc(a[1])} after; demo enrol block ${dAt}; demo payment ${outcome(pay)}`,
-    enrol.ok && sAt === ctx.pin.number + BigInt(ctx.offset + 2) && sameSeen(b) && sameSeen(a) && dAt === 0n && pay.ok);
+    enrol.ok && sAt === ctx.pin.number + BigInt(ctx.offset + 2) && sameSeen(b) && sameSeen(a) && dAt === ctx.demoEnrolledAt && pay.ok);
 }
 
 // The backend-gate bypass against an enrolled position: enrol in block N, then in N+1 close the loan outside

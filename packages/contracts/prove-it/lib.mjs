@@ -109,11 +109,16 @@ const publishedAbiUrl = new URL('../deployments/2026-09-25/AdagBills.abi.json', 
 const deploymentUrl = new URL('../deployments/arc-mainnet.json', import.meta.url);
 const dryRunUrl = new URL('../deployments/arc-mainnet.dry-run.json', import.meta.url);
 
-// The --target values both scripts accept. Each names one record key in deployments/arc-mainnet.json.
+// The --target values both scripts accept. Each names one record key in deployments/arc-mainnet.json. current is
+// the default, the contract Adag writes new bills on; enrol is another name for it, kept so the commands in the
+// dated records still run.
 export const TARGETS = {
-  first: { key: 'AdagBills', label: 'the first AdagBills (25 September, no enrol)' },
+  current: { key: 'AdagBillsEnrol', label: 'AdagBills with enrol' },
   enrol: { key: 'AdagBillsEnrol', label: 'AdagBills with enrol' },
+  first: { key: 'AdagBills', label: 'the first AdagBills (25 September, no enrol)' },
 };
+export const DEFAULT_TARGET = 'current';
+export const TARGET_HELP = 'Use --target current (the default) or --target first.';
 
 // A local arc-forge build when there is one; otherwise the ABI published beside the deployment, which is all a
 // run against the live contract needs. deployedBytecode is null in that case.
@@ -146,13 +151,14 @@ export function loadDeployment(key = TARGETS.first.key) {
 
 const hasEnrol = (abi) => abi.some((e) => e.type === 'function' && e.name === 'enrol');
 
-// Where a run points and what code it uses. `first` behaves exactly as before targets existed: the recorded
-// address, or the placeholder with the local build injected when nothing is recorded. `enrol` uses its record
-// once it exists; until then it injects the local build, which must have enrol, at the address the deploy dry
-// run predicted, so the simulation runs the same code at the same address a real deploy would.
-export function loadTarget(name = 'first') {
+// Where a run points and what code it uses. `first` is the recorded first deployment, or the placeholder with
+// the local build injected when nothing is recorded. `current` (or `enrol`) uses its record once it exists;
+// until then it injects the local build, which must have enrol, at the address the deploy dry run predicted, so
+// the simulation runs the same code at the same address a real deploy would.
+export function loadTarget(requested = DEFAULT_TARGET) {
+  if (!TARGETS[requested]) throw new Error(`Unknown target ${requested}. ${TARGET_HELP}`);
+  const name = requested === 'enrol' ? 'current' : requested;
   const target = TARGETS[name];
-  if (!target) throw new Error(`Unknown target ${name}. Use --target first or --target enrol.`);
   if (name === 'first') {
     const deployed = loadDeployment(target.key);
     return { ...target, name, address: deployed ?? PLACEHOLDER_ADAG, deployed: !!deployed, predicted: false, artifact: loadAdagAbi() };
