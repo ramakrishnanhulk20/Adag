@@ -39,7 +39,7 @@ export function ProtectPage() {
       <div className="app-rise mt-14" style={{ "--d": 4 } as React.CSSProperties}>
         {wallet.status === "connected" ? (
           <div className="flex flex-col gap-8">
-            <GuardList address={wallet.address} />
+            <GuardList address={wallet.address} canSign={readyToSign(wallet)} />
             <AlertsPanel address={wallet.address} canSign={readyToSign(wallet)} blockedReason={blockedReason(wallet)} />
           </div>
         ) : (

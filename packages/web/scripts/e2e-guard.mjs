@@ -65,6 +65,9 @@ const morphoAbi = parseAbi([
   `function idToMarketParams(bytes32 id) view returns ${mp}`,
   `function supplyCollateral(${mp} marketParams, uint256 assets, address onBehalf, bytes data)`,
   `function borrow(${mp} marketParams, uint256 assets, uint256 shares, address onBehalf, address receiver) returns (uint256, uint256)`,
+  `function repay(${mp} marketParams, uint256 assets, uint256 shares, address onBehalf, bytes data) returns (uint256, uint256)`,
+  `function withdrawCollateral(${mp} marketParams, uint256 assets, address onBehalf, address receiver)`,
+  'function position(bytes32 id, address user) view returns (uint256 supplyShares, uint128 borrowShares, uint128 collateral)',
 ]);
 const erc20Abi = parseAbi([
   'function approve(address, uint256) returns (bool)',
@@ -582,6 +585,58 @@ async function main() {
   );
   const signedTxs = sentBeforeReload + (await page.evaluate(() => window.__walletLog.filter((m) => m === 'eth_sendTransaction').length));
   record('UI: saving, repaying now and stopping took one wallet transaction each', signedTxs === 3, `wallet sent ${signedTxs}`);
+
+  // G2b: a second wallet borrows, closes the loan in full, and keeps its rule and approval. The wallet page draws no
+  // card for a closed market, so /app/protect must let it stop the guard right there (C60).
+  const closer = privateKeyToAccount(generatePrivateKey());
+  const closerWallet = createWalletClient({ account: closer, chain: forkChain, transport: http(FORK) });
+  await rpc('anvil_setBalance', [closer.address, toHex(parseEther('100'))]);
+  await sendAs(morphoWallet, { to: CIRBTC, data: encodeFunctionData({ abi: erc20Abi, functionName: 'transfer', args: [closer.address, 100_000n] }) });
+  await sendAs(closerWallet, { to: CIRBTC, data: encodeFunctionData({ abi: erc20Abi, functionName: 'approve', args: [MORPHO, 100_000n] }) });
+  await sendAs(closerWallet, { to: MORPHO, data: encodeFunctionData({ abi: morphoAbi, functionName: 'supplyCollateral', args: [tuple, 100_000n, closer.address, '0x'] }) });
+  await sendAs(closerWallet, { to: MORPHO, data: encodeFunctionData({ abi: morphoAbi, functionName: 'borrow', args: [tuple, 1_000_000n, 0n, closer.address, closer.address] }) });
+  await sendAs(closerWallet, { to: USDC, data: encodeFunctionData({ abi: erc20Abi, functionName: 'approve', args: [guard, 5_000_000n] }) });
+  await sendAs(closerWallet, { to: guard, data: encodeFunctionData({ abi: guardAbi, functionName: 'setRule', args: [MARKET_USDC, TRIGGER, TARGET, 0n] }) });
+  const [, openShares] = await fork.readContract({ address: MORPHO, abi: morphoAbi, functionName: 'position', args: [MARKET_USDC, closer.address] });
+  await sendAs(closerWallet, { to: USDC, data: encodeFunctionData({ abi: erc20Abi, functionName: 'approve', args: [MORPHO, 2_000_000n] }) });
+  await sendAs(closerWallet, { to: MORPHO, data: encodeFunctionData({ abi: morphoAbi, functionName: 'repay', args: [tuple, 0n, openShares, closer.address, '0x'] }) });
+  const repaidPosition = await fork.readContract({ address: MORPHO, abi: morphoAbi, functionName: 'position', args: [MARKET_USDC, closer.address] });
+  const withdraw = encodeFunctionData({ abi: morphoAbi, functionName: 'withdrawCollateral', args: [tuple, repaidPosition[2], closer.address, closer.address] });
+  try {
+    await fork.call({ account: closer.address, to: MORPHO, data: withdraw });
+  } catch (error) {
+    throw new Error(`the closed-loan setup cannot withdraw: position ${repaidPosition.join('/')}, ${(error.shortMessage ?? error.message).slice(0, 300)}`);
+  }
+  await sendAs(closerWallet, { to: MORPHO, data: withdraw });
+  await sendAs(closerWallet, { to: USDC, data: encodeFunctionData({ abi: erc20Abi, functionName: 'approve', args: [MORPHO, 0n] }) });
+  const [, closedShares, closedCollateral] = await fork.readContract({ address: MORPHO, abi: morphoAbi, functionName: 'position', args: [MARKET_USDC, closer.address] });
+  const closerRule = () => fork.readContract({ address: guard, abi: guardAbi, functionName: 'ruleOf', args: [closer.address, MARKET_USDC] });
+  const closerAllowance = () => fork.readContract({ address: USDC, abi: erc20Abi, functionName: 'allowance', args: [closer.address, guard] });
+  const premise = closedShares === 0n && closedCollateral === 0n && (await closerRule()).triggerWad === TRIGGER && (await closerAllowance()) === 5_000_000n;
+
+  // The page's test wallet forwards transactions to the fork unsigned, which the fork accepts only for impersonated accounts.
+  await rpc('anvil_impersonateAccount', [closer.address]);
+  const closedPage = await openPage(closer);
+  await closedPage.goto(`${APP}/app/protect`, { waitUntil: 'networkidle', timeout: 120_000 });
+  const connectClosed = closedPage.getByRole('button', { name: 'Connect wallet' });
+  if (await connectClosed.count()) await connectClosed.first().click().catch(() => {});
+  const closedItem = closedPage.locator('[data-guard-list-item="USDC"]');
+  await closedItem.waitFor({ timeout: 90_000 });
+  const closedNote = await closedItem.locator('[data-guard-list-closed]').count();
+  const closedLink = await closedItem.locator('[data-guard-list-link]').count();
+  await shoot(closedPage, 'g2b-closed-list', '[data-guard-list]');
+  const listStopFrom = await fork.getBlockNumber();
+  await closedItem.locator('[data-action="list-protect-stop"]').click({ timeout: 60_000 });
+  await closedPage.locator('[data-guard-list-result], [data-guard-list-item] [data-tx-state="failed"], [data-guard-list-item] [data-tx-state="refused"]').first().waitFor({ timeout: 90_000 });
+  const listStopText = await closedPage.locator('[data-guard-list]').innerText();
+  const listCleared = (await guardEvents(listStopFrom)).find((e) => e.eventName === 'RuleCleared' && e.args.borrower === closer.address);
+  const [ruleAfterList, allowanceAfterList] = [await closerRule(), await closerAllowance()];
+  record(
+    'UI: a fully closed loan with a rule and an approval shows on /app/protect as closed, and "Stop protecting" there clears both',
+    premise && closedNote === 1 && closedLink === 0 && !!listCleared && ruleAfterList.triggerWad === 0n && allowanceAfterList === 0n && /Protection stopped/.test(listStopText),
+    `premise ${premise ? 'closed loan, rule, 5 USDC approval' : 'NOT MET'}, closed note ${closedNote}, link ${closedLink}, RuleCleared ${listCleared ? 'yes' : 'no'}, rule ${ruleAfterList.triggerWad}, allowance ${allowanceAfterList}`,
+  );
+  await shoot(closedPage, 'g2b-stopped', '[data-guard-list]');
   record('no console errors on the guard and alerts pages', consoleErrors.length === 0, consoleErrors.slice(0, 5).join(' | '));
 }
 
