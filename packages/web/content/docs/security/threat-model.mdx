@@ -317,7 +317,7 @@ Privileged positions: AdagGuard's standing allowances and repay right (the most 
 
 Attacker goals, highest value first: drain a borrower's allowance; silence or misdirect protection and alerts; move a Safe's funds somewhere other than the bill; pay the wrong bill or the same bill twice across two contracts; use Adag's bot for phishing; spend the keeper's gas; pay from an over-40% position through v2 (bounded, disclosed).
 
-#### C) Invariants C31 to C57, the definition of done for the second build
+#### C) Invariants C31 to C60, the definition of done for the second build
 
 AdagBills v2
 
@@ -382,6 +382,14 @@ Server and secrets
 **C56. Secrets stay on the server.** Keeper key, bot token, RPC key, store credentials, webhook and cron secrets only as server environment variables, none NEXT_PUBLIC_, checked in the build; the keeper wallet holds gas only.
 
 **C57. Routes bounded, fixed origins only.** Body caps, timeouts, rate limits; fetches only to the RPC, Telegram, Safe's service and the store; every webhook, signed-message or service value parsed once into typed values before use; unparseable input dropped.
+
+Added at the code review of the second build
+
+**C58. A payment never trips the payer's own guard unseen.** Before a payment that borrows is signed, the app compares the loan-to-value it lands at with the payer's guard trigger for that market; at or above the trigger, it says in plain words that the guard will repay about how much of the wallet's USDC or EURC within minutes, before the signature.
+
+**C59. Keeper paging and filtering.** Each run reads a fixed number of holder pages from a stored cursor that wraps around; holders with no debt or no allowance are dropped with cheap reads before any quote; a fixed number are simulated and acted on per run; no holder can make the cursor skip another holder or loop.
+
+**C60. Stopping removes the approval.** Clearing a rule in the app sets AdagGuard's approval to 0 in the same transaction, proven by reading the allowance back as 0; every screen that shows a rule shows the standing allowance beside it; a leftover approval with no rule stays on screen until it is 0.
 
 **General standards applied.** Market validity is v1's predicate; authority over server state is a strict signature; webhook validity is the provider's signature over the raw body; Safe targets are the build-time set plus MultiSendCallOnly; bill identity is a pair from one parser; debt has two roundings from one function; the view and protect share one computation; the three Safe hashes compared as the same bytes32; one normalizer for keys; thresholds in WAD units.
 
