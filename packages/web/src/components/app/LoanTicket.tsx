@@ -7,6 +7,7 @@ import { formatUnits, type Address, type Hex } from "viem";
 import { arc } from "viem/chains";
 import { useBlock, useReadContract, useReadContracts } from "wagmi";
 import { Button } from "@/components/Button";
+import { GuardSection } from "@/components/guard/GuardSection";
 import { adagAbi, erc20Abi, irmAbi, morphoAbi, oracleAbi } from "@/lib/pay/abi";
 import { parseAmountInput } from "@/lib/pay/amount";
 import { buildAddCollateral, buildCloseLoan, buildRepaySome } from "@/lib/pay/build";
@@ -383,8 +384,10 @@ export function LoanTicket(props: LoanTicketProps) {
           <p className="type-body mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-text">
             <span aria-hidden="true" className={`diamond ${fresh === null ? "!bg-rule-strong" : fresh ? "!bg-success" : "!bg-danger"}`} />
             {fresh === null ? <Value cell={priceStatus} render={() => ""} /> : fresh ? "Bitcoin price fresh." : "Bitcoin price paused for new loans."}
-            <span className="text-muted">Adag checks the 40% line only at the moment you pay. It does not watch this loan.</span>
+            <span className="text-muted">Adag checks the 40% line only at the moment you pay. After that, only the loan guard below watches it, if you turn it on.</span>
           </p>
+
+          <GuardSection address={address} currency={currency} position={position} canSign={canSign} blockedReason={blockedReason} onChanged={onChanged} />
 
           <div className="mt-7 border-t border-rule pt-6">
             <div role="tablist" aria-label="Loan actions" className="flex flex-wrap gap-x-6 gap-y-2">
