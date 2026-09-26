@@ -12,6 +12,7 @@ import type { Bill } from "@/lib/pay/build";
 import { blockers, type Blocker, type MarketInput } from "@/lib/pay/enrol";
 import {
   ADAG_BILLS,
+  deploymentOf,
   BILL_STATUS,
   CIRBTC,
   CIRBTC_DECIMALS,
@@ -33,7 +34,8 @@ import { RetryContext, Value, rise, type Cell } from "./cells";
 import { ConnectButton } from "./ConnectButton";
 import { GetSetUp } from "./GetSetUp";
 import { PayActions } from "./PayActions";
-import { SafeEntry } from "./SafeEntry";
+import { FirstContractSafeNote, PayAsSwitch, usePayAsMode } from "./PayAs";
+import { SafePay } from "./SafePay";
 import { VoidAction } from "./VoidAction";
 import { SMART_ACCOUNT_SENTENCE } from "./WalletNotice";
 
@@ -203,6 +205,12 @@ function ConnectedWallet({ address, bill, wallet, justPaid, paidTxUrl }: Connect
 
   // Once this wallet pays here, its receipt card stays on screen after the page refresh reports the bill as paid.
   const [actedHere, setActedHere] = useState(false);
+  // F3: who pays, this wallet or a Safe. A Safe cannot pay bills on the first contract, so those get no switch.
+  const firstContract = deploymentOf(bill.contract)?.label === "first";
+  const payAs = usePayAsMode(address, bill.contract, [bill.id]);
+  const safeMode = !firstContract && payAs.mode === "safe";
+  // A Safe proposal stays on screen after the bill turns paid, so the owner sees it land.
+  const [safeProposed, setSafeProposed] = useState(false);
   const refetch = reads.refetch;
   const retry = useCallback(() => void refetch(), [refetch]);
   const onSettled = useCallback(() => {
@@ -229,24 +237,33 @@ function ConnectedWallet({ address, bill, wallet, justPaid, paidTxUrl }: Connect
             <PaidJustNow bill={bill} currencySymbol={currency?.symbol ?? ""} decimals={currency?.decimals ?? 6} txUrl={paidTxUrl} />
           ) : isPayee ? (
             <VoidAction bill={bill} address={address} canSign={reason === null} blockedReason={reason} />
-          ) : (open || actedHere) && currency ? (
-            reason === null || actedHere ? (
-              <PayActions
-                bill={bill}
-                address={address}
-                currency={currency}
-                balance={billBalance}
-                cirBtc={balances[2]}
-                position={billMarket.position}
-                market={billMarket.market}
-                price={billMarket.price}
-                priceStatus={priceStatus}
-                needed={needed}
-                borrowApy={borrowApy}
-                onSettled={onSettled}
-                enrol={enrol}
-                onRecorded={retry}
-              />
+          ) : (open || actedHere || safeProposed) && currency ? (
+            reason === null || actedHere || safeProposed ? (
+              <div className="flex h-full flex-col">
+                {open && !actedHere && !firstContract && <PayAsSwitch mode={payAs.mode} onChoose={payAs.choose} className="mb-4" />}
+                <div className="min-h-0 flex-1">
+                  {safeMode ? (
+                    <SafePay bills={[bill]} onProposed={() => setSafeProposed(true)} />
+                  ) : (
+                    <PayActions
+                      bill={bill}
+                      address={address}
+                      currency={currency}
+                      balance={billBalance}
+                      cirBtc={balances[2]}
+                      position={billMarket.position}
+                      market={billMarket.market}
+                      price={billMarket.price}
+                      priceStatus={priceStatus}
+                      needed={needed}
+                      borrowApy={borrowApy}
+                      onSettled={onSettled}
+                      enrol={enrol}
+                      onRecorded={retry}
+                    />
+                  )}
+                </div>
+              </div>
             ) : (
               <div className="app-panel p-6 md:p-8" data-blocked="true">
                 <p className="type-label text-muted">Pay this bill</p>
@@ -301,7 +318,7 @@ function ConnectedWallet({ address, bill, wallet, justPaid, paidTxUrl }: Connect
       </div>
 
       {/* Outside the grid: the pay panel above fills its row's full height, so anything stacked under it would overflow. */}
-      <SafeEntry bills={[bill]} available={!isPayee && open && !actedHere && reason === null && Boolean(currency)} className="mt-6" />
+      {firstContract && !isPayee && open && !actedHere && reason === null && currency && <FirstContractSafeNote ids={[bill.id]} className="mt-6" />}
 
       <motion.div {...rise(4)} className="mt-6">
         <PriceLine priceStatus={priceStatus} symbol={currency?.symbol ?? "USDC"} chainNow={head.data?.timestamp ?? null} />

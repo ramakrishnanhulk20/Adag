@@ -8,13 +8,17 @@ import { parseBillRoute } from "@/lib/pay/billId";
 import { billToJson } from "@/lib/pay/billJson";
 import { deploymentOf } from "@/lib/pay/constants";
 import { findPaidTx, readBill, readBillCount } from "@/lib/pay/read";
+import type { PublicClient } from "viem";
+import { HowPaid } from "@/components/app/HowPaid";
+import { arcClient } from "@/lib/arc/client";
+import { readHowPaid } from "@/lib/pay/howPaid";
 
 // Shared by /bill/[id] (the current contract) and /bill/first/[id] (the first deployment). The route's segments go
 // through parseBillRoute once, and that one pair drives the read, the sheet, the wallet panel and the live poll (C33).
 export function billMetadata(segments: string[]): Metadata {
   const ref = parseBillRoute(segments);
   const first = ref && deploymentOf(ref.contract)?.label === "first";
-  return { title: ref ? `Bill #${ref.id}${first ? " (first deployment)" : ""} · Adag` : "Bill · Adag", robots: { index: false, follow: false } };
+  return { title: ref ? `Bill #${ref.id}${first ? " (first deployment)" : ""}` : "Bill", robots: { index: false, follow: false } };
 }
 
 export async function BillRoute({ segments }: { segments: string[] }) {
@@ -45,9 +49,11 @@ export async function BillRoute({ segments }: { segments: string[] }) {
   }
 
   const paidTx = await findPaidTx(read.bill);
+  const how = paidTx.kind === "found" ? await readHowPaid(arcClient as PublicClient, read.bill, paidTx) : null;
   return (
     <AppShell>
       <BillSheet bill={read.bill} paidTx={paidTx} />
+      {how && <HowPaid how={how} />}
       <BillWallet bill={billToJson(read.bill)} paidTxUrl={paidTx.kind === "found" ? paidTx.url : null} />
       <BillLive contract={read.bill.contract} id={read.bill.id.toString()} status={read.bill.status} />
     </AppShell>

@@ -263,14 +263,14 @@ export function WriteBill() {
                   <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                     <p className="type-body max-w-[26rem] text-text">
                       {wallet.status !== "connected"
-                        ? "Connect the wallet the bill should pay. Nothing is built until then."
+                        ? "Connect the wallet that should receive the money. Nothing is built until then."
                         : !wallet.onArc
                           ? "Your wallet is on another network. Switch it to Arc to write the bill."
                           : "This wallet cannot sign here yet. See the note under the menu bar."}
                     </p>
                     <ConnectButton />
                   </div>
-                  {(wallet.status !== "connected" || !wallet.onArc) && <GetSetUp needs={["arc", "usdc"]} className="mt-5" />}
+                  {(wallet.status !== "connected" || !wallet.onArc) && <GetSetUp needs={["arc", "usdc"]} className="mt-5" title="New to Arc?" />}
                 </div>
               ))}
             {showErrors && !built.ok && amount.ok && refLength <= MAX_REFERENCE_BYTES && !dueError && (

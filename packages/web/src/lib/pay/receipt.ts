@@ -85,7 +85,8 @@ export function ruleClearedIn(logs: readonly Log[], borrower: string, market: st
 export type MorphoEvent =
   | { name: "SupplyCollateral"; id: Hex; onBehalf: Address; assets: bigint }
   | { name: "WithdrawCollateral"; id: Hex; onBehalf: Address; receiver: Address; assets: bigint }
-  | { name: "Repay"; id: Hex; onBehalf: Address; assets: bigint; shares: bigint };
+  | { name: "Repay"; id: Hex; onBehalf: Address; assets: bigint; shares: bigint }
+  | { name: "Borrow"; id: Hex; onBehalf: Address; receiver: Address; assets: bigint; shares: bigint };
 
 // Loan actions are proven by Morpho's own events, from Morpho's address only.
 export function morphoEventsIn(logs: readonly Log[]): MorphoEvent[] {
@@ -98,8 +99,10 @@ export function morphoEventsIn(logs: readonly Log[]): MorphoEvent[] {
       else if (ev.eventName === "WithdrawCollateral")
         out.push({ name: ev.eventName, id: ev.args.id, onBehalf: ev.args.onBehalf, receiver: ev.args.receiver, assets: ev.args.assets });
       else if (ev.eventName === "Repay") out.push({ name: ev.eventName, id: ev.args.id, onBehalf: ev.args.onBehalf, assets: ev.args.assets, shares: ev.args.shares });
+      else if (ev.eventName === "Borrow")
+        out.push({ name: ev.eventName, id: ev.args.id, onBehalf: ev.args.onBehalf, receiver: ev.args.receiver, assets: ev.args.assets, shares: ev.args.shares });
     } catch {
-      // Morpho events this ABI does not list, such as Borrow or AccrueInterest.
+      // Morpho events this ABI does not list, such as AccrueInterest.
     }
   }
   return out;

@@ -91,3 +91,11 @@ test('blockers: the market this payment borrows in is excluded, the other one is
   assert.deepEqual(list.map((b) => b.symbol), ['EURC']);
   assert.deepEqual(blockers({ markets: [usdc], borrowsIn: USDC_MARKET.toUpperCase().replace('0X', '0x') }), []);
 });
+
+test('blockers: a basket borrowing in both markets leaves both out; borrowing in one still judges the other', () => {
+  const usdc = market({ live: pos(500_000_000n, 1_000n) });
+  const eurc = market({ market: EURC_MARKET, symbol: 'EURC', live: pos(500_000_000n, 1_000n) });
+  assert.deepEqual(blockers({ markets: [usdc, eurc], borrowsIn: [USDC_MARKET, EURC_MARKET] }), []);
+  assert.deepEqual(blockers({ markets: [usdc, eurc], borrowsIn: [EURC_MARKET] }).map((b) => b.symbol), ['USDC']);
+  assert.deepEqual(blockers({ markets: [usdc, eurc], borrowsIn: [] }).map((b) => b.symbol), ['USDC', 'EURC']);
+});

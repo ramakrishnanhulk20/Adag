@@ -45,10 +45,12 @@ const ltvOf = (debt: bigint, collateral: bigint, price: bigint) => {
 // The markets whose check would run at pay() on debt the payer already had, and would revert: over the 40% line or on
 // a stale price. The market this payment borrows in is left out: its check is on the new borrowing, which the pledge
 // suggestion already sizes. Totals should be accrued to now, as the contract accrues interest before it checks.
-export function blockers(input: { markets: readonly MarketInput[]; borrowsIn: Hex | null }): Blocker[] {
+// A basket can borrow in both markets at once, so borrowsIn may also be a list; every market in it is left out.
+export function blockers(input: { markets: readonly MarketInput[]; borrowsIn: Hex | readonly Hex[] | null }): Blocker[] {
+  const borrowing = (input.borrowsIn === null ? [] : typeof input.borrowsIn === "string" ? [input.borrowsIn] : input.borrowsIn).map((x) => x.toLowerCase());
   const out: Blocker[] = [];
   for (const m of input.markets) {
-    if (input.borrowsIn !== null && m.market.toLowerCase() === input.borrowsIn.toLowerCase()) continue;
+    if (borrowing.includes(m.market.toLowerCase())) continue;
     if (!willCheck(m.live, m.seen, false)) continue;
     const debt = debtFromShares(m.live.shares, m.totalBorrowAssets, m.totalBorrowShares);
     const ltvWad = ltvOf(debt, m.live.collateral, m.price);

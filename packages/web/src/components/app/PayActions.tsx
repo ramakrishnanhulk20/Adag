@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { isAddressEqual, type Address, type Hex } from "viem";
 import { Button } from "@/components/Button";
-import { adagAbi, erc20Abi, morphoAbi } from "@/lib/pay/abi";
+import { adagAbi, erc20Abi, morphoAbi, oracleAbi } from "@/lib/pay/abi";
 import { buildPayFromBalance, buildPayFromBitcoin, suggestPledge, type Bill } from "@/lib/pay/build";
 import { BILL_STATUS, CIRBTC, CIRBTC_DECIMALS, EXPLORER, MAX_LTV_WAD, MORPHO, USDC, type Currency } from "@/lib/pay/constants";
 import { formatPercentWad, formatUnitsExact } from "@/lib/pay/format";
@@ -13,9 +13,17 @@ import { debtFromShares, liquidationDropWad, ltvWad } from "@/lib/pay/loan";
 import { paramsFromTuple } from "@/lib/pay/market";
 import { billPaidIn } from "@/lib/pay/receipt";
 import type { Blocker } from "@/lib/pay/enrol";
-import { GUARD_UNREADABLE, coverNeeds, guardRepayAfterBorrow, keptAsideText, type GuardRule, type Pending } from "@/lib/pay/guardView";
-import { guardAbi } from "@/lib/guard/abi";
-import { ADAG_GUARD } from "@/lib/guard/constants";
+import {
+  GUARD_RULE_UNREADABLE,
+  GUARD_UNREADABLE,
+  coverNeeds,
+  guardRepayAfterBorrow,
+  guardViewOf,
+  keptAsideText,
+  readOwnGuard,
+  triggerSentence,
+  type Pending,
+} from "@/lib/pay/guardView";
 import { pendingGuardOutflow } from "@/lib/guard/outflow";
 import { EnrolCard } from "./EnrolCard";
 import { hasAcceptedMorphoDisclaimer, rememberMorphoDisclaimer } from "@/lib/wallet/consent";
@@ -52,7 +60,6 @@ export type PayActionsProps = {
   onRecorded: () => void;
 };
 
-type GuardReads = { rule: GuardRule; allowance: bigint };
 
 // Used only until the live fee estimate arrives, and if it cannot be read.
 const USDC_FEE_FALLBACK = 10_000n;
@@ -77,17 +84,15 @@ export function PayActions(props: PayActionsProps) {
   // C58: the payer's own rule for this market and what it may still pull.
   const guardQuery = useQuery({
     queryKey: ["adag-guard-rule", address, currency.marketId],
-    enabled: ADAG_GUARD !== null,
     refetchInterval: 30_000,
-    queryFn: async (): Promise<GuardReads> => {
-      const client = publicArc();
-      const [rule, allowance] = await Promise.all([
-        client.readContract({ address: ADAG_GUARD!, abi: guardAbi, functionName: "ruleOf", args: [address, currency.marketId] }),
-        client.readContract({ address: currency.address, abi: erc20Abi, functionName: "allowance", args: [address, ADAG_GUARD!] }),
-      ]);
-      return { rule: { triggerWad: rule.triggerWad, targetWad: rule.targetWad, expiry: rule.expiry }, allowance };
-    },
+    queryFn: () => readOwnGuard(publicArc(), address, currency.marketId, currency.address),
   });
+  const guardView = guardViewOf(guardQuery);
+  const guardOk = guardView.state === "ok" ? guardView : null;
+  // C58 at signing: a trip the page had not shown is stopped and shown here instead of sending.
+  const [caught, setCaught] = useState<string | null>(null);
+  // The recording's transaction, kept on screen above the pay options once it is proven.
+  const [recorded, setRecorded] = useState<Hex | null>(null);
   const router = useRouter();
   const usd = useUsdPrice();
   const [tx, setTx] = useState<TxState>({ kind: "idle" });
@@ -131,7 +136,8 @@ export function PayActions(props: PayActionsProps) {
   const heldEnoughForBill = balance.state === "ok" && balance.value >= bill.amount;
   const balanceFee = useQuery({
     queryKey: ["adag-fee", "balance", bill.contract, bill.id.toString(), address],
-    enabled: heldEnoughForBill && !paid,
+    // With an unrecorded loan the estimate would only revert, so it waits for the recording.
+    enabled: heldEnoughForBill && !paid && (enrol.balance?.length ?? 0) === 0,
     staleTime: 30_000,
     retry: false,
     queryFn: () => {
@@ -144,7 +150,7 @@ export function PayActions(props: PayActionsProps) {
   const reserve = isUsdc ? (balanceFee.data ? (balanceFee.data.keepUpTo + NATIVE_PER_USDC_UNIT - 1n) / NATIVE_PER_USDC_UNIT : USDC_FEE_FALLBACK) : 0n;
   const keptAside = pending ? (isUsdc ? pending.usdc : pending.eurc) : 0n;
   const enough: boolean | null =
-    balance.state !== "ok" || pending === undefined ? null : isUsdc && balanceFee.isPending && heldEnoughForBill ? null : balance.value >= bill.amount + reserve + keptAside;
+    balance.state !== "ok" || pending === undefined ? null : isUsdc && balanceFee.isPending && balanceFee.fetchStatus !== "idle" && heldEnoughForBill ? null : balance.value >= bill.amount + reserve + keptAside;
 
   const settle = async (method: Paid["method"], hash: Hex, logs: Parameters<typeof billPaidIn>[0] | null, extra: () => Promise<Partial<Paid>>) => {
     const record = await publicArc()
@@ -255,6 +261,37 @@ export function PayActions(props: PayActionsProps) {
     }
     const pendingNow = await pendingGuardOutflow(client, address);
     if (!pendingNow) return setTx({ kind: "failed", message: GUARD_UNREADABLE });
+    // C58, read again at the moment of signing: the rule and the approval, against the loan as it will stand.
+    const guardNow = await readOwnGuard(client, address, m, currency.address);
+    if (guardNow.state !== "ok") return setTx({ kind: "failed", message: GUARD_RULE_UNREADABLE });
+    let tripNow: string | null = null;
+    try {
+      const [mk, px, tokenHeld] = await Promise.all([
+        client.readContract({ address: MORPHO, abi: morphoAbi, functionName: "market", args: [m] }),
+        client.readContract({ address: currency.params.oracle, abi: oracleAbi, functionName: "price" }),
+        client.readContract({ address: currency.address, abi: erc20Abi, functionName: "balanceOf", args: [address] }),
+      ]);
+      const ltvAfterWad = ltvWad(debtFromShares(before[1], mk[2], mk[3]) + bill.amount, before[2] + chosen, px);
+      const repay = guardRepayAfterBorrow({
+        rule: guardNow.rule,
+        nowSeconds: BigInt(Math.floor(Date.now() / 1000)),
+        ltvAfterWad,
+        before: { shares: before[1], collateral: before[2] },
+        totals: { totalBorrowAssets: mk[2], totalBorrowShares: mk[3] },
+        borrow: bill.amount,
+        pledge: chosen,
+        price: px,
+        allowance: guardNow.allowance,
+        balanceAfter: tokenHeld,
+      });
+      if (repay) tripNow = triggerSentence({ ltvAfterWad, amount: repay.amount, triggerWad: repay.triggerWad, targetWad: repay.targetWad, symbol: currency.symbol });
+    } catch {
+      return setTx({ kind: "failed", message: GUARD_RULE_UNREADABLE });
+    }
+    if (tripNow && !guardAfter && caught === null) {
+      setCaught(tripNow);
+      return setTx({ kind: "failed", message: "Your loan guard changed since this page loaded: read the note above before paying. Nothing was sent." });
+    }
     const out = await simulateAndSend({ account: address, to: built.to, data: built.data, onStep: step, usdcOut: coverNeeds({ symbol: currency.symbol, from: "bitcoin", amount: bill.amount, pending: pendingNow }).usdcOut });
     await conclude(out, "bitcoin", async () => {
       const [heldAfter, afterPos, ltv] = await Promise.all([
@@ -306,7 +343,11 @@ export function PayActions(props: PayActionsProps) {
   // Why the bitcoin button cannot be pressed yet, said in words under it.
   const bitcoinBlocked: string | null = busy
     ? null
-    : fresh === null
+    : guardView.state === "unreadable"
+      ? GUARD_RULE_UNREADABLE
+      : guardView.state === "pending"
+        ? "Reading your loan guard on Arc."
+        : fresh === null
       ? "Reading the bitcoin price status on Arc."
       : pledge.state === "loading" || cirBtc.state === "loading"
         ? "Reading your position on Arc."
@@ -318,11 +359,17 @@ export function PayActions(props: PayActionsProps) {
 
   const busyStep = tx.kind === "busy" ? tx : null;
 
+  // The loan in this market as it stands, before the payment: over 40% means the pledge must cover all of it.
+  const wholeLoanOver =
+    position.state === "ok" && market.state === "ok" && price.state === "ok" && position.value[1] > 0n
+      ? ltvWad(debtFromShares(position.value[1], market.value[2], market.value[3]), position.value[2], price.value) > MAX_LTV_WAD
+      : false;
+
   // C58: this payment's loan-to-value against the payer's own guard trigger, and what the guard would then repay.
   const guardAfter =
-    guardQuery.data && after.state === "ok" && position.state === "ok" && market.state === "ok" && price.state === "ok" && pledge.state === "ok" && balance.state === "ok"
+    guardOk && after.state === "ok" && position.state === "ok" && market.state === "ok" && price.state === "ok" && pledge.state === "ok" && balance.state === "ok"
       ? guardRepayAfterBorrow({
-          rule: guardQuery.data.rule,
+          rule: guardOk.rule,
           nowSeconds: BigInt(Math.floor(Date.now() / 1000)),
           ltvAfterWad: after.value.ltv,
           before: { shares: position.value[1], collateral: position.value[2] },
@@ -330,7 +377,7 @@ export function PayActions(props: PayActionsProps) {
           borrow: bill.amount,
           pledge: pledge.value,
           price: price.value,
-          allowance: guardQuery.data.allowance,
+          allowance: guardOk.allowance,
           balanceAfter: balance.value,
         })
       : null;
@@ -350,9 +397,29 @@ export function PayActions(props: PayActionsProps) {
     <div className="app-panel flex h-full flex-col p-6 md:p-8">
       <p className="type-label text-muted">Pay this bill</p>
 
+      {recorded && !showEnrol && (
+        <p className="type-body mt-5 flex items-center gap-3 text-text" data-enrol-recorded>
+          <span aria-hidden="true" className="diamond !bg-success" />
+          Loan recorded ·{" "}
+          <a href={`${EXPLORER}/tx/${recorded}`} target="_blank" rel="noopener noreferrer" className="link-draw text-gold hover:text-text">
+            view the transaction
+          </a>
+        </p>
+      )}
       {showEnrol && (
         <div className="mt-5">
-          <EnrolCard contract={bill.contract} address={address} blockers={balanceBlockers} canSign={!busy} onBusy={setEnrolling} onRecorded={() => (setTx({ kind: "idle" }), onRecorded())} />
+          <EnrolCard
+            contract={bill.contract}
+            address={address}
+            blockers={balanceBlockers}
+            canSign={!busy}
+            onBusy={setEnrolling}
+            onRecorded={(hash) => {
+              setTx({ kind: "idle" });
+              setRecorded(hash);
+              onRecorded();
+            }}
+          />
         </div>
       )}
       {enrol.sameBlock && !showEnrol && (
@@ -377,6 +444,9 @@ export function PayActions(props: PayActionsProps) {
             )
           ) : enough ? (
             `You hold ${formatUnitsExact((balance as { value: bigint }).value, currency.decimals)} ${currency.symbol}. One signature approves exactly the bill amount and pays it.`
+          ) : keptAside > 0n && balance.state === "ok" && balance.value >= bill.amount + reserve ? (
+            // The reason first: without the guard's repayment the wallet would cover this.
+            `Your loan guard is about to use ${formatUnitsExact(keptAside, currency.decimals)} ${currency.symbol} from this wallet, so none is free for this bill.`
           ) : isUsdc ? (
             `You need ${amountText} for the bill and a little USDC for the network fee${balanceFee.data ? `: ${keepText(balanceFee.data.keepUpTo)}` : ""}. Your wallet holds ${formatUnitsExact((balance as { value: bigint }).value, currency.decimals)} USDC, so paying from balance is not offered.`
           ) : (
@@ -394,7 +464,13 @@ export function PayActions(props: PayActionsProps) {
             >
               {busyStep && active === "balance" ? <BusyLabel step={busyStep.step} since={busyStep.since} /> : `Pay ${amountText} from balance`}
             </Button>
-            <FeeLine query={balanceFee} className="mt-3" />
+            {balanceBlockers.length > 0 ? (
+              <p className="type-body mt-3 text-muted" data-fee-waits>
+                Opens once your loan is recorded. The network fee shows then.
+              </p>
+            ) : (
+              <FeeLine query={balanceFee} className="mt-3" />
+            )}
           </>
         )}
         {pendingText && (
@@ -418,13 +494,17 @@ export function PayActions(props: PayActionsProps) {
                 The supplier gets <span className="font-semibold">{amountText}</span>.
               </li>
               <li className="type-lead text-text">
-                You pledge{" "}
-                <Value
-                  cell={pledge}
-                  render={(v) => (v === 0n ? "no more cirBTC" : `${formatUnitsExact(v, CIRBTC_DECIMALS)} cirBTC${usdHint(v, usd)}`)}
-                  className="font-semibold"
-                />{" "}
-                and keep it. Nothing is sold.
+                {pledge.state === "ok" && pledge.value === 0n ? (
+                  <>
+                    You pledge <span className="font-semibold">no extra cirBTC</span>: what you already pledged covers this. Nothing is sold.
+                  </>
+                ) : (
+                  <>
+                    You pledge{" "}
+                    <Value cell={pledge} render={(v) => `${formatUnitsExact(v, CIRBTC_DECIMALS)} cirBTC${usdHint(v, usd)}`} className="font-semibold" /> and keep it. Nothing is
+                    sold.
+                  </>
+                )}
               </li>
               <li className="type-lead text-text">
                 Bitcoin can fall <Value cell={after} render={(v) => formatPercentWad(v.drop)} className="font-semibold" /> before Morpho may liquidate.
@@ -450,16 +530,21 @@ export function PayActions(props: PayActionsProps) {
               </div>
             </details>
 
-            {guardAfter && (
+            {wholeLoanOver && (
+              <p className="type-body mt-4 text-muted" data-whole-loan-over>
+                Your whole {currency.symbol} loan is above 40%, so a new loan must bring all of it back under the line. That is why the pledge is this large.
+              </p>
+            )}
+            {(guardAfter || caught) && (
               <p className="type-body mt-5 text-text" data-guard-trigger>
-                This payment takes the loan to {after.state === "ok" ? formatPercentWad(after.value.ltv) : ""}, at or past your guard&apos;s {formatPercentWad(guardAfter.triggerWad)}{" "}
-                trigger. The guard will then repay about {formatUnitsExact(guardAfter.amount, currency.decimals)} {currency.symbol} from this wallet within minutes, back to{" "}
-                {formatPercentWad(guardAfter.targetWad)}.
+                {guardAfter && after.state === "ok"
+                  ? triggerSentence({ ltvAfterWad: after.value.ltv, amount: guardAfter.amount, triggerWad: guardAfter.triggerWad, targetWad: guardAfter.targetWad, symbol: currency.symbol })
+                  : caught}
               </p>
             )}
             <Button
               variant="primary"
-              disabled={busy || enrolling || fresh !== true || shortOfBtc || pledge.state !== "ok" || bitcoinBlockers.length > 0 || enrol.sameBlock || guardBlocked}
+              disabled={busy || enrolling || fresh !== true || shortOfBtc || pledge.state !== "ok" || bitcoinBlockers.length > 0 || enrol.sameBlock || guardBlocked || guardView.state !== "ok"}
               onClick={onBitcoin}
               className="mt-6 w-full md:w-auto"
               data-action="pay-bitcoin"

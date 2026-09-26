@@ -7,7 +7,7 @@ export function feeText(wei: bigint): string {
 }
 
 export function keepText(wei: bigint): string {
-  return `keep up to ${usdc4(wei, "up")} USDC available`;
+  return `keep at least ${usdc4(wei, "up")} USDC in the wallet for the fee`;
 }
 
 export function feeSentence(f: FeeFigures): string {

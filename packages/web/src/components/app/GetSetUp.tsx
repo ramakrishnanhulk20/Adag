@@ -25,7 +25,7 @@ function Ext({ href, children }: { href: string; children: React.ReactNode }) {
 }
 
 // Where a payer comes up short, one plain line per missing thing, so nobody meets a dead end.
-export function GetSetUp({ needs, className = "" }: { needs: readonly SetupNeed[]; className?: string }) {
+export function GetSetUp({ needs, className = "", title = "Need cirBTC or USDC on Arc?" }: { needs: readonly SetupNeed[]; className?: string; title?: string }) {
   const wallet = useWallet();
   const { connector } = useConnection();
   const [note, setNote] = useState<string | null>(null);
@@ -44,7 +44,7 @@ export function GetSetUp({ needs, className = "" }: { needs: readonly SetupNeed[
 
   return (
     <div className={`rounded-[8px] border border-rule bg-bg/30 p-4 md:p-5 ${className}`} data-setup>
-      <p className="type-label text-text">Need cirBTC or USDC on Arc?</p>
+      <p className="type-label text-text">{title}</p>
       <ul className="type-body mt-3 space-y-2 text-muted">
         {needs.includes("cirbtc") && (
           <li data-setup-need="cirbtc">

@@ -43,7 +43,7 @@ export function EnrolCard({
   address: Address;
   blockers: readonly Blocker[];
   canSign: boolean;
-  onRecorded: () => void;
+  onRecorded: (hash: Hex) => void;
   onBusy?: (busy: boolean) => void;
 }) {
   const [tx, setTx] = useState<TxState>({ kind: "idle" });
@@ -106,7 +106,7 @@ export function EnrolCard({
         const head = await client.getBlockNumber().catch(() => null);
         if (head !== null && head > out.receipt.blockNumber) {
           setWaiting(null);
-          onRecorded();
+          onRecorded(out.hash);
           return;
         }
         await new Promise((r) => setTimeout(r, 1_000));
@@ -123,9 +123,14 @@ export function EnrolCard({
       <p className="type-label text-gold">Record your existing loan first</p>
       <p className="type-body mt-3 text-text">
         {staleOnly
-          ? `You already borrow on Morpho, and the bitcoin price is not fresh right now, so Adag's check on your ${top.symbol} loan would refuse the payment. Adag checks the 40% line only on new borrowing, so record the loan you have first. One signature, no money moves. Then pay in the next step.`
-          : `You already borrow on Morpho: your ${top.symbol} loan is at ${formatPercentWad(top.ltvWad)}. Adag checks the 40% line only on new borrowing, so record the loan you have first. One signature, no money moves. Then pay in the next step.`}
+          ? `You already borrow on Morpho, and the bitcoin price is not fresh right now, so Adag's check on your ${top.symbol} loan would refuse the payment. Adag cannot tell your existing loan from new borrowing until you record it. Record it once, no money moves, and cash payments open.`
+          : `You already borrow on Morpho: your ${top.symbol} loan is at ${formatPercentWad(top.ltvWad)}. Adag cannot tell your existing loan from new borrowing until you record it. Record it once, no money moves, and cash payments open.`}
       </p>
+      {!staleOnly && (
+        <p className="type-body mt-2 text-text" data-enrol-opens>
+          Recording opens paying from your balance. Paying from bitcoin adds to a loan already over 40%, so the whole loan would have to end at 40% or under.
+        </p>
+      )}
       <p className="type-body mt-2 text-muted">Recording does not change your loan or make it safer: it tells Adag to judge only what you borrow from now on.</p>
       {waiting ? (
         <p className="type-body mt-5 flex items-center gap-3 text-text" data-enrol-state="waiting-block">

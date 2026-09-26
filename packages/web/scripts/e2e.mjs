@@ -11,7 +11,7 @@ import { existsSync, mkdirSync, rmSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { createServer } from 'node:http';
-import { createPublicClient, decodeFunctionData, encodeFunctionData, formatUnits, getAddress, http, keccak256, parseAbi, parseAbiItem, parseEventLogs, recoverTypedDataAddress, stringToHex, toFunctionSelector } from 'viem';
+import { createPublicClient, decodeFunctionData, encodeFunctionData, formatUnits, getAddress, http, keccak256, parseAbi, parseAbiItem, parseEventLogs, parseUnits, recoverTypedDataAddress, stringToHex, toFunctionSelector } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 
 const WEB = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -239,7 +239,7 @@ async function connect(page, path) {
 // Reveals only fire in view, so walk the page before a full-page capture; then shoot 1440 dark and 375 light.
 // By default only the screens named with NEWEST_SHOTS are captured, which keeps a run short.
 // --all-shots captures every screen the run passes through, the older ones included.
-const NEWEST_SHOTS = 'a2b-';
+const NEWEST_SHOTS = 'a2';
 async function shoot(page, name) {
   const all = process.argv.includes('--all-shots');
   const file = name.startsWith(NEWEST_SHOTS) ? name : !all ? null : /^f\d/.test(name) ? name : `e2e-${name}`;
@@ -1124,6 +1124,7 @@ async function main() {
         `${written.name}: ${written.rows.length - 1} rows for ${wroteTotal} bills written on both contracts, ${firstRows} on the first deployment; bill #${Z} reference cell ${JSON.stringify(zRow?.[9])}; ${paid.name}: ${paid.rows.length - 1} rows for ${paidTotal} paid, ${linked.length} with a transaction link`);
     }
 
+    store.advance(601_000);
     // (aa) to (cc): paying from a Safe. A 2-of-2 Safe v1.4.1 is created on the fork through Arc's SafeProxyFactory,
     // owned by two fresh test keys. Proposals go to the harness's stand-in Transaction Service, never Safe's real one.
     const safeE2EAbi = parseAbi([
@@ -1179,6 +1180,12 @@ async function main() {
       proposal.isSuccessful = receipt.status === 'success';
       proposal.transactionHash = receipt.transactionHash;
       return receipt;
+    };
+    // The harness runs a plain call from the Safe itself, signed by both owners, outside Adag.
+    const execSafe = async (to, data) => {
+      const p = { to, value: '0', data, operation: 0, safeTxGas: '0', baseGas: '0', gasPrice: '0', gasToken: ZERO, refundReceiver: ZERO, nonce: String(await safeNonce()), confirmations: [] };
+      p.confirmations.push({ owner: OWNER1.address, signature: await OWNER1.signTypedData(typedOf(p)) });
+      return confirmAndExecute(p);
     };
     const lastProposal = () => [...mockSafe.proposals.values()].at(-1);
     const proposeFromUi = async (page, choice) => {
@@ -1242,7 +1249,17 @@ async function main() {
       const allowBtc = await fork.readContract({ address: CIRBTC, abi: tokenAbi, functionName: 'allowance', args: [SAFE, MORPHO] });
       const signed = await signRequests(page);
       const sent = await sends(page);
+      // F12: the same basket, reloaded in this browser, leads with the Safe's success and lists the bills as paid.
+      await page.reload({ waitUntil: 'networkidle', timeout: 120_000 });
+      await page.locator('[data-paid-by-safe]').waitFor({ timeout: 60_000 }).catch(() => {});
+      const heading = await page.locator('h1').first().innerText();
+      const asideCount = await page.locator('[data-aside]').count();
+      const paidCards = await page.locator('[data-basket-cards="paid-by-safe"] [data-basket-bill]').count();
+      await shoot(page, 'a2e-ss-paid-by-safe');
       await context.close();
+      record(`(ss) reloaded after the Safe executed, the basket of bills #${bills2.join(', #')} leads with "Paid by your Safe" and lists both as paid, none under "Not in this payment"`,
+        /Paid by your\s*Safe/.test(heading) && asideCount === 0 && paidCards === bills2.length,
+        `heading "${heading.replace(/\s+/g, ' ')}"; paid cards ${paidCards}; aside lists ${asideCount}`);
       record(`(aa) a Safe pays bills #${bills2.join(', #')} from its bitcoin: proposed in the UI, confirmed and executed, the Safe the payer with the loan, no allowance left`,
         listed === 1 && proposal?.origin === 'Adag' && receipt.status === 'success' && (await safeNonce()) === nonceBefore + 1n
           && records.every((r) => r.status === 2 && r.payer.toLowerCase() === SAFE.toLowerCase()) && safeLoan[1] > 0n && allowUsdc === 0n && allowBtc === 0n && signed === 1 && sent === 0,
@@ -1293,6 +1310,98 @@ async function main() {
       await context.close();
       record('(cc) a Safe the connected wallet does not own is refused before any signature, with no way to propose',
         text.includes('not an owner') && proposeShown === 0 && signed === 0, `shown: "${text}"; propose button ${proposeShown}; signature requests ${signed}`);
+    }
+
+    // The Safe routes allow 20 calls per client per ten minutes, and every connected pay page asks for the Safe list.
+    // One harness talks for many users, so the stand-in store's clock moves on past the window between groups.
+    store.advance(601_000);
+
+    // (oo) F3: an owner whose Safe is listed by Safe's service lands on "Pay as: a Safe", with none of the personal
+    // wallet's errors or its "Need cirBTC" box on screen.
+    {
+      const OO = newBill('USDC', 100_000, 'E2E-OO');
+      const { context, page } = await openPage({ account: OWNER1.address, signer: OWNER1 });
+      await connect(page, `/bill/${OO}`).catch(() => {});
+      await page.locator('[data-pay-as-switch="safe"]').waitFor({ timeout: 60_000 });
+      await page.locator('[data-safe-pay]').waitFor({ timeout: 30_000 });
+      const personal = await page.locator('[data-action="pay-balance"], [data-action="pay-bitcoin"], [data-setup], [data-blocked-reason]').count();
+      await shoot(page, 'a2e-oo-pay-as-safe');
+      await page.locator('[data-pay-as="wallet"]').click();
+      await page.locator('[data-action="pay-bitcoin"]').waitFor({ timeout: 30_000 });
+      const walletBack = await page.locator('[data-safe-pay]').count();
+      await context.close();
+      record(`(oo) bill #${OO} opens on "Pay as: a Safe" for a listed Safe owner, hides the personal wallet's panel, and switches back on request`,
+        personal === 0 && walletBack === 0, `personal-wallet elements shown in Safe mode ${personal}; Safe panel after switching back ${walletBack}`);
+    }
+
+    store.advance(601_000);
+
+    // (pp) F5 and (qq) F4: a proposal comes back after a reload; at the threshold the card says to execute; a bill
+    // paid by someone else meanwhile is named before anyone executes.
+    {
+      const PQ = newBill('USDC', 100_000, 'E2E-PQ');
+      const { context, page } = await openPage({ account: OWNER1.address, signer: OWNER1 });
+      await connect(page, `/bill/${PQ}`).catch(() => {});
+      await proposeFromUi(page, 'balance');
+      await page.locator('[data-action="safe-propose"]').click();
+      await page.locator('[data-safe-status]').waitFor({ timeout: 120_000 });
+      const proposal = lastProposal();
+      await page.reload({ waitUntil: 'networkidle', timeout: 120_000 });
+      await page.getByRole('button', { name: 'Connect wallet' }).first().click().catch(() => {});
+      const restored = page.locator('[data-safe-status]');
+      await restored.waitFor({ timeout: 60_000 });
+      const restoredText = await restored.innerText();
+      const proposeAgain = await page.locator('[data-action="safe-propose"]').count();
+      await shoot(page, 'a2e-pp-remembered');
+      record(`(pp) after a reload, bill #${PQ} shows the proposal this browser made instead of offering to propose again`,
+        /from this browser/i.test(restoredText) && proposeAgain === 0 && mockSafe.proposals.size > 0,
+        `card: "${restoredText.split('\n').slice(0, 2).join(' | ')}"; propose buttons ${proposeAgain}`);
+
+      proposal.confirmations.push({ owner: OWNER2.address, signature: await OWNER2.signTypedData(typedOf(proposal)) });
+      const readyNote = page.locator('[data-safe-ready]');
+      await readyNote.waitFor({ timeout: 30_000 });
+      const readyText = await readyNote.innerText();
+      const stillWaiting = await page.getByText('Waiting for your other owners').count();
+      const other = [
+        forkScript('send', PAYER, USDC, 'approve(address,uint256)', ADAG, '100000'),
+        forkScript('send', PAYER, ADAG, 'pay(uint256)', String(PQ)),
+      ];
+      const warn = page.locator('[data-safe-paid-by-other]');
+      await warn.waitFor({ timeout: 30_000 });
+      const warnText = await warn.innerText();
+      await shoot(page, 'a2e-qq-ready-and-paid-by-other');
+      await context.close();
+      record(`(qq) at 2 of 2 the card says to press Execute, and bill #${PQ} paid by someone else is named with what executing would cost`,
+        readyText === "All signatures are in. One owner presses Execute in Safe's app (it costs a small fee)." && stillWaiting === 0
+          && other.every((s) => s.includes('"status":"0x1"')) && warnText.startsWith(`Bill #${PQ} was paid by someone else.`) && /reject it in Safe's app/.test(warnText),
+        `ready: "${readyText}"; "waiting" lines ${stillWaiting}; warning: "${warnText}"`);
+    }
+
+    store.advance(601_000);
+    // (nn) C58 for a Safe (C55): the Safe's own rule triggers below where its bitcoin payment would land, so the
+    // sentence shows before anything is proposed. The rule and approval are set by the Safe itself, outside Adag.
+    {
+      const erc20 = parseAbi(['function approve(address spender, uint256 amount) returns (bool)']);
+      const guardWrite = parseAbi(['function setRule(bytes32 marketId, uint64 triggerWad, uint64 targetWad, uint64 expiry)', 'function clearRule(bytes32 marketId)']);
+      const approved = await execSafe(USDC, encodeFunctionData({ abi: erc20, functionName: 'approve', args: [GUARD, 1_000_000n] }));
+      const ruled = await execSafe(GUARD, encodeFunctionData({ abi: guardWrite, functionName: 'setRule', args: [MARKET_USDC, 3n * 10n ** 17n, 2n * 10n ** 17n, 0n] }));
+      const NN = newBill('USDC', 100_000, 'E2E-NN');
+      const { context, page } = await openPage({ account: OWNER1.address, signer: OWNER1 });
+      await connect(page, `/bill/${NN}`).catch(() => {});
+      await proposeFromUi(page, 'bitcoin');
+      const note = page.locator('[data-safe-pay] [data-guard-trigger]');
+      await note.waitFor({ timeout: 60_000 });
+      const text = await note.innerText();
+      const before = mockSafe.proposals.size;
+      await shoot(page, 'a2d-nn-safe-trigger');
+      const signed = await signRequests(page);
+      await context.close();
+      const cleared = await execSafe(GUARD, encodeFunctionData({ abi: guardWrite, functionName: 'clearRule', args: [MARKET_USDC] }));
+      const unapproved = await execSafe(USDC, encodeFunctionData({ abi: erc20, functionName: 'approve', args: [GUARD, 0n] }));
+      record(`(nn) the Safe's own 30% guard rule is shown against its bitcoin payment of bill #${NN} before anything is proposed`,
+        [approved, ruled, cleared, unapproved].every((r) => r.status === 'success') && /at or past your guard's 30\.00% trigger/.test(text) && /from the Safe within minutes/.test(text)
+          && mockSafe.proposals.size === before && signed === 0,
+        `shown: "${text}"; proposals ${mockSafe.proposals.size - before}, signature requests ${signed}`);
     }
 
     // (dd) Two contracts, one number. A bill written on the first deployment opens at /bill/first/N and pays there,
@@ -1381,7 +1490,7 @@ async function main() {
       const enrolled = await fork.getLogs({ address: ADAG, event: enrolledEvent, args: { payer: BORROWER }, fromBlock });
       const paidLog = await billPaidLog(EE);
       record(`(ee) a ${(Number(ltv) / 1e16).toFixed(2)}% borrower sees the enrol card, records the loan in one signature, then pays bill #${EE} from cash with no 40% check`,
-        ltv > 4n * 10n ** 17n && /record the loan you have first/.test(cardText) && /does not change your loan/.test(cardText) && disabledBefore
+        ltv > 4n * 10n ** 17n && /Record it once, no money moves/.test(cardText) && /does not change your loan/.test(cardText) && disabledBefore
           && enrolled.length === 1 && paidLog?.args.payer.toLowerCase() === BORROWER.toLowerCase() && paidLog?.args.loanChecked === false && sent === 2,
         `card: "${cardText.split('\n').slice(1, 2).join('')}"; pay button disabled before: ${disabledBefore}; Enrolled logs ${enrolled.length}; BillPaid loanChecked ${paidLog?.args.loanChecked}; wallet sends ${sent}`);
     }
@@ -1474,14 +1583,10 @@ async function main() {
         `warned: "${warnText}"; after: ${end[1]} shares, ${end[2]} pledged; rule trigger ${rule.triggerWad}; guard approval ${allowance}; RuleCleared logs ${cleared.length}`);
     }
 
+    store.advance(601_000);
     // (ii) A Safe with an existing loan over 40% that Adag never saw proposes the recording as its own Safe transaction:
     // one inner call, enrol() on the current AdagBills, by delegatecall to MultiSendCallOnly, every gas field 0.
     {
-      const execSafe = async (to, data) => {
-        const p = { to, value: '0', data, operation: 0, safeTxGas: '0', baseGas: '0', gasPrice: '0', gasToken: ZERO, refundReceiver: ZERO, nonce: String(await safeNonce()), confirmations: [] };
-        p.confirmations.push({ owner: OWNER1.address, signature: await OWNER1.signTypedData(typedOf(p)) });
-        return confirmAndExecute(p);
-      };
       const [, sShares, sColl] = await fork.readContract({ address: MORPHO, abi: morphoAbi, functionName: 'position', args: [MARKET_USDC, SAFE] });
       const mk = await fork.readContract({ address: MORPHO, abi: marketAbi, functionName: 'market', args: [MARKET_USDC] });
       const debt = (sShares * (mk[2] + 1n) + mk[3] + 1_000_000n - 1n) / (mk[3] + 1_000_000n);
@@ -1494,6 +1599,10 @@ async function main() {
       await page.locator('[data-action="safe-open"]').first().click();
       await page.locator('[data-field="safe-address"]').fill(SAFE);
       await page.locator('[data-action="safe-check"]').click();
+      // Paying from the Safe's bitcoin would bring the whole loan back under 40%, so that path needs no recording;
+      // paying from the Safe's balance does.
+      await page.locator('[data-safe-choice="USDC-balance"]:not([disabled])').waitFor({ timeout: 60_000 });
+      await page.locator('[data-safe-choice="USDC-balance"]').check();
       await page.locator('[data-safe-enrol]').waitFor({ timeout: 60_000 });
       const proposeDisabled = await page.locator('[data-action="safe-propose"]').isDisabled();
       const before = mockSafe.proposals.size;
@@ -1548,6 +1657,133 @@ async function main() {
         `sheet ${Math.round(box.left)} to ${Math.round(box.right)} of ${box.width}, in body ${box.inBody}; phone menu link ${phoneLink}; desktop link ${deskHref}, current ${deskCurrent}`);
     }
 
+    // (kk) The basket learns the enrol card. The 70.26% borrower recorded its loan in (ee), so it first borrows 1 USDC
+    // more straight from Morpho, outside Adag: that new debt is unrecorded and the loan is still far over 40%.
+    {
+      const BORROWER = getAddress('0x87367570B77D92AAC699475d2894539C6092ef24');
+      const more = forkScript('send', BORROWER, MORPHO, `borrow(${MP},uint256,uint256,address,address)`, USDC_PARAMS, '1000000', '0', BORROWER, BORROWER);
+      await setUsdc(BORROWER, 10_000_000n);
+      const K1 = newBill('USDC', 100_000, 'E2E-KK-1');
+      const K2 = newBill('USDC', 150_000, 'E2E-KK-2');
+      const { context, page } = await openPage({ account: BORROWER });
+      await page.goto(`${APP}/pay/basket?bills=${K1},${K2}`, { waitUntil: 'networkidle', timeout: 120_000 });
+      await page.getByRole('button', { name: 'Connect wallet' }).first().click();
+      const balance = page.locator('[data-choice="USDC-balance"]:not([disabled])');
+      await balance.waitFor({ timeout: 60_000 });
+      await balance.click();
+      const card = page.locator('[data-enrol="current"]');
+      await card.waitFor({ timeout: 60_000 });
+      const cardText = await card.innerText();
+      const disabledBefore = await page.locator('[data-action="pay-basket"]').isDisabled();
+      await shoot(page, 'a2c-kk-enrol');
+      const fromBlock = await fork.getBlockNumber();
+      await page.locator('[data-action="enrol"]').click();
+      await page.locator('[data-enrol-state="waiting-block"]').waitFor({ timeout: 120_000 });
+      await rpc('evm_mine');
+      await page.locator('[data-action="pay-basket"]:not([disabled])').waitFor({ timeout: 90_000 });
+      await page.locator('[data-action="pay-basket"]').click();
+      await page.locator('[data-tx-result="basket-paid"]').waitFor({ timeout: 120_000 });
+      await page.waitForTimeout(1200);
+      await shoot(page, 'a2c-kk-paid');
+      const sent = await sends(page);
+      await context.close();
+      const enrolled = await fork.getLogs({ address: ADAG, event: enrolledEvent, args: { payer: BORROWER }, fromBlock });
+      const logs = await Promise.all([K1, K2].map((id) => billPaidLog(id)));
+      record(`(kk) a basket of bills #${K1} and #${K2} for the 70.26% borrower with unrecorded debt: the enrol card, one recording, then both paid from balance with no 40% check`,
+        more.includes('"status":"0x1"') && /Record it once, no money moves/.test(cardText) && disabledBefore && enrolled.length === 1
+          && logs.every((l) => l?.args.payer.toLowerCase() === BORROWER.toLowerCase() && l?.args.loanChecked === false) && sent === 2,
+        `extra borrow ${more}; card: "${cardText.split('\n').slice(1, 2).join('')}"; pay button disabled before: ${disabledBefore}; Enrolled logs ${enrolled.length}; BillPaid loanChecked ${logs.map((l) => l?.args.loanChecked).join(', ')}; wallet sends ${sent}`);
+    }
+
+    // (rr) F6: /bill/1, the judge's proof, shows how it was paid, read from its own transaction, and three ways on.
+    {
+      const { context, page } = await openPage({ account: PAYER, noWallet: true });
+      await page.goto(`${APP}/bill/1`, { waitUntil: 'networkidle', timeout: 120_000 });
+      const how = page.locator('[data-how-paid]');
+      await how.waitFor({ timeout: 60_000 });
+      const kind = await how.getAttribute('data-how-paid');
+      const figures = await how.locator('dl > div').evaluateAll((els) => els.map((e) => [e.querySelector('dt')?.textContent ?? '', e.querySelector('dd')?.textContent ?? '']));
+      const links = await how.locator('[data-visitor-links] a').evaluateAll((els) => els.map((e) => e.getAttribute('href')));
+      const txHref = await page.locator('#bill-title').evaluate((el) => el.closest('section')?.querySelector('a[href*="/tx/"]')?.getAttribute('href') ?? '');
+      await shoot(page, 'a2e-rr-how-paid');
+      await context.close();
+      const hash = txHref.split('/tx/')[1];
+      const receipt = await fork.getTransactionReceipt({ hash });
+      const morphoEvents = parseAbi([
+        'event SupplyCollateral(bytes32 indexed id, address indexed caller, address indexed onBehalf, uint256 assets)',
+        'event Borrow(bytes32 indexed id, address caller, address indexed onBehalf, address indexed receiver, uint256 assets, uint256 shares)',
+      ]);
+      const evs = parseEventLogs({ abi: morphoEvents, logs: receipt.logs }).filter((l) => l.address.toLowerCase() === MORPHO.toLowerCase() && l.args.onBehalf.toLowerCase() === PAYER.toLowerCase());
+      const pledged = evs.filter((e) => e.eventName === 'SupplyCollateral').reduce((s, e) => s + e.args.assets, 0n);
+      const borrowed = evs.find((e) => e.eventName === 'Borrow')?.args.assets ?? 0n;
+      const ltv = await fork.readContract({ address: ADAG, abi: ltvAbi, functionName: 'loanToValue', args: [PAYER, MARKET_USDC], blockNumber: receipt.blockNumber });
+      const value = (label) => (figures.find(([dt]) => dt.startsWith(label))?.[1] ?? '').replace(/,/g, '');
+      const bp = (ltv * 10_000n) / 10n ** 18n;
+      const wantLtv = `${bp / 100n}.${(bp % 100n).toString().padStart(2, '0')}%`;
+      const pledgedShown = value('Pledged').split(' ')[0];
+      const borrowedShown = value('Borrowed').split(' ')[0];
+      record('(rr) /bill/1 shows how it was paid: pledged, borrowed and loan-to-value after, matching its own transaction, with three links onward',
+        kind === 'bitcoin' && pledgedShown !== '' && parseUnits(pledgedShown, 8) === pledged && borrowedShown !== '' && parseUnits(borrowedShown, 6) === borrowed
+          && value('Loan-to-value after') === wantLtv && value('Bitcoin sold').startsWith('0') && JSON.stringify(links) === JSON.stringify(['/break', '/bill/new', '/docs/how-it-works']),
+        `tx ${hash}; pledged ${pledgedShown} (receipt ${pledged} sat); borrowed ${borrowedShown} (receipt ${borrowed}); loan-to-value ${value('Loan-to-value after')} (at the block ${wantLtv}); links ${links.join(' ')}`);
+    }
+
+    // (ll) C58 fails closed: with AdagGuard answering nothing but reverts, paying from bitcoin stays disabled and says why.
+    {
+      const code = await rpc('eth_getCode', [GUARD, 'latest']);
+      await rpc('anvil_setCode', [GUARD, '0x60006000fd']);
+      const LL = newBill('USDC', 100_000, 'E2E-LL');
+      let reason = '';
+      let disabled = false;
+      try {
+        const { context, page } = await openPage({ account: PAYER });
+        await connect(page, `/bill/${LL}`).catch(() => {});
+        const blocked = page.locator('[data-blocked-reason]', { hasText: 'cannot tell you whether this payment trips it' });
+        await blocked.waitFor({ timeout: 60_000 });
+        reason = await blocked.innerText();
+        disabled = await page.locator('[data-action="pay-bitcoin"]').isDisabled();
+        await shoot(page, 'a2d-ll-unreadable');
+        await context.close();
+      } finally {
+        await rpc('anvil_setCode', [GUARD, code]);
+      }
+      record('(ll) with the loan guard unreadable, the pay-from-bitcoin button is disabled and the page says why',
+        disabled && reason === "Adag could not read your loan guard, so it cannot tell you whether this payment trips it. Try again.",
+        `button disabled ${disabled}; shown: "${reason}"`);
+    }
+
+    // (mm) A rule saved after the page loaded is caught at signing: the sentence shows and the wallet is never asked.
+    {
+      await setUsdc(PAYER, 10_000_000n);
+      const MM = newBill('USDC', 200_000, 'E2E-MM');
+      const { context, page } = await openPage({ account: PAYER });
+      await connect(page, `/bill/${MM}`).catch(() => {});
+      await page.locator('[data-action="pay-bitcoin"]:not([disabled])').waitFor({ timeout: 60_000 });
+      const shownBefore = await page.locator('[data-guard-trigger]').count();
+      const saved = [
+        forkScript('send', PAYER, USDC, 'approve(address,uint256)', GUARD, '1000000'),
+        forkScript('send', PAYER, GUARD, 'setRule(bytes32,uint64,uint64,uint64)', MARKET_USDC, '300000000000000000', '200000000000000000', '0'),
+      ];
+      await page.locator('[data-action="pay-bitcoin"]').click();
+      const dialog = page.getByRole('dialog', { name: /Borrowing through Morpho/ });
+      if (await dialog.waitFor({ timeout: 5_000 }).then(() => true, () => false)) {
+        await dialog.getByRole('checkbox').check();
+        await dialog.getByRole('button', { name: 'Continue to payment' }).click();
+      }
+      const failed = page.locator('[data-tx-state="failed"]');
+      await failed.waitFor({ timeout: 60_000 });
+      const failText = await failed.innerText();
+      const note = await page.locator('[data-guard-trigger]').innerText();
+      await shoot(page, 'a2d-mm-caught');
+      const sent = await sends(page);
+      await context.close();
+      const unsaved = [forkScript('send', PAYER, GUARD, 'clearRule(bytes32)', MARKET_USDC), forkScript('send', PAYER, USDC, 'approve(address,uint256)', GUARD, '0')];
+      record(`(mm) a guard rule saved after bill #${MM}'s page loaded is caught at signing: the sentence shows and nothing reaches the wallet`,
+        [...saved, ...unsaved].every((s) => s.includes('"status":"0x1"')) && shownBefore === 0 && /changed since this page loaded/.test(failText)
+          && /at or past your guard's 30\.00% trigger/.test(note) && sent === 0,
+        `sentence before the click ${shownBefore}; stopped with "${failText}"; note: "${note}"; wallet sends ${sent}`);
+    }
+
     // The mobile menu open, and the wallet page before connecting.
     {
       const { context, page } = await openPage({ account: PAYER, width: 375, theme: 'light' });
@@ -1581,7 +1817,7 @@ try {
   await main();
   const passed = results.filter((r) => r.ok).length;
   console.log(`\nconsole errors: ${consoleErrors.length}${consoleErrors.length ? `\n  ${consoleErrors.join('\n  ')}` : ''}`);
-  const allOk = passed === results.length && results.length === 36 && consoleErrors.length === 0;
+  const allOk = passed === results.length && results.length === 45 && consoleErrors.length === 0;
   console.log(allOk ? `ALL ${passed} SCENARIOS PASSED` : `${results.length - passed} of ${results.length} scenarios failed`);
   code = allOk ? 0 : 1;
 } catch (error) {

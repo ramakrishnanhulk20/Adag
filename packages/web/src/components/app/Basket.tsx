@@ -30,9 +30,18 @@ import { formatPercentWad, formatUnitsExact, fullAddress, referenceText, shortAd
 import { debtFromShares, liquidationDropWad, ltvWad } from "@/lib/pay/loan";
 import { currencyOf, paramsFromTuple } from "@/lib/pay/market";
 import { billsPaidIn } from "@/lib/pay/receipt";
-import { GUARD_UNREADABLE, guardRepayAfterBorrow, keptAsideText, type GuardRule, type Pending } from "@/lib/pay/guardView";
-import { guardAbi } from "@/lib/guard/abi";
-import { ADAG_GUARD } from "@/lib/guard/constants";
+import { blockers, type Blocker, type MarketInput } from "@/lib/pay/enrol";
+import { EnrolCard } from "./EnrolCard";
+import {
+  GUARD_RULE_UNREADABLE,
+  GUARD_UNREADABLE,
+  guardRepayAfterBorrow,
+  keptAsideText,
+  readOwnGuard,
+  triggerSentence,
+  type GuardViewState,
+  type Pending,
+} from "@/lib/pay/guardView";
 import { pendingGuardOutflow } from "@/lib/guard/outflow";
 import { hasAcceptedMorphoDisclaimer, rememberMorphoDisclaimer } from "@/lib/wallet/consent";
 import { estimateFee, publicArc, simulateAndSend, watchBills, type TxStep } from "@/lib/wallet/send";
@@ -42,7 +51,9 @@ import { ConnectButton } from "./ConnectButton";
 import { FeeLine } from "./FeeLine";
 import { GetSetUp, type SetupNeed } from "./GetSetUp";
 import { MorphoDisclaimer } from "./MorphoDisclaimer";
-import { SafeEntry } from "./SafeEntry";
+import { FirstContractSafeNote, PayAsSwitch, usePayAsMode } from "./PayAs";
+import { SafePay } from "./SafePay";
+import { recallProposal, type RememberedProposal } from "./safeMemory";
 import { BusyLabel, TxMessage, type TxState } from "./TxProgress";
 import { usdHint, useUsdPrice } from "./usdPrice";
 
@@ -124,6 +135,53 @@ export function Basket({
   const busy = tx.kind === "busy" ? tx : null;
   const step = (s: TxStep) => setTx((prev) => ({ kind: "busy", step: s, since: prev.kind === "busy" && prev.step === s ? prev.since : Date.now() }));
 
+  // Both markets' loans as Morpho holds them and as the basket's contract last saw them, with their price status: the
+  // pay() of every bill runs the same checks, so these say whether it would refuse on a loan the payer already had.
+  const loans = useQuery({
+    queryKey: ["adag-basket-loans", contract, me],
+    enabled: Boolean(me) && !paid,
+    refetchInterval: 30_000,
+    queryFn: async (): Promise<MarketInput[]> => {
+      const client = publicArc();
+      return Promise.all(
+        CURRENCIES.map(async (c) => {
+          const [live, seenPos, mkt, price, status] = await Promise.all([
+            client.readContract({ address: MORPHO, abi: morphoAbi, functionName: "position", args: [c.marketId, me!] }),
+            client.readContract({ address: contract, abi: adagAbi, functionName: "seenPosition", args: [me!, c.marketId] }),
+            client.readContract({ address: MORPHO, abi: morphoAbi, functionName: "market", args: [c.marketId] }),
+            client.readContract({ address: c.params.oracle, abi: oracleAbi, functionName: "price" }),
+            client.readContract({ address: contract, abi: adagAbi, functionName: "priceStatus", args: [c.marketId] }),
+          ]);
+          return {
+            market: c.marketId,
+            symbol: c.symbol,
+            live: { shares: live[1], collateral: live[2] },
+            seen: { shares: seenPos[0], collateral: seenPos[1] },
+            totalBorrowAssets: mkt[2],
+            totalBorrowShares: mkt[3],
+            price,
+            fresh: status[0],
+          };
+        }),
+      );
+    },
+  });
+  const refetchLoans = loans.refetch;
+  const [enrolling, setEnrolling] = useState(false);
+  // F3 and F12: pay as this wallet or a Safe, and a Safe proposal this browser made for these bills.
+  const foundBills = bills.filter(Boolean) as Bill[];
+  const safeBills = payable.length > 0 ? payable : foundBills;
+  const payAs = usePayAsMode(me, contract, safeBills.map((b) => b.id));
+  const safeMode = !first && payAs.mode === "safe";
+  const [safeProposed, setSafeProposed] = useState(false);
+  const [safeMemo, setSafeMemo] = useState<RememberedProposal | null>(null);
+  const safeKey = safeBills.map((b) => b.id.toString()).join(",");
+  useEffect(() => {
+    setSafeMemo(recallProposal(contract, safeBills.map((b) => b.id)));
+    // Read again whenever the bill set or a proposal changes.
+  }, [contract, safeKey, safeProposed]);
+  const [recorded, setRecorded] = useState<Hex | null>(null);
+
   const data = useQuery({
     queryKey: ["adag-basket", me, groups.map((g) => `${g.currency.symbol}:${g.total}`).join("|")],
     enabled: Boolean(me) && groups.length > 0 && !paid,
@@ -176,23 +234,22 @@ export function Basket({
   const pending: Pending | null | undefined = pendingQuery.data;
   const guardPullOf = (g: Group) => (pending ? (g.currency.symbol === "USDC" ? pending.usdc : pending.eurc) : 0n);
   // C58: the payer's own rule and remaining approval in each market this basket could borrow in.
+  // A failed read of either market is "unreadable" for that market, and blocks paying it from bitcoin.
   const guardQuery = useQuery({
     queryKey: ["adag-basket-guard", me],
-    enabled: Boolean(me) && ADAG_GUARD !== null,
+    enabled: Boolean(me),
     refetchInterval: 30_000,
     queryFn: async () => {
       const client = publicArc();
-      return Promise.all(
-        CURRENCIES.map(async (c) => {
-          const [rule, allowance] = await Promise.all([
-            client.readContract({ address: ADAG_GUARD!, abi: guardAbi, functionName: "ruleOf", args: [me!, c.marketId] }),
-            client.readContract({ address: c.address, abi: erc20Abi, functionName: "allowance", args: [me!, ADAG_GUARD!] }),
-          ]);
-          return { symbol: c.symbol, rule: { triggerWad: rule.triggerWad, targetWad: rule.targetWad, expiry: rule.expiry } as GuardRule, allowance };
-        }),
-      );
+      return Promise.all(CURRENCIES.map(async (c) => ({ symbol: c.symbol, read: await readOwnGuard(client, me!, c.marketId, c.address) })));
     },
   });
+  const guardStateOf = (symbol: "USDC" | "EURC"): GuardViewState => {
+    const read = guardQuery.data?.find((x) => x.symbol === symbol)?.read;
+    return read ?? (guardQuery.isPending ? { state: "pending" } : { state: "unreadable" });
+  };
+  // C58 at signing: a trip the page had not shown is stopped and shown here instead of sending.
+  const [caught, setCaught] = useState<string[]>([]);
 
   const balanceEnough = (g: Group, d: GroupData) =>
     d.balance.state === "ok" && d.balance.value >= g.total + (isAddressEqual(g.currency.address, USDC) ? USDC_FEE_RESERVE : 0n) + guardPullOf(g);
@@ -235,7 +292,18 @@ export function Basket({
   const pledgeTotal = groups.reduce((s, g, gi) => (choices[g.currency.symbol] === "bitcoin" ? s + (pledgeOf(groupData[gi]!) ?? 0n) : s), 0n);
   const shortOfBtc = cirBtc.state === "ok" && pledgeTotal > cirBtc.value;
   const allChosen = groups.length > 0 && groups.every((g) => choices[g.currency.symbol]);
-  const canPay = ready && allChosen && !shortOfBtc && !busy && payable.length > 0 && pending !== null && pending !== undefined;
+  // The markets this basket borrows in are checked on the new borrowing, which the pledge suggestion sizes; the others
+  // are checked on the loan the payer already had, and fail when it is over 40% or the price is stale.
+  const borrowing = groups.filter((g) => choices[g.currency.symbol] === "bitcoin").map((g) => g.currency.marketId);
+  const basketBlockers: Blocker[] = loans.data ? blockers({ markets: loans.data, borrowsIn: borrowing.length ? borrowing : null }) : [];
+  const refusedOnOldLoan =
+    tx.kind === "refused" &&
+    ((tx.error.name === "LtvAboveLimit" && basketBlockers.some((b) => b.market.toLowerCase() === String(tx.error.args?.[0] ?? "").toLowerCase())) ||
+      (tx.error.name === "StalePrice" && basketBlockers.some((b) => b.reason === "stale")));
+  const showEnrol = basketBlockers.length > 0 || refusedOnOldLoan || enrolling;
+  const guardNotReady = groups.filter((g) => choices[g.currency.symbol] === "bitcoin").map((g) => guardStateOf(g.currency.symbol).state).find((s) => s !== "ok");
+  const canPay =
+    ready && allChosen && !shortOfBtc && !busy && payable.length > 0 && pending !== null && pending !== undefined && basketBlockers.length === 0 && !enrolling && !guardNotReady;
   const pendingText = pending ? keptAsideText(pending) : null;
 
   // C58, per group paid from bitcoin: the loan-to-value after this basket against the payer's own trigger.
@@ -243,7 +311,8 @@ export function Basket({
     if (choices[g.currency.symbol] !== "bitcoin") return [];
     const d = groupData[gi]!;
     const pledge = pledgeOf(d);
-    const guard = guardQuery.data?.find((x) => x.symbol === g.currency.symbol);
+    const view = guardStateOf(g.currency.symbol);
+    const guard = view.state === "ok" ? view : null;
     if (!guard || pledge === null || d.position.state !== "ok" || d.market.state !== "ok" || d.price.state !== "ok" || d.balance.state !== "ok") return [];
     const debt = debtFromShares(d.position.value[1], d.market.value[2], d.market.value[3]) + g.total;
     const after = ltvWad(debt, d.position.value[2] + pledge, d.price.value);
@@ -260,10 +329,9 @@ export function Basket({
       balanceAfter: d.balance.value,
     });
     if (!repay) return [];
-    return [
-      `This payment takes the ${g.currency.symbol} loan to ${formatPercentWad(after)}, at or past your guard's ${formatPercentWad(repay.triggerWad)} trigger. The guard will then repay about ${formatUnitsExact(repay.amount, g.currency.decimals)} ${g.currency.symbol} from this wallet within minutes, back to ${formatPercentWad(repay.targetWad)}.`,
-    ];
+    return [{ symbol: g.currency.symbol, text: triggerSentence({ ltvAfterWad: after, amount: repay.amount, triggerWad: repay.triggerWad, targetWad: repay.targetWad, symbol: g.currency.symbol }) }];
   });
+  const shownNotes = [...triggerNotes.map((t) => t.text), ...caught.filter((c) => !triggerNotes.some((t) => c.includes(` ${t.symbol} from`)))];
   const usd = useUsdPrice();
   const refetchReads = data.refetch;
   const retryReads = useCallback(() => void refetchReads(), [refetchReads]);
@@ -280,7 +348,9 @@ export function Basket({
           ? "Reading your balances and the prices on Arc."
           : unchosen
             ? `Choose how to pay the ${unchosen.currency.symbol} bills.`
-            : shortOfBtc
+            : guardNotReady === "pending"
+              ? "Reading your loan guard on Arc."
+              : shortOfBtc
               ? "This basket pledges more cirBTC than your wallet holds. Pay a group from balance instead."
               : null;
   const setupNeeds: SetupNeed[] = [];
@@ -383,6 +453,48 @@ export function Basket({
     };
     const btcBefore = await pledgedNow().catch(() => null);
 
+    // C58, read again at the moment of signing, for every group paid from bitcoin: the rule and the approval against
+    // the loan as it will stand. A trip the page had not shown stops here and is shown instead of sending.
+    const newTrips: string[] = [];
+    for (const g of groups) {
+      const p = plan[g.currency.symbol];
+      if (!p || p.from !== "bitcoin") continue;
+      const m = g.currency.marketId;
+      const guardNow = await readOwnGuard(client, me, m, g.currency.address);
+      if (guardNow.state !== "ok") return fail(GUARD_RULE_UNREADABLE);
+      let text: string | null = null;
+      try {
+        const [pos, mk, px, tokenHeld] = await Promise.all([
+          client.readContract({ address: MORPHO, abi: morphoAbi, functionName: "position", args: [m, me] }),
+          client.readContract({ address: MORPHO, abi: morphoAbi, functionName: "market", args: [m] }),
+          client.readContract({ address: g.currency.params.oracle, abi: oracleAbi, functionName: "price" }),
+          client.readContract({ address: g.currency.address, abi: erc20Abi, functionName: "balanceOf", args: [me] }),
+        ]);
+        const after = ltvWad(debtFromShares(pos[1], mk[2], mk[3]) + g.total, pos[2] + p.pledge, px);
+        const repay = guardRepayAfterBorrow({
+          rule: guardNow.rule,
+          nowSeconds: BigInt(Math.floor(Date.now() / 1000)),
+          ltvAfterWad: after,
+          before: { shares: pos[1], collateral: pos[2] },
+          totals: { totalBorrowAssets: mk[2], totalBorrowShares: mk[3] },
+          borrow: g.total,
+          pledge: p.pledge,
+          price: px,
+          allowance: guardNow.allowance,
+          balanceAfter: tokenHeld,
+        });
+        if (repay) text = triggerSentence({ ltvAfterWad: after, amount: repay.amount, triggerWad: repay.triggerWad, targetWad: repay.targetWad, symbol: g.currency.symbol });
+      } catch {
+        return fail(GUARD_RULE_UNREADABLE);
+      }
+      const onScreen = triggerNotes.some((t) => t.symbol === g.currency.symbol) || caught.some((c) => c.includes(` ${g.currency.symbol} from`));
+      if (text && !onScreen) newTrips.push(text);
+    }
+    if (newTrips.length) {
+      setCaught((prev) => [...prev, ...newTrips]);
+      return fail("Your loan guard changed since this page loaded: read the note above before paying. Nothing was sent.");
+    }
+
     const usdcOut = groups.reduce((s, g) => (choices[g.currency.symbol] === "balance" && isAddressEqual(g.currency.address, USDC) ? s + g.total : s), pendingNow.usdc);
     const out = await simulateAndSend({ account: me, to: built.to, data: built.data, onStep: step, usdcOut });
     let logs: Parameters<typeof billsPaidIn>[0] | null;
@@ -399,6 +511,8 @@ export function Basket({
       logs = null;
       hash = out.hash;
     } else {
+      // A check on an existing loan: read the loans again, so the enrol card can take the place of the raw refusal.
+      if (out.stage === "refused" && (out.error.name === "LtvAboveLimit" || out.error.name === "StalePrice")) void refetchLoans();
       return setTx(out.stage === "refused" ? { kind: "refused", error: out.error } : { kind: "failed", message: out.message, href: out.hash && `${EXPLORER}/tx/${out.hash}` });
     }
 
@@ -428,6 +542,12 @@ export function Basket({
   };
 
   const n = payable.length;
+  // F12: a basket this browser proposed to a Safe, now paid by that Safe, leads with the success, not "Nothing to pay".
+  const paidBySafe =
+    safeMemo !== null &&
+    bills.length > 0 &&
+    bills.every((b) => b !== null && b.status === BILL_STATUS.Paid && isAddressEqual(b.payer, safeMemo.safe));
+  const shownAside = paidBySafe ? [] : aside;
   return (
     <section className="relative px-5 pt-12 pb-24 md:px-[6vw] md:pt-[9vh]">
       <div className="app-rise" style={{ "--d": 0 } as React.CSSProperties}>
@@ -438,7 +558,11 @@ export function Basket({
         </Hallmark>
       </div>
       <h1 className="app-title app-rise mt-6 max-w-[14ch] text-text" style={{ "--d": 1 } as React.CSSProperties}>
-        {n === 0 ? (
+        {paidBySafe ? (
+          <>
+            Paid by your <em className="font-semibold text-gold italic">Safe</em>.
+          </>
+        ) : n === 0 ? (
           "Nothing to pay."
         ) : (
           <>
@@ -454,17 +578,22 @@ export function Basket({
         </p>
       )}
 
-      <div className="mt-12 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-        {payable.map((b, i) => (
-          <BillCard key={b.id.toString()} bill={b} index={i} landed={landed.has(b.id.toString())} />
+      <div className="mt-12 grid gap-5 md:grid-cols-2 xl:grid-cols-3" data-basket-cards={paidBySafe ? "paid-by-safe" : "payable"}>
+        {(paidBySafe ? (bills.filter(Boolean) as Bill[]) : payable).map((b, i) => (
+          <BillCard key={b.id.toString()} bill={b} index={i} landed={paidBySafe || landed.has(b.id.toString())} />
         ))}
       </div>
+      {paidBySafe && safeMemo && (
+        <p className="type-body app-rise mt-6 text-muted" data-paid-by-safe>
+          Read from AdagBills: Safe {shortAddress(safeMemo.safe)} is the payer of record for {bills.length === 1 ? "this bill" : `all ${bills.length} bills`}.
+        </p>
+      )}
 
-      {aside.length > 0 && (
+      {shownAside.length > 0 && (
         <div className="mt-12" data-aside>
           <p className="type-label text-muted">Not in this payment</p>
           <ul className="mt-4 border-t border-rule">
-            {aside.map(({ item, bill, reason }) => (
+            {shownAside.map(({ item, bill, reason }) => (
               <li key={item.id} className="grid grid-cols-[5rem_1fr] items-center gap-4 border-b border-rule py-4 md:grid-cols-[5rem_12rem_1fr_auto]" data-aside-bill={item.id}>
                 <a href={billHref(contract, BigInt(item.id))} className="font-display text-[1.5rem] leading-none text-text transition-colors duration-200 hover:text-gold">
                   No. {item.id}
@@ -484,7 +613,15 @@ export function Basket({
         </div>
       )}
 
-      {n === 0 && !paid && (
+      {me && n > 0 && !paid && !first && <PayAsSwitch mode={payAs.mode} onChoose={payAs.choose} className="mt-12" />}
+      {me && first && n > 0 && !paid && <FirstContractSafeNote ids={payable.map((b) => b.id)} className="mt-12" />}
+      {me && safeMode && (n > 0 || safeProposed) && !paid && (
+        <div className="mt-6">
+          <SafePay bills={safeBills} onProposed={() => setSafeProposed(true)} />
+        </div>
+      )}
+
+      {n === 0 && !paid && !paidBySafe && !(safeMode && safeProposed) && (
         <div className="mt-10 flex flex-col gap-3 md:flex-row" data-next-steps>
           <Button href="/pay" variant="primary" className="w-full md:w-auto">
             Pay a bill
@@ -495,8 +632,8 @@ export function Basket({
         </div>
       )}
 
-      {n > 0 && !paid && (
-        <div className="mt-14 grid gap-8 lg:grid-cols-12">
+      {n > 0 && !paid && !safeMode && (
+        <div className="mt-8 grid gap-8 lg:grid-cols-12">
           <div className="lg:col-span-8">
             {!me ? (
               <div className="app-panel p-6 md:p-8" data-blocked="true">
@@ -543,11 +680,42 @@ export function Basket({
                 step succeeds together or nothing moves.
               </p>
               <FeeLine query={feeQuery} idle="The network fee shows once each currency has a choice." className="mt-3" />
-              {triggerNotes.map((t) => (
+              {shownNotes.map((t) => (
                 <p key={t} className="type-body mt-4 text-text" data-guard-trigger>
                   {t}
                 </p>
               ))}
+              {guardNotReady === "unreadable" && (
+                <p className="type-body mt-4 text-danger" data-guard-rule-unreadable>
+                  {GUARD_RULE_UNREADABLE}
+                </p>
+              )}
+              {showEnrol && me && (
+                <div className="mt-6">
+                  <EnrolCard
+                    contract={contract}
+                    address={me}
+                    blockers={basketBlockers}
+                    canSign={ready && !busy}
+                    onBusy={setEnrolling}
+                    onRecorded={(hash) => {
+                      setTx({ kind: "idle" });
+                      setRecorded(hash);
+                      void refetchLoans();
+                      retryReads();
+                    }}
+                  />
+                </div>
+              )}
+              {recorded && !showEnrol && (
+                <p className="type-body mt-6 flex items-center gap-3 text-text" data-enrol-recorded>
+                  <span aria-hidden="true" className="diamond !bg-success" />
+                  Loan recorded ·{" "}
+                  <a href={`${EXPLORER}/tx/${recorded}`} target="_blank" rel="noopener noreferrer" className="link-draw text-gold hover:text-text">
+                    view the transaction
+                  </a>
+                </p>
+              )}
               <Button variant="primary" disabled={!canPay} onClick={onPay} className="mt-6 w-full" data-action="pay-basket">
                 {busy ? <BusyLabel step={busy.step} since={busy.since} /> : `Pay ${n} bill${n === 1 ? "" : "s"} with one signature`}
               </Button>
@@ -567,14 +735,13 @@ export function Basket({
                 </p>
               )}
               <div className="mt-4">
-                <TxMessage state={tx} />
+                <TxMessage state={refusedOnOldLoan ? { kind: "idle" } : tx} />
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {me && <SafeEntry bills={payable} available={n > 0 && !paid && !busy} className="mt-8" />}
 
       {paid && (
         <motion.div
@@ -744,9 +911,14 @@ function GroupPanel({ group, data, cirBtc, choice, balanceOk, disabled, notice, 
             "New loans are paused until the bitcoin price updates."
           ) : (
             <>
-              You pledge{" "}
-              <Value cell={pledge} render={(v) => (v === 0n ? "no more cirBTC" : `${formatUnitsExact(v, CIRBTC_DECIMALS)} cirBTC${usdHint(v, usd)}`)} className="text-text" /> and keep
-              it. Bitcoin can fall <Value cell={after} render={(v) => formatPercentWad(v.drop)} className="text-text" /> before Morpho may liquidate.
+              {pledge.state === "ok" && pledge.value === 0n ? (
+                <>You pledge no extra cirBTC: what you already pledged covers this.</>
+              ) : (
+                <>
+                  You pledge <Value cell={pledge} render={(v) => `${formatUnitsExact(v, CIRBTC_DECIMALS)} cirBTC${usdHint(v, usd)}`} className="text-text" /> and keep it.
+                </>
+              )}{" "}
+              Bitcoin can fall <Value cell={after} render={(v) => formatPercentWad(v.drop)} className="text-text" /> before Morpho may liquidate.
             </>
           ),
         )}
