@@ -2,8 +2,21 @@
 // and bare Node needs the ".ts" added, the same hook scripts/check-batches.mjs uses.
 import { registerHooks } from 'node:module';
 
+// The app's "@/..." alias points at src, as tsconfig.json says, so a route can be loaded here too.
+const SRC = new URL('../../../', import.meta.url);
+
 registerHooks({
   resolve(specifier, context, next) {
+    if (specifier.startsWith('@/')) {
+      const base = new URL(specifier.slice(2), SRC).href;
+      for (const candidate of [`${base}.ts`, `${base}.tsx`, base]) {
+        try {
+          return next(candidate, context);
+        } catch {
+          // Try the next spelling.
+        }
+      }
+    }
     try {
       return next(specifier, context);
     } catch (error) {

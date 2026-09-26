@@ -1,5 +1,5 @@
 // Plain TypeScript with relative imports only, so the unit tests can load it under bare Node.
-import { getAddress, isAddress, type Address } from "viem";
+import { getAddress, isAddress, sha256, stringToHex, type Address } from "viem";
 import { MARKET_EURC, MARKET_USDC } from "../arc/constants";
 
 declare const storeKeyBrand: unique symbol;
@@ -73,6 +73,8 @@ export const keys = {
     if (typeof updateId !== "number" || !Number.isSafeInteger(updateId) || updateId < 0) throw new KeyError("That is not an update id.");
     return key("telegram", "update", String(updateId));
   },
-  hookNonce: (nonce: unknown) => key("hooks", "nonce", subject(nonce)),
-  rate: (bucket: "code" | "start" | "link" | "signed", who: unknown) => key("rate", bucket, subject(who)),
+  // The SHA-256 of the exact nonce the signature covered, so no change in QuickNode's nonce format can ever merge
+  // two deliveries into one replay key.
+  hookNonce: (nonce: string) => key("hooks", "nonce", sha256(stringToHex(nonce)).slice(2)),
+  rate: (bucket: "code" | "start" | "link" | "signed" | "safe-list" | "safe-status" | "safe-propose", who: unknown) => key("rate", bucket, subject(who)),
 };

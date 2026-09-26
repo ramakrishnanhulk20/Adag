@@ -45,5 +45,5 @@ test('codes, nonces and markets have one form each', () => {
 test('odd rate-limit and replay subjects collapse into one bucket instead of making new keys', () => {
   assert.equal(keys.rate('code', '1.2.3.4'), 'adag:v1:rate:code:1.2.3.4');
   assert.equal(keys.rate('code', 'x'.repeat(200)), 'adag:v1:rate:code:other');
-  assert.equal(keys.hookNonce('a b'), 'adag:v1:hooks:nonce:other');
+  assert.match(keys.hookNonce('a b'), /^adag:v1:hooks:nonce:[0-9a-f]{64}$/, 'a webhook nonce is hashed, never collapsed');
 });

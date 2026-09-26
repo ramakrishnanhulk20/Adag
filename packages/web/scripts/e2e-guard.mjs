@@ -36,6 +36,7 @@ process.emitWarning = (warning, ...rest) => {
 
 const WEB = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const CONTRACTS = resolve(WEB, '../contracts');
+const { buildMessage } = await import(pathToFileURL(resolve(WEB, 'src/lib/alerts/message.ts')).href);
 const { startMockUpstash } = await import(pathToFileURL(resolve(WEB, 'src/lib/store/test/mock-upstash.mjs')).href);
 const { mockOracleCode } = await import(pathToFileURL(resolve(CONTRACTS, 'prove-it/lib.mjs')).href);
 
@@ -368,7 +369,25 @@ async function main() {
     linkedOk && Boolean(linkedMessage) && refused.status === 401 && started.status === 200,
     `bad secret ${refused.status}, start ${started.status}, confirmation ${linkedMessage ? 'sent' : 'missing'}`,
   );
+  record('the linked confirmation names the wallet in full, checksummed', Boolean(linkedMessage) && linkedMessage.text.includes(`wallet ${borrower.address}.`), linkedMessage?.text.split(' Send')[0] ?? 'no message');
   await shoot(page, 'a3-alerts');
+
+  // A second wallet gets the same chat to press Start on its code and signs a valid link. The chat already gets
+  // alerts for the borrower, so the link is refused, the first link holds, and the chat is told who tried.
+  const intruder = privateKeyToAccount(generatePrivateKey());
+  const second = await (await post('/api/alerts/code', {})).json();
+  await post('/api/telegram', { ...startUpdate, update_id: 9002, message: { ...startUpdate.message, text: `/start ${second.code}` } }, { 'x-telegram-bot-api-secret-token': secrets.tg });
+  const pressed = await (await post('/api/alerts/code/status', { code: second.code })).json();
+  const intruderExpiry = Math.floor(Date.now() / 1000) + 300;
+  const intruderMessage = buildMessage(APP, { action: 'link', wallet: intruder.address, code: second.code, chatId: pressed.chatId, chatHandle: pressed.chatHandle, expiry: intruderExpiry });
+  const takeover = await post('/api/alerts/link', { wallet: intruder.address, code: second.code, expiry: intruderExpiry, signature: await intruder.signMessage({ message: intruderMessage }) });
+  const refusal = telegram.sent.find((m) => m.chat_id === CHAT_ID && m.text.includes(`link wallet ${intruder.address} to this chat. It was refused`));
+  const stillBorrower = upstash.raw(`adag:v1:alerts:chat:${CHAT_ID}`) === borrower.address && upstash.raw(`adag:v1:alerts:link:${borrower.address}`) === String(CHAT_ID);
+  record(
+    'a second wallet linking a chat that already gets alerts is refused with 409, the first link holds, and the chat is told',
+    takeover.status === 409 && stillBorrower && Boolean(refusal) && upstash.raw(`adag:v1:alerts:link:${intruder.address}`) === null,
+    `status ${takeover.status}, first link ${stillBorrower ? 'held' : 'lost'}, refusal ${refusal ? 'sent' : 'missing'}`,
+  );
 
   // The price drops so the loan sits near 62%, past the 55% trigger: the oracle's code is swapped for MockOracle.
   const base = await fork.readContract({ address: ORACLE_USDC, abi: oracleAbi, functionName: 'BASE_FEED_1' });

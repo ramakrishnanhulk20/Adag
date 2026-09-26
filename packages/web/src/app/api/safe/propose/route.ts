@@ -3,6 +3,8 @@ import { arcClient } from "@/lib/arc/client";
 import { assertSafeTxShape } from "@/lib/safe/multisend";
 import { InputError, proposeBody, readCappedJson } from "@/lib/safe/parse";
 import { NOT_CONFIGURED, json, safeService, serviceError, withTimeout } from "@/lib/safe/service";
+import { STORE_MISSING, storeFromEnv } from "@/lib/store/env";
+import { TOO_MANY, limitRoute } from "@/lib/store/limit";
 import { safeTxHash, safeTxTypedData, safeTxToJson } from "@/lib/safe/typedData";
 import { onChainSafeTxHash, verifySafe } from "@/lib/safe/verify";
 
@@ -16,6 +18,9 @@ export const dynamic = "force-dynamic";
 export async function POST(request: Request) {
   const service = safeService();
   if (!service) return json({ error: NOT_CONFIGURED }, 503);
+  const store = storeFromEnv();
+  if (!store) return json({ error: STORE_MISSING }, 503);
+  if (!(await limitRoute(store, request, "safe-propose", 10, 100))) return json({ error: TOO_MANY }, 429);
 
   let body;
   try {

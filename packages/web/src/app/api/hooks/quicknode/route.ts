@@ -42,7 +42,8 @@ export async function POST(request: Request) {
     nowMs: Date.now(),
   });
   if (!valid) return json({ error: "Not allowed." }, 401);
-  if (!(await store.set(keys.hookNonce(nonce), "1", { nx: true, px: 600_000 }))) return json({ state: "duplicate" });
+  // Keyed on the hash of the same nonce string verifyQuickNode just checked.
+  if (!(await store.set(keys.hookNonce(nonce ?? ""), "1", { nx: true, px: 600_000 }))) return json({ state: "duplicate" });
 
   let body: unknown;
   try {

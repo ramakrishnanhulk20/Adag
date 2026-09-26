@@ -1,6 +1,8 @@
 import { isAddress, getAddress } from "viem";
 import { InputError, address } from "@/lib/safe/parse";
 import { NOT_CONFIGURED, json, safeService, serviceError, withTimeout } from "@/lib/safe/service";
+import { STORE_MISSING, storeFromEnv } from "@/lib/store/env";
+import { TOO_MANY, limitRoute } from "@/lib/store/limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,6 +14,9 @@ const MAX_SAFES = 50;
 export async function GET(request: Request) {
   const service = safeService();
   if (!service) return json({ error: NOT_CONFIGURED }, 503);
+  const store = storeFromEnv();
+  if (!store) return json({ error: STORE_MISSING }, 503);
+  if (!(await limitRoute(store, request, "safe-list", 20, 300))) return json({ error: TOO_MANY }, 429);
   let owner;
   try {
     owner = address(new URL(request.url).searchParams.get("owner"), "The owner");

@@ -3,7 +3,7 @@ import { InputError, json, readCappedJson } from "@/lib/alerts/http";
 import { bind } from "@/lib/alerts/links";
 import { checkSignedWrite } from "@/lib/alerts/signed";
 import { TELEGRAM_MISSING, telegramFromEnv } from "@/lib/alerts/telegram";
-import { linkedText } from "@/lib/alerts/text";
+import { linkedText, movedText, refusedText } from "@/lib/alerts/text";
 import { STORE_MISSING, storeFromEnv } from "@/lib/store/env";
 import { KeyError, keys, normaliseAddress, normaliseCode } from "@/lib/store/keys";
 import { allow, clientOf } from "@/lib/store/limit";
@@ -45,7 +45,14 @@ export async function POST(request: Request) {
 
   const spent = await consumePending(store, code);
   if (!spent || spent.chatId !== pending.chatId) return json({ error: "This code has expired or was already used. Start again." }, 410);
-  if (!(await bind(store, check.wallet, spent.chatId))) return json({ error: "Alerts are full right now. Try again later." }, 503);
-  await telegram.send(spent.chatId, linkedText(siteUrl()));
+  // The code stays spent whatever happens next, so a refused attempt cannot be replayed.
+  const bound = await bind(store, check.wallet, spent.chatId);
+  if (!bound.ok && bound.reason === "chat-taken") {
+    await telegram.send(spent.chatId, refusedText(check.wallet));
+    return json({ error: "That chat already gets Adag alerts for another wallet. Send /stop in that chat, then link again." }, 409);
+  }
+  if (!bound.ok) return json({ error: "Alerts are full right now. Try again later." }, 503);
+  await telegram.send(spent.chatId, linkedText(siteUrl(), check.wallet));
+  if (bound.previousChat) await telegram.send(bound.previousChat, movedText(check.wallet));
   return json({ linked: true });
 }

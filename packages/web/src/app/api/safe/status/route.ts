@@ -3,6 +3,8 @@ import { arcClient } from "@/lib/arc/client";
 import { safeAbi } from "@/lib/safe/abi";
 import { InputError, address, hash32 } from "@/lib/safe/parse";
 import { NOT_CONFIGURED, json, safeService, serviceError, withTimeout } from "@/lib/safe/service";
+import { STORE_MISSING, storeFromEnv } from "@/lib/store/env";
+import { TOO_MANY, limitRoute } from "@/lib/store/limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,6 +14,10 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   const service = safeService();
   if (!service) return json({ error: NOT_CONFIGURED }, 503);
+  const store = storeFromEnv();
+  if (!store) return json({ error: STORE_MISSING }, 503);
+  // An open payment page polls every 6 seconds, 100 calls in ten minutes, so one client gets room for three.
+  if (!(await limitRoute(store, request, "safe-status", 300, 3_000))) return json({ error: TOO_MANY }, 429);
   let safe;
   let safeTxHash;
   try {
