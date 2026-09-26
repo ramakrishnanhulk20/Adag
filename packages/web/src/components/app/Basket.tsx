@@ -300,11 +300,18 @@ export function Basket({ items, dropped }: { items: BasketItem[]; dropped: strin
     <section className="relative px-5 pt-12 pb-24 md:px-[6vw] md:pt-[9vh]">
       <div className="app-rise" style={{ "--d": 0 } as React.CSSProperties}>
         <Hallmark>
-          Basket · {items.length} bills{aside.length > 0 ? ` · ${payable.length} payable` : ""} · Arc mainnet
+          Basket · {items.length} bills{aside.length > 0 ? ` · ${payable.length} payable` : ""}
+          <span className="hidden md:inline"> · Arc mainnet</span>
         </Hallmark>
       </div>
       <h1 className="app-title app-rise mt-6 max-w-[14ch] text-text" style={{ "--d": 1 } as React.CSSProperties}>
-        {n > 1 ? `${n} bills.` : n === 1 ? "One bill." : "Nothing to pay."} <em className="font-semibold text-gold italic">One</em> signature.
+        {n === 0 ? (
+          "Nothing to pay."
+        ) : (
+          <>
+            {n > 1 ? `${n} bills.` : "One bill."} <em className="font-semibold text-gold italic">One</em> signature.
+          </>
+        )}
       </h1>
       {dropped.length > 0 && (
         <p className="type-body app-rise mt-6 text-muted" style={{ "--d": 2 } as React.CSSProperties}>
