@@ -30,11 +30,11 @@ process.emitWarning = (warning, ...rest) => {
 
 const pay = (file) => import(new URL(`../src/lib/pay/${file}`, import.meta.url).href);
 const { buildPayFromBalance, buildPayFromBitcoin, suggestPledge, buildCreateBill, buildAddCollateral, buildCloseLoan, buildPayMany, referenceBytes, BATCH_TARGETS, APPROVAL_SPENDERS } = await pay('build.ts');
-const { debtFromShares, closeApproval } = await pay('loan.ts');
+const { debtFromShares, closeApproval, accrueBorrowAssets } = await pay('loan.ts');
 const { billCreatedIn, billsPaidIn, morphoEventsIn } = await pay('receipt.ts');
 const { decodeAdagError } = await pay('errors.ts');
 const { verifyMarketParams, paramsFromTuple } = await pay('market.ts');
-const { adagAbi, erc20Abi, morphoAbi, multicall3FromAbi } = await pay('abi.ts');
+const { adagAbi, erc20Abi, irmAbi, morphoAbi, multicall3FromAbi } = await pay('abi.ts');
 const C = await pay('constants.ts');
 
 const PAYER = getAddress('0x6e26Dd347b57ba591Ee34292A2d828CCC17A1fDE');
@@ -83,8 +83,8 @@ const kept = [];
 const nextTime = (extra = 0) => pin.timestamp + BigInt(kept.length + 1 + extra);
 
 // Replays every kept transaction from the pinned block, then the new block, so each step sees the state before it.
-async function simulate(calls) {
-  const blocks = [...kept, { time: nextTime(), calls }].map((b) => ({
+async function simulate(calls, time = nextTime()) {
+  const blocks = [...kept, { time, calls }].map((b) => ({
     blockOverrides: { time: toHex(b.time) },
     calls: b.calls.map((c) => ({ from: c.from, to: c.to, data: c.data })),
   }));
@@ -420,6 +420,37 @@ async function main() {
   ].map(([what, fn]) => [what, outcome(fn)]);
   record('(m) buildPayMany refuses a duplicate, 11 bills, a paid bill, its own bill, an unplanned currency and look-alike params',
     refusals.every(([, message]) => message !== null), refusals.map(([what, message]) => `${what}: ${message ?? 'ACCEPTED'}`));
+
+  // (n) A close on a market nobody has touched for a long time: interest accrued since lastUpdate outgrows the 0.1%
+  // margin. The simulated block's clock jumps forward; nothing else changes.
+  reset();
+  const [, nShares, nCollateral] = await ethCall(pos());
+  const nMarket = await ethCall(mkt());
+  const marketArg = (m) => ({ totalSupplyAssets: m[0], totalSupplyShares: m[1], totalBorrowAssets: m[2], totalBorrowShares: m[3], lastUpdate: m[4], fee: m[5] });
+  const rateSpec = read(C.ADAPTIVE_CURVE_IRM, irmAbi, 'borrowRateView', [usdcParams, marketArg(nMarket)]);
+  const liveRate = await ethCall(rateSpec);
+  // Aim for 0.2% of accrued interest at today's rate, twice the margin the close adds.
+  const jump = (2n * 10n ** 15n + liveRate - 1n) / liveRate;
+  const jumpedTime = nMarket[4] + jump;
+  // The adaptive rate model averages over the gap, so the rate Morpho accrues with is read inside the jumped block.
+  const jumpedRate = decode(rateSpec, (await simulate([{ from: PAYER, ...rateSpec }], jumpedTime))[0].returnData);
+  const accruedTotal = accrueBorrowAssets(nMarket[2], jumpedRate, jumpedTime - nMarket[4]);
+  const storedApproval = closeApproval(nShares, nMarket[2], nMarket[3]);
+  const accruedApproval = closeApproval(nShares, accruedTotal, nMarket[3]);
+  const nOld = buildCloseLoan(PAYER, usdcCurrency, { shares: nShares, collateral: nCollateral }, storedApproval, usdcParams);
+  const nNew = buildCloseLoan(PAYER, usdcCurrency, { shares: nShares, collateral: nCollateral }, accruedApproval, usdcParams);
+  const oldRes = (await simulate([{ from: PAYER, to: nOld.to, data: nOld.data }], jumpedTime))[0];
+  const newOut = await simulate([{ from: PAYER, to: nNew.to, data: nNew.data }, { from: PAYER, ...pos() }, { from: PAYER, ...allowance(C.USDC) }], jumpedTime);
+  const newPos = newOut[0].ok ? decode(pos(), newOut[1].returnData) : null;
+  const newAllowance = newOut[0].ok ? decode(allowance(C.USDC), newOut[2].returnData) : null;
+  const nRepay = newOut[0].ok ? morphoEventsIn(newOut[0].logs.map((l) => ({ ...l, removed: false }))).find((e) => e.name === 'Repay') : null;
+  const days = (Number(jump) / 86_400).toFixed(1);
+  record('(n) after a long untouched gap, the stored-totals approval is refused and the accrued approval closes the loan to 0 and 0',
+    !oldRes.ok && newOut[0].ok && newPos?.[1] === 0n && newPos?.[2] === 0n && newAllowance === 0n && accruedApproval > storedApproval,
+    [`live rate ${liveRate} wad/s (${((Math.expm1(Number(liveRate) * 31_536_000 / 1e18)) * 100).toFixed(3)}% a year); jump ${jump} s (${days} days) past lastUpdate ${nMarket[4]}; rate inside the jumped block ${jumpedRate} wad/s`,
+      `stored totalBorrowAssets ${usdc(nMarket[2])}, accrued ${usdc(accruedTotal)}; the loan's debt ${usdc(debtFromShares(nShares, nMarket[2], nMarket[3]))} stored vs ${usdc(debtFromShares(nShares, accruedTotal, nMarket[3]))} accrued`,
+      `stored-totals approval ${usdc(storedApproval)}: ${oldRes.ok ? 'ACCEPTED, which is wrong' : `refused, "${decodeAdagError(oldRes.revertData).text}"`}`,
+      `accrued approval ${usdc(accruedApproval)}: ${newOut[0].ok ? `closed; Morpho Repay ${usdc(nRepay?.assets ?? 0n)}; after: ${newPos[1]} shares, ${newPos[2]} pledged, allowance ${newAllowance}` : `refused, "${decodeAdagError(newOut[0].revertData).text}"`}`]);
 
   const passed = results.filter((r) => r.ok).length;
   console.log();

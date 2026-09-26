@@ -29,3 +29,19 @@ export function closeApproval(shares: bigint, totalBorrowAssets: bigint, totalBo
   const debt = debtFromShares(shares, totalBorrowAssets, totalBorrowShares);
   return (debt * 1001n + 999n) / 1000n + 1n;
 }
+
+// Morpho Blue's MathLib.wTaylorCompounded: e^(x*n) - 1 to three terms, in WAD, rounding each term down.
+function wTaylorCompounded(x: bigint, n: bigint): bigint {
+  const firstTerm = x * n;
+  const secondTerm = (firstTerm * firstTerm) / (2n * WAD);
+  const thirdTerm = (secondTerm * firstTerm) / (3n * WAD);
+  return firstTerm + secondTerm + thirdTerm;
+}
+
+// The total borrowed as Morpho will count it once interest is accrued, exactly as _accrueInterest does:
+// totalBorrowAssets plus totalBorrowAssets.wMulDown(rate.wTaylorCompounded(elapsed)). market() alone is stale by
+// however long nobody has touched the market.
+export function accrueBorrowAssets(totalBorrowAssets: bigint, borrowRatePerSecondWad: bigint, elapsedSeconds: bigint): bigint {
+  if (elapsedSeconds <= 0n || borrowRatePerSecondWad <= 0n || totalBorrowAssets === 0n) return totalBorrowAssets;
+  return totalBorrowAssets + (totalBorrowAssets * wTaylorCompounded(borrowRatePerSecondWad, elapsedSeconds)) / WAD;
+}

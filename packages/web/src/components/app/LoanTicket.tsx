@@ -4,14 +4,14 @@ import { useState } from "react";
 import { motion } from "motion/react";
 import type { Address, Hex } from "viem";
 import { arc } from "viem/chains";
-import { useReadContract, useReadContracts } from "wagmi";
+import { useBlock, useReadContract, useReadContracts } from "wagmi";
 import { Button } from "@/components/Button";
 import { adagAbi, erc20Abi, irmAbi, morphoAbi, oracleAbi } from "@/lib/pay/abi";
 import { parseAmountInput } from "@/lib/pay/amount";
 import { buildAddCollateral, buildCloseLoan } from "@/lib/pay/build";
 import { ADAG_BILLS, CIRBTC, CIRBTC_DECIMALS, EXPLORER, MAX_LTV_WAD, MORPHO, USDC, WAD, type Currency } from "@/lib/pay/constants";
 import { formatPercentWad, formatUnitsExact, shortAddress } from "@/lib/pay/format";
-import { closeApproval, debtFromShares, liquidationDropWad, ltvWad } from "@/lib/pay/loan";
+import { accrueBorrowAssets, closeApproval, debtFromShares, liquidationDropWad, ltvWad } from "@/lib/pay/loan";
 import { paramsFromTuple } from "@/lib/pay/market";
 import { morphoEventsIn } from "@/lib/pay/receipt";
 import { hasAcceptedMorphoDisclaimer, rememberMorphoDisclaimer } from "@/lib/wallet/consent";
@@ -79,10 +79,21 @@ export function LoanTicket(props: LoanTicketProps) {
   const apy = rate.data !== undefined ? Math.expm1((Number(rate.data) * SECONDS_PER_YEAR) / 1e18) : null;
   const apyCell: Cell<number> = rate.isError || market.state === "unavailable" ? { state: "unavailable" } : apy === null ? { state: "loading" } : { state: "ok", value: apy };
 
+  // market() totals stop at lastUpdate. The debt shown and the close are sized from totals accrued to the chain's own
+  // clock at Morpho's live rate; until the rate and block arrive, the debt reads as loading rather than low.
+  const head = useBlock({ chainId: arc.id, query: { refetchInterval: 30_000 } });
+  const accruedBorrow =
+    mv && rate.data !== undefined && head.data ? accrueBorrowAssets(mv[2], rate.data, head.data.timestamp - mv[4]) : null;
+
   const [, shares, collateral] = position;
-  const debt: Cell<bigint> = mv ? { state: "ok", value: debtFromShares(shares, mv[2], mv[3]) } : market.state === "loading" ? { state: "loading" } : { state: "unavailable" };
+  const debt: Cell<bigint> =
+    mv && accruedBorrow !== null
+      ? { state: "ok", value: debtFromShares(shares, accruedBorrow, mv[3]) }
+      : market.state === "unavailable" || rate.isError || head.isError
+        ? { state: "unavailable" }
+        : { state: "loading" };
   const drop: Cell<bigint> = ltv.state === "ok" ? { state: "ok", value: liquidationDropWad(ltv.value, currency.params.lltv) } : ltv;
-  const approval = mv && shares > 0n ? closeApproval(shares, mv[2], mv[3]) : 0n;
+  const approval = mv && accruedBorrow !== null && shares > 0n ? closeApproval(shares, accruedBorrow, mv[3]) : 0n;
 
   const [mode, setMode] = useState<"add" | "close">("add");
   const [addText, setAddText] = useState("");
@@ -99,7 +110,8 @@ export function LoanTicket(props: LoanTicketProps) {
 
   const isUsdc = currency.address.toLowerCase() === USDC.toLowerCase();
   const need = shares > 0n ? approval + (isUsdc ? USDC_FEE_RESERVE : 0n) : 0n;
-  const short = shares > 0n && loanTokenBalance.state === "ok" ? (loanTokenBalance.value < need ? need - loanTokenBalance.value : 0n) : null;
+  const short =
+    shares > 0n && loanTokenBalance.state === "ok" && accruedBorrow !== null ? (loanTokenBalance.value < need ? need - loanTokenBalance.value : 0n) : null;
   const gasShort = !isUsdc && usdcBalance.state === "ok" && usdcBalance.value < USDC_FEE_RESERVE;
 
   const fail = (message: string, hash?: Hex) => setTx({ kind: "failed", message, href: hash && `${EXPLORER}/tx/${hash}` });
@@ -124,7 +136,7 @@ export function LoanTicket(props: LoanTicketProps) {
     } catch (error) {
       return fail(`${(error as Error).message} Nothing was sent.`);
     }
-    const out = await simulateAndSend({ account: address, to: built.to, data: built.data, onStep: step });
+    const out = await simulateAndSend({ account: address, to: built.to, data: built.data, onStep: step, usdcOut: 0n });
     if (!out.ok) return setTx(out.stage === "refused" ? { kind: "refused", error: out.error } : { kind: "failed", message: out.message, href: out.hash && `${EXPLORER}/tx/${out.hash}` });
     const supplied = morphoEventsIn(out.receipt.logs).find((e) => e.name === "SupplyCollateral" && e.id.toLowerCase() === m.toLowerCase() && e.onBehalf.toLowerCase() === address.toLowerCase());
     const after = await client.readContract({ address: MORPHO, abi: morphoAbi, functionName: "position", args: [m, address] }).catch(() => null);
@@ -145,20 +157,34 @@ export function LoanTicket(props: LoanTicketProps) {
     let mk: MarketState;
     let tokenHeld: bigint;
     let btcBefore: bigint;
+    let now: bigint;
+    let ratePerSecond: bigint;
     try {
       // Read again at the moment of closing: shares, totals and interest have moved since the page loaded.
-      [tuple, live, mk, tokenHeld, btcBefore] = await Promise.all([
+      let block: { timestamp: bigint };
+      [tuple, live, mk, tokenHeld, btcBefore, block] = await Promise.all([
         client.readContract({ address: MORPHO, abi: morphoAbi, functionName: "idToMarketParams", args: [m] }),
         client.readContract({ address: MORPHO, abi: morphoAbi, functionName: "position", args: [m, address] }),
         client.readContract({ address: MORPHO, abi: morphoAbi, functionName: "market", args: [m] }),
         client.readContract({ address: currency.address, abi: erc20Abi, functionName: "balanceOf", args: [address] }),
         client.readContract({ address: CIRBTC, abi: erc20Abi, functionName: "balanceOf", args: [address] }),
+        client.getBlock(),
       ]);
+      now = block.timestamp;
+      ratePerSecond = await client.readContract({
+        address: currency.params.irm,
+        abi: irmAbi,
+        functionName: "borrowRateView",
+        args: [currency.params, { totalSupplyAssets: mk[0], totalSupplyShares: mk[1], totalBorrowAssets: mk[2], totalBorrowShares: mk[3], lastUpdate: mk[4], fee: mk[5] }],
+      });
     } catch {
       return fail("Arc did not answer, so nothing was built. Try again.");
     }
     const [, liveShares, liveCollateral] = live;
-    const liveApproval = liveShares > 0n ? closeApproval(liveShares, mk[2], mk[3]) : 0n;
+    // Sized from the debt accrued to this block, as Morpho will count it; the 0.1% plus 1 covers the seconds until
+    // the transaction lands, and the batch resets the approval to 0 whatever is left.
+    const accrued = accrueBorrowAssets(mk[2], ratePerSecond, now - mk[4]);
+    const liveApproval = liveShares > 0n ? closeApproval(liveShares, accrued, mk[3]) : 0n;
     const liveNeed = liveShares > 0n ? liveApproval + (isUsdc ? USDC_FEE_RESERVE : 0n) : 0n;
     if (tokenHeld < liveNeed) {
       return fail(`Closing needs ${formatUnitsExact(liveNeed, currency.decimals)} ${currency.symbol} and your wallet holds ${formatUnitsExact(tokenHeld, currency.decimals)}. Add ${formatUnitsExact(liveNeed - tokenHeld, currency.decimals)} ${currency.symbol}, then try again. Nothing was sent.`);
@@ -169,7 +195,7 @@ export function LoanTicket(props: LoanTicketProps) {
     } catch (error) {
       return fail(`${(error as Error).message} Nothing was sent.`);
     }
-    const out = await simulateAndSend({ account: address, to: built.to, data: built.data, onStep: step });
+    const out = await simulateAndSend({ account: address, to: built.to, data: built.data, onStep: step, usdcOut: isUsdc ? liveApproval : 0n });
     if (!out.ok) return setTx(out.stage === "refused" ? { kind: "refused", error: out.error } : { kind: "failed", message: out.message, href: out.hash && `${EXPLORER}/tx/${out.hash}` });
 
     const events = morphoEventsIn(out.receipt.logs).filter((e) => e.id.toLowerCase() === m.toLowerCase() && e.onBehalf.toLowerCase() === address.toLowerCase());

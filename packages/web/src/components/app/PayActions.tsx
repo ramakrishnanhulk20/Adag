@@ -3,11 +3,11 @@
 import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import type { Address, Hex } from "viem";
+import { isAddressEqual, type Address, type Hex } from "viem";
 import { Button } from "@/components/Button";
 import { adagAbi, erc20Abi, morphoAbi } from "@/lib/pay/abi";
 import { buildPayFromBalance, buildPayFromBitcoin, suggestPledge, type Bill } from "@/lib/pay/build";
-import { BILL_STATUS, CIRBTC, CIRBTC_DECIMALS, EXPLORER, MAX_LTV_WAD, MORPHO, ADAG_BILLS, type Currency } from "@/lib/pay/constants";
+import { BILL_STATUS, CIRBTC, CIRBTC_DECIMALS, EXPLORER, MAX_LTV_WAD, MORPHO, ADAG_BILLS, USDC, type Currency } from "@/lib/pay/constants";
 import { formatPercentWad, formatUnitsExact } from "@/lib/pay/format";
 import { debtFromShares, liquidationDropWad, ltvWad } from "@/lib/pay/loan";
 import { paramsFromTuple } from "@/lib/pay/market";
@@ -39,6 +39,8 @@ export type PayActionsProps = {
   onSettled: () => void;
 };
 
+const USDC_FEE_RESERVE = 10_000n;
+
 type Paid = { method: "balance" | "bitcoin"; hash: Hex; loanChecked: boolean; ltvAfter?: bigint; sold?: bigint; pledged?: bigint };
 
 
@@ -58,7 +60,10 @@ export function PayActions(props: PayActionsProps) {
 
   const fresh = priceStatus.state === "ok" ? priceStatus.value[0] : null;
   const pledge: Cell<bigint> = needed.state === "ok" ? { state: "ok", value: suggestPledge(needed.value) } : needed;
-  const enough = balance.state === "ok" ? balance.value >= bill.amount : null;
+  // On Arc the fee is prepaid from the USDC balance, so a USDC bill is offered from balance only with 0.01 USDC to spare.
+  const isUsdc = isAddressEqual(currency.address, USDC);
+  const balanceNeed = bill.amount + (isUsdc ? USDC_FEE_RESERVE : 0n);
+  const enough = balance.state === "ok" ? balance.value >= balanceNeed : null;
   const shortOfBtc = pledge.state === "ok" && cirBtc.state === "ok" && cirBtc.value < pledge.value;
 
   let after: Cell<{ ltv: bigint; drop: bigint }> = { state: "loading" };
@@ -114,7 +119,8 @@ export function PayActions(props: PayActionsProps) {
       setTx({ kind: "failed", message: (error as Error).message });
       return;
     }
-    const out = await simulateAndSend({ account: address, to: built.to, data: built.data, onStep: step });
+    // On Arc a USDC payment and the fee come out of one balance, so the check covers both; EURC moves no USDC.
+    const out = await simulateAndSend({ account: address, to: built.to, data: built.data, onStep: step, usdcOut: isUsdc ? bill.amount : 0n });
     if (!out.ok) {
       setTx(out.stage === "refused" ? { kind: "refused", error: out.error } : { kind: "failed", message: out.message, href: out.hash && `${EXPLORER}/tx/${out.hash}` });
       return;
@@ -162,7 +168,7 @@ export function PayActions(props: PayActionsProps) {
       setTx({ kind: "failed", message: `${(error as Error).message} Nothing was sent.` });
       return;
     }
-    const out = await simulateAndSend({ account: address, to: built.to, data: built.data, onStep: step });
+    const out = await simulateAndSend({ account: address, to: built.to, data: built.data, onStep: step, usdcOut: 0n });
     if (!out.ok) {
       setTx(out.stage === "refused" ? { kind: "refused", error: out.error } : { kind: "failed", message: out.message, href: out.hash && `${EXPLORER}/tx/${out.hash}` });
       return;
@@ -218,8 +224,10 @@ export function PayActions(props: PayActionsProps) {
           {enough === null
             ? `Your ${currency.symbol} balance is unavailable right now.`
             : enough
-              ? `You hold ${formatUnitsExact((balance as { value: bigint }).value, currency.decimals)} ${currency.symbol}. One signature approves exactly this amount and pays.`
-              : `You hold less ${currency.symbol} than this bill, so paying from balance is not offered.`}
+              ? `You hold ${formatUnitsExact((balance as { value: bigint }).value, currency.decimals)} ${currency.symbol}. One signature approves exactly the bill amount and pays${isUsdc ? "; about 0.01 USDC stays back for the network fee" : ""}.`
+              : isUsdc
+                ? `You hold less than this bill plus 0.01 USDC for the network fee, so paying from balance is not offered.`
+                : `You hold less ${currency.symbol} than this bill, so paying from balance is not offered.`}
         </p>
         {enough && (
           <Button variant={fresh ? "secondary" : "primary"} disabled={busy} onClick={() => void payFromBalance()} className="mt-5 w-full md:w-auto" data-action="pay-balance">

@@ -80,6 +80,8 @@ export function Basket({ items, dropped }: { items: BasketItem[]; dropped: strin
   }).filter((g) => g.bills.length > 0);
 
   const [choices, setChoices] = useState<Partial<Record<"USDC" | "EURC", Choice>>>({});
+  // Why a group's choice was cleared, shown until the payer chooses again.
+  const [cleared, setCleared] = useState<Partial<Record<"USDC" | "EURC", string>>>({});
   const [tx, setTx] = useState<TxState>({ kind: "idle" });
   const [paid, setPaid] = useState<Paid | null>(null);
   const [landed, setLanded] = useState<Set<string>>(new Set());
@@ -135,22 +137,35 @@ export function Basket({ items, dropped }: { items: BasketItem[]; dropped: strin
     d.balance.state === "ok" && d.balance.value >= g.total + (isAddressEqual(g.currency.address, USDC) ? USDC_FEE_RESERVE : 0n);
   const pledgeOf = (d: GroupData) => (d.needed.state === "ok" ? suggestPledge(d.needed.value) : null);
 
-  // First sensible choice per currency once the reads arrive: bitcoin when the price is fresh, else the balance.
+  // The payer's choice is theirs. The app picks a default only for a group that has never had one; a choice that
+  // stops being valid is cleared, never swapped for the other path, and the group says why and asks again.
   const loadedKey = data.dataUpdatedAt;
   useEffect(() => {
     if (!loadedKey) return;
+    const invalid: Partial<Record<"USDC" | "EURC", string>> = {};
+    groups.forEach((g, gi) => {
+      const d = groupData[gi]!;
+      const current = choices[g.currency.symbol];
+      if (current === "bitcoin" && d.fresh.state === "ok" && !d.fresh.value) {
+        invalid[g.currency.symbol] = `New loans in ${g.currency.symbol} are paused until the bitcoin price updates, so paying these bills from bitcoin is off. Choose again.`;
+      }
+      if (current === "balance" && d.balance.state === "ok" && !balanceEnough(g, d)) {
+        invalid[g.currency.symbol] = `Your ${g.currency.symbol} balance no longer covers these bills${isAddressEqual(g.currency.address, USDC) ? " plus 0.01 USDC for the fee" : ""}, so paying from balance is off. Choose again.`;
+      }
+    });
+    if (Object.keys(invalid).length) setCleared((prev) => ({ ...prev, ...invalid }));
     setChoices((prev) => {
       const next = { ...prev };
       groups.forEach((g, gi) => {
-        const d = groupData[gi]!;
-        const current = next[g.currency.symbol];
-        const bitcoinOk = d.fresh.state === "ok" && d.fresh.value;
-        if (current === "bitcoin" && !bitcoinOk) delete next[g.currency.symbol];
-        if (current === "balance" && !balanceEnough(g, d)) delete next[g.currency.symbol];
-        if (!next[g.currency.symbol]) {
-          if (bitcoinOk) next[g.currency.symbol] = "bitcoin";
-          else if (balanceEnough(g, d)) next[g.currency.symbol] = "balance";
+        const sym = g.currency.symbol;
+        if (invalid[sym]) {
+          delete next[sym];
+          return;
         }
+        if (next[sym] || cleared[sym] || invalid[sym]) return;
+        const d = groupData[gi]!;
+        if (d.fresh.state === "ok" && d.fresh.value) next[sym] = "bitcoin";
+        else if (balanceEnough(g, d)) next[sym] = "balance";
       });
       return next;
     });
@@ -250,7 +265,8 @@ export function Basket({ items, dropped }: { items: BasketItem[]; dropped: strin
     };
     const btcBefore = await pledgedNow().catch(() => null);
 
-    const out = await simulateAndSend({ account: me, to: built.to, data: built.data, onStep: step });
+    const usdcOut = groups.reduce((s, g) => (choices[g.currency.symbol] === "balance" && isAddressEqual(g.currency.address, USDC) ? s + g.total : s), 0n);
+    const out = await simulateAndSend({ account: me, to: built.to, data: built.data, onStep: step, usdcOut });
     if (!out.ok) {
       return setTx(out.stage === "refused" ? { kind: "refused", error: out.error } : { kind: "failed", message: out.message, href: out.hash && `${EXPLORER}/tx/${out.hash}` });
     }
@@ -345,7 +361,15 @@ export function Basket({ items, dropped }: { items: BasketItem[]; dropped: strin
                     choice={choices[g.currency.symbol]}
                     balanceOk={balanceEnough(g, groupData[gi]!)}
                     disabled={Boolean(busy)}
-                    onChoose={(c) => setChoices((prev) => ({ ...prev, [g.currency.symbol]: c }))}
+                    notice={choices[g.currency.symbol] ? null : (cleared[g.currency.symbol] ?? null)}
+                    onChoose={(c) => {
+                      setChoices((prev) => ({ ...prev, [g.currency.symbol]: c }));
+                      setCleared((prev) => {
+                        const next = { ...prev };
+                        delete next[g.currency.symbol];
+                        return next;
+                      });
+                    }}
                   />
                 ))}
               </div>
@@ -485,10 +509,11 @@ type GroupPanelProps = {
   choice: Choice | undefined;
   balanceOk: boolean;
   disabled: boolean;
+  notice: string | null;
   onChoose: (c: Choice) => void;
 };
 
-function GroupPanel({ group, data, cirBtc, choice, balanceOk, disabled, onChoose }: GroupPanelProps) {
+function GroupPanel({ group, data, cirBtc, choice, balanceOk, disabled, notice, onChoose }: GroupPanelProps) {
   const { currency, total, bills } = group;
   const fresh = data.fresh.state === "ok" ? data.fresh.value : null;
   const pledge: Cell<bigint> = data.needed.state === "ok" ? { state: "ok", value: suggestPledge(data.needed.value) } : data.needed;
@@ -532,6 +557,12 @@ function GroupPanel({ group, data, cirBtc, choice, balanceOk, disabled, onChoose
           {formatUnitsExact(total, currency.decimals)} <span className="text-[0.6em] italic text-gold">{currency.symbol}</span>
         </p>
       </div>
+      {notice && (
+        <p role="status" className="type-body mt-4 flex items-start gap-3 text-danger" data-cleared={currency.symbol}>
+          <span aria-hidden="true" className="diamond mt-[0.55em] !bg-danger" />
+          {notice}
+        </p>
+      )}
       <div role="radiogroup" aria-label={`Pay the ${currency.symbol} bills from`} className="mt-6 grid gap-4 md:grid-cols-2">
         {option(
           "bitcoin",

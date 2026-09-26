@@ -152,7 +152,7 @@ async function connect(page, path) {
 // Reveals only fire in view, so walk the page before a full-page capture; then shoot 1440 dark and 375 light.
 // By default only the screens named with NEWEST_SHOTS are captured, which keeps a run short.
 // --all-shots captures every screen the run passes through, the older ones included.
-const NEWEST_SHOTS = 'f9b-';
+const NEWEST_SHOTS = 'f10-';
 async function shoot(page, name) {
   const all = process.argv.includes('--all-shots');
   const file = name.startsWith(NEWEST_SHOTS) ? name : !all ? null : /^f\d/.test(name) ? name : `e2e-${name}`;
@@ -712,6 +712,58 @@ async function main() {
       }
     }
 
+    // (t) A payer's funding choice is never swapped. "Balance" that stops being covered is cleared, with the reason.
+    {
+      const ids = [newBill('USDC', 300_000, 'E2E-T-1'), newBill('USDC', 200_000, 'E2E-T-2')];
+      const original = await fork.getBalance({ address: PAYER });
+      const { context, page } = await openPage({ account: PAYER });
+      try {
+        await openBasket(page, ids);
+        await page.locator('[data-choice="USDC-balance"]:not([disabled])').click();
+        await page.locator('[data-choice="USDC-balance"][aria-checked="true"]').waitFor({ timeout: 10_000 });
+        // 0.05 USDC: under the 0.50 group total. The basket re-reads every 30 seconds.
+        await rpc('anvil_setBalance', [PAYER, `0x${(5n * 10n ** 16n).toString(16)}`]);
+        const notice = page.locator('[data-cleared="USDC"]');
+        await notice.waitFor({ timeout: 60_000 });
+        const reason = await notice.innerText();
+        const checked = await page.locator('[data-choice^="USDC-"][aria-checked="true"]').count();
+        const payDisabled = await page.locator('[data-action="pay-basket"]').isDisabled();
+        await shoot(page, 'f10-t-cleared');
+        record('(t) a "balance" choice that stops being covered is cleared with the reason, not switched to bitcoin, and Pay is disabled',
+          reason.includes('no longer covers') && checked === 0 && payDisabled,
+          `shown: "${reason}"; choices checked ${checked}; Pay disabled ${payDisabled}`);
+      } finally {
+        await rpc('anvil_setBalance', [PAYER, `0x${original.toString(16)}`]);
+        await context.close();
+      }
+    }
+
+    // (u) A wallet holding exactly a USDC bill's amount, nothing for the fee, is not offered pay from balance.
+    {
+      const U = newBill('USDC', 100_000, 'E2E-U');
+      const original = await fork.getBalance({ address: PAYER });
+      await rpc('anvil_setBalance', [PAYER, `0x${(10n ** 17n).toString(16)}`]);
+      try {
+        const { context, page } = await openPage({ account: PAYER });
+        await connect(page, `/bill/${U}`);
+        await page.getByText('plus 0.01 USDC for the network fee').waitFor({ timeout: 60_000 });
+        const offered = await page.locator('[data-action="pay-balance"]').count();
+        await shoot(page, 'f10-u-no-fee-room');
+        // The same bill in a basket: the balance option is there but cannot be chosen. The wallet is already connected here.
+        await page.goto(`${APP}/pay/basket?bills=${U}`, { waitUntil: 'networkidle', timeout: 120_000 });
+        await page.locator('[data-group="USDC"]').waitFor({ timeout: 60_000 });
+        await page.waitForFunction(() => !document.querySelector('.live-shimmer'), null, { timeout: 60_000 }).catch(() => {});
+        const basketBalance = await page.locator('[data-choice="USDC-balance"]').isDisabled();
+        const sent = await sends(page);
+        record(`(u) holding exactly 0.10 USDC for 0.10 USDC bill #${U}: pay from balance is not offered, on the bill page or in a basket, and nothing is sent`,
+          offered === 0 && basketBalance && sent === 0 && (await statusOf(U)) === 1,
+          `bill page pay-from-balance buttons ${offered}; basket balance option disabled ${basketBalance}; sends ${sent}; a forced attempt is not reachable from the UI`);
+        await context.close();
+      } finally {
+        await rpc('anvil_setBalance', [PAYER, `0x${original.toString(16)}`]);
+      }
+    }
+
     // The mobile menu open, and the wallet page before connecting.
     {
       const { context, page } = await openPage({ account: PAYER, width: 375, theme: 'light' });
@@ -743,7 +795,7 @@ try {
   await main();
   const passed = results.filter((r) => r.ok).length;
   console.log(`\nconsole errors: ${consoleErrors.length}${consoleErrors.length ? `\n  ${consoleErrors.join('\n  ')}` : ''}`);
-  const allOk = passed === results.length && results.length === 19 && consoleErrors.length === 0;
+  const allOk = passed === results.length && results.length === 21 && consoleErrors.length === 0;
   console.log(allOk ? `ALL ${passed} SCENARIOS PASSED` : `${results.length - passed} of ${results.length} scenarios failed`);
   code = allOk ? 0 : 1;
 } catch (error) {

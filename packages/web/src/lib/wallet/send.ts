@@ -58,11 +58,15 @@ type SendArgs = {
   to: Address;
   data: Hex;
   onStep: (step: TxStep) => void;
+  // The 6-decimal USDC this batch moves out of the wallet. On Arc it comes from the same balance that prepays gas.
+  usdcOut?: bigint;
 };
+
+const USDC_TO_NATIVE = 10n ** 12n;
 
 // One path for every money action: check the wallet is on Arc (C4), simulate with eth_call and stop on any revert
 // with plain words, then ask the wallet, then wait for Arc. Nothing reaches the wallet unless the simulation passed.
-export async function simulateAndSend({ account, to, data, onStep }: SendArgs): Promise<TxOutcome> {
+export async function simulateAndSend({ account, to, data, onStep, usdcOut = 0n }: SendArgs): Promise<TxOutcome> {
   const client = publicArc();
   onStep("checking");
 
@@ -86,21 +90,23 @@ export async function simulateAndSend({ account, to, data, onStep }: SendArgs): 
     return { ok: false, stage: "failed", message: "Arc did not answer with the current fee. Nothing was sent. Try again." };
   }
 
-  // Arc charges gas in USDC, from the wallet's native balance. A wallet that cannot cover the worst case is told
-  // here, in plain words, instead of meeting a wallet error or a transaction that never lands.
+  // Arc prepays gas from the wallet's native balance, which is also its USDC. A wallet that cannot cover the worst-case
+  // fee plus the USDC the batch moves is told here, before signing, instead of paying a fee for a batch that reverts.
   const maxFee = gas * fees.maxFeePerGas;
+  const principal = usdcOut > 0n ? usdcOut * USDC_TO_NATIVE : 0n;
+  const need = maxFee + principal;
   let native: bigint;
   try {
     native = await client.getBalance({ address: account });
   } catch {
     return { ok: false, stage: "failed", message: "Arc did not answer with your balance. Nothing was sent. Try again." };
   }
-  if (native < maxFee) {
-    return {
-      ok: false,
-      stage: "failed",
-      message: `Your wallet needs about ${usdc4(maxFee, "up")} USDC for the network fee and holds ${usdc4(native, "down")}. Nothing was sent.`,
-    };
+  if (native < need) {
+    const message =
+      principal === 0n
+        ? `Your wallet needs about ${usdc4(maxFee, "up")} USDC for the network fee and holds ${usdc4(native, "down")}. Nothing was sent.`
+        : `Your wallet needs about ${usdc4(need, "up")} USDC, ${usdc4(principal, "up")} for this payment plus about ${usdc4(maxFee, "up")} for the network fee, and holds ${usdc4(native, "down")}. Nothing was sent.`;
+    return { ok: false, stage: "failed", message };
   }
 
   onStep("signing");

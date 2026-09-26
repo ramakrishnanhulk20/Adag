@@ -23,7 +23,7 @@ export function VoidAction({ bill, address, canSign, blockedReason }: { bill: Bi
 
   const voidIt = async () => {
     const call = buildVoid(bill.id);
-    const out = await simulateAndSend({ account: address, to: call.to, data: call.data, onStep: step });
+    const out = await simulateAndSend({ account: address, to: call.to, data: call.data, onStep: step, usdcOut: 0n });
     if (!out.ok) {
       setTx(out.stage === "refused" ? { kind: "refused", error: out.error } : { kind: "failed", message: out.message, href: out.hash && `${EXPLORER}/tx/${out.hash}` });
       return;

@@ -83,7 +83,7 @@ export function WriteBill() {
     setTouched(true);
     if (!built.ok || !address || !ready) return;
     const call = built.call;
-    const out = await simulateAndSend({ account: address, to: call.to, data: call.data, onStep: step });
+    const out = await simulateAndSend({ account: address, to: call.to, data: call.data, onStep: step, usdcOut: 0n });
     if (!out.ok) {
       setTx(out.stage === "refused" ? { kind: "refused", error: out.error } : { kind: "failed", message: out.message, href: out.hash && `${EXPLORER}/tx/${out.hash}` });
       return;
