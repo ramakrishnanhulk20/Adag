@@ -30,5 +30,5 @@ coverage/
 packages/contracts/lib/
 packages/contracts/deployments/*.dry-run.json
 
-# Raw images from Ram before they are sized for the app
+# Raw source images before they are sized for the app
 design/incoming/

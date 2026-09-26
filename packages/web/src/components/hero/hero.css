@@ -128,7 +128,7 @@
   display: none;
 }
 /*
-  Light, desktop (head chef change B). The daylight photo is already pale, so the left scrim stops where the
+  Light, desktop. The daylight photo is already pale, so the left scrim stops where the
   words stop, the bottom scrim only backs the numbers, and there is no wash or desaturation: the coin stays gold.
 */
 [data-theme="light"] .hero-scrim-left {
@@ -157,7 +157,7 @@
 }
 
 /*
-  Phones (head chef change A). Both mobile photos put the scale in the lower half, so the words sit on a
+  Phones. Both mobile photos put the scale in the lower half, so the words sit on a
   top-down scrim that is gone by about 55% of the height, and only a short foot hands over to the numbers.
 */
 .hero-scrim-down {

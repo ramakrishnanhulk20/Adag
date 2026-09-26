@@ -73,7 +73,6 @@ flowchart LR
     Wallet["Wallet (plain EOA)"]
   end
   RPC["Arc public RPC"]
-  API["Morpho GraphQL API"]
   subgraph Arc["Arc mainnet, chain 5042"]
     M3F["Multicall3From"]
     Memo["Memo"]
@@ -90,7 +89,6 @@ flowchart LR
     CIR["cirBTC"]
   end
   App -- "views and logs" --> RPC
-  App -. "display only" .-> API
   App -- "one batch to sign" --> Wallet
   Wallet -- "one transaction" --> M3F
   Wallet -- "createBill, voidBill" --> Adag
@@ -168,10 +166,10 @@ sequenceDiagram
 
 ```mermaid
 flowchart TD
-  Web["packages/web (to build)"] --> ABI["deployments/AdagBills.abi.json"]
+  Web["packages/web"] --> ABI["deployments/AdagBills.abi.json"]
   Web --> Addr["deployments/arc-mainnet.json"]
   Web --> Viem["viem"]
-  Prove["prove-it/lib.mjs"] --> ABI2["out/AdagBills.json"]
+  Prove["prove-it/lib.mjs"] --> ABI
   Prove --> Viem
   Adag["AdagBills.sol"] --> RG["OZ ReentrancyGuardTransient"]
   Adag --> SE["OZ SafeERC20"]

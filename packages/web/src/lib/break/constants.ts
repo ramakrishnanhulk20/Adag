@@ -29,7 +29,7 @@ export const REPO_URL: string | null = null;
 export const ATTACK_SCRIPT_PATH = "packages/contracts/prove-it/attack.mjs";
 export const THREAT_MODEL_PATH = "docs/security/threat-model.md";
 
-// Runtime code of the R&D MockOracle (reference/rnd/option-a/MockOracle.json), used by A9 alone. Its three
+// Runtime code of packages/contracts/prove-it/mock/MockOracle.sol (its compiled MockOracle.json), used by A9 alone. Its three
 // sentinels are patched with a fixed price and the real oracle's feeds before it is placed in the simulation.
 export const MOCK_ORACLE_CODE =
   "0x6080604052348015600e575f5ffd5b5060043610603a575f3560e01c806356095e1114603e578063a035b1fe146071578063f50a471814609e575b5f5ffd5b73c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c05b6040516001600160a01b0390911681526020015b60405180910390f35b6040517f5eed5eed5eed5eed5eed5eed5eed5eed5eed5eed5eed5eed5eed5eed5eed5eed81526020016068565b73b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0605456fea26469706673582212201fec25d6656a12d436ad0fdc9b8c2cd0337a54d28d81ce2932aef82e564bb67164736f6c634300081e0033";

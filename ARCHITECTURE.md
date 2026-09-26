@@ -17,7 +17,6 @@ flowchart LR
     Wallet["Wallet (plain EOA)"]
   end
   RPC["Arc public RPC"]
-  API["Morpho GraphQL API"]
   subgraph Arc["Arc mainnet, chain 5042"]
     M3F["Multicall3From"]
     Memo["Memo"]
@@ -34,7 +33,6 @@ flowchart LR
     CIR["cirBTC"]
   end
   App -- "views and logs" --> RPC
-  App -. "display only" .-> API
   App -- "one batch to sign" --> Wallet
   Wallet -- "one transaction" --> M3F
   Wallet -- "createBill, voidBill" --> Adag
@@ -112,10 +110,10 @@ sequenceDiagram
 
 ```mermaid
 flowchart TD
-  Web["packages/web (to build)"] --> ABI["deployments/AdagBills.abi.json"]
+  Web["packages/web"] --> ABI["deployments/AdagBills.abi.json"]
   Web --> Addr["deployments/arc-mainnet.json"]
   Web --> Viem["viem"]
-  Prove["prove-it/lib.mjs"] --> ABI2["out/AdagBills.json"]
+  Prove["prove-it/lib.mjs"] --> ABI
   Prove --> Viem
   Adag["AdagBills.sol"] --> RG["OZ ReentrancyGuardTransient"]
   Adag --> SE["OZ SafeERC20"]
@@ -162,7 +160,7 @@ A second, small USDC/cirBTC market exists (`0xabd1...b566`) with a different ora
 
 Deployment: transaction [0x758e...6e50](https://explorer.arc.io/tx/0x758e4463ec738c675e4d9615aff67d9864359c7a30b3a77bd7b2689d30a66e50), block 22,727,688, solc 0.8.30, optimizer 200 runs, EVM prague. Source verified with an exact match on Sourcify and on explorer.arc.io. The first live payment (bill 1, paid from a cirBTC-backed loan) is recorded in `packages/contracts/deployments/prove-it-2026-09-25.md`.
 
-RPC: `https://rpc.mainnet.arc.io`. Morpho GraphQL (display only): `https://api.morpho.org/graphql`.
+RPC: `https://rpc.mainnet.arc.io`. The app reads everything it shows from Arc over this RPC, including the borrow rate.
 
 ## 4. The interface
 
@@ -270,7 +268,9 @@ Liquidation distance at 86%, per market: Morpho can liquidate when debt passes `
 | `bill(id)` for `id` 1 to `billCount`, summing `amount` where status is Paid, per currency | Adag | Total paid, from Adag's own storage (C16). Read in bounded parallel chunks. Past a few hundred bills, switch to summing `BillPaid` logs from block 22,727,688, in pages of at most 10,000 blocks with a page cap, cached server-side. |
 | `market(MARKET_USDC)` and `market(MARKET_EURC)` | Morpho | Liquidity is `totalSupplyAssets - totalBorrowAssets`. |
 | `priceStatus(MARKET_USDC)` | Adag | "Bitcoin price live" or "paused". |
-| Morpho GraphQL `markets` query | Morpho API | Rates for display only, never in a transaction (C18). |
+| `borrowRateView(idToMarketParams(MARKET_USDC), market(MARKET_USDC))` | Interest rate model | The live borrow rate, per second, shown as a yearly figure. Display only, never in a transaction (C18). The market params are hash-checked first (section 7). |
+| `price()` on the USDC market's oracle | Oracle | Dollars per cirBTC (`price / 1e34`), for display only. |
+| `MAX_LTV_WAD()`, and `idToMarketParams(MARKET_USDC).lltv` | Adag, Morpho | The 40% line and Morpho's 86% line, read rather than assumed. |
 
 ## 6. Writes the app makes
 
@@ -308,7 +308,7 @@ The cap: the costliest single payment measured is a bitcoin-backed one at 396,04
 3. `Morpho.withdrawCollateral(params, K, payer, payer)`
 4. `C.approve(Morpho, 0)`
 
-Repaying by the live share count is what leaves zero debt; repaying by assets leaves dust that blocks the withdrawal (RD-BRIEF 1e). The 0.1% covers interest accrued since the read. The payer needs the loan token in their wallet, because the borrowed money went to the supplier. Tested after 1 hour and after 30 days.
+Repaying by the live share count is what leaves zero debt; repaying by assets leaves dust that blocks the withdrawal. The 0.1% covers interest accrued since the read. The payer needs the loan token in their wallet, because the borrowed money went to the supplier. Tested after 1 hour and after 30 days.
 
 **Add collateral** (amount `X` in satoshis):
 1. `cirBTC.approve(Morpho, X)`
@@ -328,12 +328,12 @@ From `docs/security/threat-model.md` section C.
 - **C16, payment status.** Paid or unpaid comes only from `bill(id).status` or a `BillPaid` event filtered by Adag's address and event signature, tied to its transaction hash and log index. A Memo event proves nothing: anyone can emit one with any id.
 - **C18, upstream data.** RPC, GraphQL and indexer values are for display and for proposing a pledge. None is ever placed into a transaction as an address, selector, chain id or receiver.
 - **C19, fetch limits.** Every fetch has an explicit timeout and a response size cap. Log queries stay within the RPC's 10,000-block window, with a bounded number of pages. A failed or malformed answer shows as "unavailable", never as zero, unpaid or paid.
-- **Ordinary wallets only.** Arc's CallFrom only lets a batch act as the wallet that signed the transaction, so Memo and Multicall3From work only for plain EOAs such as MetaMask or Rabby. Smart-account wallets (Safe, ERC-4337 accounts, Circle's smart wallets) cannot pay through Adag, and sponsored or relayed transactions fail too. Check `getCode(wallet)`: if there is code, say plainly that this wallet type cannot pay here. EIP-7702 delegated wallets have code but may work when they send their own transaction; this is untested (RD-BRIEF risk 11), so say so rather than promise it.
+- **Ordinary wallets only.** Arc's CallFrom only lets a batch act as the wallet that signed the transaction, so Memo and Multicall3From work only for plain EOAs such as MetaMask or Rabby. Smart-account wallets (Safe, ERC-4337 accounts, Circle's smart wallets) cannot pay through Adag, and sponsored or relayed transactions fail too. Check `getCode(wallet)`: if there is code, say plainly that this wallet type cannot pay here. EIP-7702-delegated wallets have code, but they can pay when they send their own transaction: tested on a mainnet fork (`packages/web/scripts/fork-7702.sh`).
 - **C24, fresh prices.** Offer the bitcoin path only when `priceStatus(m).fresh` is true.
 
 ## 8. Morpho's UI requirements
 
-From Morpho's borrow guide, section "UX Requirements" (https://docs.morpho.org/developers/borrow/get-started#ux-requirements, saved in `reference/morpho/docs/developers_borrow_get-started.md`; RD-BRIEF risk 14):
+From Morpho's borrow guide, section "UX Requirements" (https://docs.morpho.org/developers/borrow/get-started#ux-requirements):
 
 - **Attribution.** A "Powered by Morpho" mention in the interface, for example in the footer or near the borrow flow. Official logos: https://brand.morpho.org/.
 - **Disclaimer.** Shown at least the first time a user interacts with Morpho through Adag, ideally with a checkbox before they proceed. The exact text, with the app name filled in:
@@ -371,6 +371,6 @@ From the threat model's named non-goals:
 - **It does not stop a payer going above 40% by using Morpho directly.** The line applies to payments made through Adag. A batch that borrows after Adag's step is the named residual, and that payer's next Adag payment is checked.
 - **It keeps nothing private.** Every bill, amount, reference and payer is public.
 - **It offers no front-running or MEV protection,** and needs none: its flows have no slippage to extract.
-- **It does not keep the public RPC, Morpho's API or the hosting available.**
+- **It does not keep the public RPC or the hosting available.**
 - **It does not control how third-party explorers render Memo data.**
 - **It does not enforce due dates.** The due date is information only.

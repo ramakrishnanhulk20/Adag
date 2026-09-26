@@ -126,7 +126,7 @@ Indirect:
 
 ## C) Defensive-programming standards (definition of done)
 
-Each invariant is an outcome, not a step. A work order cites it by number. The builder names the file and function that upholds it, and a test shows it holding under attack. Where the design had an open choice, a "Choice" line says which option makes the invariant easier or harder.
+Each invariant is an outcome, not a step. It is cited by number beside the file and function that upholds it, and a test shows it holding under attack. Where the design had an open choice, a "Choice" line says which option makes the invariant easier or harder.
 
 ### Money movement
 
@@ -186,13 +186,13 @@ Choice: with on-chain bills, a state flag. With signed links, an on-chain set of
 Choice: with no admin, the 40% and the market ids are constants, which is easiest. With an owner, they are storage, and every change must emit an event and take effect only after a delay.
 Decided at the gate (25 September): **the new-debt rule.** On every payment, for both Adag markets, Adag compares the payer's live position with the last one it recorded for that payer and market.
 
-Amended at the backend review (25 September). The first version compared borrow shares alone. fable-reviewer showed it could be skipped: pay once, close the loan outside Adag, then re-open it with exactly the recorded share count against far less collateral. The rule now records both borrow shares and pledged collateral:
+Amended at the pre-deploy code review (25 September). The first version compared borrow shares alone. A separate review showed it could be skipped: pay once, close the loan outside Adag, then re-open it with exactly the recorded share count against far less collateral. The rule now records both borrow shares and pledged collateral:
 - The check runs whenever debt is above zero and the position is not at least as safe as the recorded one, meaning shares went up or collateral went down.
 - A position with no more shares and no less collateral than one Adag already accepted skips the check. It can only be worse than that position through price or interest drift, which is exempt by design.
 
 So the check runs whenever the loan has become riskier by the payer's own action, and no argument can skip it.
 
-Why this holds: Adag only overwrites a recorded position without a check when the new one has no debt, or is dominated by the old one (no more shares, no less collateral). Every unchecked position with debt is therefore dominated by the last position a check accepted. Invariant I7 asserts this over random action sequences that include the bypass attempt; with the old shares-only rule restored, I7 fails within 5 calls. One cost is named: a payer whom Morpho partly liquidated has less collateral than recorded, so their next Adag payment is checked, and it is refused while they sit above 40%. That fails closed. A cash payment with no new debt is never blocked by a price drop. Proven on mainnet state in `reference/rnd/option-a/RESULTS-2.md`: a new-debt payment at 40.5% is refused; after a simulated 25% price drop, a cash payment at 46.7% goes through while a small new borrow is refused; borrowing to 60% in the same batch is refused, including when the bill is in the other currency.
+Why this holds: Adag only overwrites a recorded position without a check when the new one has no debt, or is dominated by the old one (no more shares, no less collateral). Every unchecked position with debt is therefore dominated by the last position a check accepted. Invariant I7 asserts this over random action sequences that include the bypass attempt; with the old shares-only rule restored, I7 fails within 5 calls. One cost is named: a payer whom Morpho partly liquidated has less collateral than recorded, so their next Adag payment is checked, and it is refused while they sit above 40%. That fails closed. A cash payment with no new debt is never blocked by a price drop. Proven against the deployed contract on mainnet state by the attack suite (`packages/contracts/deployments/attacks-2026-09-25.md`): after a simulated 25% price drop, a cash payment with the loan at 50.78% goes through while a small new borrow is refused (A9a, A9b), and borrowing to about 50% in the same batch as a payment is refused (A3).
 Residual, named: the check runs at the moment Adag's step executes. A payer who hand-builds a batch can still borrow more or withdraw collateral after that step, putting only their own position at risk (see the non-goal "A payer who goes above 40% by using Morpho directly"). The residual lasts only until that payer's next Adag payment. The extra debt was never recorded, so it counts as new debt then, and the payment is refused while it sits above 40%. `test_residual_borrowAfterPayIsNotCaught` asserts the first half (the batch succeeds and nothing is recorded). `test_unseenDebt_above40IsRefused` shows the second (unrecorded debt above 40% is refused on the next payment). A payer whose debt Adag has never seen is checked on their first payment, so existing Morpho borrowers above 40% cannot pay through Adag until they are below 40%.
 
 **C11.** The payment step reverts if any read the check needs reverts, if collateral value computes to zero while debt is above zero, or if a fixed market id does not resolve to the expected loan and collateral tokens. Unreadable means over the limit.
@@ -201,7 +201,7 @@ Residual, named: the check runs at the moment Adag's step executes. A payer who 
 
 **C13.** The pledge size the app proposes is a suggestion with a stated margin; the contract's check in C10 is the guard. If the price moves between page load and the block, the transaction reverts. That is never a loss and never a silent over-borrow.
 
-**C24.** New debt is accepted only if every nonzero feed that the market oracle's `price()` reads has a positive answer and an update time within its window: 26 hours for BTC/USD, 96 hours for EUR/USD. A fork test pins the oracle layout this assumes: no vaults, no second base feed, no second quote feed, and a quote feed only on the EURC market. Both oracles are immutable, and their addresses are part of each fixed market id, so the layout cannot change under a deployed Adag. (Added at the backend review; freshness had lived only in DECISIONS.md.)
+**C24.** New debt is accepted only if every nonzero feed that the market oracle's `price()` reads has a positive answer and an update time within its window: 26 hours for BTC/USD, 96 hours for EUR/USD. A fork test pins the oracle layout this assumes: no vaults, no second base feed, no second quote feed, and a quote feed only on the EURC market. Both oracles are immutable, and their addresses are part of each fixed market id, so the layout cannot change under a deployed Adag. (Added at the backend review; until then freshness was a design note, not a numbered invariant.)
 
 ### Rendering and outputs
 
@@ -279,16 +279,16 @@ Choice: with no admin this holds by having nothing to set. An owner makes C10, C
    - **A payer who goes above 40% by using Morpho directly.** Adag's line applies to payments made through Adag.
    - **Privacy.** Every bill, amount, reference and payer is public on chain and in every link.
    - **Front-running or MEV.** Adag's flows have no slippage to extract. The swap flow inherits Uniswap's or App Kit's own behaviour.
-   - **Availability** of the public RPC, Morpho's API or Vercel.
+   - **Availability** of the public RPC or Vercel.
    - **How third-party explorers render Memo data.**
    - **Enforcing due dates.** The due date is information unless a later decision makes it a rule.
 
 ---
 
-## Notes on the review's open questions (head chef, 25 September)
+## Notes on the review's open questions (25 September)
 
 The review listed four facts to confirm. Status:
 1. **USDC decimals.** Confirmed: native USDC uses 18 decimals and the ERC-20 interface uses 6, over one balance. Arc's docs say so, and our deploy wallet reads 5 on both views (block 22,705,889). Adag only ever uses the 6-decimal token interface.
-2. **Morpho borrowing through Arc's batching.** Confirmed in a mainnet simulation. Borrowing with the payer as onBehalf works through Multicall3From and Memo without a separate Morpho authorization, because the sender Morpho sees is the payer (`reference/probes/PROBES-2026-09-25.md`).
+2. **Morpho borrowing through Arc's batching.** Confirmed in a mainnet simulation. Borrowing with the payer as onBehalf works through Multicall3From and Memo without a separate Morpho authorization, because the sender Morpho sees is the payer.
 3. **Transient storage.** Arc runs the Osaka baseline, which includes transient storage. Only relevant if the loan goes straight to the payee. To be confirmed by a fork test if that option is picked.
-4. **EIP-7702-delegated wallets and Arc's batching.** Open. The R&D brief is checking the precompile's rules. It only matters for the optional fee sponsor.
+4. **EIP-7702-delegated wallets and Arc's batching.** Tested on a mainnet fork: a wallet upgraded under EIP-7702 can pay through Multicall3From and Memo as long as it sends its own transaction. Sponsored or relayed transactions still cannot.
