@@ -178,7 +178,7 @@ export function ProtectPanel({ address, currency, loan, ltvWad, balance, initial
           The most this can ever take is your approval{approval !== null ? `: ${formatUnitsExact(approval, currency.decimals)} ${sym}` : ""}. Each time it acts, it repays only what brings the
           loan back to your target, and the approval shrinks by that much.
         </p>
-        <p className="type-body text-muted">Anyone can trigger it once the loan passes the trigger, and it can only ever repay your own loan, from this approval.</p>
+        <p className="type-body text-muted">It can only ever repay your own loan, from this approval. Once the loan passes your trigger, anyone may set it off, Adag included.</p>
         {isUsdc && (
           <p className="type-body text-muted" data-guard-gas-warning>
             On Arc, USDC also pays the network fee. A USDC rule uses the same balance, so it can leave this wallet without enough USDC to send a transaction.

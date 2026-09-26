@@ -372,6 +372,56 @@ async function main() {
   record('the linked confirmation names the wallet in full, checksummed', Boolean(linkedMessage) && linkedMessage.text.includes(`wallet ${borrower.address}.`), linkedMessage?.text.split(' Send')[0] ?? 'no message');
   await shoot(page, 'a3-alerts');
 
+  // The page's own count of wallet transactions resets on a reload, so each reload banks it first.
+  const sentOnPage = () => page.evaluate(() => window.__walletLog.filter((m) => m === 'eth_sendTransaction').length);
+  let sentEarlier = 0;
+
+  // F8: the "Loan guard" page lists this wallet's guard with the approval beside it, in the loan card's words.
+  const listItem = page.locator('[data-guard-list-item="USDC"]');
+  await listItem.waitFor({ timeout: 60_000 });
+  const listedAllowance = await listItem.locator('[data-guard-allowance]').getAttribute('data-guard-allowance');
+  const listedText = await listItem.innerText();
+  record(
+    'UI: /app/protect lists the borrower\'s USDC guard with its rule and its standing allowance (C60)',
+    listedAllowance === '1000000000' && /Protected: repays at 55\.00% down to 45\.00%/.test(listedText) && /Change it on your wallet page/.test(listedText),
+    listedText.replace(/\n+/g, ' | ').slice(0, 220),
+  );
+  await shoot(page, 'g2-guard-list', '[data-guard-list]');
+
+  // F14: saved levels come back after a reload, and stopping alerts stays on screen.
+  await page.locator('[data-field="alert-level-1"]').fill('50');
+  await page.locator('[data-field="alert-level-2"]').fill('65');
+  await page.locator('[data-field="alert-level-3"]').fill('');
+  await page.locator('[data-action="alerts-levels"]').click();
+  await page.locator('[data-alerts-note], [data-alerts-error]').first().waitFor({ timeout: 60_000 });
+  const levelsSaved = (await page.locator('[data-alerts-note]').count()) === 1;
+  sentEarlier += await sentOnPage();
+  await page.reload({ waitUntil: 'networkidle' });
+  const connectLevels = page.getByRole('button', { name: 'Connect wallet' });
+  if (await connectLevels.count()) await connectLevels.first().click().catch(() => {});
+  const savedLine = page.locator('[data-alerts-saved]');
+  await savedLine.waitFor({ timeout: 60_000 });
+  const savedText = (await savedLine.innerText()).trim();
+  const fields = [await page.locator('[data-field="alert-level-1"]').inputValue(), await page.locator('[data-field="alert-level-2"]').inputValue(), await page.locator('[data-field="alert-level-3"]').inputValue()];
+  const stopVisible = await page.locator('[data-action="alerts-unlink"]').isVisible();
+  record(
+    'UI: saved alert levels show after a reload, and "Stop alerts for this wallet" stays visible',
+    levelsSaved && /^Saved \d{1,2} [A-Za-z]{3,4}: 50%, 65%$/.test(savedText) && fields.join(',') === '50,65,' && stopVisible,
+    `"${savedText}", fields ${fields.join('/')}, stop ${stopVisible ? 'visible' : 'hidden'}`,
+  );
+  await shoot(page, 'g2-levels', '[data-alerts-levels]');
+
+  // F8: the list's link lands on that loan's guard section on the wallet page.
+  await page.locator('[data-guard-list-link="USDC"]').click({ timeout: 60_000 });
+  await page.waitForURL(/\/app#guard-usdc$/, { timeout: 30_000 });
+  await page.locator('#guard-usdc').waitFor({ timeout: 90_000 });
+  await page.waitForTimeout(1500);
+  const landed = await page.evaluate(() => {
+    const r = document.getElementById('guard-usdc')?.getBoundingClientRect();
+    return r ? { top: Math.round(r.top), height: window.innerHeight, scrolled: Math.round(window.scrollY) } : null;
+  });
+  record('UI: "Change it on your wallet page" lands on the USDC loan card\'s guard section', !!landed && landed.top >= 0 && landed.top < landed.height * 0.6 && landed.scrolled > 0, JSON.stringify(landed));
+
   // A second wallet gets the same chat to press Start on its code and signs a valid link. The chat already gets
   // alerts for the borrower, so the link is refused, the first link holds, and the chat is told who tried.
   const intruder = privateKeyToAccount(generatePrivateKey());
@@ -419,12 +469,13 @@ async function main() {
   record('after the price drop the guard would act', wouldAct && ltvDropped > TRIGGER, `loan-to-value ${Number(ltvDropped) / 1e16}%`);
 
   // UI: the wallet page shows what the guard would repay right now.
-  await page.getByRole('link', { name: 'Your loans' }).first().click();
+  await page.getByRole('link', { name: 'Your wallet' }).first().click();
   const wouldRepay = page.locator('[data-guard="USDC"] [data-guard-would-repay]:not([data-guard-would-repay="0"])');
   await wouldRepay.waitFor({ timeout: 60_000 });
   const shownX = BigInt((await wouldRepay.getAttribute('data-guard-would-repay')) ?? '0');
   const shownText = await wouldRepay.innerText();
-  record('UI: after the drop the page says what it would repay right now', shownX > 0n && /Right now it would repay/.test(shownText), shownText);
+  // F9: the gauge is the card's one loan-to-value, so the guard line states none of its own.
+  record('UI: after the drop the page says what it would repay right now, with no second loan-to-value', shownX > 0n && /Right now it would repay about/.test(shownText) && !/%/.test(shownText), shownText);
   await shoot(page, 'a3-would-repay', '[data-loan="USDC"]');
 
   const keeperNonce = () => fork.getTransactionCount({ address: keeper.address });
@@ -478,8 +529,42 @@ async function main() {
   const leaked = JSON.stringify(bodies) + JSON.stringify(third) + JSON.stringify(hookBody);
   record('no run answer names a linked wallet or chat', !leaked.includes(borrower.address) && !leaked.includes(borrower.address.toLowerCase()) && !leaked.includes(String(CHAT_ID)));
 
+  // F15: the price falls again, past the trigger, and the borrower repays now from the loan card instead of waiting.
+  const [, , ltvRested] = await fork.readContract({ address: guard, abi: guardAbi, functionName: 'quote', args: [borrower.address, MARKET_USDC] });
+  const droppedPrice = (price * 50n) / 62n;
+  await rpc('anvil_setCode', [ORACLE_USDC, mockOracleCode((droppedPrice * ltvRested) / parseEther('0.60'), base, quoteFeed)]);
+  const [actsAgain, amountAgain, ltvAgain] = await fork.readContract({ address: guard, abi: guardAbi, functionName: 'quote', args: [borrower.address, MARKET_USDC] });
+  const repayNow = page.locator('[data-guard="USDC"] [data-action="protect-now"]');
+  await repayNow.waitFor({ timeout: 90_000 });
+  // The card reads every 15 s, so it may still show the quote from before the keeper ran. Wait for this price's.
+  await page.waitForFunction(
+    (want) => {
+      const el = document.querySelector('[data-guard="USDC"] [data-guard-quote]');
+      const shown = BigInt(el?.getAttribute('data-guard-would-repay') ?? '0');
+      return shown > 0n && shown <= BigInt(want) + 5n && shown + 5n >= BigInt(want);
+    },
+    amountAgain.toString(),
+    { timeout: 60_000, polling: 500 },
+  );
+  const nowQuote = page.locator('[data-guard="USDC"] [data-guard-quote]');
+  const shownNow = BigInt((await nowQuote.getAttribute('data-guard-would-repay')) ?? '0');
+  const nowQuoteText = await nowQuote.innerText();
+  const repayFrom = await fork.getBlockNumber();
+  const keeperBefore = await keeperNonce();
+  await repayNow.click();
+  await page.locator('[data-guard="USDC"] [data-guard-result], [data-guard="USDC"] [data-tx-state="failed"], [data-guard="USDC"] [data-tx-state="refused"]').first().waitFor({ timeout: 90_000 });
+  const repayText = await page.locator('[data-guard="USDC"]').innerText();
+  const repaidNow = (await guardEvents(repayFrom)).find((e) => e.eventName === 'Protected');
+  const nowDrift = repaidNow ? repaidNow.args.repaid - shownNow : null;
+  record(
+    'UI: "Repay it now" repays the quoted amount, plus only the interest of those seconds, and Protected names this wallet',
+    actsAgain && /You can also repay now\./.test(nowQuoteText) && !!repaidNow && repaidNow.args.borrower === borrower.address && nowDrift !== null && nowDrift >= 0n && nowDrift <= 5n && (await keeperNonce()) === keeperBefore && /The guard repaid/.test(repayText),
+    `loan ${Number(ltvAgain) / 1e16}%, page ${shownNow}, repaid ${repaidNow?.args.repaid} (difference ${nowDrift}), borrower ${repaidNow?.args.borrower === borrower.address ? 'this wallet' : repaidNow?.args.borrower}, keeper sent ${(await keeperNonce()) - keeperBefore}`,
+  );
+  await shoot(page, 'g2-repay-now', '[data-loan="USDC"]');
+
   // UI: stop protecting is one signature that clears the rule and sets the approval to 0 (C60).
-  const sentBeforeReload = await page.evaluate(() => window.__walletLog.filter((m) => m === 'eth_sendTransaction').length);
+  const sentBeforeReload = sentEarlier + (await sentOnPage());
   await page.reload({ waitUntil: 'networkidle' });
   const connectAgain = page.getByRole('button', { name: 'Connect wallet' });
   if (await connectAgain.count()) await connectAgain.first().click().catch(() => {});
@@ -496,7 +581,7 @@ async function main() {
     `rule trigger ${stoppedRule.triggerWad}, allowance ${stoppedAllowance}`,
   );
   const signedTxs = sentBeforeReload + (await page.evaluate(() => window.__walletLog.filter((m) => m === 'eth_sendTransaction').length));
-  record('UI: saving and stopping took one wallet transaction each', signedTxs === 2, `wallet sent ${signedTxs}`);
+  record('UI: saving, repaying now and stopping took one wallet transaction each', signedTxs === 3, `wallet sent ${signedTxs}`);
   record('no console errors on the guard and alerts pages', consoleErrors.length === 0, consoleErrors.slice(0, 5).join(' | '));
 }
 

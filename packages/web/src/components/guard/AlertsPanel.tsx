@@ -5,7 +5,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { parseUnits, type Address, type Hex } from "viem";
 import { signMessage } from "wagmi/actions";
 import { Button } from "@/components/Button";
-import { codeStatus, issueCode, linkChat, linkedHere, rememberLinked, setLevels, unlink } from "@/lib/alerts/client";
+import { codeStatus, issueCode, linkChat, linkedHere, rememberLevels, rememberLinked, savedLevels, setLevels, unlink, type SavedLevels } from "@/lib/alerts/client";
 import { checkLevels } from "@/lib/alerts/message";
 import { wagmiConfig } from "@/lib/wallet/config";
 import { siteUrl } from "@/lib/wallet/site";
@@ -30,10 +30,16 @@ export function AlertsPanel({ address, canSign, blockedReason }: { address: Addr
   const [levels, setLevelsText] = useState(["60", "75", ""]);
   const [busy, setBusy] = useState<null | "levels" | "unlink">(null);
   const [linkedAt, setLinkedAt] = useState<number | null>(null);
+  const [saved, setSaved] = useState<SavedLevels | null>(null);
   const site = siteUrl();
   const sign = (message: string): Promise<Hex> => signMessage(wagmiConfig, { account: address, message });
 
-  useEffect(() => setLinkedAt(linkedHere(address)), [address]);
+  useEffect(() => {
+    setLinkedAt(linkedHere(address));
+    const remembered = savedLevels(address);
+    setSaved(remembered);
+    setLevelsText(remembered ? [0, 1, 2].map((i) => (remembered.levelsWad[i] !== undefined ? levelText(remembered.levelsWad[i]!) : "")) : ["60", "75", ""]);
+  }, [address]);
 
   useEffect(() => {
     if (stage.kind !== "waiting") return;
@@ -104,6 +110,8 @@ export function AlertsPanel({ address, canSign, blockedReason }: { address: Addr
     const answer = await setLevels(site, address, parsedLevels.wads, sign);
     setBusy(null);
     if (!answer.ok) return setError(answer.message);
+    rememberLevels(address, parsedLevels.wads);
+    setSaved(savedLevels(address));
     setNote(`Alert levels saved: ${parsedLevels.wads.map((w) => `${levelText(w)}%`).join(", ")}.`);
   };
 
@@ -184,7 +192,12 @@ export function AlertsPanel({ address, canSign, blockedReason }: { address: Addr
 
       <article className="app-panel p-6 md:p-8 lg:col-span-5" data-alerts-levels>
         <p className="type-label text-gold">Alert levels</p>
-        <p className="type-body mt-4 text-muted">A message when a loan rises past each level, once, until it falls back below. Until you set your own, the levels are 60% and 75%.</p>
+        <p className="type-body mt-4 text-muted">A message when a loan&apos;s loan-to-value rises past each level, once, until it falls back below. Until you set your own, the levels are 60% and 75%.</p>
+        {saved && (
+          <p className="type-body mt-3 text-text" data-alerts-saved>
+            Saved {new Date(saved.at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}: {saved.levelsWad.map((w) => `${levelText(w)}%`).join(", ")}
+          </p>
+        )}
         <div className="mt-5 flex gap-3">
           {levels.map((v, i) => (
             <label key={i} className="block flex-1">

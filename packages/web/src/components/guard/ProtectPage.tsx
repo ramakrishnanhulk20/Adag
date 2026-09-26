@@ -6,6 +6,7 @@ import { ConnectButton } from "@/components/app/ConnectButton";
 import { SMART_ACCOUNT_SENTENCE } from "@/components/app/WalletNotice";
 import { readyToSign, useWallet, type WalletState } from "@/lib/wallet/useWallet";
 import { AlertsPanel } from "./AlertsPanel";
+import { GuardList } from "./GuardList";
 
 function blockedReason(wallet: WalletState): string | null {
   if (readyToSign(wallet)) return null;
@@ -31,13 +32,16 @@ export function ProtectPage() {
       </p>
       <div className="app-rise mt-8" style={{ "--d": 3 } as React.CSSProperties}>
         <Button href="/app" variant="secondary" size="sm">
-          Your loans
+          Your wallet
         </Button>
       </div>
 
       <div className="app-rise mt-14" style={{ "--d": 4 } as React.CSSProperties}>
         {wallet.status === "connected" ? (
-          <AlertsPanel address={wallet.address} canSign={readyToSign(wallet)} blockedReason={blockedReason(wallet)} />
+          <div className="flex flex-col gap-8">
+            <GuardList address={wallet.address} />
+            <AlertsPanel address={wallet.address} canSign={readyToSign(wallet)} blockedReason={blockedReason(wallet)} />
+          </div>
         ) : (
           <div className="app-panel p-6 md:p-8">
             <p className="type-body text-text">Connect the wallet whose loans you want alerts for.</p>

@@ -1,7 +1,7 @@
 // Browser helpers for the alerts routes. Every write carries a message the wallet signed, built with the same
 // buildMessage the server uses to check it (C46, C47). Telegram itself is only ever reached by the server.
 import type { Address, Hex } from "viem";
-import { buildMessage, type SignedAction } from "./message";
+import { buildMessage, checkLevels, type SignedAction } from "./message";
 
 export type Signer = (message: string) => Promise<Hex>;
 type Answer<T> = { ok: true; value: T } | { ok: false; message: string };
@@ -69,6 +69,31 @@ export function linkedHere(wallet: Address): number | null {
   try {
     const v = window.localStorage.getItem(LINKED_KEY + wallet.toLowerCase());
     return v ? Number(v) : null;
+  } catch {
+    return null;
+  }
+}
+
+// The levels this browser last saved for a wallet, for the same reason: the server is never asked (C49). Unlinking
+// leaves the levels on the server, so it leaves them here too. What comes back is checked like a fresh entry.
+const LEVELS_KEY = "adag-alerts-levels:";
+export type SavedLevels = { at: number; levelsWad: bigint[] };
+
+export function rememberLevels(wallet: Address, levelsWad: bigint[]) {
+  try {
+    window.localStorage.setItem(LEVELS_KEY + wallet.toLowerCase(), JSON.stringify({ at: Date.now(), levels: levelsWad.map(String) }));
+  } catch {
+    // Private mode: the fields fall back to the defaults, which only costs a hint.
+  }
+}
+
+export function savedLevels(wallet: Address): SavedLevels | null {
+  try {
+    const raw = window.localStorage.getItem(LEVELS_KEY + wallet.toLowerCase());
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { at?: unknown; levels?: unknown };
+    if (typeof parsed.at !== "number" || !Number.isFinite(parsed.at)) return null;
+    return { at: parsed.at, levelsWad: checkLevels(parsed.levels) };
   } catch {
     return null;
   }

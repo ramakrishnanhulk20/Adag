@@ -122,18 +122,31 @@ export function assertSafeAmounts(calls: readonly { to: Address; data: Hex }[], 
     const token = bill.currency.toLowerCase();
     owed.set(token, (owed.get(token) ?? 0n) + bill.amount);
   }
+  // The cirBTC approval to Morpho is exact too: each one is spent in full by the very next pledge, before any other
+  // cirBTC approval, and none is left standing at the end of the batch.
+  let pledgeApproval: bigint | null = null;
   for (const c of calls) {
     if (c.data.slice(0, 10).toLowerCase() === APPROVE) {
       const { args } = decodeFunctionData({ abi: erc20Abi, data: c.data });
       if (isAddressEqual(args[0] as Address, ADAG_BILLS) && owed.get(c.to.toLowerCase()) !== args[1]) throw new SafeShapeError(AMOUNTS_MISMATCH);
+      if (isAddressEqual(c.to, CIRBTC) && isAddressEqual(args[0] as Address, MORPHO)) {
+        if (pledgeApproval !== null) throw new SafeShapeError(AMOUNTS_MISMATCH);
+        pledgeApproval = args[1] as bigint;
+      }
     }
     if (isAddressEqual(c.to, MORPHO)) {
       const decoded = decodeFunctionData({ abi: morphoAbi, data: c.data });
+      if (decoded.functionName === "supplyCollateral") {
+        if (pledgeApproval === null || decoded.args[1] !== pledgeApproval) throw new SafeShapeError(AMOUNTS_MISMATCH);
+        pledgeApproval = null;
+        continue;
+      }
       if (decoded.functionName !== "borrow") continue;
       const [params, assets, shares] = decoded.args as readonly [MarketParams, bigint, bigint, Address, Address];
       if (shares !== 0n || owed.get(params.loanToken.toLowerCase()) !== assets) throw new SafeShapeError(AMOUNTS_MISMATCH);
     }
   }
+  if (pledgeApproval !== null) throw new SafeShapeError(AMOUNTS_MISMATCH);
 }
 
 export type SafeTxFields = {

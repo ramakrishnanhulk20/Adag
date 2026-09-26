@@ -1,5 +1,5 @@
 // Plain TypeScript with relative imports only, so the unit tests can load it under bare Node. Browser-safe.
-import { decodeFunctionData, encodeFunctionData, getAddress, isAddress, isAddressEqual, type Address, type Hex } from "viem";
+import { decodeFunctionData, encodeFunctionData, getAddress, isAddress, isAddressEqual, toFunctionSelector, type Address, type Hex } from "viem";
 import { EURC, MARKET_EURC, MARKET_USDC, USDC } from "../arc/constants";
 import { erc20Abi, multicall3FromAbi } from "../pay/abi";
 import { MULTICALL3_FROM } from "../pay/constants";
@@ -105,6 +105,34 @@ export function buildStopRule(owner: string, marketId: Hex, hasRule: boolean): G
   if (hasRule) calls.push(step(g, encodeFunctionData({ abi: guardAbi, functionName: "clearRule", args: [m] })));
   calls.push(step(LOAN_TOKEN[m]!, encodeFunctionData({ abi: erc20Abi, functionName: "approve", args: [g, 0n] })));
   return batch(calls, m, 0n);
+}
+
+export type ProtectNowTx = { to: Address; data: Hex; value: 0n };
+
+const PROTECT = toFunctionSelector("protect(address,bytes32)");
+// "0x", the selector and two 32-byte words: protect's calldata has one exact length.
+const PROTECT_LENGTH = 2 + 8 + 64 * 2;
+
+// C3 for "Repay it now": one plain transaction to AdagGuard, calling protect, for the signer's own loan in one of the
+// two fixed markets, with no value. protect is open to anyone, but this page only ever sets off the signer's own guard.
+export function assertProtectNow(signer: string, tx: ProtectNowTx): void {
+  const g = guard();
+  const who = wallet(signer);
+  if (!isAddressEqual(tx.to, g)) throw new GuardBuildError(`Refusing a repayment sent to ${tx.to} instead of AdagGuard.`);
+  if (tx.value !== 0n) throw new GuardBuildError("Refusing a repayment that sends value.");
+  if (tx.data.slice(0, 10).toLowerCase() !== PROTECT) throw new GuardBuildError("Refusing a guard call other than protect.");
+  if (tx.data.length !== PROTECT_LENGTH) throw new GuardBuildError("Refusing protect calldata of the wrong length.");
+  const { args } = decodeFunctionData({ abi: guardAbi, data: tx.data });
+  if (!isAddressEqual(args[0] as Address, who)) throw new GuardBuildError("Refusing to set off another wallet's guard.");
+  market(args[1]);
+}
+
+export function buildProtectNow(signer: string, borrower: string, marketId: Hex): ProtectNowTx {
+  const who = wallet(signer);
+  if (!isAddressEqual(wallet(borrower), who)) throw new GuardBuildError("This page only repays the connected wallet's own loan.");
+  const tx: ProtectNowTx = { to: guard(), data: encodeFunctionData({ abi: guardAbi, functionName: "protect", args: [who, market(marketId)] }), value: 0n };
+  assertProtectNow(who, tx);
+  return tx;
 }
 
 export const guardLoanToken = (marketId: Hex): Address => LOAN_TOKEN[market(marketId)]!;
