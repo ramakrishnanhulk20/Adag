@@ -49,7 +49,10 @@ export const HOLDER_PAGE = 100;
 export const PAGES_PER_RUN = 2;
 export const MAX_SIMULATIONS_PER_RUN = 5;
 export const MAX_ACTIONS_PER_RUN = 5;
-export const LEASE_MS = 90_000;
+// The lease outlives the longest run, so a second run never starts while the first is still sending (C63). The worst
+// case is the run budget, then one receipt wait, then the alerts budget: 55 + 30 + 20 = about 105 s. The routes that
+// run the keeper allow 150 s, the same as this lease, and a test holds both above that sum.
+export const LEASE_MS = 150_000;
 export const RUN_BUDGET_MS = 55_000;
 export const BACKOFF_SECONDS = 600;
 export const HOURLY_FEE_CAP_WEI = parseEther("0.5");

@@ -1,6 +1,19 @@
 import { timingSafeEqual } from "node:crypto";
+import { InputError as SafeInputError } from "../safe/parse";
+import { SafeShapeError } from "../safe/multisend";
+import { SafeCheckError } from "../safe/verify";
+import { KeyError } from "../store/keys";
+import { MessageError } from "./message";
 
 export class InputError extends Error {}
+
+// C62: a route passes on a thrown message only when this codebase wrote it. Anything else, a library's error above
+// all, becomes the route's own fixed sentence: viem's transport and timeout errors carry the full RPC URL and its key.
+const OWN_ERRORS = [InputError, SafeInputError, SafeShapeError, SafeCheckError, KeyError, MessageError];
+
+export function publicMessage(error: unknown, fallback: string): string {
+  return OWN_ERRORS.some((E) => error instanceof E) ? (error as Error).message : fallback;
+}
 
 export function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", "cache-control": "no-store" } });

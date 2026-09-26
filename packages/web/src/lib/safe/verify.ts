@@ -5,7 +5,10 @@ import type { SafeTxFields } from "./multisend";
 import { safeTxHash } from "./typedData";
 import { CHAIN_ID } from "../pay/constants";
 
-export type SafeInfo = { address: Address; version: string; owners: Address[]; threshold: number; nonce: bigint };
+// A refusal worded here, safe to show; any other error from these reads is a library's and stays on the server (C62).
+export class SafeCheckError extends Error {}
+
+export type SafeInfo ={ address: Address; version: string; owners: Address[]; threshold: number; nonce: bigint };
 
 function versionAtLeast(version: string, min: readonly [number, number, number]): boolean {
   const m = /^(\d+)\.(\d+)\.(\d+)/.exec(version.trim());
@@ -21,14 +24,20 @@ function versionAtLeast(version: string, min: readonly [number, number, number])
 // C52, read from the Safe contract itself on Arc: it is a Safe of version 1.3.0 or later, the connected account is an
 // owner by isOwner, and the nonce is the contract's. Anything the service says about the Safe is only a hint.
 export async function verifySafe(client: PublicClient, address: string, owner: string): Promise<SafeInfo> {
-  if (!isAddress(address, { strict: false })) throw new Error("That is not an address.");
-  if (!isAddress(owner, { strict: false })) throw new Error("The connected account is not a valid address.");
+  if (!isAddress(address, { strict: false })) throw new SafeCheckError("That is not an address.");
+  if (!isAddress(owner, { strict: false })) throw new SafeCheckError("The connected account is not a valid address.");
   const safe = getAddress(address);
   const who = getAddress(owner);
-  const chain = await client.getChainId();
-  if (chain !== CHAIN_ID) throw new Error("Arc did not answer as Arc mainnet, so this Safe could not be checked.");
-  const code = await client.getCode({ address: safe });
-  if (!code || code === "0x") throw new Error("There is no contract at this address on Arc, so it is not a Safe.");
+  let chain: number;
+  let code: Hex | undefined;
+  try {
+    [chain, code] = await Promise.all([client.getChainId(), client.getCode({ address: safe })]);
+  } catch {
+    // viem's transport errors carry the full RPC URL, key included, so their text never leaves here (C62).
+    throw new SafeCheckError("Arc did not answer, so this Safe could not be checked. Nothing was proposed.");
+  }
+  if (chain !== CHAIN_ID) throw new SafeCheckError("Arc did not answer as Arc mainnet, so this Safe could not be checked.");
+  if (!code || code === "0x") throw new SafeCheckError("There is no contract at this address on Arc, so it is not a Safe.");
   let version: string;
   let owners: readonly Address[];
   let threshold: bigint;
@@ -43,11 +52,11 @@ export async function verifySafe(client: PublicClient, address: string, owner: s
       client.readContract({ address: safe, abi: safeAbi, functionName: "isOwner", args: [who] }),
     ]);
   } catch {
-    throw new Error("This address does not answer like a Safe, so Adag will not ask anyone to sign for it.");
+    throw new SafeCheckError("This address does not answer like a Safe, so Adag will not ask anyone to sign for it.");
   }
-  if (!versionAtLeast(version, MIN_SAFE_VERSION)) throw new Error(`This Safe is version ${version}. Adag needs Safe 1.3.0 or later.`);
-  if (!isOwner) throw new Error("Your connected wallet is not an owner of this Safe, so it cannot propose a payment from it. Nothing was signed.");
-  if (threshold < 1n) throw new Error("This Safe has no signing threshold set.");
+  if (!versionAtLeast(version, MIN_SAFE_VERSION)) throw new SafeCheckError(`This Safe is version ${version}. Adag needs Safe 1.3.0 or later.`);
+  if (!isOwner) throw new SafeCheckError("Your connected wallet is not an owner of this Safe, so it cannot propose a payment from it. Nothing was signed.");
+  if (threshold < 1n) throw new SafeCheckError("This Safe has no signing threshold set.");
   return { address: safe, version, owners: owners.map((o) => getAddress(o)), threshold: Number(threshold), nonce };
 }
 
@@ -64,7 +73,7 @@ export async function onChainSafeTxHash(client: PublicClient, safe: Address, tx:
 export async function checkedSafeTxHash(client: PublicClient, safe: Address, tx: SafeTxFields): Promise<Hex> {
   const local = safeTxHash(safe, tx);
   const chain = await onChainSafeTxHash(client, safe, tx);
-  if (local.toLowerCase() !== chain.toLowerCase()) throw new Error("The Safe computes a different hash for this payment, so it was not signed.");
+  if (local.toLowerCase() !== chain.toLowerCase()) throw new SafeCheckError("The Safe computes a different hash for this payment, so it was not signed.");
   return local;
 }
 
@@ -81,7 +90,7 @@ export async function simulateFromSafe(client: PublicClient, safe: Address, tx: 
   } catch (error) {
     raw = revertData(error);
   }
-  if (!raw || raw.length < 2 + 64 * 2) throw new Error("The Safe did not return a simulation result.");
+  if (!raw || raw.length < 2 + 64 * 2) throw new SafeCheckError("The Safe did not return a simulation result.");
   // simulateAndRevert reverts with: the delegatecall's success word, the result length, then the result.
   const accessorOk = BigInt(`0x${raw.slice(2, 66)}`) === 1n;
   const result = `0x${raw.slice(130)}` as Hex;

@@ -1,6 +1,9 @@
 import { isAddressEqual, recoverTypedDataAddress, type PublicClient } from "viem";
+import { publicMessage } from "@/lib/alerts/http";
 import { arcClient } from "@/lib/arc/client";
-import { assertSafeTxShape } from "@/lib/safe/multisend";
+import { adagAbi } from "@/lib/pay/abi";
+import { ADAG_BILLS } from "@/lib/pay/constants";
+import { AMOUNTS_MISMATCH, assertSafeAmounts, assertSafeTxShape, decodeMultiSend, payIds, type BillAmount } from "@/lib/safe/multisend";
 import { InputError, proposeBody, readCappedJson } from "@/lib/safe/parse";
 import { NOT_CONFIGURED, json, safeService, serviceError, withTimeout } from "@/lib/safe/service";
 import { STORE_MISSING, storeFromEnv } from "@/lib/store/env";
@@ -11,7 +14,8 @@ import { onChainSafeTxHash, verifySafe } from "@/lib/safe/verify";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// Proposes a payment to a Safe's queue. Nothing from the browser is trusted: the shape is checked again (C51), the Safe
+// Proposes a payment to a Safe's queue. Nothing from the browser is trusted: the shape is checked again (C51), every
+// approval and borrow is compared with the bills as AdagBills records them (C51, approvals exact), the Safe
 // and the owner are read from the chain (C52), the hash is re-derived from the fields and compared with the Safe's own
 // getTransactionHash, and the signature must recover to that owner. Only then does the server call the service, and
 // afterwards it checks the service's echo of the same hash.
@@ -33,10 +37,25 @@ export async function POST(request: Request) {
   try {
     assertSafeTxShape(safe, tx);
   } catch (error) {
-    return json({ error: (error as Error).message }, 422);
+    return json({ error: publicMessage(error, "The Safe batch could not be read, so nothing was proposed.") }, 422);
   }
 
   const client = arcClient as PublicClient;
+  const inner = decodeMultiSend(tx.data);
+  const bills = new Map<bigint, BillAmount>();
+  try {
+    const ids = [...new Set(payIds(inner))];
+    const records = await Promise.all(ids.map((id) => client.readContract({ address: ADAG_BILLS, abi: adagAbi, functionName: "bill", args: [id] })));
+    ids.forEach((id, i) => bills.set(id, { currency: records[i]!.currency, amount: records[i]!.amount }));
+  } catch {
+    return json({ error: "Arc did not answer, so the bills in this Safe batch could not be checked. Nothing was proposed." }, 502);
+  }
+  try {
+    assertSafeAmounts(inner, bills);
+  } catch (error) {
+    return json({ error: publicMessage(error, AMOUNTS_MISMATCH) }, 422);
+  }
+
   try {
     const info = await verifySafe(client, safe, owner);
     if (tx.nonce !== info.nonce) return json({ error: "The nonce is not the Safe's current one. Build the payment again." }, 422);
@@ -48,7 +67,7 @@ export async function POST(request: Request) {
     const signer = await recoverTypedDataAddress({ ...safeTxTypedData(safe, tx), signature });
     if (!isAddressEqual(signer, owner)) return json({ error: "The signature is not from this owner." }, 422);
   } catch (error) {
-    return json({ error: (error as Error).message.slice(0, 200) }, 422);
+    return json({ error: publicMessage(error, "Arc did not answer, or the signature could not be read, so the Safe could not be checked. Nothing was proposed.") }, 422);
   }
 
   try {

@@ -389,6 +389,28 @@ async function main() {
     `status ${takeover.status}, first link ${stillBorrower ? 'held' : 'lost'}, refusal ${refusal ? 'sent' : 'missing'}`,
   );
 
+  // C61: a real person takes minutes to find Telegram while the panel polls. 25 polls from one address, then Start,
+  // then the link from that same address must still go through. The chat sends /stop after, so later checks see
+  // only the borrower linked.
+  const slowIp = { 'x-forwarded-for': '198.51.100.77' };
+  const slowChat = CHAT_ID + 1;
+  const slowWallet = privateKeyToAccount(generatePrivateKey());
+  const slowCode = (await (await post('/api/alerts/code', {}, slowIp)).json()).code;
+  const polls = [];
+  for (let i = 0; i < 25; i++) polls.push((await post('/api/alerts/code/status', { code: slowCode }, slowIp)).status);
+  const slowStart = { update_id: 9003, message: { message_id: 3, date: 0, chat: { id: slowChat, type: 'private' }, from: { id: slowChat, is_bot: false, username: 'e2e_slow' }, text: `/start ${slowCode}` } };
+  await post('/api/telegram', slowStart, { 'x-telegram-bot-api-secret-token': secrets.tg });
+  const slowPressed = await (await post('/api/alerts/code/status', { code: slowCode }, slowIp)).json();
+  const slowExpiry = Math.floor(Date.now() / 1000) + 300;
+  const slowMessage = buildMessage(APP, { action: 'link', wallet: slowWallet.address, code: slowCode, chatId: slowPressed.chatId, chatHandle: slowPressed.chatHandle, expiry: slowExpiry });
+  const slowLink = await post('/api/alerts/link', { wallet: slowWallet.address, code: slowCode, expiry: slowExpiry, signature: await slowWallet.signMessage({ message: slowMessage }) }, slowIp);
+  await post('/api/telegram', { ...slowStart, update_id: 9004, message: { ...slowStart.message, message_id: 4, text: '/stop' } }, { 'x-telegram-bot-api-secret-token': secrets.tg });
+  record(
+    'C61: 25 status polls from one address still leave the link allowed, and it links',
+    polls.every((s) => s === 200) && slowPressed.state === 'pressed' && slowLink.status === 200 && upstash.raw(`adag:v1:alerts:link:${slowWallet.address}`) === null,
+    `polls ${[...new Set(polls)].join('/')}, link ${slowLink.status}, stopped ${upstash.raw(`adag:v1:alerts:link:${slowWallet.address}`) === null ? 'yes' : 'no'}`,
+  );
+
   // The price drops so the loan sits near 62%, past the 55% trigger: the oracle's code is swapped for MockOracle.
   const base = await fork.readContract({ address: ORACLE_USDC, abi: oracleAbi, functionName: 'BASE_FEED_1' });
   const quoteFeed = await fork.readContract({ address: ORACLE_USDC, abi: oracleAbi, functionName: 'QUOTE_FEED_1' });

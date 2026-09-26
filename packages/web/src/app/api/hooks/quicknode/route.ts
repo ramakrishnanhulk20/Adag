@@ -7,7 +7,8 @@ import { keys } from "@/lib/store/keys";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+// Above the worst run, about 105 s, so the platform never cuts a run off mid-send (C63, LEASE_MS).
+export const maxDuration = 150;
 
 const MAX_BODY_BYTES = 512 * 1024;
 const MAX_DECODED_BYTES = 2 * 1024 * 1024;

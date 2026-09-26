@@ -12,7 +12,8 @@ export const dynamic = "force-dynamic";
 export async function POST(request: Request) {
   const store = storeFromEnv();
   if (!store) return json({ error: STORE_MISSING }, 503);
-  if (!(await allow(store, keys.rate("link", clientOf(request)), 60, 600))) return json({ error: "Too many requests. Try again in a few minutes." }, 429);
+  // One code lives 10 minutes and the panel polls every 3 s, so about 200 polls; 250 leaves room and a second tab (C61).
+  if (!(await allow(store, keys.rate("code-status", clientOf(request)), 250, 600))) return json({ error: "Too many requests. Try again in a few minutes." }, 429);
   let code: string;
   try {
     code = normaliseCode((await readCappedJson(request)).code);

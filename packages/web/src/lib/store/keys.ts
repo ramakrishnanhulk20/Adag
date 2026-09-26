@@ -76,7 +76,10 @@ export const keys = {
   // The SHA-256 of the exact nonce the signature covered, so no change in QuickNode's nonce format can ever merge
   // two deliveries into one replay key.
   hookNonce: (nonce: string) => key("hooks", "nonce", sha256(stringToHex(nonce)).slice(2)),
-  rate: (bucket: "code" | "start" | "link" | "signed" | "safe-list" | "safe-status" | "safe-propose", who: unknown) => key("rate", bucket, subject(who)),
+  // "code-status" is its own bucket because the alerts panel polls it every few seconds while a person finds Telegram;
+  // sharing "link" would spend the link's allowance before they press Start (C61).
+  rate: (bucket: "code" | "code-status" | "start" | "link" | "signed" | "safe-list" | "safe-status" | "safe-propose", who: unknown) =>
+    key("rate", bucket, subject(who)),
   // The landing page's index of BillPaid events: one record and one lease per AdagBills deployment.
   paidIndex: (contract: unknown) => key("paid", "index", normaliseAddress(contract)),
   paidLease: (contract: unknown) => key("paid", "lease", normaliseAddress(contract)),

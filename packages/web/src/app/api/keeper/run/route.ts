@@ -3,7 +3,8 @@ import { runOnce } from "@/lib/guard/run";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+// Above the worst run, about 105 s, so the platform never cuts a run off mid-send (C63, LEASE_MS).
+export const maxDuration = 150;
 
 // Vercel's cron sends GET with "Authorization: Bearer <CRON_SECRET>"; the local poller sends the same as POST.
 async function handle(request: Request): Promise<Response> {
