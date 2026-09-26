@@ -2,37 +2,110 @@ slither: 0.11.6
 --ignore-compile used, if something goes wrong, consider removing the ignore compile flag
 'forge config --json' running
 INFO:Detectors:
+Detector: arbitrary-send-erc20
+AdagGuard.protect(address,bytes32) (src/AdagGuard.sol#92-117) uses arbitrary from in transferFrom: token.safeTransferFrom(borrower,address(this),repaid) (src/AdagGuard.sol#105)
+Reference: https://github.com/crytic/slither/wiki/Detector-Documentation#arbitrary-from-in-transferfrom
+INFO:Detectors:
+Detector: reentrancy-balance
+Reentrancy in AdagGuard.protect(address,bytes32) (src/AdagGuard.sol#92-117):
+	External call allowing reentrancy:
+	- (assetsRepaid,None) = IMorphoRepay(MORPHO).repay(params,repaid,0,borrower,) (src/AdagGuard.sol#107)
+	Balance read before the call:
+	- (ltvBefore,repaid) = _plan(borrower,marketId,params) (src/AdagGuard.sol#98)
+	Possible stale balance used after the call in a condition:
+	- assetsRepaid != repaid (src/AdagGuard.sol#109)
+		- stale variable `assetsRepaid`
+Reentrancy in AdagGuard.protect(address,bytes32) (src/AdagGuard.sol#92-117):
+	External call allowing reentrancy:
+	- (assetsRepaid,None) = IMorphoRepay(MORPHO).repay(params,repaid,0,borrower,) (src/AdagGuard.sol#107)
+	Balance read before the call:
+	- balanceBefore = token.balanceOf(address(this)) (src/AdagGuard.sol#102)
+	Possible stale balance used after the call in a condition:
+	- balanceAfter != balanceBefore (src/AdagGuard.sol#111)
+		- stale variable `balanceBefore`
+Reference: https://github.com/crytic/slither/wiki/Detector-Documentation#reentrancy-vulnerabilities
+INFO:Detectors:
+Detector: incorrect-equality
+AdagBills.pay(uint256) (src/AdagBills.sol#154-191) uses a dangerous strict equality:
+	- _enrolledAt[msg.sender] == block.number (src/AdagBills.sol#162)
+AdagGuard._borrowTotals(bytes32,MarketParams) (src/AdagGuard.sol#207-232) uses a dangerous strict equality:
+	- elapsed == 0 || borrowAssets == 0 || params.irm == address(0) (src/AdagGuard.sol#223)
+AdagGuard._ltv(uint256,uint256) (src/AdagGuard.sol#234-238) uses a dangerous strict equality:
+	- debt == 0 (src/AdagGuard.sol#235)
+AdagGuard._ltv(uint256,uint256) (src/AdagGuard.sol#234-238) uses a dangerous strict equality:
+	- value == 0 (src/AdagGuard.sol#236)
+AdagGuard.protect(address,bytes32) (src/AdagGuard.sol#92-117) uses a dangerous strict equality:
+	- repaid == 0 (src/AdagGuard.sol#99)
+Reference: https://github.com/crytic/slither/wiki/Detector-Documentation#dangerous-strict-equalities
+INFO:Detectors:
 Detector: uninitialized-local
-AdagBills._params(bytes32).expectedLoan (src/AdagBills.sol#320) is a local variable never initialized
-AdagBills.createBill(address,uint256,uint64,bytes).marketId (src/AdagBills.sol#118) is a local variable never initialized
+AdagBills.createBill(address,uint256,uint64,bytes).marketId (src/AdagBills.sol#123) is a local variable never initialized
+AdagGuard._params(bytes32).expectedLoan (src/AdagGuard.sol#241) is a local variable never initialized
+AdagBills._params(bytes32).expectedLoan (src/AdagBills.sol#341) is a local variable never initialized
 Reference: https://github.com/crytic/slither/wiki/Detector-Documentation#uninitialized-local-variables
 INFO:Detectors:
 Detector: unused-return
-AdagBills._recordPosition(bytes32,address) (src/AdagBills.sol#252-261) ignores return value by (None,shares,collateral) = _MORPHO.position(marketId,payer) (src/AdagBills.sol#253)
-AdagBills._checkLoan(bytes32,address) (src/AdagBills.sol#263-278) ignores return value by (None,None,None,None,lastUpdate,None) = _MORPHO.market(marketId) (src/AdagBills.sol#265)
-AdagBills._readFeed(address,address,uint256) (src/AdagBills.sol#294-300) ignores return value by (None,answer,None,updatedAt,None) = IChainlinkFeed(feed).latestRoundData() (src/AdagBills.sol#296)
-AdagBills._debt(bytes32,address) (src/AdagBills.sol#302-313) ignores return value by (None,borrowShares,pledged) = _MORPHO.position(marketId,user) (src/AdagBills.sol#303)
-AdagBills._debt(bytes32,address) (src/AdagBills.sol#302-313) ignores return value by (None,None,totalBorrowAssets,totalBorrowShares,None,None) = _MORPHO.market(marketId) (src/AdagBills.sol#306)
+AdagBills.enrol() (src/AdagBills.sol#194-201) ignores return value by (None,usdcShares,usdcCollateral) = _MORPHO.position(MARKET_USDC,msg.sender) (src/AdagBills.sol#195)
+AdagBills.enrol() (src/AdagBills.sol#194-201) ignores return value by (None,eurcShares,eurcCollateral) = _MORPHO.position(MARKET_EURC,msg.sender) (src/AdagBills.sol#196)
+AdagBills._recordPosition(bytes32,address) (src/AdagBills.sol#273-282) ignores return value by (None,shares,collateral) = _MORPHO.position(marketId,payer) (src/AdagBills.sol#274)
+AdagBills._checkLoan(bytes32,address) (src/AdagBills.sol#284-299) ignores return value by (None,None,None,None,lastUpdate,None) = _MORPHO.market(marketId) (src/AdagBills.sol#286)
+AdagBills._readFeed(address,address,uint256) (src/AdagBills.sol#315-321) ignores return value by (None,answer,None,updatedAt,None) = IChainlinkFeed(feed).latestRoundData() (src/AdagBills.sol#317)
+AdagBills._debt(bytes32,address) (src/AdagBills.sol#323-334) ignores return value by (None,borrowShares,pledged) = _MORPHO.position(marketId,user) (src/AdagBills.sol#324)
+AdagBills._debt(bytes32,address) (src/AdagBills.sol#323-334) ignores return value by (None,None,totalBorrowAssets,totalBorrowShares,None,None) = _MORPHO.market(marketId) (src/AdagBills.sol#327)
+AdagGuard.setRule(bytes32,uint64,uint64,uint64) (src/AdagGuard.sol#69-79) ignores return value by _holders.add(msg.sender) (src/AdagGuard.sol#77)
+AdagGuard.clearRule(bytes32) (src/AdagGuard.sol#82-90) ignores return value by _holders.remove(msg.sender) (src/AdagGuard.sol#87)
+AdagGuard.protect(address,bytes32) (src/AdagGuard.sol#92-117) ignores return value by (None,None,None,None,lastUpdate,None) = _MORPHO.market(marketId) (src/AdagGuard.sol#94)
+AdagGuard.protect(address,bytes32) (src/AdagGuard.sol#92-117) ignores return value by (assetsRepaid,None) = IMorphoRepay(MORPHO).repay(params,repaid,0,borrower,) (src/AdagGuard.sol#107)
+AdagGuard._loan(address,bytes32,MarketParams) (src/AdagGuard.sol#189-203) ignores return value by (None,shares,collateral) = _MORPHO.position(marketId,borrower) (src/AdagGuard.sol#194)
 Reference: https://github.com/crytic/slither/wiki/Detector-Documentation#unused-return
 INFO:Detectors:
 Detector: timestamp
-AdagBills.pay(uint256) (src/AdagBills.sol#149-184) uses timestamp for comparisons
+AdagBills.pay(uint256) (src/AdagBills.sol#154-191) uses timestamp for comparisons
 	Dangerous comparisons:
-	- rise < amount (src/AdagBills.sol#172)
-	- balanceAfter > balanceBefore (src/AdagBills.sol#171)
-AdagBills.priceStatus(bytes32) (src/AdagBills.sol#241-249) uses timestamp for comparisons
+	- rise < amount (src/AdagBills.sol#179)
+	- balanceAfter > balanceBefore (src/AdagBills.sol#178)
+AdagBills.priceStatus(bytes32) (src/AdagBills.sol#262-270) uses timestamp for comparisons
 	Dangerous comparisons:
-	- (btcUsd.fresh && eurUsd.fresh,btcUsd.updatedAt,eurUsd.updatedAt) (src/AdagBills.sol#248)
-AdagBills._checkLoan(bytes32,address) (src/AdagBills.sol#263-278) uses timestamp for comparisons
+	- (btcUsd.fresh && eurUsd.fresh,btcUsd.updatedAt,eurUsd.updatedAt) (src/AdagBills.sol#269)
+AdagBills._checkLoan(bytes32,address) (src/AdagBills.sol#284-299) uses timestamp for comparisons
 	Dangerous comparisons:
-	- lastUpdate != block.timestamp (src/AdagBills.sol#266)
-AdagBills._readFeed(address,address,uint256) (src/AdagBills.sol#294-300) uses timestamp for comparisons
+	- lastUpdate != block.timestamp (src/AdagBills.sol#287)
+AdagBills._readFeed(address,address,uint256) (src/AdagBills.sol#315-321) uses timestamp for comparisons
 	Dangerous comparisons:
-	- read.fresh = answer > 0 && updatedAt <= block.timestamp && block.timestamp - updatedAt <= maxAge (src/AdagBills.sol#299)
+	- read.fresh = answer > 0 && updatedAt <= block.timestamp && block.timestamp - updatedAt <= maxAge (src/AdagBills.sol#320)
+AdagGuard.setRule(bytes32,uint64,uint64,uint64) (src/AdagGuard.sol#69-79) uses timestamp for comparisons
+	Dangerous comparisons:
+	- expiry != 0 && expiry <= block.timestamp (src/AdagGuard.sol#74)
+AdagGuard.protect(address,bytes32) (src/AdagGuard.sol#92-117) uses timestamp for comparisons
+	Dangerous comparisons:
+	- lastUpdate != block.timestamp (src/AdagGuard.sol#95)
+	- repaid == 0 (src/AdagGuard.sol#99)
+	- assetsRepaid != repaid (src/AdagGuard.sol#109)
+AdagGuard.quote(address,bytes32) (src/AdagGuard.sol#125-132) uses timestamp for comparisons
+	Dangerous comparisons:
+	- wouldAct = amount != 0 (src/AdagGuard.sol#131)
+AdagGuard._plan(address,bytes32,MarketParams) (src/AdagGuard.sol#145-160) uses timestamp for comparisons
+	Dangerous comparisons:
+	- rule.triggerWad == 0 || ltvWad < rule.triggerWad (src/AdagGuard.sol#153)
+	- rule.expiry != 0 && block.timestamp >= rule.expiry (src/AdagGuard.sol#154)
+AdagGuard._toTarget(AdagGuard.Loan,uint256) (src/AdagGuard.sol#171-174) uses timestamp for comparisons
+	Dangerous comparisons:
+	- _debtAfter(loan,guess) <= maxDebt (src/AdagGuard.sol#173)
+AdagGuard._debtAfter(AdagGuard.Loan,uint256) (src/AdagGuard.sol#177-187) uses timestamp for comparisons
+	Dangerous comparisons:
+	- burned >= loan.shares (src/AdagGuard.sol#179)
+	- loan.totalAssets > assets (src/AdagGuard.sol#180)
+AdagGuard._borrowTotals(bytes32,MarketParams) (src/AdagGuard.sol#207-232) uses timestamp for comparisons
+	Dangerous comparisons:
+	- elapsed == 0 || borrowAssets == 0 || params.irm == address(0) (src/AdagGuard.sol#223)
+AdagGuard._ltv(uint256,uint256) (src/AdagGuard.sol#234-238) uses timestamp for comparisons
+	Dangerous comparisons:
+	- debt == 0 (src/AdagGuard.sol#235)
+	- value == 0 (src/AdagGuard.sol#236)
 Reference: https://github.com/crytic/slither/wiki/Detector-Documentation#block-timestamp
 INFO:Detectors:
 Detector: naming-convention
 Function IOracleMinimal.BASE_FEED_1() (src/interfaces/IOracleMinimal.sol#7) is not in mixedCase
 Function IOracleMinimal.QUOTE_FEED_1() (src/interfaces/IOracleMinimal.sol#9) is not in mixedCase
 Reference: https://github.com/crytic/slither/wiki/Detector-Documentation#conformance-to-solidity-naming-conventions
-INFO:Slither:. analyzed (43 contracts with 102 detectors), 13 result(s) found
+INFO:Slither:. analyzed (55 contracts with 102 detectors), 37 result(s) found

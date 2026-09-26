@@ -1,25 +1,49 @@
 arc-forge: forge Version: 1.7.1-dev
 No files changed, compilation skipped
 warning[block-timestamp]: usage of `block.timestamp` in a comparison may be manipulated by validators
-    ╭▸ src/AdagBills.sol:266:13
+   ╭▸ src/AdagGuard.sol:74:28
+   │
+74 │         if (expiry != 0 && expiry <= block.timestamp) revert ExpiryInPast(expiry);
+   │                            ━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: https://getfoundry.sh/forge/linting/block-timestamp
+
+warning[block-timestamp]: usage of `block.timestamp` in a comparison may be manipulated by validators
+    ╭▸ src/AdagBills.sol:287:13
     │
-266 │         if (lastUpdate != block.timestamp) _MORPHO.accrueInterest(params);
+287 │         if (lastUpdate != block.timestamp) _MORPHO.accrueInterest(params);
     │             ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     │
     ╰ help: https://getfoundry.sh/forge/linting/block-timestamp
 
 warning[block-timestamp]: usage of `block.timestamp` in a comparison may be manipulated by validators
-    ╭▸ src/AdagBills.sol:299:36
+   ╭▸ src/AdagGuard.sol:95:13
+   │
+95 │         if (lastUpdate != block.timestamp) _MORPHO.accrueInterest(params);
+   │             ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: https://getfoundry.sh/forge/linting/block-timestamp
+
+warning[block-timestamp]: usage of `block.timestamp` in a comparison may be manipulated by validators
+    ╭▸ src/AdagBills.sol:320:36
     │
-299 │         read.fresh = answer > 0 && updatedAt <= block.timestamp && block.timestamp - updatedAt <= maxAge;
+320 │         read.fresh = answer > 0 && updatedAt <= block.timestamp && block.timestamp - updatedAt <= maxAge;
     │                                    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     │
     ╰ help: https://getfoundry.sh/forge/linting/block-timestamp
 
 warning[block-timestamp]: usage of `block.timestamp` in a comparison may be manipulated by validators
-    ╭▸ src/AdagBills.sol:299:68
+    ╭▸ src/AdagGuard.sol:154:33
     │
-299 │         read.fresh = answer > 0 && updatedAt <= block.timestamp && block.timestamp - updatedAt <= maxAge;
+154 │         if (rule.expiry != 0 && block.timestamp >= rule.expiry) return (ltvWad, 0);
+    │                                 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    │
+    ╰ help: https://getfoundry.sh/forge/linting/block-timestamp
+
+warning[block-timestamp]: usage of `block.timestamp` in a comparison may be manipulated by validators
+    ╭▸ src/AdagBills.sol:320:68
+    │
+320 │         read.fresh = answer > 0 && updatedAt <= block.timestamp && block.timestamp - updatedAt <= maxAge;
     │                                                                    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     │
     ╰ help: https://getfoundry.sh/forge/linting/block-timestamp

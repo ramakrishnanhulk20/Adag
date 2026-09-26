@@ -185,3 +185,45 @@ New findings, each with a verdict:
 | H13 | solhint gas-indexed-events | event `Enrolled`, line 97, fields `usdcShares`, `usdcCollateral`, `eurcShares`, `eurcCollateral` | These four fields could be indexed. | False positive for the same reason as H6: indexing a word moves it from data to a topic and costs more gas per emit, not less, and nobody searches by an exact share count or collateral amount. The payer, the field an app filters on, is indexed. |
 
 Moved only: the slither timestamp rows and lint L1 to L3 now point at lines 287 and 320, S3 at line 341 and S15 at line 123. No verdict changed.
+
+## AdagGuard (26 September 2026)
+
+Scope: `src/AdagGuard.sol` and its two new interfaces, `src/interfaces/IMorphoRepay.sol` and `src/interfaces/IIrmMinimal.sol`. Same tools, versions and configuration as above. The run used a scratch copy of `run-analysis.sh` with the same build and tool commands, writing its output outside the repo, because the output files in this folder belong to the AdagBills run. solhint and arc-forge lint were pointed at the three guard files; slither ran on all of `src/` and only its AdagGuard results are listed here.
+
+94 findings: slither 21, solhint 70, arc-forge lint 3. None is a bug.
+
+| Verdict | Count |
+| --- | --- |
+| Real bug | 0 |
+| False positive | 22 |
+| Accepted by design | 72 |
+
+### Slither (21)
+
+| # | Detector | Location | Severity | Meaning | Verdict |
+| --- | --- | --- | --- | --- | --- |
+| GS1 | arbitrary-send-erc20 | `protect`, line 105 | High | `transferFrom` takes tokens from an address the caller names, not from the caller. | Accepted by design: it is the product. Anyone may call `protect` for any borrower (no keeper role, C39), and every limit on the pull is something only the borrower controls: their own rule, which only they can write (C34); their approval to the guard, the lifetime ceiling (C38 as amended); and the amount that brings their own loan back to their own target, never above their debt rounded down or their balance (C36). The tokens go to one place, Morpho's `repay` on behalf of that same borrower, in the fixed market's own loan token (C35). Proven by the 1,000-run fuzz test and invariants I1 to I3 (256 runs of 64 calls). |
+| GS2, GS3 | reentrancy-balance | `protect`, lines 102 and 111 (guard balance), 98 and 109 (planned amount against Morpho's reply) | Medium | A value read before an external call is compared after it, so a reentrant call could change it in between. | False positive. The comparison is the defence (C35): after Morpho's `repay` the guard checks that its balance and its approval to Morpho are exactly what they were, and reverts otherwise. `protect` holds the reentrancy guard, the external calls go only to the fixed Morpho address and the market's loan token (USDC or EURC, neither has transfer hooks), and `repay` gets empty data, so Morpho makes no callback. |
+| GS4 to GS7 | incorrect-equality | `_borrowTotals` line 223 (`elapsed == 0`), `_ltv` lines 235 and 236 (`debt == 0`, `value == 0`), `protect` line 99 (`repaid == 0`) | Medium | Strict equality on a value an attacker might steer. | False positive. None compares a balance an attacker can nudge. `elapsed == 0` copies Morpho's own early return; `debt == 0` and `value == 0` pick the no-loan and worthless-collateral answers exactly as `AdagBills.loanToValue` does; `repaid == 0` is the rule that a zero amount moves nothing and emits nothing (C36). Steering any of them can only make the guard do nothing. |
+| GS8 | uninitialized-local | `_params`, `expectedLoan`, line 241 | Medium | A local variable is declared without a starting value. | False positive, same as S3: every branch sets it or reverts before it is read. |
+| GS9 to GS13 | unused-return | `setRule` line 77 (`_holders.add`), `clearRule` line 87 (`_holders.remove`), `protect` line 94 (`market`), `protect` line 107 (`repay`), `_loan` line 194 (`position`) | Medium | Some return values are thrown away. | False positive. `add` returns false when the wallet is already listed (a second market or an update), which is the wanted result. `remove` runs only after a rule was found, so the wallet is always listed at that point; invariant I4 checks the set against the rules after every step. `market` is read for `lastUpdate` only; `repay`'s share count is not needed, and its asset count is checked on line 109; `position`'s supply shares are not part of a loan. |
+| GS14 to GS17 | timestamp | `setRule` line 74, `protect` line 95, `_plan` line 154, `_borrowTotals` line 223 | Low | A decision depends on the block time. | Accepted by design. Line 74 is the rule that an expiry lies in the future and line 154 that an expired rule is inert (C41); line 95 accrues interest only when time has passed, the same shape as `AdagBills._checkLoan` (S11); line 223 feeds the time since Morpho's last update into Morpho's own interest formula. A block producer can move the time by seconds; expiries are hours or days, and a few seconds of interest is a rounding unit. |
+| GS18 to GS21 | timestamp | `quote` line 131, `_toTarget` line 173, `_debtAfter` lines 179 and 180, `_ltv` lines 235 and 236 | Low | Same. | False positive. Slither follows the block time into the interest added to the debt and then marks every later comparison. These compare amounts, not times. |
+
+### solhint (70)
+
+All warnings, 0 errors.
+
+| # | Rule | Location | Count | Meaning | Verdict |
+| --- | --- | --- | --- | --- | --- |
+| GH1 | use-natspec | `AdagGuard.sol` (42), `IMorphoRepay.sol` (8), `IIrmMinimal.sol` (6) | 56 | No NatSpec tags on the contract, constants, events, functions and interfaces. | Accepted by design, the project's comment rule: no NatSpec in contracts, short comments only where a reader needs the why. The two interfaces copy Morpho Blue v1.0.0's `repay` and `IIrm.borrowRateView` signatures exactly. |
+| GH2 | gas-indexed-events | `RuleSet` line 52 (`triggerWad`, `targetWad`, `expiry`), `Protected` line 54 (`repaid`, `ltvBeforeWad`, `ltvAfterWad`) | 6 | These fields could be indexed. | False positive for the same reason as H6. The borrower and the market, the fields an app or a keeper filters on, are indexed. Indexing a number moves it from data to a topic and costs more gas per emit, and nobody searches by an exact loan-to-value or amount. |
+| GH3 | gas-strict-inequalities | lines 72, 73, 74, 141, 154, 173, 179, 249 | 8 | A `<=` or `>=` could be made strict to save about 3 gas. | Accepted by design. Each bound is the stated rule: target below trigger, trigger below the liquidation line and expiry in the future (72 to 74, C41); an offset at or past the end returns an empty page (141); a rule is expired from its expiry second on (154); at or under the target is the goal (173); burning at least all the shares means the loan clears (179); a liquidation line at or above 100% is refused, fail closed (249). |
+
+### arc-forge lint (3)
+
+| # | Lint | Location | Verdict |
+| --- | --- | --- | --- |
+| GL1 to GL3 | block-timestamp | `AdagGuard.sol` 74:28, 95:13, 154:33 | Accepted by design, same as GS14 to GS16. |
+
+One design note that the tools do not flag: `_repayCap` is `internal virtual` only so the negative control in `test/invariant/AdagGuardInvariant.t.sol` can build a copy without the debt cap and show the handler catching it. A deployed AdagGuard cannot be changed by this, and nothing overrides it in `src/`.

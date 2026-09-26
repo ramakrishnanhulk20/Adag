@@ -46,3 +46,29 @@ bash packages/contracts/run-tests.sh --match-contract AdagGasScenarios --isolate
 - They are one fork block's state. When another transaction has already touched the Morpho market earlier in the same block, Morpho and Adag skip the interest step and the payment costs a little less.
 - Arc's base fee can rise above the 20 gwei floor when blocks are busy. Fees scale with it.
 - A wallet may add its own margin to the gas limit; only the gas actually used is charged.
+
+## AdagGuard
+
+Measured on 26 September 2026 with the same toolchain on a fork of Arc mainnet at block 22727600. As above, each figure is a whole cold transaction, base cost included.
+
+| Action | Who sends it | Gas | USDC at 20 gwei |
+| --- | --- | ---: | ---: |
+| Set a first rule: writes the rule and adds the wallet to the list of rule holders | Borrower | 129,321 | 0.0026 |
+| Clear the last rule: deletes it and takes the wallet off the list (storage refunds lower the cost) | Borrower | 37,619 | 0.0008 |
+| Protect that repays: accrue Morpho interest, pull 838.08 USDC, approve Morpho, repay, check nothing stayed behind | Keeper or anyone | 180,235 | 0.0036 |
+| Protect that does nothing because the loan is under the trigger, interest step included | Keeper or anyone | 109,521 | 0.0022 |
+
+Deploying AdagGuard once is estimated at 2,312,529 gas by the dry run against live mainnet, about 0.046 USDC at the 20 gwei floor.
+
+What moves the numbers:
+- **A protect that does nothing** still pays for Morpho's interest step (about 25,000 gas including the rate model) and the reads the check needs. `quote` gives the same answer for free, so a keeper should read it first and send `protect` only when it says the guard would act. When the market was already touched earlier in the same block, protect skips the interest step and costs less.
+- **The protect that repays** was measured on the USDC market, taking a loan from 75% to 59.99999999% against a 60% target.
+- **Changing an existing rule** rewrites one storage slot and skips the list step, so it should cost less than a first rule (not measured).
+
+How it was measured:
+
+```
+bash packages/contracts/run-guard-tests.sh --match-contract AdagGuardGasScenarios --isolate -vvvv
+```
+
+`AdagGuardGasScenarios` in `test/AdagGuardFuzz.t.sol` has one test per action, with its setup in earlier top-level calls. The numbers above are the gas shown for the measured AdagGuard call in the trace.
