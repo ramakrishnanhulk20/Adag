@@ -45,9 +45,9 @@ In security terms, Adag is three systems sharing one name, plus an optional four
 
 - **Server-side request forgery:** the app fetches fixed endpoints (the Arc RPC and Morpho's GraphQL), never a URL a user supplies.
 - **SQL or query injection:** there is no database and no user-driven query. An indexer, if built, only appends from chain logs.
-- **Authentication and session bugs:** there are no accounts, passwords or sessions. The wallet signature is the only authority.
-- **Classic CSRF:** no server holds state that a forged request could change.
-- **Multi-tenant data isolation:** every bill is public on chain by design, so there is no private data to leak between users. Privacy is a named non-goal.
+- **Authentication and session bugs:** there are no accounts, passwords or sessions. The wallet signature is the only authority. (For the components added on 26 September this no longer holds: alert links are written by signed messages, C46 and C47.)
+- **Classic CSRF:** no server holds state that a forged request could change. (For the components added on 26 September this no longer holds: the alert store is server state, C47.)
+- **Multi-tenant data isolation:** every bill is public on chain by design, so there is no private data to leak between users. Privacy is a named non-goal. (For the components added on 26 September this no longer holds: the wallet-to-chat table is private, C49.)
 - **File upload and path traversal:** there are no files.
 
 ---
@@ -225,6 +225,167 @@ A third review, made once the app was built, read its money paths, its API route
 **C29. The displayed amount bounds the approval.** Every approval the app builds is at most what the payer was shown, so a wrong upstream answer can only make a payment revert. It guards every payment and loan batch. Upheld by the builders in `packages/web/src/lib/pay/build.ts`, which take each approval exactly from the bill record the payer was shown.
 
 **C30. Over-approval reset.** An approval above the amount used is reset to zero in the same batch, and no approval outlives a batch. It guards closing a loan, the one batch that approves more than it uses: the live debt plus a margin for accrual. Upheld by `buildCloseLoan` in `packages/web/src/lib/pay/build.ts`, whose last call approves 0.
+
+### Added before the second build (26 September), written before any of its code
+
+A separate reviewer wrote this part before any code for four new components existed, working from a plain functional description of them: a second AdagBills deployment that lets an existing Morpho borrower enrol, AdagGuard, alerts, and Safe payments. The new bill contract keeps the name AdagBills. Below, v1 is the first deployment, which stays live, and v2 is the second. C31 to C57 are the definition of done for these components, and they are being built against it. Where a decision made after the review changed an invariant, the invariant says so.
+
+**Decided since the review.**
+- AdagGuard is the allowance design: the reserve stays in the borrower's wallet, approved to AdagGuard, which pulls only what a protection repays (C35).
+- A rule is (trigger, target, expiry). There is no per-protection maximum and no cooldown. Each protection repays only what brings the loan back to the target, and the approval is the lifetime ceiling (C36, C38).
+- Rule holders are an on-chain enumerable set in AdagGuard (C43).
+- With two deployments that both number bills from 1, a bill's identity is the pair (contract, id), everywhere (C33).
+
+#### Design gaps the review raised, most severe first
+
+1. AdagGuard's "maximum repayment per protection" is not a ceiling. protect is public and repeatable, so the true ceiling is the allowance. The review offered two fixes: add a per-rule cooldown, or state plainly that the allowance is the cap. Adag took the second (C38).
+2. The keeper's rule list fed by webhooks into a store: a forged "rule cleared" event silences a real borrower. Verify webhook signatures and rebuild from chain on a schedule; an enumerable set of rule holders in AdagGuard makes the rebuild a paged read (C43, C44).
+3. v1 and v2 both number bills from 1. Identity must be the pair (contract, id) through one parser (C33).
+4. Safe transactions: gasPrice, gasToken, refundReceiver zero; the outer delegatecall only to the canonical MultiSendCallOnly; safeTxGas zero so an inner failure reverts instead of consuming the nonce (C51, C54).
+5. The Telegram link signature must name the chat it binds to, and the bot webhook must verify Telegram's secret token (C44, C46).
+6. The same-block enrol refusal is a speed bump: borrow and enrol in block N, pay in block N+1. Only the payer's own position is affected. Public wording: "a payment through Adag is never the action that takes a position above 40%" (C32).
+7. protect's repay cap must use debt rounded down while the loan-to-value test uses debt rounded up, or a full repayment underflows in Morpho (C36).
+
+#### What this changes in C1 to C30
+
+- C3's fixed target list grows (v2, AdagGuard, MultiSendCallOnly) and binds the Safe builder and the keeper.
+- C5 and C16 name one Adag address. With two contracts, a bill is (contract, id), and "paid" is filtered by the bill's own contract (C33, C53).
+- C25's fee reserve must count a pending protection as an outflow (C45).
+- C21's rate-limit shape applies to the keeper (C42).
+- The non-goal "watching the position after payment" is now half true: AdagGuard and alerts watch it, within the non-goals below.
+- Authentication, CSRF and multi-tenant isolation, listed in section A as not applying, now apply: signed messages are the auth, unauthenticated store writes are the CSRF, and wallet-to-chat is private data (C46, C47, C49).
+
+#### Open questions, to settle before the code
+
+- Whether Multicall3From refuses a contract sender (known: CallFrom needs sender equal to tx.origin, which is why the Safe path exists).
+- The Safe singleton, MultiSendCallOnly address and Transaction Service on Arc. Safe v1.4.1 was found live on Arc; the addresses are being confirmed.
+- Whether a Safe can link alerts, since it signs messages only through EIP-1271.
+- The current bill link format, which decides how a bare id is read (C33).
+- Whether a standing USDC allowance pull can leave the borrower with no gas (copy in the non-goals).
+
+#### A) App-class risk profile, extended
+
+New classes, numbered on from the four in section A:
+
+5. **A pull-payment executor.** AdagGuard holds standing token allowances from many borrowers and has a public function that spends them. The allowance is the asset.
+6. **An event-driven automation service with a hot wallet.** The keeper reacts to webhooks and a schedule, reads a store it did not fully write, and signs with a server key.
+7. **A sender of messages to third-party inboxes.** The Telegram bot's name is a trust signal; anything that lets an attacker choose what it says, or to whom, makes it a phishing channel.
+8. **A builder of transactions for a multi-signer account.** The app assembles a batch a Safe executes hours later.
+9. **A multi-tenant store of private mappings.** Wallet to chat, link codes, thresholds, keeper state, behind server routes with no login.
+
+Categories that bite, tied to flows:
+
+1. **Allowance drain** through protect to transferFrom to Morpho.repay: a market argument resolving to the wrong loan token, a repay onBehalf that is not the borrower, a second token path, a cap from the wrong figure, repeated calls.
+2. **Griefing with the borrower's own money:** repayment at a bad time, or emptying USDC needed for gas or a signed payment.
+3. **Forged, replayed or dropped webhooks** on the RPC-provider route and the Telegram route.
+4. **Keeper gas drain:** rules that look actionable in simulation and are no-ops on chain; thousands of rules.
+5. **Hot key and secret exposure:** keeper key, bot token (messages every linked borrower as Adag), RPC key, store credentials, webhook secrets; a NEXT_PUBLIC_ prefix ships any of them.
+6. **Authentication without sessions:** every write about a wallet needs a fresh, single-use signature from that wallet.
+7. **Multi-tenant isolation and privacy:** no route answers "is this wallet linked"; one address normalizer for keys.
+8. **Message content injection:** alerts carry fixed strings and numbers only, parse mode off.
+9. **Code guessing and binding confusion** in the link flow.
+10. **Wrong-account and wrong-contract identity:** two id spaces; in a Safe payment the payer is the Safe, the signer an owner.
+11. **Multisig transaction shape:** operation, gasPrice, gasToken, refundReceiver, safeTxGas, baseGas, nonce.
+12. **Time-of-check to time-of-use:** Safe proposals execute hours later; the keeper simulates at one block and lands at another.
+13. **Numeric errors in the guard's target math:** two roundings, a 1e36 oracle scale, three caps.
+14. **Enrol as a bypass of the new-debt rule:** bounded to the payer's own position, disclosed.
+15. **Race conditions in the store:** concurrent keeper runs, double use of a code.
+
+Still not applicable: SSRF (fixed origins only, C57), SQL injection (no query language; key construction covered by C57), file upload (no files), reentrancy through tokens (no hooks; empty data to repay; nonReentrant anyway).
+
+#### B) Threat model, extended
+
+Trust boundaries, numbered on from the ten in section B:
+
+11. Internet to the RPC-provider webhook route.
+12. Internet to the Telegram webhook route.
+13. Internet or scheduler to the keeper run route.
+14. App routes to the store, and the store back to the keeper and alerts.
+15. Keeper server to the chain.
+16. Adag's bot to a borrower's phone.
+17. Any caller to AdagGuard.protect, and AdagGuard to the allowance, Morpho and the oracle.
+18. Any caller to AdagBills v2.enrol.
+19. Owner's wallet to Safe typed data, and the app to the Transaction Service and back.
+20. The Safe's execution, hours later.
+21. v1 to v2.
+
+Attacker-controlled inputs, direct: protect's borrower, market and timing; setRule's fields including nonsense values; enrol's sender and timing; webhook bodies and headers and their replay; link codes as sent to the bot; signed messages posted to link, unlink or set thresholds; threshold values; the Safe address; every field of a Safe transaction; bill ids in a Safe basket, duplicates and both contracts.
+
+Indirect: store rows read back later; Transaction Service responses; Telegram API responses; the oracle price and feed times at the landing block; the borrower's allowance and balance at the landing block; Morpho totals and shares at execution; v2's recorded position after an earlier enrol; the Safe's nonce, owners and threshold at execution; bill status at execution; the paid RPC's answers to simulations.
+
+Privileged positions: AdagGuard's standing allowances and repay right (the most valuable addition); the keeper wallet (gas only, if no role); the server's secrets; the store; the app's Safe builder; the bot's identity.
+
+Attacker goals, highest value first: drain a borrower's allowance; silence or misdirect protection and alerts; move a Safe's funds somewhere other than the bill; pay the wrong bill or the same bill twice across two contracts; use Adag's bot for phishing; spend the keeper's gas; pay from an over-40% position through v2 (bounded, disclosed).
+
+#### C) Invariants C31 to C57, the definition of done for the second build
+
+AdagBills v2
+
+**C31. Enrol scope.** No arguments; writes only the caller's own recorded position with exactly Morpho's values in that block; stores the block; moves no tokens; emits exactly what it stored. A test enrols from an attacker and asserts every other record is unchanged.
+
+**C32. The line v2 keeps.** In any transaction that pays a bill, if live shares are above or live collateral below the last accepted or enrolled position, the 40% check runs on live state. A payer whose enrol block equals the current block is refused. Named residual: enrol in block N, pay in N+1 forgives the debt in between, own risk only. Public wording: "a payment through Adag is never the action that takes a position above 40%". Tests show the one-batch attempt reverting and the two-block path succeeding.
+
+**C33. Bill identity across two contracts.** A bill is (contract, id) in every link, row, key, Memo interpretation, paid read and pay call; one parser; ambiguous links refused. A test shows v1 id 5 and v2 id 5 cannot build each other's payment.
+
+AdagGuard
+
+**C34. Rule ownership.** Only the borrower (or the Safe as sender) writes or clears its rule; protect writes nothing but the borrower's Morpho debt.
+
+**C35. The only money path.** Pulled equals repaid on the borrower's own position in a fixed, verified market in that market's loan token; the approval to Morpho is exact and consumed in the call; AdagGuard's balance is unchanged after the call; no other function moves or approves tokens; mistaken transfers are stuck by design. Fuzzed balance-identity test. Decided: the reserve stays in the borrower's wallet, approved to AdagGuard; there is no vault.
+
+**C36. Amount bounds.** At most the least of: the amount that brings the loan back to the rule's target (debt rounded up after accrual, collateral value rounded down, as loanToValue), the remaining allowance, the borrower's balance, and debt in assets rounded down. Zero means nothing moves and nothing is emitted. A full-repayment test does not revert on rounding. Amended: the review's list also held a per-rule maximum, dropped when rules lost their maximum (C38).
+
+**C37. Price basis.** The trigger uses the market oracle's price() with no freshness gate, the price liquidation uses; a reverting price reverts protect; a zero price stays bounded by C36; documented.
+
+**C38. The real ceiling.** A rule is (trigger, target, expiry) and nothing more. There is no per-protection maximum and no cooldown: each protect repays only what brings the loan back to the target (C36), so a second protect at the same price moves nothing, and the allowance is the lifetime ceiling. A per-rule cooldown was considered and dropped: in a fast fall it could block the second protection the loan needs, at the moment the guard exists for. The app never builds an unlimited or larger-than-typed approval; the screen says the most it can take is the allowance, and that a USDC rule can leave the wallet without gas.
+
+**C39. No privileged role.** No owner, keeper role, pause, sweep or upgrade; the keeper can build exactly one calldata shape, protect(borrower, market) to the fixed address with a fixed market and zero value; tested.
+
+**C40. Views equal action.** The "would protect now, by how much" view and protect share one computation; the keeper and the app act only on the view at the latest block; property test.
+
+**C41. Rule validity.** Refuse target at or above trigger, zero trigger, trigger at or above the liquidation line, or a past nonzero expiry; expired rules are inert; the app warns when a new rule would act immediately. Amended: the review's zero-maximum check went with the per-rule maximum.
+
+**C42. Keeper spend and concurrency.** A written worst-hour gas cap, per-borrower limits and backoff; single-flight runs with a lease and expiry; bounded borrowers per run ordered by loan-to-value; gas limit from a latest-block simulation; no lease, no signing.
+
+**C43. The index is a hint.** The rule-holder list is rebuilt from chain, from AdagGuard's on-chain enumerable set of rule holders read in pages, at a fixed cadence; no store row is ever the reason to pull tokens; a forged or missed event delays protection by at most one rebuild interval. Decided: the review allowed either filtered logs or an on-chain set; Adag keeps the set.
+
+**C44. Webhook authenticity.** Provider signature, Telegram secret token and cron secret verified over the exact bytes; body caps, timeouts, rate limits; unverified requests dropped without logging bodies; handlers idempotent.
+
+**C45. A pending protection is an outflow.** The pre-signature balance check counts a rule that would act now.
+
+Alerts
+
+**C46. Link binding.** A code from a cryptographic source with at least 128 bits, expiring in minutes, consumed atomically; the chat id is the one Telegram delivered it from on a verified request; a strict signature recovers to the wallet over a message naming the action, site, chain 5042, code, chat handle and id, and expiry; the wallet is never taken from a form; attempts rate-limited; a wrong code reveals nothing.
+
+**C47. Signed writes only.** Every change to per-wallet server state carries a fresh signed message with a nonce and expiry, consumed once; unlinking from inside the chat needs no signature; thresholds validated as integers in a sane range.
+
+**C48. Alert content.** Fixed strings, computed numbers and the fixed origin only; no chain free text; parse mode off; tested with HTML and Markdown references.
+
+**C49. Privacy of the link table.** No route reveals whether a wallet is linked or any chat id; logs never hold codes or chat ids beside wallets; one normalizer for addresses and chat ids as keys.
+
+**C50. Alerts computed like the contract, promised like weather.** Loan-to-value from loanToValue or the same arithmetic; best effort; a false alert can never cause a transaction.
+
+Safe payments
+
+**C51. Safe transaction shape.** To the canonical MultiSendCallOnly with delegatecall for that target only; inner plain calls to build-time addresses only; value 0, gasPrice 0, gasToken 0, refundReceiver 0, safeTxGas 0, baseGas 0; approvals exact to Morpho, AdagBills or AdagGuard; every onBehalf and receiver the Safe; no field from the service, a URL or an RPC; tested like C3.
+
+**C52. Safe verification before signing.** Chain 5042; the address is a Safe of version 1.3.0 or later on chain; the connected account is an owner by isOwner; the nonce from the Safe contract; the signed hash equals getTransactionHash and the service's echo; EIP-712 only.
+
+**C53. Status truth.** Paid comes from the bill's own AdagBills contract, never the service's executed flag or a MultiSend event.
+
+**C54. Atomic at execution.** safeTxGas 0 and gasPrice 0 make any inner failure revert the whole execution without consuming the nonce; re-simulate from the Safe before the first signature; say the outcome is decided at execution.
+
+**C55. Same rules, Safe as payer.** Enrol, setRule, approvals and pay by a Safe follow C31 to C41 with the Safe as the account; an owner's wallet is never substituted for the Safe.
+
+Server and secrets
+
+**C56. Secrets stay on the server.** Keeper key, bot token, RPC key, store credentials, webhook and cron secrets only as server environment variables, none NEXT_PUBLIC_, checked in the build; the keeper wallet holds gas only.
+
+**C57. Routes bounded, fixed origins only.** Body caps, timeouts, rate limits; fetches only to the RPC, Telegram, Safe's service and the store; every webhook, signed-message or service value parsed once into typed values before use; unparseable input dropped.
+
+**General standards applied.** Market validity is v1's predicate; authority over server state is a strict signature; webhook validity is the provider's signature over the raw body; Safe targets are the build-time set plus MultiSendCallOnly; bill identity is a pair from one parser; debt has two roundings from one function; the view and protect share one computation; the three Safe hashes compared as the same bytes32; one normalizer for keys; thresholds in WAD units.
+
+**Named non-goals.** Liquidation itself (no balance, no allowance, nobody calling, or a single jump past 86% defeats the guard; interest can cross the trigger between price updates); a borrower's own choice to sit above 40% through enrol across two blocks, or to fund a rule with gas money; the oracle being right; a malicious Safe owner; the availability or honesty of Safe's service, Telegram or the RPC provider; a compromised Telegram account or phone; a compromised server beyond what it holds; privacy of on-chain facts.
 
 ### Rendering and outputs
 

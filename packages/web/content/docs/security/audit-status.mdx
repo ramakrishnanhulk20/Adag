@@ -11,7 +11,7 @@ description: Self-audited, with every result published. What was tested, what wa
 
 | Step | Result |
 | --- | --- |
-| Threat model before code | Written first, with 24 invariants as the definition of done; 6 more for the app layer added at the final review |
+| Threat model before code | Written first, with 24 invariants as the definition of done; 6 more for the app layer added at the final review; C31 to C57 written before the code for the components now being built |
 | Tests | 73 passing |
 | Fuzzing | 5 fuzz tests at 1,000 runs each |
 | Invariants | 7, each at 256 runs of 64 random calls |
@@ -24,6 +24,8 @@ description: Self-audited, with every result published. What was tested, what wa
 ## Threat model first
 
 Before any contract code, the design was reviewed from a plain description of what Adag does, with security deliberately left out of that description so the review had to reason from scratch. The output is the [threat model](/docs/security/threat-model): what kind of system this is, who can attack it and how, and 24 numbered invariants in section C. Three of them cover features that were never built (a fee sponsor, delegated wallets, an admin), and the contract and the app were built against the rest. The final review added six more for the app layer, C25 to C30, each naming the file and function that upholds it.
+
+A separate reviewer has since written C31 to C57, before any of their code, for the next components: a second AdagBills deployment that lets an existing Morpho borrower enrol, AdagGuard, alerts and Safe payments. They are being built against those invariants now, and none of them is live yet.
 
 ## Tests
 
