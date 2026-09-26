@@ -8,7 +8,8 @@ import { MULTISEND_CALL_ONLY, ZERO_ADDRESS } from "./constants";
 export type SafeInnerCall = { to: Address; value: 0n; data: Hex; operation: 0 };
 
 // C51: inside a Safe batch, only these, all fixed at build time. No Memo and no Multicall3From: both need an ordinary
-// wallet as the sender, and here the sender is the Safe.
+// wallet as the sender, and here the sender is the Safe. ADAG_BILLS is the current contract only: the first deployment
+// is paid from a wallet, so the propose route refuses a Safe payment to it.
 const SAFE_TARGETS: readonly Address[] = [ADAG_BILLS, MORPHO, USDC, EURC, CIRBTC];
 const SPENDERS: readonly Address[] = [MORPHO, ADAG_BILLS];
 const APPROVE = "0x095ea7b3";

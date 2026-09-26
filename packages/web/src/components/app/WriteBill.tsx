@@ -10,6 +10,7 @@ import { Hallmark } from "@/components/Hallmark";
 import { adagAbi } from "@/lib/pay/abi";
 import { dueFromDate, localIsoDate, parseAmountInput } from "@/lib/pay/amount";
 import { buildCreateBill, referenceBytes } from "@/lib/pay/build";
+import { billHref } from "@/lib/pay/billId";
 import { ADAG_BILLS, BILL_STATUS, CURRENCIES, EXPLORER, MAX_REFERENCE_BYTES, type Currency } from "@/lib/pay/constants";
 import { formatDate, formatUnitsExact, referenceText, shortAddress } from "@/lib/pay/format";
 import { billCreatedIn } from "@/lib/pay/receipt";
@@ -111,7 +112,7 @@ export function WriteBill() {
     setTx({ kind: "idle" });
   };
 
-  const shareLink = written ? `${typeof window === "undefined" ? "" : window.location.origin}/bill/${written.id}` : "";
+  const shareLink = written ? `${typeof window === "undefined" ? "" : window.location.origin}${billHref(ADAG_BILLS, written.id)}` : "";
 
   const showErrors = touched || amountText !== "";
   const locked = Boolean(busy) || Boolean(written);
@@ -300,7 +301,7 @@ export function WriteBill() {
                       title={`Bill #${written.id}`}
                       text={`Bill #${written.id} for ${amount.ok ? formatUnitsExact(amount.value, currency.decimals) : ""} ${currency.symbol}, payable on Arc.`}
                     />
-                    <Button href={`/bill/${written.id}`} variant="secondary" className="w-full md:w-auto">
+                    <Button href={billHref(ADAG_BILLS, written.id)} variant="secondary" className="w-full md:w-auto">
                       Open the bill page
                     </Button>
                   </div>

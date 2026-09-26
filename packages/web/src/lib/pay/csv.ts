@@ -1,6 +1,6 @@
 import { formatUnits } from "viem";
 import type { Bill } from "./build";
-import { ADAG_BILLS, BILL_STATUS } from "./constants";
+import { BILL_STATUS } from "./constants";
 import { referenceText } from "./format";
 import { currencyOf } from "./market";
 import type { PaidTx } from "./paidTx";
@@ -44,7 +44,7 @@ export function billRow(bill: Bill, paid: PaidTx | null): string[] {
   const tx = !isPaid ? "" : paid?.kind === "found" ? paid.url : paid?.kind === "unavailable" ? "unavailable" : "not found";
   const checked = !isPaid ? "" : paid?.kind === "found" ? (paid.loanChecked ? "yes" : "no") : "unknown";
   return [
-    ADAG_BILLS,
+    bill.contract,
     bill.id.toString(),
     statusWord(bill.status),
     iso(bill.createdAt),

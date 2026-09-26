@@ -3,24 +3,25 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { adagAbi } from "@/lib/pay/abi";
-import { ADAG_BILLS, BILL_STATUS } from "@/lib/pay/constants";
+import { BILL_STATUS, requireDeployment } from "@/lib/pay/constants";
 import { publicArc } from "@/lib/wallet/send";
 
 const EVERY_MS = 6_000;
 
-// While an open bill's page is visible, read bill(id) every six seconds. The moment someone pays or cancels it, the
-// page re-renders from the server and the keyed stamp springs down, with nothing to reload.
-export function BillLive({ id, status }: { id: string; status: number }) {
+// While an open bill's page is visible, read bill(id) on the bill's own contract every six seconds. The moment someone
+// pays or cancels it, the page re-renders from the server and the keyed stamp springs down, with nothing to reload.
+export function BillLive({ contract, id, status }: { contract: string; id: string; status: number }) {
   const router = useRouter();
 
   useEffect(() => {
     if (status !== BILL_STATUS.Open) return;
+    const { address } = requireDeployment(contract);
     let stopped = false;
     const billId = BigInt(id);
     const tick = async () => {
       if (stopped || document.visibilityState !== "visible") return;
       try {
-        const b = await publicArc().readContract({ address: ADAG_BILLS, abi: adagAbi, functionName: "bill", args: [billId] });
+        const b = await publicArc().readContract({ address, abi: adagAbi, functionName: "bill", args: [billId] });
         if (stopped || b.status === BILL_STATUS.Open) return;
         stopped = true;
         document.title = `${b.status === BILL_STATUS.Paid ? "Paid" : "Cancelled"} · Bill #${id} · Adag`;
@@ -37,7 +38,7 @@ export function BillLive({ id, status }: { id: string; status: number }) {
       window.clearInterval(timer);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [id, status, router]);
+  }, [contract, id, status, router]);
 
   return null;
 }

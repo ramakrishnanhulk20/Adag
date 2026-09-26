@@ -5,7 +5,7 @@ import { Hallmark } from "@/components/Hallmark";
 const d = (n: number) => ({ "--d": n }) as CSSProperties;
 
 type BillMissingProps =
-  | { kind: "none"; id: bigint; count: bigint | null }
+  | { kind: "none"; id: bigint; count: bigint | null; first?: boolean }
   | { kind: "invalid"; raw: string }
   | { kind: "unavailable"; id: bigint }
   | { kind: "refused"; message: string };
@@ -16,18 +16,19 @@ export function BillMissing(props: BillMissingProps) {
   let title: React.ReactNode;
   let body: string;
   if (props.kind === "none") {
-    mark = `Bill No. ${props.id}`;
+    mark = props.first ? `Bill No. ${props.id} · First deployment` : `Bill No. ${props.id}`;
     title = (
       <>
         No bill #{props.id.toString()} on Arc <em className="font-semibold text-gold italic">yet</em>.
       </>
     );
+    const where = props.first ? "on the first AdagBills deployment" : "on Arc";
     body =
       props.count === null
         ? "Adag has no record of this number. Check it with whoever sent you the link."
         : props.count === 0n
-          ? "No bills have been written on Arc so far. Check the number with whoever sent it."
-          : `The newest bill is #${props.count}. Check the number with whoever sent you the link.`;
+          ? `No bills have been written ${where} so far. Check the number with whoever sent it.`
+          : `The newest bill ${where} is #${props.count}. Check the number with whoever sent you the link.`;
   } else if (props.kind === "refused") {
     title = (
       <>

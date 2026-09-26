@@ -3,7 +3,8 @@
 //
 //   node packages/web/scripts/check-batches.mjs
 //
-// Checks (a) to (e) prove paying; (f) to (j) prove writing a bill, adding cirBTC and closing a loan. Exits 0 only if all pass.
+// Checks (a) to (e) prove paying; (f) to (j) prove writing a bill, adding cirBTC and closing a loan. All of them run
+// against the current AdagBills; (q) proves a bill on the first deployment still pays there. Exits 0 only if all pass.
 import { registerHooks } from 'node:module';
 import { decodeEventLog, decodeFunctionData, decodeFunctionResult, encodeFunctionData, getAddress, isAddressEqual, stringToHex, toHex } from 'viem';
 
@@ -134,9 +135,9 @@ async function send(tx, { before = [], after = [] } = {}) {
   return result;
 }
 
-function adagEvent(logs, name) {
+function adagEvent(logs, name, contract = C.ADAG_BILLS) {
   for (const log of logs) {
-    if (!isAddressEqual(log.address, C.ADAG_BILLS)) continue;
+    if (!isAddressEqual(log.address, contract)) continue;
     try {
       const ev = decodeEventLog({ abi: adagAbi, data: log.data, topics: log.topics });
       if (ev.eventName === name) return ev.args;
@@ -164,20 +165,21 @@ function shapeProblems(built) {
   return problems;
 }
 
-const billFromTuple = (id, b) => ({
-  id, payee: getAddress(b.payee), status: b.status, due: b.due, currency: getAddress(b.currency),
+// Every check runs against the current AdagBills unless it names the first deployment, as (q) does.
+const billFromTuple = (id, b, contract = C.ADAG_BILLS) => ({
+  contract, id, payee: getAddress(b.payee), status: b.status, due: b.due, currency: getAddress(b.currency),
   createdAt: b.createdAt, amount: b.amount, payer: getAddress(b.payer), paidAt: b.paidAt, ref: b.ref,
 });
 
-async function createBill(label) {
-  const count = (await simulate([{ from: PAYEE, ...read(C.ADAG_BILLS, adagAbi, 'billCount') }]))[0];
-  const id = decode(read(C.ADAG_BILLS, adagAbi, 'billCount'), count.returnData) + 1n;
+async function createBill(label, contract = C.ADAG_BILLS) {
+  const count = (await simulate([{ from: PAYEE, ...read(contract, adagAbi, 'billCount') }]))[0];
+  const id = decode(read(contract, adagAbi, 'billCount'), count.returnData) + 1n;
   const due = pin.timestamp + 7n * 86_400n;
-  const tx = { from: PAYEE, to: C.ADAG_BILLS, data: encodeFunctionData({ abi: adagAbi, functionName: 'createBill', args: [C.USDC, BILL_AMOUNT, due, stringToHex(label)] }) };
-  const res = await send(tx, { after: [read(C.ADAG_BILLS, adagAbi, 'bill', [id])] });
+  const tx = { from: PAYEE, to: contract, data: encodeFunctionData({ abi: adagAbi, functionName: 'createBill', args: [C.USDC, BILL_AMOUNT, due, stringToHex(label)] }) };
+  const res = await send(tx, { after: [read(contract, adagAbi, 'bill', [id])] });
   if (!res.ok) throw new Error(`createBill reverted: ${decodeAdagError(res.revertData).text}`);
-  const created = adagEvent(res.logs, 'BillCreated');
-  return { id, created, bill: billFromTuple(id, res.after[0]), res };
+  const created = adagEvent(res.logs, 'BillCreated', contract);
+  return { id, created, bill: billFromTuple(id, res.after[0], contract), res };
 }
 
 const usdc = (v) => `${(Number(v) / 1e6).toFixed(6)} USDC`;
@@ -380,7 +382,7 @@ async function main() {
       after: [payeeBal(), eurcBal(PAYEE), ltvOf(C.MARKET_USDC), ltvOf(C.MARKET_EURC), ...bills.map((b) => read(C.ADAG_BILLS, adagAbi, 'bill', [b.id]))],
     });
     if (!res.ok) return { ok: false, detail: [`reverted: ${decodeAdagError(res.revertData).text}`] };
-    const proofs = billsPaidIn(res.logs.map((l) => ({ ...l, removed: false })), bills.map((b) => b.id));
+    const proofs = billsPaidIn(res.logs.map((l) => ({ ...l, removed: false })), C.ADAG_BILLS, bills.map((b) => b.id));
     const usdcRise = res.after[0] - res.before[0];
     const eurcRise = res.after[1] - res.before[1];
     const [ltvU, ltvE] = [res.after[2], res.after[3]];
@@ -537,7 +539,7 @@ async function main() {
     });
     if (!res.ok) return { ok: false, detail: [`${label}: execTransaction reverted: ${decodeAdagError(res.revertData).text}`] };
     const logs = res.logs.map((l) => ({ ...l, removed: false }));
-    const paid = billsPaidIn(logs, [bill.id]).get(bill.id);
+    const paid = billsPaidIn(logs, C.ADAG_BILLS, [bill.id]).get(bill.id);
     // By selector: Safe 1.3.0 and 1.4.1 differ in whether txHash is indexed, but the event's signature is the same.
     const executed = logs.some((l) => isAddressEqual(l.address, safe) && l.topics[0] === EXECUTION_SUCCESS);
     const [payeeAfter, record, usdcAllowance, btcAllowance, position, nonceAfter] = res.after;
@@ -557,6 +559,26 @@ async function main() {
   const pBitcoin = await safeRun('from the Safe bitcoin', 'bitcoin');
   record("(p) a Safe pays through buildSafeBatch and its own execTransaction: from balance and from bitcoin, the payee credited exactly, the Safe the payer",
     pBalance.ok && pBitcoin.ok, [...pBalance.detail, ...pBitcoin.detail]);
+
+  // (q) The first deployment stays payable: a bill written there is paid from balance by the same builder, the pay goes
+  // to that contract through Memo, and only its own BillPaid proves it. A bill naming any other contract is refused.
+  const q = await createBill('ADAG-CHECK-Q-FIRST', C.ADAG_BILLS_FIRST);
+  const qBuilt = buildPayFromBalance(q.bill, PAYER);
+  const qShape = shapeProblems(qBuilt);
+  const qMemo = decodeFunctionData({ abi: parseAbi(['function memo(address target, bytes data, bytes32 memoId, bytes memoData)']), data: qBuilt.calls[1].callData });
+  const qRes = await send({ from: PAYER, to: qBuilt.to, data: qBuilt.data }, { before: [payeeBal()], after: [payeeBal(), read(C.ADAG_BILLS_FIRST, adagAbi, 'bill', [q.id]), read(C.USDC, erc20Abi, 'allowance', [PAYER, C.ADAG_BILLS_FIRST])] });
+  const qLogs = qRes.ok ? qRes.logs.map((l) => ({ ...l, removed: false })) : [];
+  const qProof = billsPaidIn(qLogs, C.ADAG_BILLS_FIRST, [q.id]).get(q.id);
+  const qCurrentProof = billsPaidIn(qLogs, C.ADAG_BILLS, [q.id]).get(q.id);
+  const qRise = qRes.ok ? qRes.after[0] - qRes.before[0] : 0n;
+  const qForeign = outcome(() => buildPayFromBalance({ ...q.bill, contract: C.MORPHO }, PAYER));
+  record('(q) a bill on the first deployment still pays from balance there: its own BillPaid, the payee credited exactly, and a bill naming another contract is refused',
+    q.bill.contract === C.ADAG_BILLS_FIRST && qRes.ok && qShape.length === 0 && isAddressEqual(qMemo.args[0], C.ADAG_BILLS_FIRST) && !!qProof && !qCurrentProof
+      && isAddressEqual(qProof.payer, PAYER) && qRise === BILL_AMOUNT && qRes.after[1].status === C.BILL_STATUS.Paid && qRes.after[2] === 0n && qForeign !== null,
+    qRes.ok
+      ? [`first-deployment bill #${q.id} on ${C.ADAG_BILLS_FIRST}; Memo target ${qMemo.args[0]}; BillPaid from the first deployment: ${!!qProof}, from the current contract: ${!!qCurrentProof}`,
+        `payee +${usdc(qRise)}; status ${qRes.after[1].status}; USDC allowance left ${qRes.after[2]}; gas ${qRes.gas}; a bill naming Morpho as its contract: ${qForeign ?? 'ACCEPTED'}`]
+      : [`reverted: ${decodeAdagError(qRes.revertData).text}`]);
 
   const passed = results.filter((r) => r.ok).length;
   console.log();

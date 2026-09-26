@@ -2,6 +2,7 @@ import { decodeFunctionData, encodeFunctionData, getAddress, isAddress, isAddres
 import { adagAbi, erc20Abi, memoAbi, morphoAbi, multicall3FromAbi } from "./abi";
 import {
   ADAG_BILLS,
+  ADAG_BILLS_FIRST,
   BILL_STATUS,
   CURRENCIES,
   CIRBTC,
@@ -11,6 +12,7 @@ import {
   MORPHO,
   MULTICALL3_FROM,
   USDC,
+  requireDeployment,
   type Currency,
   type MarketParams,
 } from "./constants";
@@ -19,8 +21,9 @@ import { MULTISEND_CALL_ONLY } from "../safe/constants";
 import { assertSafeInnerCalls, assertSafeTxShape, encodeMultiSend, type SafeInnerCall } from "../safe/multisend";
 import { safeTxFor } from "../safe/typedData";
 
-// The fields of bill(id), exactly as the contract returns them, plus the id they were read for.
+// The fields of bill(id), exactly as the contract returns them, plus the contract and id they were read from (C33).
 export type Bill = {
+  contract: Address;
   id: bigint;
   payee: Address;
   status: number;
@@ -33,13 +36,43 @@ export type Bill = {
   ref: Hex;
 };
 
+type BillRecord = {
+  payee: string;
+  status: number;
+  due: bigint;
+  currency: string;
+  createdAt: bigint;
+  amount: bigint;
+  payer: string;
+  paidAt: bigint;
+  ref: Hex;
+};
+
+// The one way a bill(id) answer becomes a Bill: tied to the contract it was read from, which must be one of ours.
+export function billFromRecord(contract: string, id: bigint, b: BillRecord): Bill {
+  return {
+    contract: requireDeployment(contract).address,
+    id,
+    payee: getAddress(b.payee),
+    status: b.status,
+    due: b.due,
+    currency: getAddress(b.currency),
+    createdAt: b.createdAt,
+    amount: b.amount,
+    payer: getAddress(b.payer),
+    paidAt: b.paidAt,
+    ref: b.ref,
+  };
+}
+
 export type Call3 = { target: Address; allowFailure: false; callData: Hex };
 export type Batch = { to: Address; data: Hex; calls: readonly Call3[] };
 export type DirectCall = { to: Address; data: Hex };
 
 // C3: a batch may only reach these, all fixed at build time. Nothing from a link or an RPC answer is ever added.
-const TARGETS: readonly Address[] = [ADAG_BILLS, MORPHO, MEMO, MULTICALL3_FROM, USDC, EURC, CIRBTC];
-const SPENDERS: readonly Address[] = [MORPHO, ADAG_BILLS];
+// Both AdagBills deployments are here, and each bill's pay and approval go to that bill's own contract.
+const TARGETS: readonly Address[] = [ADAG_BILLS, ADAG_BILLS_FIRST, MORPHO, MEMO, MULTICALL3_FROM, USDC, EURC, CIRBTC];
+const SPENDERS: readonly Address[] = [MORPHO, ADAG_BILLS, ADAG_BILLS_FIRST];
 const APPROVE_SELECTOR = "0x095ea7b3";
 
 export const PLEDGE_MARGIN_PERCENT = 105n;
@@ -59,6 +92,7 @@ function checkedPayer(payer: string): Address {
 }
 
 function payableCurrency(bill: Bill, payer: Address): Currency {
+  requireDeployment(bill.contract);
   if (typeof bill.id !== "bigint" || bill.id < 1n) throw new Error("A bill number must be a whole number of 1 or more.");
   if (bill.status !== BILL_STATUS.Open) throw new Error(`Bill #${bill.id} is not open for payment.`);
   if (typeof bill.amount !== "bigint" || bill.amount <= 0n) throw new Error(`Bill #${bill.id} has no amount to pay.`);
@@ -74,16 +108,26 @@ const call = (target: Address, callData: Hex): Call3 => ({ target, allowFailure:
 const approve = (token: Address, spender: Address, amount: bigint) =>
   call(token, encodeFunctionData({ abi: erc20Abi, functionName: "approve", args: [spender, amount] }));
 
-// The bill's reference goes into Memo exactly as the chain stored it, never re-encoded from displayed text.
+// The bill's reference goes into Memo exactly as the chain stored it, never re-encoded from displayed text. The pay
+// goes to the contract the bill was read from.
 const memoPay = (bill: Bill) =>
   call(
     MEMO,
     encodeFunctionData({
       abi: memoAbi,
       functionName: "memo",
-      args: [ADAG_BILLS, encodeFunctionData({ abi: adagAbi, functionName: "pay", args: [bill.id] }), memoId(bill.id), bill.ref],
+      args: [requireDeployment(bill.contract).address, encodeFunctionData({ abi: adagAbi, functionName: "pay", args: [bill.id] }), memoId(bill.id), bill.ref],
     }),
   );
+
+// A basket or a Safe payment covers bills of one contract; the approvals go to that contract alone.
+function oneContract(bills: readonly Bill[]): Address {
+  const contract = requireDeployment(bills[0]!.contract).address;
+  if (bills.some((b) => !isAddressEqual(b.contract, contract))) {
+    throw new Error("These bills sit on two different AdagBills contracts. One signature pays bills of one contract.");
+  }
+  return contract;
+}
 
 function assertCalls(calls: readonly Call3[]) {
   for (const c of calls) {
@@ -105,7 +149,7 @@ function batch(calls: Call3[]): Batch {
 export function buildPayFromBalance(bill: Bill, payer: string): Batch {
   const who = checkedPayer(payer);
   const currency = payableCurrency(bill, who);
-  return batch([approve(currency.address, ADAG_BILLS, bill.amount), memoPay(bill)]);
+  return batch([approve(currency.address, bill.contract, bill.amount), memoPay(bill)]);
 }
 
 // ARCHITECTURE.md section 6, pay from bitcoin. `marketParams` is what Morpho returned; it must hash to the fixed
@@ -127,7 +171,7 @@ export function buildPayFromBitcoin(bill: Bill, payer: string, pledgeCirBtc: big
   }
   calls.push(
     call(MORPHO, encodeFunctionData({ abi: morphoAbi, functionName: "borrow", args: [params, bill.amount, 0n, who, who] })),
-    approve(currency.address, ADAG_BILLS, bill.amount),
+    approve(currency.address, bill.contract, bill.amount),
     memoPay(bill),
   );
   return batch(calls);
@@ -144,6 +188,7 @@ export function buildPayMany(bills: Bill[], payer: string, plan: BasketPlan): Ba
   const who = checkedPayer(payer);
   if (bills.length === 0) throw new Error("Add at least one bill to pay.");
   if (bills.length > MAX_BASKET_BILLS) throw new Error(`One signature pays at most ${MAX_BASKET_BILLS} bills.`);
+  const contract = oneContract(bills);
   const seen = new Set<bigint>();
   const totals = new Map<Currency, bigint>();
   for (const b of bills) {
@@ -180,15 +225,16 @@ export function buildPayMany(bills: Bill[], payer: string, plan: BasketPlan): Ba
     }
     calls.push(call(MORPHO, encodeFunctionData({ abi: morphoAbi, functionName: "borrow", args: [c.params, totals.get(c)!, 0n, who, who] })));
   }
-  for (const c of groups) calls.push(approve(c.address, ADAG_BILLS, totals.get(c)!));
+  for (const c of groups) calls.push(approve(c.address, contract, totals.get(c)!));
   for (const b of bills) calls.push(memoPay(b));
   return batch(calls);
 }
 
-// A direct transaction from the supplier's wallet, not a batch.
-export function buildVoid(billId: bigint): DirectCall {
-  if (typeof billId !== "bigint" || billId < 1n) throw new Error("A bill number must be a whole number of 1 or more.");
-  return { to: ADAG_BILLS, data: encodeFunctionData({ abi: adagAbi, functionName: "voidBill", args: [billId] }) };
+// A direct transaction from the supplier's wallet, not a batch, to the contract the bill lives on.
+export function buildVoid(bill: Pick<Bill, "contract" | "id">): DirectCall {
+  const { address } = requireDeployment(bill.contract);
+  if (typeof bill.id !== "bigint" || bill.id < 1n) throw new Error("A bill number must be a whole number of 1 or more.");
+  return { to: address, data: encodeFunctionData({ abi: adagAbi, functionName: "voidBill", args: [bill.id] }) };
 }
 
 const MAX_UINT64 = 2n ** 64n;
@@ -206,6 +252,7 @@ function fixedCurrency(currency: Currency): Currency {
 }
 
 // C8 as a courtesy before the contract's own checks: a positive amount, a real currency, a due date that fits.
+// New bills are only ever written on the current contract.
 export function buildCreateBill(currency: Currency, amount: bigint, due: bigint, refText: string): DirectCall {
   const c = fixedCurrency(currency);
   if (typeof amount !== "bigint" || amount <= 0n) throw new Error("The amount must be more than zero.");
@@ -279,6 +326,8 @@ export function buildCloseLoan(
 
 export type SafeBatch = { to: Address; data: Hex; operation: 1; value: 0n; inner: SafeInnerCall[] };
 
+export const SAFE_CURRENT_ONLY = "Paying from a Safe works for bills on the current AdagBills contract. This bill is on the first deployment, so pay it from a wallet.";
+
 // A payment from a Safe: the same plan rules as buildPayMany, but the Safe itself is the payer, so every bill is
 // paid by calling AdagBills.pay(id) directly (no Memo, no Multicall3From: both need an ordinary wallet as sender).
 // The calls run inside one MultiSendCallOnly batch that the Safe reaches by delegatecall. Adag's own BillPaid still
@@ -287,6 +336,7 @@ export function buildSafeBatch(safe: Address, bills: Bill[], plan: BasketPlan): 
   const who = checkedPayer(safe);
   if (bills.length === 0) throw new Error("Add at least one bill to pay.");
   if (bills.length > MAX_BASKET_BILLS) throw new Error(`One Safe payment pays at most ${MAX_BASKET_BILLS} bills.`);
+  if (bills.some((b) => !isAddressEqual(requireDeployment(b.contract).address, ADAG_BILLS))) throw new Error(SAFE_CURRENT_ONLY);
   const seen = new Set<bigint>();
   const totals = new Map<Currency, bigint>();
   for (const b of bills) {

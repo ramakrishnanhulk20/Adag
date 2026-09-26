@@ -2,15 +2,25 @@
 
 import { useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import type { Bill } from "@/lib/pay/build";
+import { isAddressEqual } from "viem";
+import { SAFE_CURRENT_ONLY, type Bill } from "@/lib/pay/build";
+import { ADAG_BILLS } from "@/lib/pay/constants";
 import { SafePay } from "./SafePay";
 
 // Next to paying from the wallet: for a company whose money sits in a Safe on Arc.
 // Once a proposal is out it stays on screen even when the page stops offering payment, so the owner sees it land.
+// Safe payments run on the current contract only; a first-deployment bill gets one sentence instead.
 export function SafeEntry({ bills, available, className = "" }: { bills: Bill[]; available: boolean; className?: string }) {
   const [open, setOpen] = useState(false);
   const [proposed, setProposed] = useState(false);
   if (!available && !proposed) return null;
+  if (bills.some((b) => !isAddressEqual(b.contract, ADAG_BILLS))) {
+    return (
+      <p className={`type-body text-muted ${className}`} data-safe-unavailable>
+        {SAFE_CURRENT_ONLY}
+      </p>
+    );
+  }
   return (
     <div className={className}>
       <button

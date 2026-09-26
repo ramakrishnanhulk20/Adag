@@ -7,7 +7,7 @@ import { isAddressEqual, type Address, type Hex } from "viem";
 import { Button } from "@/components/Button";
 import { adagAbi, erc20Abi, morphoAbi } from "@/lib/pay/abi";
 import { buildPayFromBalance, buildPayFromBitcoin, suggestPledge, type Bill } from "@/lib/pay/build";
-import { ADAG_BILLS, BILL_STATUS, CIRBTC, CIRBTC_DECIMALS, EXPLORER, MAX_LTV_WAD, MORPHO, USDC, type Currency } from "@/lib/pay/constants";
+import { BILL_STATUS, CIRBTC, CIRBTC_DECIMALS, EXPLORER, MAX_LTV_WAD, MORPHO, USDC, type Currency } from "@/lib/pay/constants";
 import { formatPercentWad, formatUnitsExact } from "@/lib/pay/format";
 import { debtFromShares, liquidationDropWad, ltvWad } from "@/lib/pay/loan";
 import { paramsFromTuple } from "@/lib/pay/market";
@@ -80,7 +80,7 @@ export function PayActions(props: PayActionsProps) {
 
   const pledgeValue = pledge.state === "ok" ? pledge.value : null;
   const bitcoinFee = useQuery({
-    queryKey: ["adag-fee", "bitcoin", bill.id.toString(), address, pledgeValue?.toString()],
+    queryKey: ["adag-fee", "bitcoin", bill.contract, bill.id.toString(), address, pledgeValue?.toString()],
     enabled: fresh === true && pledgeValue !== null && !shortOfBtc && !paid,
     staleTime: 30_000,
     retry: false,
@@ -92,7 +92,7 @@ export function PayActions(props: PayActionsProps) {
   });
   const heldEnoughForBill = balance.state === "ok" && balance.value >= bill.amount;
   const balanceFee = useQuery({
-    queryKey: ["adag-fee", "balance", bill.id.toString(), address],
+    queryKey: ["adag-fee", "balance", bill.contract, bill.id.toString(), address],
     enabled: heldEnoughForBill && !paid,
     staleTime: 30_000,
     retry: false,
@@ -107,10 +107,11 @@ export function PayActions(props: PayActionsProps) {
 
   const settle = async (method: Paid["method"], hash: Hex, logs: Parameters<typeof billPaidIn>[0] | null, extra: () => Promise<Partial<Paid>>) => {
     const record = await publicArc()
-      .readContract({ address: ADAG_BILLS, abi: adagAbi, functionName: "bill", args: [bill.id] })
+      .readContract({ address: bill.contract, abi: adagAbi, functionName: "bill", args: [bill.id] })
       .catch(() => null);
-    const proof = logs ? billPaidIn(logs, bill.id) : null;
-    // C16: Adag's own BillPaid in the receipt, or, when the receipt never came, Adag's own record naming this payer.
+    const proof = logs ? billPaidIn(logs, bill.contract, bill.id) : null;
+    // C16, C53: the bill's own contract's BillPaid in the receipt, or, when the receipt never came, that contract's
+    // record naming this payer.
     const proven = record !== null && record.status === BILL_STATUS.Paid && (proof !== null || (logs === null && isAddressEqual(record.payer, address)));
     if (!proven) {
       setTx({ kind: "failed", message: "Arc confirmed the transaction, but Adag has no payment record for this bill in it. Check the link before trying again.", href: `${EXPLORER}/tx/${hash}` });
@@ -130,7 +131,7 @@ export function PayActions(props: PayActionsProps) {
     if (out.stage === "refused") return setTx({ kind: "refused", error: out.error });
     if (out.stage === "unconfirmed") {
       step("watching");
-      if (await watchBills([bill.id], BILL_STATUS.Paid, address)) return settle(method, out.hash, null, extra);
+      if (await watchBills(bill.contract, [bill.id], BILL_STATUS.Paid, address)) return settle(method, out.hash, null, extra);
       return setTx({ kind: "failed", message: "Arc has not confirmed it after two minutes. Do not pay again: check the transaction first.", href: `${EXPLORER}/tx/${out.hash}` });
     }
     setTx({ kind: "failed", message: out.message, href: out.hash && `${EXPLORER}/tx/${out.hash}` });
@@ -163,8 +164,8 @@ export function PayActions(props: PayActionsProps) {
     try {
       // Read again at the moment of paying: the page's figures may be a minute old.
       [status, freshNeeded, tuple, held, before] = await Promise.all([
-        client.readContract({ address: ADAG_BILLS, abi: adagAbi, functionName: "priceStatus", args: [m] }),
-        client.readContract({ address: ADAG_BILLS, abi: adagAbi, functionName: "collateralNeeded", args: [address, m, bill.amount] }),
+        client.readContract({ address: bill.contract, abi: adagAbi, functionName: "priceStatus", args: [m] }),
+        client.readContract({ address: bill.contract, abi: adagAbi, functionName: "collateralNeeded", args: [address, m, bill.amount] }),
         client.readContract({ address: MORPHO, abi: morphoAbi, functionName: "idToMarketParams", args: [m] }),
         client.readContract({ address: CIRBTC, abi: erc20Abi, functionName: "balanceOf", args: [address] }),
         client.readContract({ address: MORPHO, abi: morphoAbi, functionName: "position", args: [m, address] }),
@@ -195,7 +196,7 @@ export function PayActions(props: PayActionsProps) {
       const [heldAfter, afterPos, ltv] = await Promise.all([
         client.readContract({ address: CIRBTC, abi: erc20Abi, functionName: "balanceOf", args: [address] }),
         client.readContract({ address: MORPHO, abi: morphoAbi, functionName: "position", args: [m, address] }),
-        client.readContract({ address: ADAG_BILLS, abi: adagAbi, functionName: "loanToValue", args: [address, m] }),
+        client.readContract({ address: bill.contract, abi: adagAbi, functionName: "loanToValue", args: [address, m] }),
       ]);
       // Bitcoin sold is what left the wallet and the pledge together. Pledging moves it; it does not sell it.
       return { ltvAfter: ltv, sold: held + before[2] - (heldAfter + afterPos[2]), pledged: chosen };

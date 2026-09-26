@@ -10,8 +10,8 @@ import { Hallmark } from "@/components/Hallmark";
 import { adagAbi, erc20Abi, morphoAbi, oracleAbi } from "@/lib/pay/abi";
 import { billFromJson, type BillJson } from "@/lib/pay/billJson";
 import { buildPayMany, suggestPledge, type BasketPlan, type Bill } from "@/lib/pay/build";
+import { billHref } from "@/lib/pay/billId";
 import {
-  ADAG_BILLS,
   BILL_STATUS,
   CIRBTC,
   CIRBTC_DECIMALS,
@@ -22,6 +22,8 @@ import {
   MAX_LTV_WAD,
   MORPHO,
   USDC,
+  deploymentOf,
+  requireDeployment,
   type Currency,
 } from "@/lib/pay/constants";
 import { formatPercentWad, formatUnitsExact, fullAddress, referenceText, shortAddress } from "@/lib/pay/format";
@@ -68,11 +70,34 @@ function asideReason(item: BasketItem, bill: Bill | null, me: Address | null): s
 
 const statusOf = (s: number): BillStatus => (s === BILL_STATUS.Paid ? "paid" : s === BILL_STATUS.Void ? "void" : "open");
 
-export function Basket({ items, dropped, droppedCount = dropped.length }: { items: BasketItem[]; dropped: string[]; droppedCount?: number }) {
+// A basket covers one contract, named by the page from the parsed link (C33). Every read, the batch and the proofs
+// use that contract; a bill that claims another is refused when it is decoded.
+export function Basket({
+  contract: contractRaw,
+  items,
+  dropped,
+  droppedCount = dropped.length,
+}: {
+  contract: string;
+  items: BasketItem[];
+  dropped: string[];
+  droppedCount?: number;
+}) {
   const wallet = useWallet();
   const me = wallet.status === "connected" ? wallet.address : null;
   const ready = readyToSign(wallet);
-  const bills = useMemo(() => items.map((it) => (it.kind === "found" ? billFromJson(it.bill) : null)), [items]);
+  const contract = requireDeployment(contractRaw).address;
+  const first = deploymentOf(contract)?.label === "first";
+  const bills = useMemo(
+    () =>
+      items.map((it) => {
+        if (it.kind !== "found") return null;
+        const b = billFromJson(it.bill);
+        if (!isAddressEqual(b.contract, contract)) throw new Error("A bill in this basket is on another AdagBills contract.");
+        return b;
+      }),
+    [items, contract],
+  );
 
   const rows = items.map((item, i) => ({ item, bill: bills[i] ?? null, reason: asideReason(item, bills[i] ?? null, me) }));
   const payable = rows.filter((r) => r.reason === null && r.bill).map((r) => r.bill!);
@@ -106,8 +131,8 @@ export function Basket({ items, dropped, droppedCount = dropped.length }: { item
         { address: CIRBTC, abi: erc20Abi, functionName: "balanceOf", args: [who] },
         ...groups.flatMap((g) => [
           { address: g.currency.address, abi: erc20Abi, functionName: "balanceOf", args: [who] },
-          { address: ADAG_BILLS, abi: adagAbi, functionName: "priceStatus", args: [g.currency.marketId] },
-          { address: ADAG_BILLS, abi: adagAbi, functionName: "collateralNeeded", args: [who, g.currency.marketId, g.total] },
+          { address: contract, abi: adagAbi, functionName: "priceStatus", args: [g.currency.marketId] },
+          { address: contract, abi: adagAbi, functionName: "collateralNeeded", args: [who, g.currency.marketId, g.total] },
           { address: MORPHO, abi: morphoAbi, functionName: "position", args: [g.currency.marketId, who] },
           { address: MORPHO, abi: morphoAbi, functionName: "market", args: [g.currency.marketId] },
           { address: g.currency.params.oracle, abi: oracleAbi, functionName: "price" },
@@ -206,7 +231,7 @@ export function Basket({ items, dropped, droppedCount = dropped.length }: { item
   // The fixed params stand in here; the real payment re-reads Morpho's and proves them by hash.
   const planKey = groups.map((g, gi) => `${g.currency.symbol}:${choices[g.currency.symbol] ?? "-"}:${pledgeOf(groupData[gi]!) ?? "?"}`).join("|");
   const feeQuery = useQuery({
-    queryKey: ["adag-basket-fee", me, payable.map((b) => b.id.toString()).join(","), planKey],
+    queryKey: ["adag-basket-fee", contract, me, payable.map((b) => b.id.toString()).join(","), planKey],
     enabled: Boolean(me) && ready && allChosen && !shortOfBtc && !paid,
     staleTime: 30_000,
     retry: false,
@@ -232,7 +257,7 @@ export function Basket({ items, dropped, droppedCount = dropped.length }: { item
     let fresh: Bill[];
     try {
       // Read every bill again at the moment of paying. A bill that changed is named; none is ever dropped quietly.
-      const records = await Promise.all(ids.map((id) => client.readContract({ address: ADAG_BILLS, abi: adagAbi, functionName: "bill", args: [id] })));
+      const records = await Promise.all(ids.map((id) => client.readContract({ address: contract, abi: adagAbi, functionName: "bill", args: [id] })));
       const changed = records.map((r, i) => ({ r, b: payable[i]! })).filter(({ r, b }) => r.status !== b.status || r.amount !== b.amount || !isAddressEqual(r.payee, b.payee) || !isAddressEqual(r.currency, b.currency) || r.ref !== b.ref);
       if (changed.length) {
         const words = changed.map(({ r, b }) => `#${b.id} is now ${r.status === BILL_STATUS.Paid ? "paid" : r.status === BILL_STATUS.Void ? "cancelled" : "different"}`).join(", ");
@@ -258,8 +283,8 @@ export function Basket({ items, dropped, droppedCount = dropped.length }: { item
           continue;
         }
         const [status, needed, tuple] = await Promise.all([
-          client.readContract({ address: ADAG_BILLS, abi: adagAbi, functionName: "priceStatus", args: [m] }),
-          client.readContract({ address: ADAG_BILLS, abi: adagAbi, functionName: "collateralNeeded", args: [me, m, g.total] }),
+          client.readContract({ address: contract, abi: adagAbi, functionName: "priceStatus", args: [m] }),
+          client.readContract({ address: contract, abi: adagAbi, functionName: "collateralNeeded", args: [me, m, g.total] }),
           client.readContract({ address: MORPHO, abi: morphoAbi, functionName: "idToMarketParams", args: [m] }),
         ]);
         // C24: the bitcoin path needs a fresh price at the moment of paying, not only when the page loaded.
@@ -300,7 +325,7 @@ export function Basket({ items, dropped, droppedCount = dropped.length }: { item
     } else if (out.stage === "unconfirmed") {
       // No receipt in time: the bills' own records say what happened, so nobody pays twice.
       step("watching");
-      if (!(await watchBills(ids, BILL_STATUS.Paid, me))) {
+      if (!(await watchBills(contract, ids, BILL_STATUS.Paid, me))) {
         return fail("Arc has not confirmed it after two minutes. Do not pay again: check the transaction first.", out.hash);
       }
       logs = null;
@@ -309,16 +334,16 @@ export function Basket({ items, dropped, droppedCount = dropped.length }: { item
       return setTx(out.stage === "refused" ? { kind: "refused", error: out.error } : { kind: "failed", message: out.message, href: out.hash && `${EXPLORER}/tx/${out.hash}` });
     }
 
-    // C16: every bill is proven by its own BillPaid from Adag and its record read again; without a receipt, by the
-    // record alone, which must name this payer.
-    const proofs = logs ? billsPaidIn(logs, ids) : null;
-    const after = await Promise.all(ids.map((id) => client.readContract({ address: ADAG_BILLS, abi: adagAbi, functionName: "bill", args: [id] }))).catch(() => null);
+    // C16, C53: every bill is proven by its own BillPaid from the basket's contract and its record read again there;
+    // without a receipt, by the record alone, which must name this payer.
+    const proofs = logs ? billsPaidIn(logs, contract, ids) : null;
+    const after = await Promise.all(ids.map((id) => client.readContract({ address: contract, abi: adagAbi, functionName: "bill", args: [id] }))).catch(() => null);
     const missing = ids.filter((id, i) => (proofs !== null && !proofs.get(id)) || !after || after[i]!.status !== BILL_STATUS.Paid || !isAddressEqual(after[i]!.payer, me));
     if (missing.length) return fail(`Arc confirmed the transaction, but bill #${missing.join(", #")} does not read as paid by you. Check the transaction.`, hash);
 
     const btcAfter = await pledgedNow().catch(() => null);
     const ltv = await Promise.all(
-      CURRENCIES.map(async (c) => ({ symbol: c.symbol, value: await client.readContract({ address: ADAG_BILLS, abi: adagAbi, functionName: "loanToValue", args: [me, c.marketId] }) })),
+      CURRENCIES.map(async (c) => ({ symbol: c.symbol, value: await client.readContract({ address: contract, abi: adagAbi, functionName: "loanToValue", args: [me, c.marketId] }) })),
     ).catch(() => []);
     setPaid({ hash, count: ids.length, sold: btcBefore !== null && btcAfter !== null ? btcBefore - btcAfter : null, ltv: ltv.filter((l) => l.value > 0n) });
     setTx({ kind: "idle" });
@@ -340,6 +365,7 @@ export function Basket({ items, dropped, droppedCount = dropped.length }: { item
       <div className="app-rise" style={{ "--d": 0 } as React.CSSProperties}>
         <Hallmark>
           Basket · {items.length} bills{aside.length > 0 ? ` · ${payable.length} payable` : ""}
+          {first ? " · First deployment" : ""}
           <span className="hidden md:inline"> · Arc mainnet</span>
         </Hallmark>
       </div>
@@ -372,7 +398,7 @@ export function Basket({ items, dropped, droppedCount = dropped.length }: { item
           <ul className="mt-4 border-t border-rule">
             {aside.map(({ item, bill, reason }) => (
               <li key={item.id} className="grid grid-cols-[5rem_1fr] items-center gap-4 border-b border-rule py-4 md:grid-cols-[5rem_12rem_1fr_auto]" data-aside-bill={item.id}>
-                <a href={`/bill/${item.id}`} className="font-display text-[1.5rem] leading-none text-text transition-colors duration-200 hover:text-gold">
+                <a href={billHref(contract, BigInt(item.id))} className="font-display text-[1.5rem] leading-none text-text transition-colors duration-200 hover:text-gold">
                   No. {item.id}
                 </a>
                 <span className="type-ui tabular-nums text-muted">{bill ? money(bill) : "unknown"}</span>

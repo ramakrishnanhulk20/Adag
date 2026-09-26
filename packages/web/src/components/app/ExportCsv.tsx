@@ -4,6 +4,7 @@ import { useState } from "react";
 import { motion } from "motion/react";
 import type { Address, PublicClient } from "viem";
 import { Button } from "@/components/Button";
+import { billKey } from "@/lib/pay/billId";
 import type { Bill } from "@/lib/pay/build";
 import { BILL_STATUS } from "@/lib/pay/constants";
 import { CSV_HEADER, billRow, csvFileName, toCsv } from "@/lib/pay/csv";
@@ -15,9 +16,10 @@ import { rise } from "./cells";
 // Searches run a few at a time, so a long list does not flood the public RPC.
 const AT_ONCE = 3;
 
-async function paidTxFor(bills: Bill[], onProgress: (done: number, total: number) => void): Promise<Map<bigint, PaidTx>> {
+// Keyed by contract and id: the two deployments both have a bill #1, and each row's link comes from its own contract.
+async function paidTxFor(bills: Bill[], onProgress: (done: number, total: number) => void): Promise<Map<string, PaidTx>> {
   const paid = bills.filter((b) => b.status === BILL_STATUS.Paid);
-  const out = new Map<bigint, PaidTx>();
+  const out = new Map<string, PaidTx>();
   const client = publicArc() as PublicClient;
   let next = 0;
   let done = 0;
@@ -25,7 +27,7 @@ async function paidTxFor(bills: Bill[], onProgress: (done: number, total: number
   const worker = async () => {
     while (next < paid.length) {
       const bill = paid[next++]!;
-      out.set(bill.id, await searchBillPaid(client, bill));
+      out.set(billKey(bill), await searchBillPaid(client, bill));
       onProgress(++done, paid.length);
     }
   };
@@ -56,7 +58,7 @@ export function ExportCsv({ address }: { address: Address }) {
     setNote(null);
     const txs = await paidTxFor(bills, (d, t) => setProgress(t ? `Finding the transactions on Arc · ${d} of ${t}` : null));
     setProgress(null);
-    const rows = [CSV_HEADER as readonly string[], ...bills.map((b) => billRow(b, txs.get(b.id) ?? null))];
+    const rows = [CSV_HEADER as readonly string[], ...bills.map((b) => billRow(b, txs.get(billKey(b)) ?? null))];
     download(csvFileName(kind, address, new Date()), toCsv(rows));
     const capped = (kind === "written" ? wrote.data : paidList.data)?.capped;
     setNote(`${bills.length} bill${bills.length === 1 ? "" : "s"} exported${capped ? ", the newest 1,000" : ""}.`);

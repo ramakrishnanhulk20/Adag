@@ -26,7 +26,10 @@ const DIST = '.next-e2e';
 
 const PAYER = '0x6e26Dd347b57ba591Ee34292A2d828CCC17A1fDE';
 const PAYEE = '0xc95DE79125A9D7fCfE17f35C7Dbe0e88725Ad93B';
-const ADAG = '0x6F2199e0A04e5e8ba67c89C467b6DF168b01137E';
+// The current AdagBills, where the app writes and pays new bills, and the first deployment, which stays payable.
+const ADAG = '0xaf6C47ae3e2ccD2Cd829Dd8a1DcCb7a7665c08cB';
+const ADAG_FIRST = '0x6F2199e0A04e5e8ba67c89C467b6DF168b01137E';
+const GUARD = '0x9A3F3eE50Ae108124C7Cf54a1b68c14fe5800806';
 const LTV_SENTENCE = "This would take your loan past 40% of your bitcoin's value.";
 const STALE_SENTENCE = 'New loans are paused until the bitcoin price updates. Paying from your balance still works.';
 
@@ -65,8 +68,57 @@ function forkScript(...args) {
   if (r.status !== 0) throw new Error(`e2e-fork.sh ${args.join(' ')} failed: ${r.stderr || r.stdout}`);
   return r.stdout.trim();
 }
-const newBill = (currency, amount, ref) => BigInt(forkScript('bill', currency, String(amount), ref).split('\n').at(-1));
+const newBill = (currency, amount, ref, contract = 'current') => BigInt(forkScript('bill', currency, String(amount), ref, contract).split('\n').at(-1));
 const rpc = (method, params = []) => fork.request({ method, params });
+
+const USDC_PARAMS = `(${USDC},${CIRBTC},0x2AA87fF48933Ce6aBA240BEE916Fc2e6Ec1e51Ab,0xF02615d094Fc02fC031C35fe705e175aA4653f20,860000000000000000)`;
+const EURC_PARAMS = `(${EURC},${CIRBTC},0x6945246777DfdF4744D957323857F797Ec19Ca1e,0xF02615d094Fc02fC031C35fe705e175aA4653f20,860000000000000000)`;
+const MP = '(address,address,address,address,uint256)';
+const guardAbi = parseAbi(['function ruleOf(address borrower, bytes32 marketId) view returns ((uint64 triggerWad, uint64 targetWad, uint64 expiry))']);
+const START_USDC = 10n * 10n ** 18n;
+
+// The demo payer is a real wallet, and its live loan and AdagGuard rule change whenever the live proofs run. So every
+// run first puts it in one known state, on the fork only, by impersonation: no loan and no pledge in either market,
+// no guard rule, no approval to the guard, and 10 USDC.
+async function resetPayer() {
+  const done = [];
+  for (const [symbol, market, token, params] of [['USDC', MARKET_USDC, USDC, USDC_PARAMS], ['EURC', MARKET_EURC, EURC, EURC_PARAMS]]) {
+    const [, shares, collateral] = await fork.readContract({ address: MORPHO, abi: morphoAbi, functionName: 'position', args: [market, PAYER] });
+    if (shares > 0n) {
+      if (token === EURC) forkScript('fund-eurc', PAYER, '5000000');
+      else await rpc('anvil_setBalance', [PAYER, `0x${START_USDC.toString(16)}`]);
+      forkScript('send', PAYER, token, 'approve(address,uint256)', MORPHO, '5000000');
+      forkScript('send', PAYER, MORPHO, `repay(${MP},uint256,uint256,address,bytes)`, params, '0', String(shares), PAYER, '0x');
+      forkScript('send', PAYER, token, 'approve(address,uint256)', MORPHO, '0');
+      done.push(`${symbol} loan of ${shares} shares repaid`);
+    }
+    if (collateral > 0n) {
+      forkScript('send', PAYER, MORPHO, `withdrawCollateral(${MP},uint256,address,address)`, params, String(collateral), PAYER, PAYER);
+      done.push(`${collateral} sat of ${symbol} pledge withdrawn`);
+    }
+    const rule = await fork.readContract({ address: GUARD, abi: guardAbi, functionName: 'ruleOf', args: [PAYER, market] });
+    if (rule.triggerWad !== 0n || rule.targetWad !== 0n) {
+      forkScript('send', PAYER, GUARD, 'clearRule(bytes32)', market);
+      done.push(`${symbol} guard rule cleared`);
+    }
+  }
+  for (const [symbol, token] of [['USDC', USDC], ['EURC', EURC]]) {
+    if ((await fork.readContract({ address: token, abi: tokenAbi, functionName: 'allowance', args: [PAYER, GUARD] })) > 0n) {
+      forkScript('send', PAYER, token, 'approve(address,uint256)', GUARD, '0');
+      done.push(`${symbol} approval to the guard zeroed`);
+    }
+  }
+  await rpc('anvil_setBalance', [PAYER, `0x${START_USDC.toString(16)}`]);
+  const check = await Promise.all([
+    ...[MARKET_USDC, MARKET_EURC].map((m) => fork.readContract({ address: MORPHO, abi: morphoAbi, functionName: 'position', args: [m, PAYER] })),
+    ...[MARKET_USDC, MARKET_EURC].map((m) => fork.readContract({ address: GUARD, abi: guardAbi, functionName: 'ruleOf', args: [PAYER, m] })),
+    ...[USDC, EURC].map((t) => fork.readContract({ address: t, abi: tokenAbi, functionName: 'allowance', args: [PAYER, GUARD] })),
+  ]);
+  const clean = check[0][1] === 0n && check[0][2] === 0n && check[1][1] === 0n && check[1][2] === 0n
+    && check[2].triggerWad === 0n && check[3].triggerWad === 0n && check[4] === 0n && check[5] === 0n;
+  if (!clean) throw new Error('the demo payer could not be reset on the fork');
+  return done.length ? done.join('; ') : 'already clean';
+}
 const statusOf = async (id) => (await fork.readContract({ address: ADAG, abi: adagAbi, functionName: 'bill', args: [id] })).status;
 
 async function billPaidLog(id) {
@@ -180,7 +232,7 @@ async function connect(page, path) {
 // Reveals only fire in view, so walk the page before a full-page capture; then shoot 1440 dark and 375 light.
 // By default only the screens named with NEWEST_SHOTS are captured, which keeps a run short.
 // --all-shots captures every screen the run passes through, the older ones included.
-const NEWEST_SHOTS = 'a1-';
+const NEWEST_SHOTS = 'a2-';
 async function shoot(page, name) {
   const all = process.argv.includes('--all-shots');
   const file = name.startsWith(NEWEST_SHOTS) ? name : !all ? null : /^f\d/.test(name) ? name : `e2e-${name}`;
@@ -261,6 +313,7 @@ async function main() {
   console.log(`  ${forkScript('start')}`);
   const chain = await rpc('eth_chainId');
   if (chain !== '0x13b2') throw new Error(`the fork reports chain ${chain}, not 5042`);
+  console.log(`  demo payer reset on the fork: ${await resetPayer()}; 10 USDC`);
 
   const A = newBill('USDC', 400_000, 'E2E-A');
   const B = newBill('USDC', 300_000, 'E2E-B');
@@ -453,7 +506,12 @@ async function main() {
         await dialog.getByRole('checkbox').check();
         await dialog.getByRole('button', { name: 'Continue to payment' }).click();
       }
-      await ticket.locator('[data-tx-result="added"]').waitFor({ timeout: 120_000 });
+      await ticket.locator('[data-tx-result="added"]').waitFor({ timeout: 120_000 }).catch(async (e) => {
+        // A one-off stall here once had nothing to show for it; this keeps what the ticket said.
+        await page.screenshot({ path: `${SHOTS}/h-stalled.png`, fullPage: true });
+        console.log(`  (h) stalled, the ticket reads: ${(await ticket.innerText()).replace(/\s+/g, ' ').slice(0, 1500)}`);
+        throw e;
+      });
       await page.waitForFunction((b) => Number(document.querySelector('[data-loan="USDC"]')?.getAttribute('data-ltv')) < b, ltvBefore, { timeout: 60_000 }).catch(() => {});
       const ltvAfter = Number(await ticket.getAttribute('data-ltv'));
       const after = await positionOf(PAYER);
@@ -486,22 +544,37 @@ async function main() {
       const { context, page } = await openPage({ account: PAYEE });
       await connect(page, '/app').catch(() => {});
       await page.locator('[data-list="wrote"] [data-bill-row]').first().waitFor({ timeout: 60_000 });
-      const rows = await page.locator('[data-list="wrote"] [data-bill-row]').evaluateAll((els) => els.map((e) => [e.getAttribute('data-bill-row'), e.getAttribute('data-status')]));
+      const rowsOf = (list) => page.locator(`[data-list="${list}"] [data-bill-row]`).evaluateAll((els) => els.map((e) => ({
+        id: e.getAttribute('data-bill-row'), contract: e.getAttribute('data-contract'), status: e.getAttribute('data-status'),
+        href: e.querySelector('a')?.getAttribute('href'), marked: !!e.querySelector('[data-first-deployment]'),
+      })));
+      const rows = await rowsOf('wrote');
       await shoot(page, 'f7-j-payee-lists');
       await shoot(page, 'p1-lists-copy');
       await context.close();
-      const wroteOk = want.every(([id, status]) => rows.some(([r, s]) => r === String(id) && s === status));
-      const newestFirst = rows.map(([r]) => Number(r)).every((v, i, arr) => i === 0 || arr[i - 1] > v);
+      // Both contracts are listed, each row naming its own; within a contract, newest first. The test's bills are
+      // on the current contract, the payee's 25 September bill on the first deployment.
+      const wroteOk = want.every(([id, status]) => rows.some((r) => r.id === String(id) && r.contract === 'current' && r.status === status));
+      const byContract = (list, c) => list.filter((r) => r.contract === c).map((r) => Number(r.id));
+      const descending = (ids) => ids.every((v, i, arr) => i === 0 || arr[i - 1] > v);
+      const newestFirst = descending(byContract(rows, 'current')) && descending(byContract(rows, 'first'));
+      const linksOk = (list) => list.every((r) => r.href === (r.contract === 'first' ? `/bill/first/${r.id}` : `/bill/${r.id}`) && r.marked === (r.contract === 'first'));
+      const firstWrote = rows.filter((r) => r.contract === 'first');
 
       const p2 = await openPage({ account: PAYER });
       await connect(p2.page, '/app').catch(() => {});
       await p2.page.locator('[data-list="paid"] [data-bill-row]').first().waitFor({ timeout: 60_000 });
-      const paid = await p2.page.locator('[data-list="paid"] [data-bill-row]').evaluateAll((els) => els.map((e) => e.getAttribute('data-bill-row')));
+      const paid = await p2.page.locator('[data-list="paid"] [data-bill-row]').evaluateAll((els) => els.map((e) => ({
+        id: e.getAttribute('data-bill-row'), contract: e.getAttribute('data-contract'),
+        href: e.querySelector('a')?.getAttribute('href'), marked: !!e.querySelector('[data-first-deployment]'),
+      })));
       await shoot(p2.page, 'f7-j-payer-lists');
+      await shoot(p2.page, 'a2-j-lists');
       await p2.context.close();
-      record("(j) /app lists the payee's written bills with the right stamps, newest first, and the payer's paid bills",
-        wroteOk && newestFirst && paid.includes(String(A)) && paid.includes(String(B)),
-        `wrote: ${rows.map(([r, s]) => `#${r} ${s}`).join(', ')}; paid: ${paid.map((r) => `#${r}`).join(', ')}`);
+      const paidHas = (id) => paid.some((r) => r.id === String(id) && r.contract === 'current');
+      record("(j) /app lists both contracts' bills: the right stamps, newest first per contract, each row linked to its own contract and old ones marked",
+        wroteOk && newestFirst && firstWrote.length > 0 && linksOk(rows) && linksOk(paid) && paidHas(A) && paidHas(B) && paid.some((r) => r.contract === 'first'),
+        `wrote: ${rows.map((r) => `#${r.id}${r.contract === 'first' ? ' (first)' : ''} ${r.status}`).join(', ')}; paid: ${paid.map((r) => `#${r.id}${r.contract === 'first' ? ' (first)' : ''}`).join(', ')}; links and marks ${linksOk(rows) && linksOk(paid) ? 'right' : 'WRONG'}`);
     }
 
     // (k) The form refuses a zero amount and a 141-byte reference before any wallet request.
@@ -1013,23 +1086,31 @@ async function main() {
       const written = await readDownload(one.page, 'export-written');
       await shoot(one.page, 'p4-z-export');
       await one.context.close();
-      const [, wroteTotal] = await fork.readContract({ address: ADAG, abi: adagAbi, functionName: 'billsOfPayee', args: [PAYEE, 0n, 1n] });
-      const zRow = written.rows.find((r) => r[1] === String(Z));
+      const totalOf = async (fn, who) => {
+        const each = await Promise.all([ADAG, ADAG_FIRST].map((address) => fork.readContract({ address, abi: adagAbi, functionName: fn, args: [who, 0n, 1n] })));
+        return each.reduce((s, [, total]) => s + total, 0n);
+      };
+      const wroteTotal = await totalOf('billsOfPayee', PAYEE);
+      const zRow = written.rows.find((r) => r[1] === String(Z) && r[0].toLowerCase() === ADAG.toLowerCase());
+      // The contract column is per row: each row names the deployment its bill lives on.
+      const contractsOk = (rows) => rows.slice(1).every((r) => [ADAG, ADAG_FIRST].some((a) => a.toLowerCase() === r[0].toLowerCase()));
+      const firstRows = written.rows.slice(1).filter((r) => r[0].toLowerCase() === ADAG_FIRST.toLowerCase()).length;
 
       const two = await openPage({ account: PAYER });
       await connect(two.page, '/app').catch(() => {});
       await two.page.locator('[data-action="export-paid"]:not([disabled])').waitFor({ timeout: 60_000 });
       const paid = await readDownload(two.page, 'export-paid');
       await two.context.close();
-      const [, paidTotal] = await fork.readContract({ address: ADAG, abi: adagAbi, functionName: 'paymentsOfPayer', args: [PAYER, 0n, 1n] });
+      const paidTotal = await totalOf('paymentsOfPayer', PAYER);
       const linked = paid.rows.slice(1).filter((r) => r[10].startsWith('https://explorer.arc.io/tx/0x') && (r[11] === 'yes' || r[11] === 'no'));
 
       record('(z) both CSV exports: the header, one row per bill, the formula reference neutralised, and transaction links for paid bills',
         JSON.stringify(written.rows[0]) === JSON.stringify(header) && JSON.stringify(paid.rows[0]) === JSON.stringify(header)
           && written.rows.length - 1 === Number(wroteTotal) && paid.rows.length - 1 === Number(paidTotal)
           && zRow?.[9] === "'=HYPERLINK(\"x\")" && zRow?.[2] === 'open' && linked.length === paid.rows.length - 1
+          && contractsOk(written.rows) && contractsOk(paid.rows) && firstRows > 0
           && /^adag-bills-written-0x.{4}\.\.\..{4}-\d{4}-\d{2}-\d{2}\.csv$/.test(written.name),
-        `${written.name}: ${written.rows.length - 1} rows for ${wroteTotal} bills written; bill #${Z} reference cell ${JSON.stringify(zRow?.[9])}; ${paid.name}: ${paid.rows.length - 1} rows for ${paidTotal} paid, ${linked.length} with a transaction link`);
+        `${written.name}: ${written.rows.length - 1} rows for ${wroteTotal} bills written on both contracts, ${firstRows} on the first deployment; bill #${Z} reference cell ${JSON.stringify(zRow?.[9])}; ${paid.name}: ${paid.rows.length - 1} rows for ${paidTotal} paid, ${linked.length} with a transaction link`);
     }
 
     // (aa) to (cc): paying from a Safe. A 2-of-2 Safe v1.4.1 is created on the fork through Arc's SafeProxyFactory,
@@ -1202,6 +1283,43 @@ async function main() {
         text.includes('not an owner') && proposeShown === 0 && signed === 0, `shown: "${text}"; propose button ${proposeShown}; signature requests ${signed}`);
     }
 
+    // (dd) Two contracts, one number. A bill written on the first deployment opens at /bill/first/N and pays there,
+    // while /bill/N shows the current contract's bill of the same number, untouched (C33).
+    {
+      const F = newBill('USDC', 100_000, 'E2E-DD-FIRST', 'first');
+      const currentBefore = await fork.readContract({ address: ADAG, abi: adagAbi, functionName: 'bill', args: [F] });
+      const { context, page } = await openPage({ account: PAYER });
+      await connect(page, `/bill/first/${F}`).catch(() => {});
+      const sheetContract = await page.locator('[data-bill-contract]').getAttribute('data-bill-contract');
+      const sheetText = await page.locator('#bill-title').evaluate((el) => el.closest('section')?.innerText ?? '');
+      await page.locator('[data-safe-unavailable]').waitFor({ timeout: 30_000 }).catch(() => {});
+      const safeSentence = await page.locator('[data-safe-unavailable]').count();
+      const safeButton = await page.locator('[data-action="safe-open"]').count();
+      await shoot(page, 'a2-dd-first-open');
+      await page.locator('[data-action="pay-balance"]').click();
+      await page.locator('[data-tx-result="paid"]').waitFor({ timeout: 120_000 });
+      await page.getByRole('img', { name: 'Status: Paid' }).first().waitFor({ timeout: 60_000 });
+      await page.waitForTimeout(1500);
+      await shoot(page, 'a2-dd-first-paid');
+      const firstAfter = await fork.readContract({ address: ADAG_FIRST, abi: adagAbi, functionName: 'bill', args: [F] });
+      const currentAfter = await fork.readContract({ address: ADAG, abi: adagAbi, functionName: 'bill', args: [F] });
+      const firstLogs = await fork.getLogs({ address: ADAG_FIRST, event: billPaidEvent, args: { id: F }, fromBlock: (await fork.getBlockNumber()) - 20n });
+      const currentLogs = await fork.getLogs({ address: ADAG, event: billPaidEvent, args: { id: F }, fromBlock: (await fork.getBlockNumber()) - 20n });
+
+      await page.goto(`${APP}/bill/${F}`, { waitUntil: 'networkidle', timeout: 120_000 });
+      await page.locator('[data-bill-contract]').waitFor({ timeout: 60_000 });
+      const otherContract = await page.locator('[data-bill-contract]').getAttribute('data-bill-contract');
+      const otherText = await page.locator('#bill-title').evaluate((el) => el.closest('section')?.innerText ?? '');
+      await shoot(page, 'a2-dd-current-same-number');
+      await context.close();
+      const unchanged = currentAfter.status === currentBefore.status && currentAfter.payer === currentBefore.payer && currentAfter.ref === currentBefore.ref;
+      record(`(dd) bill #${F} on the first deployment opens at /bill/first/${F} and pays there; /bill/${F} still shows the current contract's own bill #${F}`,
+        sheetContract === 'first' && sheetText.includes('E2E-DD-FIRST') && /First deployment/i.test(sheetText) && safeSentence === 1 && safeButton === 0
+          && firstAfter.status === 2 && firstAfter.payer.toLowerCase() === PAYER.toLowerCase() && firstLogs.length === 1 && currentLogs.length === 0
+          && unchanged && otherContract === 'current' && !otherText.includes('E2E-DD-FIRST') && currentBefore.status !== 0,
+        `first page: contract ${sheetContract}, reference shown ${sheetText.includes('E2E-DD-FIRST')}, Safe sentence ${safeSentence}, Safe button ${safeButton}; after paying: first deployment status ${firstAfter.status} payer ${firstAfter.payer}, BillPaid on first ${firstLogs.length}, on current ${currentLogs.length}; current bill #${F} status ${currentBefore.status} -> ${currentAfter.status}, page contract ${otherContract}, shows the first bill's reference ${otherText.includes('E2E-DD-FIRST')}`);
+    }
+
     // The mobile menu open, and the wallet page before connecting.
     {
       const { context, page } = await openPage({ account: PAYER, width: 375, theme: 'light' });
@@ -1234,7 +1352,7 @@ try {
   await main();
   const passed = results.filter((r) => r.ok).length;
   console.log(`\nconsole errors: ${consoleErrors.length}${consoleErrors.length ? `\n  ${consoleErrors.join('\n  ')}` : ''}`);
-  const allOk = passed === results.length && results.length === 29 && consoleErrors.length === 0;
+  const allOk = passed === results.length && results.length === 30 && consoleErrors.length === 0;
   console.log(allOk ? `ALL ${passed} SCENARIOS PASSED` : `${results.length - passed} of ${results.length} scenarios failed`);
   code = allOk ? 0 : 1;
 } catch (error) {

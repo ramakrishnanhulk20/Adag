@@ -10,7 +10,6 @@ import { adagAbi, erc20Abi, irmAbi, morphoAbi, oracleAbi } from "@/lib/pay/abi";
 import { billFromJson, type BillJson } from "@/lib/pay/billJson";
 import type { Bill } from "@/lib/pay/build";
 import {
-  ADAG_BILLS,
   BILL_STATUS,
   CIRBTC,
   CIRBTC_DECIMALS,
@@ -98,12 +97,12 @@ function ConnectedWallet({ address, bill, wallet, justPaid, paidTxUrl }: Connect
       { chainId: arc.id, address: MORPHO, abi: morphoAbi, functionName: "market", args: [MARKET_USDC] },
       { chainId: arc.id, address: MORPHO, abi: morphoAbi, functionName: "position", args: [MARKET_EURC, address] },
       { chainId: arc.id, address: MORPHO, abi: morphoAbi, functionName: "market", args: [MARKET_EURC] },
-      { chainId: arc.id, address: ADAG_BILLS, abi: adagAbi, functionName: "loanToValue", args: [address, MARKET_USDC] },
-      { chainId: arc.id, address: ADAG_BILLS, abi: adagAbi, functionName: "loanToValue", args: [address, MARKET_EURC] },
-      { chainId: arc.id, address: ADAG_BILLS, abi: adagAbi, functionName: "priceStatus", args: [m] },
+      { chainId: arc.id, address: bill.contract, abi: adagAbi, functionName: "loanToValue", args: [address, MARKET_USDC] },
+      { chainId: arc.id, address: bill.contract, abi: adagAbi, functionName: "loanToValue", args: [address, MARKET_EURC] },
+      { chainId: arc.id, address: bill.contract, abi: adagAbi, functionName: "priceStatus", args: [m] },
       { chainId: arc.id, address: USDC_MARKET_ORACLE, abi: oracleAbi, functionName: "price" },
       { chainId: arc.id, address: EURC_MARKET_ORACLE, abi: oracleAbi, functionName: "price" },
-      { chainId: arc.id, address: ADAG_BILLS, abi: adagAbi, functionName: "collateralNeeded", args: [address, m, bill.amount] },
+      { chainId: arc.id, address: bill.contract, abi: adagAbi, functionName: "collateralNeeded", args: [address, m, bill.amount] },
     ],
     query: { refetchInterval: 30_000 },
   });

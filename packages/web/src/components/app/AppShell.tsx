@@ -1,5 +1,5 @@
 import "./app.css";
-import { ADAG_BILLS, EXPLORER } from "@/lib/pay/constants";
+import { ADAG_BILLS, ADAG_BILLS_FIRST, EXPLORER } from "@/lib/pay/constants";
 import { AppNav } from "./AppNav";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -41,6 +41,14 @@ function AppFooter() {
             className="link-draw type-address text-muted transition-colors duration-200 hover:text-text"
           >
             AdagBills {ADAG_BILLS}
+          </a>
+          <a
+            href={`${EXPLORER}/address/${ADAG_BILLS_FIRST}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="link-draw type-address text-muted transition-colors duration-200 hover:text-text"
+          >
+            First deployment {ADAG_BILLS_FIRST}
           </a>
         </div>
       </div>

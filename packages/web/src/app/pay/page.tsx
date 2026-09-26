@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Hallmark } from "@/components/Hallmark";
 import { AppShell } from "@/components/app/AppShell";
 import { PayForm } from "@/components/app/PayForm";
-import { readBillCount } from "@/lib/pay/read";
+import { readTotalBillCount } from "@/lib/pay/read";
 
 export const metadata: Metadata = {
   title: "Pay a bill · Adag",
@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function PayPage() {
-  const count = await readBillCount();
+  const count = await readTotalBillCount();
 
   return (
     <AppShell>
@@ -43,7 +43,7 @@ export default async function PayPage() {
         <div className="app-rise mt-6 flex items-baseline gap-4 border-t border-rule pt-6 md:mt-10 md:max-w-[44rem]" style={{ "--d": 4 } as React.CSSProperties}>
           <span className={count.ok ? "type-number text-text" : "type-label text-muted"}>{count.ok ? count.count.toString() : "unavailable"}</span>
           <span className="type-body text-muted">
-            {count.ok ? `bill${count.count === 1n ? "" : "s"} written on Arc so far, read from AdagBills just now.` : "Arc did not answer, so the bill count is unknown right now."}
+            {count.ok ? `bill${count.count === 1n ? "" : "s"} written on Arc so far, read from both AdagBills deployments just now.` : "Arc did not answer, so the bill count is unknown right now."}
           </span>
         </div>
       </section>

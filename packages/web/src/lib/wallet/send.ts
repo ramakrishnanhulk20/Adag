@@ -2,7 +2,7 @@ import { parseGwei, type Address, type Hex, type TransactionReceipt } from "viem
 import { arc } from "viem/chains";
 import { getConnection, getPublicClient, sendTransaction, waitForTransactionReceipt } from "wagmi/actions";
 import { adagAbi } from "@/lib/pay/abi";
-import { ADAG_BILLS } from "@/lib/pay/constants";
+import { requireDeployment } from "@/lib/pay/constants";
 import { decodeAdagError, type PlainError } from "@/lib/pay/errors";
 import { formatUnitsExact } from "@/lib/pay/format";
 import { wagmiConfig } from "./config";
@@ -169,14 +169,15 @@ export async function simulateAndSend({ account, to, data, onStep, usdcOut = 0n 
   return { ok: true, hash, receipt };
 }
 
-// After a receipt timeout: read bill(id) every few seconds for up to two minutes until every bill reaches the status
-// wanted. Adag's own record is proof (C16), so the page can show the real outcome instead of a guess.
-export async function watchBills(ids: readonly bigint[], wantedStatus: number, expectedPayer?: Address): Promise<boolean> {
+// After a receipt timeout: read bill(id) on the bills' own contract every few seconds for up to two minutes until
+// every bill reaches the status wanted. That record is proof (C16, C53), so the page can show the real outcome.
+export async function watchBills(contract: string, ids: readonly bigint[], wantedStatus: number, expectedPayer?: Address): Promise<boolean> {
   const client = publicArc();
+  const { address } = requireDeployment(contract);
   const until = Date.now() + WATCH_TIMEOUT_MS;
   while (Date.now() < until) {
     try {
-      const records = await Promise.all(ids.map((id) => client.readContract({ address: ADAG_BILLS, abi: adagAbi, functionName: "bill", args: [id] })));
+      const records = await Promise.all(ids.map((id) => client.readContract({ address, abi: adagAbi, functionName: "bill", args: [id] })));
       const done = records.every((r) => r.status === wantedStatus && (!expectedPayer || r.payer.toLowerCase() === expectedPayer.toLowerCase()));
       if (done) return true;
     } catch {

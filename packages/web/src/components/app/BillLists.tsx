@@ -8,7 +8,8 @@ import type { Address } from "viem";
 import { BillStamp, type BillStatus } from "@/components/BillStamp";
 import { Button } from "@/components/Button";
 import type { Bill } from "@/lib/pay/build";
-import { BILL_STATUS, CURRENCIES } from "@/lib/pay/constants";
+import { billHref, billKey } from "@/lib/pay/billId";
+import { BILL_STATUS, CURRENCIES, deploymentOf } from "@/lib/pay/constants";
 import { formatDate, formatUnitsExact, referenceText, shortAddress } from "@/lib/pay/format";
 import { LIST_PAGE, readBillList } from "@/lib/pay/lists";
 import { currencyOf } from "@/lib/pay/market";
@@ -33,11 +34,22 @@ export function useBillList(kind: "wrote" | "paid", address: Address) {
   });
 }
 
-function CopyLink({ id }: { id: bigint }) {
+// The first deployment's bills stay in the lists, marked, and link to their own page.
+function FirstMark({ bill }: { bill: Bill }) {
+  if (deploymentOf(bill.contract)?.label !== "first") return null;
+  return (
+    <span className="type-micro ml-2 rounded-[4px] border border-rule px-1.5 py-0.5 align-middle text-muted" title={`AdagBills first deployment ${bill.contract}`} data-first-deployment>
+      First deployment
+    </span>
+  );
+}
+
+function CopyLink({ bill }: { bill: Bill }) {
+  const id = bill.id;
   const [copied, setCopied] = useState(false);
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(`${window.location.origin}/bill/${id}`);
+      await navigator.clipboard.writeText(`${window.location.origin}${billHref(bill.contract, bill.id)}`);
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1400);
     } catch {
@@ -127,8 +139,8 @@ export function BillsWritten({ address }: { address: Address }) {
           <>
             <ul>
               {rows.map((b) => (
-                <li key={b.id.toString()} className="flex items-center gap-3 border-b border-rule" data-bill-row={b.id.toString()} data-status={statusOf(b.status)}>
-                  <Link href={`/bill/${b.id}`} className="group grid min-w-0 flex-1 grid-cols-[4.5rem_1fr_auto] items-center gap-x-4 gap-y-1 py-4 transition-colors duration-200 hover:bg-surface/60 md:grid-cols-[5rem_10rem_7rem_1fr_12rem] md:px-2">
+                <li key={billKey(b)} className="flex items-center gap-3 border-b border-rule" data-bill-row={b.id.toString()} data-contract={deploymentOf(b.contract)?.label} data-status={statusOf(b.status)}>
+                  <Link href={billHref(b.contract, b.id)} className="group grid min-w-0 flex-1 grid-cols-[4.5rem_1fr_auto] items-center gap-x-4 gap-y-1 py-4 transition-colors duration-200 hover:bg-surface/60 md:grid-cols-[5rem_10rem_7rem_1fr_12rem] md:px-2">
                     <span className="font-display text-[1.5rem] leading-none text-text transition-colors duration-200 group-hover:text-gold">No. {b.id.toString()}</span>
                     <span className="type-ui tabular-nums text-text">{money(b)}</span>
                     <span className="app-stamp-sm justify-self-end md:justify-self-start">
@@ -136,12 +148,13 @@ export function BillsWritten({ address }: { address: Address }) {
                     </span>
                     <span className="type-body col-span-3 min-w-0 truncate text-muted md:col-span-1">
                       {b.ref !== "0x" ? <span className="app-reference">{referenceText(b.ref)}</span> : "No reference"}
+                      <FirstMark bill={b} />
                     </span>
                     <span className="type-micro col-span-3 normal-case tracking-[0.04em] text-muted md:col-span-1 md:text-right">
                       {b.status === BILL_STATUS.Paid ? `Paid ${formatDate(b.paidAt)} by ${shortAddress(b.payer)}` : b.due === 0n ? "No due date" : `Due ${formatDate(b.due)}`}
                     </span>
                   </Link>
-                  <CopyLink id={b.id} />
+                  <CopyLink bill={b} />
                 </li>
               ))}
             </ul>
@@ -180,10 +193,13 @@ export function BillsPaid({ address }: { address: Address }) {
           <>
             <ul>
               {rows.map((b) => (
-                <li key={b.id.toString()} className="border-b border-rule" data-bill-row={b.id.toString()} data-status={statusOf(b.status)}>
-                  <Link href={`/bill/${b.id}`} className="group grid grid-cols-[4.5rem_1fr_auto] items-center gap-x-4 py-4 transition-colors duration-200 hover:bg-surface/60 md:grid-cols-[5rem_1fr_auto] md:px-2">
+                <li key={billKey(b)} className="border-b border-rule" data-bill-row={b.id.toString()} data-contract={deploymentOf(b.contract)?.label} data-status={statusOf(b.status)}>
+                  <Link href={billHref(b.contract, b.id)} className="group grid grid-cols-[4.5rem_1fr_auto] items-center gap-x-4 py-4 transition-colors duration-200 hover:bg-surface/60 md:grid-cols-[5rem_1fr_auto] md:px-2">
                     <span className="font-display text-[1.5rem] leading-none text-text transition-colors duration-200 group-hover:text-gold">No. {b.id.toString()}</span>
-                    <span className="type-ui tabular-nums text-text">{money(b)}</span>
+                    <span className="type-ui tabular-nums text-text">
+                      {money(b)}
+                      <FirstMark bill={b} />
+                    </span>
                     <span className="type-micro text-right normal-case tracking-[0.04em] text-muted">
                       <span className="block whitespace-nowrap">To {shortAddress(b.payee)}</span>
                       <span className="mt-1 block whitespace-nowrap">Paid {formatDate(b.paidAt)}</span>

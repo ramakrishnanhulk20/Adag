@@ -1,8 +1,10 @@
 import { getAddress, type Hex } from "viem";
 import type { Bill } from "./build";
+import { requireDeployment } from "./constants";
 
 // What crosses from the server render to the browser: every integer as a decimal string, never a float (C15).
 export type BillJson = {
+  contract: string;
   id: string;
   payee: string;
   status: number;
@@ -17,6 +19,7 @@ export type BillJson = {
 
 export function billToJson(b: Bill): BillJson {
   return {
+    contract: b.contract,
     id: b.id.toString(),
     payee: b.payee,
     status: b.status,
@@ -32,6 +35,7 @@ export function billToJson(b: Bill): BillJson {
 
 export function billFromJson(j: BillJson): Bill {
   return {
+    contract: requireDeployment(j.contract).address,
     id: BigInt(j.id),
     payee: getAddress(j.payee),
     status: j.status,

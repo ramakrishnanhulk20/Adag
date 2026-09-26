@@ -1,7 +1,7 @@
 import { isAddressEqual, type Block, type Hex, type PublicClient } from "viem";
 import { LOG_MAX_PAGES, LOG_PAGE_BLOCKS } from "../arc/constants";
 import { adagAbi } from "./abi";
-import { ADAG_BILLS, ADAG_DEPLOY_BLOCK, BILL_STATUS, EXPLORER } from "./constants";
+import { BILL_STATUS, EXPLORER, requireDeployment } from "./constants";
 import type { Bill } from "./build";
 
 export type PaidTx =
@@ -17,13 +17,15 @@ const mark = (b: Block): Mark => {
   return { number: b.number, timestamp: b.timestamp };
 };
 
-// C16: the paying transaction comes only from Adag's own BillPaid log for this id, matching the bill's payer, payee and
-// amount. The search narrows to the block whose time is paidAt by interpolating block times, then reads at most
-// LOG_MAX_PAGES windows of 10,000 blocks (C19). The server page and the browser's export share this one search.
+// C16: the paying transaction comes only from the BillPaid log of the bill's own contract for this id, matching the
+// bill's payer, payee and amount. The other deployment's log for the same number is never a match (C33). The search
+// narrows to the block whose time is paidAt by interpolating block times, then reads at most LOG_MAX_PAGES windows of
+// 10,000 blocks (C19). The server page and the browser's export share this one search.
 export async function searchBillPaid(client: PublicClient, bill: Bill): Promise<PaidTx> {
   if (bill.status !== BILL_STATUS.Paid) return { kind: "not-found" };
   try {
-    const [head, deploy] = await Promise.all([client.getBlock().then(mark), client.getBlock({ blockNumber: ADAG_DEPLOY_BLOCK }).then(mark)]);
+    const { address: contract, deployBlock } = requireDeployment(bill.contract);
+    const [head, deploy] = await Promise.all([client.getBlock().then(mark), client.getBlock({ blockNumber: deployBlock }).then(mark)]);
     const paidAt = bill.paidAt;
     if (paidAt < deploy.timestamp || paidAt > head.timestamp) return { kind: "not-found" };
 
@@ -44,7 +46,7 @@ export async function searchBillPaid(client: PublicClient, bill: Bill): Promise<
     for (let page = 0, from = lo.number; page < LOG_MAX_PAGES && from <= hi.number; page++, from += LOG_PAGE_BLOCKS) {
       const to = from + LOG_PAGE_BLOCKS - 1n < hi.number ? from + LOG_PAGE_BLOCKS - 1n : hi.number;
       const logs = await client.getContractEvents({
-        address: ADAG_BILLS,
+        address: contract,
         abi: adagAbi,
         eventName: "BillPaid",
         args: { id: bill.id },
@@ -55,7 +57,7 @@ export async function searchBillPaid(client: PublicClient, bill: Bill): Promise<
       const match = logs.find(
         (log) =>
           !log.removed &&
-          isAddressEqual(log.address, ADAG_BILLS) &&
+          isAddressEqual(log.address, contract) &&
           log.args.id === bill.id &&
           isAddressEqual(log.args.payer, bill.payer) &&
           isAddressEqual(log.args.payee, bill.payee) &&

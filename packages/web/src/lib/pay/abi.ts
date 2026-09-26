@@ -2,8 +2,9 @@ import { parseAbi } from "viem";
 
 const mp = "(address loanToken, address collateralToken, address oracle, address irm, uint256 lltv)";
 
-// Matches packages/contracts/deployments/AdagBills.abi.json for every entry the app reads, writes or decodes.
-export const adagAbi = parseAbi([
+// The first deployment's entries (deployments/2026-09-25/AdagBills.abi.json) for everything the app reads, writes or
+// decodes. The current deployment has every one of them unchanged, so reads and pay calls use one ABI for both.
+const FIRST_ENTRIES = [
   "function createBill(address currency, uint256 amount, uint64 due, bytes ref) returns (uint256 id)",
   "function voidBill(uint256 id)",
   "function pay(uint256 id)",
@@ -35,6 +36,18 @@ export const adagAbi = parseAbi([
   "error UnsupportedCurrency(address currency)",
   "error ZeroAmount()",
   "error ZeroPrice()",
+] as const;
+
+export const adagFirstAbi = parseAbi(FIRST_ENTRIES);
+
+// The current deployment (deployments/2026-09-26/AdagBills.abi.json) adds enrol. Only the current contract is ever
+// called with these.
+export const adagAbi = parseAbi([
+  ...FIRST_ENTRIES,
+  "function enrol()",
+  "function enrolledAt(address payer) view returns (uint64 blockNumber)",
+  "event Enrolled(address indexed payer, uint256 usdcShares, uint256 usdcCollateral, uint256 eurcShares, uint256 eurcCollateral)",
+  "error EnrolledThisBlock()",
 ]);
 
 export const morphoAbi = parseAbi([

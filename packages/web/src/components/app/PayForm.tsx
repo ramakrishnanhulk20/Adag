@@ -7,8 +7,8 @@ import { arc } from "viem/chains";
 import { usePublicClient } from "wagmi";
 import { Button } from "@/components/Button";
 import { adagAbi } from "@/lib/pay/abi";
-import { parseBillList } from "@/lib/pay/billId";
-import { ADAG_BILLS } from "@/lib/pay/constants";
+import { basketHref, billHref, parseBillList } from "@/lib/pay/billId";
+import { deploymentOf } from "@/lib/pay/constants";
 
 export function PayForm() {
   const router = useRouter();
@@ -28,8 +28,8 @@ export function PayForm() {
       setNote((error as Error).message);
       return;
     }
-    const { ids, dropped } = parsed;
-    if (ids.length === 0) {
+    const { refs, dropped } = parsed;
+    if (refs.length === 0) {
       setNote("Type a bill number, like 12, or paste the bill link your supplier sent. Several numbers pay together.");
       return;
     }
@@ -38,28 +38,30 @@ export function PayForm() {
       return;
     }
     // Several bills open the basket; the page reads each one itself and says which cannot be paid.
-    if (ids.length > 1) {
+    if (refs.length > 1) {
       setBusy(true);
-      router.push(`/pay/basket?bills=${ids.join(",")}`);
+      router.push(basketHref(refs[0]!.contract, refs.map((r) => r.id)));
       return;
     }
-    const id = ids[0]!;
+    const ref = refs[0]!;
+    const first = deploymentOf(ref.contract)?.label === "first";
     setBusy(true);
     setNote(null);
     let count: bigint | null = null;
     try {
-      // Read fresh at the moment of asking, so a bill written a second ago is already found.
-      count = client ? await client.readContract({ address: ADAG_BILLS, abi: adagAbi, functionName: "billCount" }) : null;
+      // Read fresh at the moment of asking, on the bill's own contract, so a bill written a second ago is found.
+      count = client ? await client.readContract({ address: ref.contract, abi: adagAbi, functionName: "billCount" }) : null;
     } catch {
       count = null;
     }
-    if (count !== null && id > count) {
+    if (count !== null && ref.id > count) {
       setBusy(false);
-      setNote(count === 0n ? `No bill #${id} on Arc yet. No bills have been written so far.` : `No bill #${id} on Arc yet. The newest bill is #${count}.`);
+      const where = first ? "on the first AdagBills deployment" : "on Arc";
+      setNote(count === 0n ? `No bill #${ref.id} ${where} yet. No bills have been written so far.` : `No bill #${ref.id} ${where} yet. The newest bill is #${count}.`);
       return;
     }
     // When Arc did not answer, the bill page runs its own read and says plainly if the bill is missing.
-    router.push(`/bill/${id}`);
+    router.push(billHref(ref.contract, ref.id));
   };
 
   return (

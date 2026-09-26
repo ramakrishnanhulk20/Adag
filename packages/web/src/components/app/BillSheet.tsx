@@ -2,7 +2,7 @@ import type { CSSProperties } from "react";
 import { BillStamp, type BillStatus } from "@/components/BillStamp";
 import { Hallmark } from "@/components/Hallmark";
 import type { Bill } from "@/lib/pay/build";
-import { BILL_STATUS, EXPLORER } from "@/lib/pay/constants";
+import { BILL_STATUS, EXPLORER, deploymentOf } from "@/lib/pay/constants";
 import { formatDate, formatDateTime, formatUnitsExact, fullAddress, referenceText, shortAddress } from "@/lib/pay/format";
 import { currencyOf } from "@/lib/pay/market";
 import type { PaidTx } from "@/lib/pay/read";
@@ -33,14 +33,15 @@ function ExternalLink({ href, children, className = "" }: { href: string; childr
   );
 }
 
-// Everything on this sheet is decoded from bill(id), the same record pay() reads (C15). Status comes only from that
-// record; the transaction link only from Adag's own BillPaid log (C16).
+// Everything on this sheet is decoded from bill(id) on the bill's own contract, the same record pay() reads (C15).
+// Status comes only from that record; the transaction link only from that contract's BillPaid log (C16, C33).
 export function BillSheet({ bill, paidTx }: { bill: Bill; paidTx: PaidTx }) {
   const status = statusOf(bill.status);
   const currency = currencyOf(bill.currency);
   const payee = fullAddress(bill.payee);
   const reference = referenceText(bill.ref);
   const amount = currency ? formatUnitsExact(bill.amount, currency.decimals) : bill.amount.toString();
+  const first = deploymentOf(bill.contract)?.label === "first";
 
   return (
     <section className="relative px-5 pt-10 pb-14 md:px-[6vw] md:pt-[9vh] md:pb-20" aria-labelledby="bill-title">
@@ -54,7 +55,18 @@ export function BillSheet({ bill, paidTx }: { bill: Bill; paidTx: PaidTx }) {
       <div className="grid gap-12 md:grid-cols-12 md:gap-8">
         <div className="md:col-span-7">
           <div className="app-rise" style={d(0)}>
-            <Hallmark>Bill No. {bill.id.toString()} · Arc mainnet</Hallmark>
+            <Hallmark>
+              Bill No. {bill.id.toString()}
+              {first ? (
+                <>
+                  {" · First deployment"}
+                  {/* The longer mark would push a phone screen wider than itself, so the network drops there. */}
+                  <span className="hidden md:inline"> · Arc mainnet</span>
+                </>
+              ) : (
+                " · Arc mainnet"
+              )}
+            </Hallmark>
           </div>
           <h1 id="bill-title" className="sr-only">
             Bill number {bill.id.toString()}: {amount} {currency?.symbol ?? ""}, status {status}
@@ -102,6 +114,14 @@ export function BillSheet({ bill, paidTx }: { bill: Bill; paidTx: PaidTx }) {
             <Row label="Currency">
               <span className="block">{currency?.symbol ?? "Unknown token"}</span>
               <span className="type-address mt-1 block break-all text-muted">{fullAddress(bill.currency)}</span>
+            </Row>
+            <Row label="Contract">
+              <span className="block" data-bill-contract={first ? "first" : "current"}>
+                {first ? "AdagBills, first deployment" : "AdagBills"}
+              </span>
+              <ExternalLink href={`${EXPLORER}/address/${bill.contract}`} className="type-address mt-1 block break-all text-muted">
+                {fullAddress(bill.contract)}
+              </ExternalLink>
             </Row>
             {status === "paid" && (
               <>

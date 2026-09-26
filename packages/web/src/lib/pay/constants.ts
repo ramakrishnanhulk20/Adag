@@ -1,10 +1,9 @@
 // Plain TypeScript with relative imports only: scripts/check-batches.mjs runs this folder under bare Node.
-import type { Address, Hex } from "viem";
+import { isAddress, isAddressEqual, type Address, type Hex } from "viem";
 import { ADAPTIVE_CURVE_IRM, CIRBTC, EURC, MARKET_EURC, MARKET_USDC, USDC, USDC_MARKET_LLTV, USDC_MARKET_ORACLE } from "../arc/constants";
+import { adagAbi, adagFirstAbi } from "./abi";
 
 export {
-  ADAG_BILLS,
-  ADAG_DEPLOY_BLOCK,
   ADAPTIVE_CURVE_IRM,
   CHAIN_ID,
   CIRBTC,
@@ -18,6 +17,37 @@ export {
   USDC_MARKET_ORACLE,
   WAD,
 } from "../arc/constants";
+
+// Two AdagBills deployments stay live (deployments/arc-mainnet.json). New bills are written only on the current one;
+// bills on the first stay viewable and payable there. A bill is the pair (contract, id), never a bare number (C33).
+export const ADAG_BILLS: Address = "0xaf6C47ae3e2ccD2Cd829Dd8a1DcCb7a7665c08cB";
+export const ADAG_DEPLOY_BLOCK = 22_859_681n;
+export const ADAG_BILLS_FIRST: Address = "0x6F2199e0A04e5e8ba67c89C467b6DF168b01137E";
+export const ADAG_FIRST_DEPLOY_BLOCK = 22_727_688n;
+
+export type Deployment = {
+  address: Address;
+  label: "current" | "first";
+  abi: typeof adagAbi | typeof adagFirstAbi;
+  deployBlock: bigint;
+};
+
+export const DEPLOYMENTS: readonly Deployment[] = [
+  { address: ADAG_BILLS, label: "current", abi: adagAbi, deployBlock: ADAG_DEPLOY_BLOCK },
+  { address: ADAG_BILLS_FIRST, label: "first", abi: adagFirstAbi, deployBlock: ADAG_FIRST_DEPLOY_BLOCK },
+];
+
+export function deploymentOf(contract: string): Deployment | null {
+  if (typeof contract !== "string" || !isAddress(contract, { strict: false })) return null;
+  return DEPLOYMENTS.find((d) => isAddressEqual(d.address, contract)) ?? null;
+}
+
+// Anything that is about to read, link or build for a bill runs its contract through this first.
+export function requireDeployment(contract: string): Deployment {
+  const d = deploymentOf(contract);
+  if (!d) throw new Error(`Refusing ${String(contract)}: it is not one of Adag's AdagBills contracts.`);
+  return d;
+}
 
 // ARCHITECTURE.md section 3. The only addresses a batch may target, together with the ones re-exported above (C3).
 export const MEMO: Address = "0x5294E9927c3306DcBaDb03fe70b92e01cCede505";

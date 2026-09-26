@@ -3,7 +3,8 @@
 # and bills written by the payee with arc-cast. Nothing here touches the real chain.
 #
 #   bash scripts/e2e-fork.sh start
-#   bash scripts/e2e-fork.sh bill USDC 400000 E2E-A      prints the new bill id
+#   bash scripts/e2e-fork.sh bill USDC 400000 E2E-A      prints the new bill id on the current AdagBills
+#   bash scripts/e2e-fork.sh bill USDC 100000 E2E-F first   the same on the first deployment
 #   bash scripts/e2e-fork.sh stop
 set -euo pipefail
 
@@ -22,7 +23,9 @@ LOG_FILE=/tmp/adag-e2e-anvil.log
 
 PAYER=0x6e26Dd347b57ba591Ee34292A2d828CCC17A1fDE
 PAYEE=0xc95DE79125A9D7fCfE17f35C7Dbe0e88725Ad93B
-ADAG=0x6F2199e0A04e5e8ba67c89C467b6DF168b01137E
+# The current AdagBills, and the first deployment, which stays live with its own bills.
+ADAG=0xaf6C47ae3e2ccD2Cd829Dd8a1DcCb7a7665c08cB
+ADAG_FIRST=0x6F2199e0A04e5e8ba67c89C467b6DF168b01137E
 USDC=0x3600000000000000000000000000000000000000
 EURC=0xbEf5f6d51CB62b58e6A8f77868681825C6fe21c1
 
@@ -51,6 +54,7 @@ bill)
     currency_name=${2:?currency}
     amount=${3:?amount in base units}
     ref=${4:?reference}
+    case "${5:-current}" in current) bills=$ADAG ;; first) bills=$ADAG_FIRST ;; *) echo "current or first" >&2; exit 1 ;; esac
     case "$currency_name" in USDC) currency=$USDC ;; EURC) currency=$EURC ;; *) echo "USDC or EURC" >&2; exit 1 ;; esac
     now=$(arc-cast block latest --field timestamp --rpc-url "$RPC")
     due=$((now + 7 * 86400))
@@ -60,9 +64,9 @@ bill)
         hex:*) refbytes=${ref#hex:} ;;
         *) refbytes=$(arc-cast from-utf8 "$ref") ;;
     esac
-    arc-cast send "$ADAG" "createBill(address,uint256,uint64,bytes)" "$currency" "$amount" "$due" "$refbytes" \
+    arc-cast send "$bills" "createBill(address,uint256,uint64,bytes)" "$currency" "$amount" "$due" "$refbytes" \
         --unlocked --from "$PAYEE" --rpc-url "$RPC" --gas-price 20gwei >/dev/null
-    arc-cast call "$ADAG" "billCount()(uint256)" --rpc-url "$RPC" | awk '{print $1}'
+    arc-cast call "$bills" "billCount()(uint256)" --rpc-url "$RPC" | awk '{print $1}'
     ;;
 send)
     # A transaction from any impersonated address: send <from> <to> <signature> [args...]
@@ -88,7 +92,7 @@ stop)
     echo "fork stopped"
     ;;
 *)
-    echo "usage: e2e-fork.sh start | bill USDC|EURC <base units> <reference> | send <from> <to> <sig> [args] | fund-eurc <to> <base units> | stop" >&2
+    echo "usage: e2e-fork.sh start | bill USDC|EURC <base units> <reference> [current|first] | send <from> <to> <sig> [args] | fund-eurc <to> <base units> | stop" >&2
     exit 1
     ;;
 esac

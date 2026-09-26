@@ -9,7 +9,7 @@ import { getConnection, signTypedData } from "wagmi/actions";
 import { BillStamp } from "@/components/BillStamp";
 import { Button } from "@/components/Button";
 import { adagAbi, erc20Abi, morphoAbi } from "@/lib/pay/abi";
-import { buildSafeBatch, suggestPledge, type BasketPlan, type Bill } from "@/lib/pay/build";
+import { SAFE_CURRENT_ONLY, buildSafeBatch, suggestPledge, type BasketPlan, type Bill } from "@/lib/pay/build";
 import { ADAG_BILLS, BILL_STATUS, CIRBTC, CIRBTC_DECIMALS, CURRENCIES, EXPLORER, MORPHO, type Currency } from "@/lib/pay/constants";
 import { decodeAdagError } from "@/lib/pay/errors";
 import { formatUnitsExact, shortAddress } from "@/lib/pay/format";
@@ -154,7 +154,8 @@ export function SafePay({ bills, onProposed }: { bills: Bill[]; onProposed?: () 
       go("checking");
       // Read everything again now: the bills, the prices and the Safe itself (C52: owner, version and nonce from the contract).
       const fresh = await verifySafe(c, safe, owner);
-      const records = await Promise.all(bills.map((b) => c.readContract({ address: ADAG_BILLS, abi: adagAbi, functionName: "bill", args: [b.id] })));
+      if (bills.some((b) => !isAddressEqual(b.contract, ADAG_BILLS))) throw new Error(SAFE_CURRENT_ONLY);
+      const records = await Promise.all(bills.map((b) => c.readContract({ address: b.contract, abi: adagAbi, functionName: "bill", args: [b.id] })));
       const changed = records.map((r, i) => ({ r, b: bills[i]! })).filter(({ r, b }) => r.status !== BILL_STATUS.Open || r.amount !== b.amount || !isAddressEqual(r.payee, b.payee));
       if (changed.length) throw new Error(`Bill #${changed.map((x) => x.b.id).join(", #")} changed since this page loaded. Nothing was signed. Reload to pay the rest.`);
       const plan: BasketPlan = {};
@@ -390,7 +391,7 @@ function SafeStatus({ safe, proposal, onPaid }: { safe: Address; proposal: Propo
     queryKey: ["adag-safe-paid", safe, bills.map((b) => b.id.toString()).join(",")],
     refetchInterval: (q) => (q.state.data ? false : 6_000),
     queryFn: async () => {
-      const records = await Promise.all(bills.map((b) => client().readContract({ address: ADAG_BILLS, abi: adagAbi, functionName: "bill", args: [b.id] })));
+      const records = await Promise.all(bills.map((b) => client().readContract({ address: b.contract, abi: adagAbi, functionName: "bill", args: [b.id] })));
       return records.every((r) => r.status === BILL_STATUS.Paid && isAddressEqual(r.payer, safe)) ? true : null;
     },
   });
