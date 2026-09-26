@@ -18,7 +18,9 @@ export function formatUnitsExact(baseUnits: bigint, decimals: number, minFractio
 }
 
 // Bidirectional overrides and isolates can make "INV-1001" read as "1001-VNI", so they never reach the screen (C14).
-const BIDI = /[؜‎‏‪-‮⁦-⁩]/g;
+const BIDI = /[\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]/g;
+// Zero-width spaces and the byte-order mark can make two different references look identical, so they go too.
+const INVISIBLE = /[\u200B\u200C\u2060\uFEFF]/g;
 // Other invisible controls, except tab and newline, show as the replacement mark rather than silently vanishing.
 const CONTROL = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g;
 
@@ -26,7 +28,7 @@ const CONTROL = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g;
 export function referenceText(ref: Hex): string {
   if (!isHex(ref, { strict: true }) || ref === "0x") return "";
   const text = new TextDecoder("utf-8", { fatal: false }).decode(hexToBytes(ref));
-  return text.replace(BIDI, "").replace(CONTROL, "�");
+  return text.replace(BIDI, "").replace(INVISIBLE, "").replace(CONTROL, "\uFFFD");
 }
 
 const DATE = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
