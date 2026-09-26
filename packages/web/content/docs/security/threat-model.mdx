@@ -317,7 +317,7 @@ Privileged positions: AdagGuard's standing allowances and repay right (the most 
 
 Attacker goals, highest value first: drain a borrower's allowance; silence or misdirect protection and alerts; move a Safe's funds somewhere other than the bill; pay the wrong bill or the same bill twice across two contracts; use Adag's bot for phishing; spend the keeper's gas; pay from an over-40% position through v2 (bounded, disclosed).
 
-#### C) Invariants C31 to C60, the definition of done for the second build
+#### C) Invariants C31 to C64, the definition of done for the second build
 
 AdagBills v2
 
@@ -375,7 +375,7 @@ Safe payments
 
 **C54. Atomic at execution.** safeTxGas 0 and gasPrice 0 make any inner failure revert the whole execution without consuming the nonce; re-simulate from the Safe before the first signature; say the outcome is decided at execution.
 
-**C55. Same rules, Safe as payer.** Enrol, setRule, approvals and pay by a Safe follow C31 to C41 with the Safe as the account; an owner's wallet is never substituted for the Safe.
+**C55. Same rules, Safe as payer.** Enrol, setRule, approvals and pay by a Safe follow C31 to C41, C45 and C58 with the Safe as the account; an owner's wallet is never substituted for the Safe.
 
 Server and secrets
 
@@ -385,11 +385,21 @@ Server and secrets
 
 Added at the code review of the second build
 
-**C58. A payment never trips the payer's own guard unseen.** Before a payment that borrows is signed, the app compares the loan-to-value it lands at with the payer's guard trigger for that market; at or above the trigger, it says in plain words that the guard will repay about how much of the wallet's USDC or EURC within minutes, before the signature.
+**C58. A payment never trips the payer's own guard unseen.** Before a payment that borrows is signed, the app compares the loan-to-value it lands at with the payer's guard trigger for that market; at or above the trigger, it says in plain words that the guard will repay about how much of the wallet's USDC or EURC within minutes, before the signature. When the rule or the approval cannot be read, the payment is blocked with a plain sentence, and both are read again at the moment of signing.
 
 **C59. Keeper paging and filtering.** Each run reads a fixed number of holder pages from a stored cursor that wraps around; holders with no debt or no allowance are dropped with cheap reads before any quote; a fixed number are simulated and acted on per run; no holder can make the cursor skip another holder or loop.
 
 **C60. Stopping removes the approval.** Clearing a rule in the app sets AdagGuard's approval to 0 in the same transaction, proven by reading the allowance back as 0; every screen that shows a rule shows the standing allowance beside it; a leftover approval with no rule stays on screen until it is 0.
+
+Added at the final review
+
+**C61. Rate limits never block their own flow.** Each route counts in its own bucket; a read or a poll that runs to its cap never spends the budget of the write it leads to. Tested by polling to the cap and then writing.
+
+**C62. Error text is an output.** Every error a route returns is a fixed sentence or text this codebase wrote. No text from a library, an RPC, a service or fetch reaches a response, since it can carry a keyed URL or an upstream's words.
+
+**C63. A run fits its time limit.** The worst-case keeper or webhook run, receipt waits and alerts included, fits inside the route's platform time limit, and the lease outlives that worst case, so a run is never cut off while another can start the same work.
+
+**C64. The paid index never skips a block.** A block range counts as scanned only when the head and the logs come from the same endpoint and the range ends a safety margin below that endpoint's head. A failed or partial answer leaves the cursor where it was.
 
 **General standards applied.** Market validity is v1's predicate; authority over server state is a strict signature; webhook validity is the provider's signature over the raw body; Safe targets are the build-time set plus MultiSendCallOnly; bill identity is a pair from one parser; debt has two roundings from one function; the view and protect share one computation; the three Safe hashes compared as the same bytes32; one normalizer for keys; thresholds in WAD units.
 
