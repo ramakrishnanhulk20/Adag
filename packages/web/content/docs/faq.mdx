@@ -1,7 +1,13 @@
 ---
 title: FAQ
-description: Straight answers about bitcoin price drops, custody, the 40% cap, wallets, costs, audits, Arc and stale prices.
+description: Straight answers about company use, bitcoin price drops, custody, the 40% cap, wallets, costs, audits, Arc and stale prices.
 ---
+
+## Can a company use Adag?
+
+Yes, and it is who Adag is built for first: a business or crypto team that holds bitcoin and pays suppliers in dollars or euros. The basket pays up to 10 bills in one signature, grouped by currency, each with the supplier's invoice number attached and each payable only once. The loan it draws is capped at 40% of the bitcoin's value by the contract.
+
+Today the paying wallet must be an ordinary wallet that signs its own transactions, such as MetaMask or Rabby, held by whoever on the finance team is trusted to sign. A Safe multisig cannot pay through Adag yet, because Arc's batching acts as the wallet that signed the transaction and a Safe does not sign its own. Safe payments are on the list in [What's next](/docs#whats-next). Today, every payment is public on Arc with its bill number, amount, reference and transaction link, and [Your wallet](/app) lists the bills and loans.
 
 ## What if bitcoin falls?
 
@@ -9,7 +15,7 @@ Nothing happens to your payment: the supplier was paid in full the moment the tr
 
 Adag lets a payment take the loan up to 40% of the bitcoin's value. Morpho only liquidates at 86%. A loan taken at exactly 40% would need bitcoin to fall about 53.5% before Morpho could liquidate it. In practice the app pledges 5% more than the minimum, so a fresh loan usually sits nearer 38%, and bitcoin would have to fall about 55.8%.
 
-After the payment, the loan is an ordinary Morpho loan in your name. Adag does not watch it. Interest adds to it slowly. If bitcoin falls a long way, you can repay some of the loan or pledge more cirBTC to move away from Morpho's line.
+After the payment, the loan is an ordinary Morpho loan in your name. Adag does not watch it. Interest adds to it slowly. If bitcoin falls a long way, you can pledge more cirBTC or close the loan from [Your wallet](/app), or repay part of it on Morpho's own app, to move away from Morpho's line.
 
 ## Where is the bitcoin?
 

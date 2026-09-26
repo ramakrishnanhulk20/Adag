@@ -21,7 +21,8 @@ export function OneSignature() {
           </Reveal>
           <Reveal delay={0.16}>
             <p className="type-lead mt-8 max-w-[36ch] text-text/88">
-              Paying a bill from bitcoin is five calls on Arc. You sign them once, as one batch, and they land together.
+              Paying a bill from bitcoin is five calls on Arc. You sign them once, as one batch, and they land together. A run of up to 10
+              supplier bills fits in the same one signature.
             </p>
           </Reveal>
         </div>

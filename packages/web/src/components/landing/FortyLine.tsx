@@ -17,7 +17,7 @@ const FACTS: Fact[] = [
   },
   {
     title: "Never holds your money",
-    body: "Each payment moves from your wallet to the supplier inside one transaction. Nothing of yours waits in Adag.",
+    body: "Each payment moves from the paying wallet to the supplier inside one transaction. Nothing of yours waits in Adag.",
     links: [{ label: "Its token balances", href: `${CONTRACT}?tab=tokens` }],
   },
   {
@@ -54,7 +54,8 @@ export function FortyLine() {
           </Reveal>
           <Reveal delay={0.16} className="mt-6 max-w-[34rem]">
             <p className="type-lead mb-8 max-w-[34ch] text-text/88">
-              Adag never lets a payment push your loan past 40% of your bitcoin&apos;s value. Morpho&apos;s own line is far beyond it.
+              Adag never lets a payment push the loan past 40% of the bitcoin&apos;s value, however many bills it pays. Morpho&apos;s own line is far
+              beyond it.
             </p>
             <FortyGauge />
           </Reveal>

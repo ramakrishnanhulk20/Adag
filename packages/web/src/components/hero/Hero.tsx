@@ -63,8 +63,8 @@ export function Hero() {
             </span>
           </h1>
           <p className="hero-in-2 type-lead hero-lead mt-4 max-w-[620px] text-text/88 md:mt-8">
-            One signature pledges your bitcoin (cirBTC) on Morpho, borrows exactly the bill, and pays your supplier in USDC or EURC. Adag
-            refuses any payment that would push the loan past 40% of the bitcoin&apos;s value.
+            Pay your suppliers from the bitcoin your company holds. One signature pledges cirBTC on Morpho, borrows exactly the bills and
+            pays them in USDC or EURC, invoice number attached.
           </p>
           <div className="hero-in-3 mt-5 flex gap-3 md:mt-8">
             <HeroAction href="/pay" variant="primary" className="flex w-full md:inline-flex md:w-auto">

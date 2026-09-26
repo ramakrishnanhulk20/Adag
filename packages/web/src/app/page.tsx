@@ -13,7 +13,7 @@ import { PledgeStage } from "@/components/pledge/PledgeStage";
 export const metadata: Metadata = {
   title: { absolute: "Adag · Pay your bills with your bitcoin, without selling it" },
   description:
-    "Pledge your bitcoin on Morpho, borrow exactly the bill, and pay your supplier in USDC or EURC in one signature on Arc. Adag refuses any payment that would push the loan past 40%.",
+    "Pay your suppliers from your company's bitcoin without selling it: up to 10 bills in one signature on Arc, invoice numbers attached, and a loan Adag caps at 40%.",
   alternates: { canonical: "/" },
 };
 

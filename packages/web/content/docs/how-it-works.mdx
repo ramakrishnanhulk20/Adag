@@ -5,6 +5,8 @@ description: One signature, five calls, and the rule inside the contract that ke
 
 When you pay a bill from bitcoin, your wallet signs one transaction. That transaction runs five calls in order, all of them as you. If any one of them fails, the whole transaction is undone and nothing happened.
 
+A company paying a run of supplier bills signs the same way: up to 10 bills in one transaction, grouped by currency, each paid through its own Memo call with the supplier's invoice number, and the contract's 40% check still applied to every payment that adds debt.
+
 ## The one-signature batch
 
 These are the five calls, in the order the app builds them. `P` is the pledge, `A` the bill amount, `C` the bill's currency (USDC or EURC), `N` the bill number and `R` the invoice reference.
