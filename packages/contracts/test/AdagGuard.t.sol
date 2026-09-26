@@ -393,6 +393,8 @@ contract AdagGuardTest is GuardFixture {
         mockPrice(MARKET_USDC, 0);
         MORPHO.accrueInterest(paramsOf(MARKET_USDC));
         uint256 cap = debtDown(MARKET_USDC, borrower);
+        // Twice the cap in the wallet and a max approval, so only the rounded-down debt can bind.
+        setBalance(borrower, MARKET_USDC, 2 * cap);
         (bool wouldAct, uint256 quoted, uint256 ltv) = guard.quote(borrower, MARKET_USDC);
         assertTrue(wouldAct);
         assertEq(ltv, type(uint256).max);

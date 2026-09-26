@@ -3,6 +3,9 @@
 One command that proves Adag's promise on Arc mainnet: a supplier bills 1 USDC, the payer settles it from
 bitcoin in one signature, and the bitcoin is pledged on Morpho, not sold.
 
+AdagGuard, the contract that pays a loan back down to the borrower's target, has its own proof, attack suite and
+verification script. See [AdagGuard](#adagguard) at the end.
+
 ## What it proves
 
 The script runs the same five steps whether it is a dry run or the real thing:
@@ -167,3 +170,100 @@ at the predicted address is the one other override, and the setup block is an or
   market, are not exercised.
 - The proof itself does not attack Adag. It shows the happy path works; `attack.mjs` above is what tries to break the
   40% cap, the price freshness check and the pay-once rule.
+
+## AdagGuard
+
+AdagGuard pays down part of a borrower's own Morpho loan from their own wallet when it crosses a trigger they chose,
+just enough to bring it back to their target. It is live at `0x9A3F3eE50Ae108124C7Cf54a1b68c14fe5800806`, deployed on
+26 September 2026 at block 22859780, and its source is an exact match on Sourcify and explorer.arc.io. Three commands,
+run from the repo root:
+
+```
+node packages/contracts/prove-it/guard-prove.mjs     the proof
+node packages/contracts/prove-it/guard-attack.mjs    the attack suite
+bash packages/contracts/verify-guard.sh              source verification
+```
+
+None of them signs or sends a transaction, and none reads a key. The two scripts read AdagGuard's address from
+`deployments/adag-guard.arc-mainnet.json`, which `deploy-guard.sh --broadcast` wrote, or from an `"AdagGuard"` key
+in `deployments/arc-mainnet.json` (if both exist they must agree). They stop if there is no contract at that
+address. They read its ABI from `deployments/2026-09-26/AdagGuard.abi.json`, which `verify-guard.sh` wrote beside
+the Standard JSON input. Nothing is injected; they run against the deployed code.
+
+Before the deploy the same scripts ran against the local build (`out-guard/`), placed inside the simulation at
+the address the deploy was going to give it. AdagBills with enrol went first at the deployer's nonce 3, so
+AdagGuard was predicted at nonce 4, which is where it landed. That path still runs if the record files are
+missing, and it refuses to run if the predicted address already holds code.
+
+### guard-prove.mjs
+
+Everything runs in one eth_simulateV1 request on dRPC, pinned to dRPC's latest block. The demo payer
+`0x6e26Dd347b57ba591Ee34292A2d828CCC17A1fDE` holds a real USDC-market loan: 1.000004 USDC against 0.00003133 cirBTC,
+37.89%, on 26 September.
+
+1. The payer sets a rule on the USDC market: act at 35%, bring the loan back to 30%, no expiry.
+2. The payer approves AdagGuard for 1 USDC, the most it can ever take.
+3. A stranger reads `quote`, then calls `protect`.
+4. The stranger calls `protect` again at the same price.
+
+It checks, and prints PASS or FAIL for each:
+- the rule is stored as set
+- quote says it would act, and by how much
+- protect repaid exactly that
+- the loan-to-value landed at or under 30%, shown to every digit
+- the USDC pulled equals the repay, and Morpho's Repay event names the payer
+- the payer's approval fell by exactly the repay
+- AdagGuard's balance and its approval to Morpho are unchanged
+- no bitcoin was sold (wallet plus pledged)
+- the second protect repaid 0 and moved nothing
+
+Run against the live contract at block 22863666: the stranger's protect repaid 0.208166 USDC, taking the loan
+from 37.89% to 29.9999659%. The second protect repaid 0. Gas: setRule 129,321, approve 55,438, protect 211,485,
+the repeat protect 112,339. The script stops, rather than proving nothing, if the payer has no loan or the loan
+is already under 35%.
+
+### guard-attack.mjs
+
+Each attack is its own simulation from the same block. It prints the attack, what should stop it, the decoded
+result and PASS or FAIL, and appends the table to `packages/contracts/deployments/attacks-<date>-guard.md`. It exits 0
+only if every row passes. The C numbers are the threat model's invariants, with Ram's amendments: a rule is a
+trigger, a target and an expiry, and the approval is the lifetime ceiling.
+
+| # | Attack | Threat model |
+|---|---|---|
+| G1 | Pull above the approval (0.1 USDC approved, about 0.21 needed), twice | C36, C38 as amended |
+| G2a to c | The other real USDC/cirBTC market id, a look-alike id one hex digit off, the EURC market | C35, C41 |
+| G3 | protect below the trigger | C36 |
+| G4 | protect at the second a rule expires | C41 |
+| G5a, b | A stranger clears, or sets, a rule hoping to reach the payer's | C34 |
+| G6 | protect three times at the same price | C38 as amended |
+| G7 | The wallet holds less than needed | C36 |
+| G8 | Simulated price crash to zero: capped at the debt rounded down, no revert | C36, C37 |
+| G9a, b | A payer with an approval but no rule, even at zero price; a wallet with no loan | C36, C41 |
+| G10 | Admin calls a drain would need (owner, withdraw, rescue, pause, upgrade), and the ABI's state-changing functions | C39 |
+
+State overrides are used for two things only: native USDC for the simulated stranger, and in G8 and G9
+`mock/MockOracle.sol` at the market oracle's address, labelled as a simulated crash. AdagGuard and Morpho state are
+never overridden. G7 lowers the payer's balance with a real transfer inside the simulation, not an override.
+
+Run against the live contract at block 22863638: 14 of 14 rows passed. The run from before the deploy, against
+the local build, is in the same file at block 22858500, also 14 of 14.
+
+### verify-guard.sh
+
+With AdagGuard recorded, the script takes these steps:
+- It writes `deployments/<deploy day>/AdagGuard.standard-json.json` with `AdagGuard.abi.json` beside it.
+- Before anything is submitted, it compiles that input again with solc 0.8.30 and checks it rebuilds exactly the
+  runtime code of the local build and the code on chain.
+- It submits to Sourcify, and to Etherscan (ArcScan) only when `ETHERSCAN_API_KEY` is in the repo `.env`.
+- It prints the manual explorer.arc.io upload steps, because that explorer blocks scripted submissions.
+
+`bash packages/contracts/verify-guard.sh --dry-run` does the build and the bytecode check in a temporary folder,
+sends nothing and writes nothing in the repo. It builds into `out-guard` and `cache-guard`, never the shared `out`.
+
+### What the AdagGuard scripts do not cover
+
+- A real signed protect. These commands simulate against the live contract; they do not send one.
+- Liquidations racing a protect, token pauses, Circle's blocklist, and the keeper service itself.
+- Prices other than the live one and a crash to zero. The fork tests in `packages/contracts/test/AdagGuard*.t.sol`
+  cover random prices, allowances and balances.
