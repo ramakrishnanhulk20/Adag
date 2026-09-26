@@ -7,14 +7,17 @@
 // Exits 0 only if every scenario passes. Nothing is signed for or sent to Arc mainnet.
 import { spawn, spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { existsSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { createPublicClient, http, parseAbi, parseAbiItem, parseEventLogs, stringToHex } from 'viem';
 
 const WEB = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const REPO = resolve(WEB, '../..');
-const SHOTS = resolve(REPO, 'reference/design/lab-shots');
+// Screenshots are proof for review, not part of the product, so they land in an ignored folder unless told otherwise:
+//   node scripts/e2e.mjs --shots-dir=<folder>
+const shotsArg = process.argv.find((a) => a.startsWith('--shots-dir='));
+const SHOTS = shotsArg ? resolve(shotsArg.slice('--shots-dir='.length)) : resolve(WEB, '.e2e-shots');
+mkdirSync(SHOTS, { recursive: true });
 const FORK = 'http://127.0.0.1:8545';
 const APP = 'http://localhost:3400';
 const DIST = '.next-e2e';
@@ -147,9 +150,9 @@ async function connect(page, path) {
 }
 
 // Reveals only fire in view, so walk the page before a full-page capture; then shoot 1440 dark and 375 light.
-// By default only the screens named with NEWEST_SHOTS are captured, so a run never overwrites images already approved.
+// By default only the screens named with NEWEST_SHOTS are captured, which keeps a run short.
 // --all-shots captures every screen the run passes through, the older ones included.
-const NEWEST_SHOTS = 'f9-';
+const NEWEST_SHOTS = 'f9b-';
 async function shoot(page, name) {
   const all = process.argv.includes('--all-shots');
   const file = name.startsWith(NEWEST_SHOTS) ? name : !all ? null : /^f\d/.test(name) ? name : `e2e-${name}`;
@@ -646,16 +649,19 @@ async function main() {
       await openBasket(page, [A, C, Q]);
       const reasons = await page.locator('[data-aside-bill]').evaluateAll((els) => els.map((e) => [e.getAttribute('data-aside-bill'), e.querySelector('[data-reason]')?.textContent ?? '']));
       const inBasket = await page.locator('[data-basket-bill]').evaluateAll((els) => els.map((e) => e.getAttribute('data-basket-bill')));
-      await shoot(page, 'f9-q-aside');
+      await page.locator('[data-fee] span').waitFor({ timeout: 60_000 }).catch(() => {});
+      const fee = await page.locator('[data-fee]').innerText();
+      const label = await page.getByText(/Basket · 3 bills · 1 payable/).count();
+      await shoot(page, 'f9b-q-aside');
       await payBasket(page);
       await page.waitForTimeout(700);
       await shoot(page, 'f9-q-paid');
       const { paidLogs } = await receiptOf(page);
       const reasonOf = (id) => reasons.find(([r]) => r === String(id))?.[1] ?? '';
       record(`(q) basket of paid #${A}, void #${C} and open #${Q}: the first two set apart with reasons, only #${Q} paid`,
-        reasonOf(A).includes('Already paid') && reasonOf(C).includes('Cancelled') && inBasket.length === 1 && inBasket[0] === String(Q)
+        label === 1 && /about [\d.]+ USDC/.test(fee) && reasonOf(A).includes('Already paid') && reasonOf(C).includes('Cancelled') && inBasket.length === 1 && inBasket[0] === String(Q)
           && paidLogs.length === 1 && paidLogs[0].args.id === Q && (await statusOf(Q)) === 2 && (await statusOf(C)) === 3,
-        `set apart: ${reasons.map(([r, t]) => `#${r} "${t}"`).join(', ')}; paid ${paidLogs.map((l) => `#${l.args.id}`).join(', ')}`);
+        `label "1 payable" ${label === 1}; ${fee.replace(/\s+/g, ' ')}; set apart: ${reasons.map(([r, t]) => `#${r} "${t}"`).join(', ')}; paid ${paidLogs.map((l) => `#${l.args.id}`).join(', ')}`);
       await context.close();
     }
 
@@ -679,6 +685,31 @@ async function main() {
       record('(r) duplicate numbers collapse to one, and 11 numbers are refused on /pay and in a basket link, with no wallet request',
         collapsed === `${A},${B}` && stayed && direct && sent === 0, `"${A}, ${A} #${A}, ${B}" opened bills=${collapsed}; 11 numbers stayed on /pay: ${stayed}; basket link refused: ${direct}; sends ${sent}`);
       await context.close();
+    }
+
+    // (s) A wallet that cannot cover gas is stopped before the wallet is asked. Arc's gas is the native USDC balance.
+    {
+      const S = newBill('USDC', 100_000, 'E2E-S');
+      const original = await fork.getBalance({ address: PAYER });
+      await rpc('anvil_setBalance', [PAYER, `0x${(10n ** 15n).toString(16)}`]);
+      try {
+        const { context, page } = await openPage({ account: PAYER });
+        await connect(page, `/bill/${S}`);
+        await page.locator('[data-action="pay-bitcoin"]:not([disabled])').waitFor({ timeout: 60_000 });
+        await page.locator('[data-action="pay-bitcoin"]').click();
+        await acceptDisclaimer(page);
+        const failed = page.locator('[data-tx-state="failed"]');
+        await failed.waitFor({ timeout: 60_000 });
+        const text = await failed.innerText();
+        await shoot(page, 'f9b-s-no-gas');
+        const sent = await sends(page);
+        record(`(s) with 0.001 USDC for gas, paying bill #${S} from bitcoin stops with the fee sentence and no wallet request`,
+          /Your wallet needs about [\d.]+ USDC for the network fee and holds 0\.0010\. Nothing was sent\./.test(text) && sent === 0 && (await statusOf(S)) === 1,
+          `shown: "${text}"; eth_sendTransaction requests ${sent}`);
+        await context.close();
+      } finally {
+        await rpc('anvil_setBalance', [PAYER, `0x${original.toString(16)}`]);
+      }
     }
 
     // The mobile menu open, and the wallet page before connecting.
@@ -712,7 +743,7 @@ try {
   await main();
   const passed = results.filter((r) => r.ok).length;
   console.log(`\nconsole errors: ${consoleErrors.length}${consoleErrors.length ? `\n  ${consoleErrors.join('\n  ')}` : ''}`);
-  const allOk = passed === results.length && results.length === 18 && consoleErrors.length === 0;
+  const allOk = passed === results.length && results.length === 19 && consoleErrors.length === 0;
   console.log(allOk ? `ALL ${passed} SCENARIOS PASSED` : `${results.length - passed} of ${results.length} scenarios failed`);
   code = allOk ? 0 : 1;
 } catch (error) {

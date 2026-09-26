@@ -48,6 +48,9 @@ export function PayActions(props: PayActionsProps) {
   const [tx, setTx] = useState<TxState>({ kind: "idle" });
   const [paid, setPaid] = useState<Paid | null>(null);
   const [asking, setAsking] = useState(false);
+  // Stable on purpose: the disclaimer resets its checkbox whenever this callback changes, and this page re-renders
+  // while the dialog is open (a fee estimate or a balance read landing).
+  const closeDisclaimer = useCallback(() => setAsking(false), []);
   const [active, setActive] = useState<"balance" | "bitcoin" | null>(null);
   const busy = tx.kind === "busy";
   const step = (s: Parameters<typeof simulateAndSend>[0]["onStep"] extends (x: infer T) => void ? T : never) =>
@@ -257,7 +260,7 @@ export function PayActions(props: PayActionsProps) {
 
       <MorphoDisclaimer
         open={asking}
-        onCancel={() => setAsking(false)}
+        onCancel={closeDisclaimer}
         onAccept={() => {
           rememberMorphoDisclaimer(address);
           setAsking(false);

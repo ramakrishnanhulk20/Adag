@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "motion/react";
 import { useQuery } from "@tanstack/react-query";
 import { isAddressEqual, type Address, type Hex } from "viem";
@@ -29,11 +29,12 @@ import { debtFromShares, liquidationDropWad, ltvWad } from "@/lib/pay/loan";
 import { currencyOf, paramsFromTuple } from "@/lib/pay/market";
 import { billsPaidIn } from "@/lib/pay/receipt";
 import { hasAcceptedMorphoDisclaimer, rememberMorphoDisclaimer } from "@/lib/wallet/consent";
-import { publicArc, simulateAndSend, type TxStep } from "@/lib/wallet/send";
+import { feesNow, publicArc, simulateAndSend, type TxStep } from "@/lib/wallet/send";
 import { readyToSign, useWallet } from "@/lib/wallet/useWallet";
 import { Value, type Cell } from "./cells";
 import { ConnectButton } from "./ConnectButton";
 import { MorphoDisclaimer } from "./MorphoDisclaimer";
+import { feeText } from "./fee";
 import { BusyLabel, TxMessage, type TxState } from "./TxProgress";
 
 export type BasketItem = { id: string; kind: "found"; bill: BillJson } | { id: string; kind: "none" | "unavailable" };
@@ -83,6 +84,9 @@ export function Basket({ items, dropped }: { items: BasketItem[]; dropped: strin
   const [paid, setPaid] = useState<Paid | null>(null);
   const [landed, setLanded] = useState<Set<string>>(new Set());
   const [asking, setAsking] = useState(false);
+  // Stable on purpose: the disclaimer resets its checkbox whenever this callback changes, and this page re-renders
+  // while the dialog is open (a fee estimate or a balance read landing).
+  const closeDisclaimer = useCallback(() => setAsking(false), []);
   const busy = tx.kind === "busy" ? tx : null;
   const step = (s: TxStep) => setTx((prev) => ({ kind: "busy", step: s, since: prev.kind === "busy" && prev.step === s ? prev.since : Date.now() }));
 
@@ -156,6 +160,27 @@ export function Basket({ items, dropped }: { items: BasketItem[]; dropped: strin
   const shortOfBtc = cirBtc.state === "ok" && pledgeTotal > cirBtc.value;
   const allChosen = groups.length > 0 && groups.every((g) => choices[g.currency.symbol]);
   const canPay = ready && allChosen && !shortOfBtc && !busy && payable.length > 0;
+
+  // The fee for exactly the batch the button would build, recomputed whenever a group's choice or pledge changes.
+  // The fixed params stand in here; the real payment re-reads Morpho's and proves them by hash.
+  const planKey = groups.map((g, gi) => `${g.currency.symbol}:${choices[g.currency.symbol] ?? "-"}:${pledgeOf(groupData[gi]!) ?? "?"}`).join("|");
+  const feeQuery = useQuery({
+    queryKey: ["adag-basket-fee", me, payable.map((b) => b.id.toString()).join(","), planKey],
+    enabled: Boolean(me) && ready && allChosen && !shortOfBtc && !paid,
+    staleTime: 30_000,
+    retry: false,
+    queryFn: async () => {
+      const plan: BasketPlan = {};
+      groups.forEach((g, gi) => {
+        const choice = choices[g.currency.symbol];
+        if (choice === "balance") plan[g.currency.symbol] = { from: "balance" };
+        else if (choice === "bitcoin") plan[g.currency.symbol] = { from: "bitcoin", pledge: pledgeOf(groupData[gi]!) ?? 0n, marketParams: g.currency.params };
+      });
+      const built = buildPayMany(payable, me!, plan);
+      const [gas, fees] = await Promise.all([publicArc().estimateGas({ account: me!, to: built.to, data: built.data }), feesNow()]);
+      return gas * fees.expected;
+    },
+  });
 
   const fail = (message: string, hash?: Hex) => setTx({ kind: "failed", message, href: hash && `${EXPLORER}/tx/${hash}` });
 
@@ -258,7 +283,9 @@ export function Basket({ items, dropped }: { items: BasketItem[]; dropped: strin
   return (
     <section className="relative px-5 pt-12 pb-24 md:px-[6vw] md:pt-[9vh]">
       <div className="app-rise" style={{ "--d": 0 } as React.CSSProperties}>
-        <Hallmark>Basket · {items.length} bills · Arc mainnet</Hallmark>
+        <Hallmark>
+          Basket · {items.length} bills{aside.length > 0 ? ` · ${payable.length} payable` : ""} · Arc mainnet
+        </Hallmark>
       </div>
       <h1 className="app-title app-rise mt-6 max-w-[14ch] text-text" style={{ "--d": 1 } as React.CSSProperties}>
         {n > 1 ? `${n} bills.` : n === 1 ? "One bill." : "Nothing to pay."} <em className="font-semibold text-gold italic">One</em> signature.
@@ -331,6 +358,19 @@ export function Basket({ items, dropped }: { items: BasketItem[]; dropped: strin
                 {groups.map((g) => `${formatUnitsExact(g.total, g.currency.decimals)} ${g.currency.symbol}`).join(" and ")} across {n} bill{n === 1 ? "" : "s"}. Every
                 step succeeds together or nothing moves.
               </p>
+              <p className="type-body mt-3 text-muted" data-fee>
+                Network fee{" "}
+                {feeQuery.isSuccess ? (
+                  <span className="text-text">{feeText(feeQuery.data)}</span>
+                ) : feeQuery.isError ? (
+                  "unavailable"
+                ) : allChosen && me ? (
+                  "being estimated"
+                ) : (
+                  "shown once each group has a choice"
+                )}
+                , estimated, paid in USDC.
+              </p>
               {shortOfBtc && <p className="type-body mt-3 text-danger">This basket pledges more cirBTC than your wallet holds. Pay a group from balance instead.</p>}
               {me && !ready && <p className="type-body mt-3 text-muted">Switch your wallet to Arc, or use an ordinary wallet, to pay.</p>}
               <Button variant="primary" disabled={!canPay} onClick={onPay} className="mt-6 w-full" data-action="pay-basket">
@@ -385,7 +425,7 @@ export function Basket({ items, dropped }: { items: BasketItem[]; dropped: strin
 
       <MorphoDisclaimer
         open={asking}
-        onCancel={() => setAsking(false)}
+        onCancel={closeDisclaimer}
         onAccept={() => {
           if (me) rememberMorphoDisclaimer(me);
           setAsking(false);

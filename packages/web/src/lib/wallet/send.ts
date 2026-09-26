@@ -2,6 +2,7 @@ import { parseGwei, type Address, type Hex, type TransactionReceipt } from "viem
 import { arc } from "viem/chains";
 import { getConnection, getPublicClient, sendTransaction, waitForTransactionReceipt } from "wagmi/actions";
 import { decodeAdagError, type PlainError } from "@/lib/pay/errors";
+import { formatUnitsExact } from "@/lib/pay/format";
 import { wagmiConfig } from "./config";
 
 // Arc drops transactions priced under 20 gwei without an error, so this is a floor, never a target.
@@ -26,6 +27,14 @@ function isUserRejection(error: unknown): boolean {
     if (e.code === 4001 || e.name === "UserRejectedRequestError") return true;
   }
   return /reject|denied|cancel/i.test(firstLine(error));
+}
+
+// Native USDC has 18 decimals; four are enough to read a fee. The need rounds up and the balance down, so the
+// sentence never makes the gap look smaller than it is.
+function usdc4(wei: bigint, direction: "up" | "down"): string {
+  const step = 10n ** 14n;
+  const units = direction === "up" ? (wei + step - 1n) / step : wei / step;
+  return formatUnitsExact(units * step, 18, 4);
 }
 
 export function publicArc() {
@@ -75,6 +84,23 @@ export async function simulateAndSend({ account, to, data, onStep }: SendArgs): 
     fees = await feesNow();
   } catch {
     return { ok: false, stage: "failed", message: "Arc did not answer with the current fee. Nothing was sent. Try again." };
+  }
+
+  // Arc charges gas in USDC, from the wallet's native balance. A wallet that cannot cover the worst case is told
+  // here, in plain words, instead of meeting a wallet error or a transaction that never lands.
+  const maxFee = gas * fees.maxFeePerGas;
+  let native: bigint;
+  try {
+    native = await client.getBalance({ address: account });
+  } catch {
+    return { ok: false, stage: "failed", message: "Arc did not answer with your balance. Nothing was sent. Try again." };
+  }
+  if (native < maxFee) {
+    return {
+      ok: false,
+      stage: "failed",
+      message: `Your wallet needs about ${usdc4(maxFee, "up")} USDC for the network fee and holds ${usdc4(native, "down")}. Nothing was sent.`,
+    };
   }
 
   onStep("signing");

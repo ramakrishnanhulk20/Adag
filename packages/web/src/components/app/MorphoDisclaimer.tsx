@@ -17,6 +17,12 @@ export function MorphoDisclaimer({ open, onAccept, onCancel }: MorphoDisclaimerP
   const checkId = useId();
   const [checked, setChecked] = useState(false);
   const box = useRef<HTMLDivElement>(null);
+  // Held in a ref so a parent re-render with a new callback never re-runs the effect below, which would untick the
+  // box and move focus while the dialog is open.
+  const cancel = useRef(onCancel);
+  useEffect(() => {
+    cancel.current = onCancel;
+  }, [onCancel]);
 
   useEffect(() => {
     if (!open) return;
@@ -24,7 +30,7 @@ export function MorphoDisclaimer({ open, onAccept, onCancel }: MorphoDisclaimerP
     const previous = document.activeElement as HTMLElement | null;
     box.current?.querySelector<HTMLElement>("input")?.focus();
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onCancel();
+      if (e.key === "Escape") cancel.current();
       if (e.key !== "Tab" || !box.current) return;
       const focusable = [...box.current.querySelectorAll<HTMLElement>("a, button:not(:disabled), input")];
       const first = focusable[0];
@@ -42,7 +48,7 @@ export function MorphoDisclaimer({ open, onAccept, onCancel }: MorphoDisclaimerP
       window.removeEventListener("keydown", onKey);
       previous?.focus();
     };
-  }, [open, onCancel]);
+  }, [open]);
 
   return (
     <AnimatePresence>
