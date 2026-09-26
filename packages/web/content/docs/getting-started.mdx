@@ -26,6 +26,14 @@ description: Pay a bill from your balance or your bitcoin, or write one and get 
   If the bitcoin price feed is older than 26 hours, the contract will not accept new debt, and the app says so before you sign. Paying from your balance still works.
 </Callout>
 
+### Pay several bills at once
+
+Type up to ten bill numbers on [Pay a bill](/pay), separated by commas or spaces, or paste the bill links. The basket shows every bill with who it pays and how much, and sets apart any that are already paid, cancelled, unknown or written by you. Those are not paid.
+
+The rest are grouped by currency. For each group, choose your balance or a loan against your cirBTC; the loan shows the pledge and the loan-to-value it leaves. One signature then pays them all. If any step fails, nothing moves, and each bill still carries its own reference in its own Memo.
+
+A basket link carries only the bill numbers, like `/pay/basket?bills=12,13,14`, so you can send it on.
+
 ### Your loan afterwards
 
 The loan is an ordinary Morpho loan in your own name. Adag checks the 40% line once, at payment, and does not watch it after that. Interest accrues slowly, and if bitcoin falls far enough, Morpho can liquidate at 86%.

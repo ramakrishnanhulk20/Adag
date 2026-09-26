@@ -130,6 +130,58 @@ export function buildPayFromBitcoin(bill: Bill, payer: string, pledgeCirBtc: big
   return batch(calls);
 }
 
+export const MAX_BASKET_BILLS = 10;
+
+export type GroupPlan = { from: "balance" } | { from: "bitcoin"; pledge: bigint; marketParams: MarketParams };
+export type BasketPlan = Partial<Record<"USDC" | "EURC", GroupPlan>>;
+
+// ARCHITECTURE.md section 6, several bills in one signature. Pledge and borrow per bitcoin group, then one exact
+// approval per currency, then each bill's own Memo-wrapped pay in the order given. One failure undoes all (C20).
+export function buildPayMany(bills: Bill[], payer: string, plan: BasketPlan): Batch {
+  const who = checkedPayer(payer);
+  if (bills.length === 0) throw new Error("Add at least one bill to pay.");
+  if (bills.length > MAX_BASKET_BILLS) throw new Error(`One signature pays at most ${MAX_BASKET_BILLS} bills.`);
+  const seen = new Set<bigint>();
+  const totals = new Map<Currency, bigint>();
+  for (const b of bills) {
+    if (seen.has(b.id)) throw new Error(`Bill #${b.id} is in the basket twice; paying it twice would undo the whole batch.`);
+    seen.add(b.id);
+    const c = payableCurrency(b, who);
+    totals.set(c, (totals.get(c) ?? 0n) + b.amount);
+  }
+
+  const groups = CURRENCIES.filter((c) => totals.has(c));
+  const plans = new Map<Currency, GroupPlan>();
+  for (const c of groups) {
+    const p = plan[c.symbol];
+    if (!p) throw new Error(`Choose how to pay the ${c.symbol} bills.`);
+    if (p.from === "bitcoin") {
+      if (typeof p.pledge !== "bigint" || p.pledge < 0n) throw new Error("The pledge must be zero or more satoshis.");
+      verifyMarketParams(p.marketParams, c.marketId);
+      assertMarketConstants(p.marketParams, c);
+    } else if (p.from !== "balance") {
+      throw new Error(`Choose how to pay the ${c.symbol} bills.`);
+    }
+    plans.set(c, p);
+  }
+
+  const calls: Call3[] = [];
+  for (const c of groups) {
+    const p = plans.get(c)!;
+    if (p.from !== "bitcoin") continue;
+    if (p.pledge > 0n) {
+      calls.push(
+        approve(CIRBTC, MORPHO, p.pledge),
+        call(MORPHO, encodeFunctionData({ abi: morphoAbi, functionName: "supplyCollateral", args: [c.params, p.pledge, who, "0x"] })),
+      );
+    }
+    calls.push(call(MORPHO, encodeFunctionData({ abi: morphoAbi, functionName: "borrow", args: [c.params, totals.get(c)!, 0n, who, who] })));
+  }
+  for (const c of groups) calls.push(approve(c.address, ADAG_BILLS, totals.get(c)!));
+  for (const b of bills) calls.push(memoPay(b));
+  return batch(calls);
+}
+
 // A direct transaction from the supplier's wallet, not a batch.
 export function buildVoid(billId: bigint): DirectCall {
   if (typeof billId !== "bigint" || billId < 1n) throw new Error("A bill number must be a whole number of 1 or more.");

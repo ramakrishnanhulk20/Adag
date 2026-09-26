@@ -33,7 +33,7 @@ export default async function PayPage() {
         </h1>
         <p className="type-lead app-rise mt-6 max-w-[40rem] text-text/88 md:mt-8" style={{ "--d": 2 } as React.CSSProperties}>
           Type the number your supplier sent, or paste their link. Adag reads the bill straight from Arc: who it pays, how much, and
-          whether it is still open.
+          whether it is still open. Several numbers, up to ten, are paid together with one signature.
         </p>
 
         <div className="app-rise mt-10 md:mt-14" style={{ "--d": 3 } as React.CSSProperties}>

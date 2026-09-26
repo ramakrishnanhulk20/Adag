@@ -7,7 +7,7 @@ import { arc } from "viem/chains";
 import { usePublicClient } from "wagmi";
 import { Button } from "@/components/Button";
 import { adagAbi } from "@/lib/pay/abi";
-import { parseBillInput } from "@/lib/pay/billId";
+import { parseBillList } from "@/lib/pay/billId";
 import { ADAG_BILLS } from "@/lib/pay/constants";
 
 export function PayForm() {
@@ -21,11 +21,29 @@ export function PayForm() {
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const id = parseBillInput(value);
-    if (id === null) {
-      setNote("Type a bill number, like 12, or paste the bill link your supplier sent.");
+    let parsed: ReturnType<typeof parseBillList>;
+    try {
+      parsed = parseBillList(value);
+    } catch (error) {
+      setNote((error as Error).message);
       return;
     }
+    const { ids, dropped } = parsed;
+    if (ids.length === 0) {
+      setNote("Type a bill number, like 12, or paste the bill link your supplier sent. Several numbers pay together.");
+      return;
+    }
+    if (dropped.length) {
+      setNote(`"${dropped[0]}" is not a bill number or a bill link. Fix it or take it out.`);
+      return;
+    }
+    // Several bills open the basket; the page reads each one itself and says which cannot be paid.
+    if (ids.length > 1) {
+      setBusy(true);
+      router.push(`/pay/basket?bills=${ids.join(",")}`);
+      return;
+    }
+    const id = ids[0]!;
     setBusy(true);
     setNote(null);
     let count: bigint | null = null;
@@ -47,7 +65,7 @@ export function PayForm() {
   return (
     <form onSubmit={onSubmit} noValidate className="w-full max-w-[44rem]">
       <label htmlFor={inputId} className="type-label text-muted">
-        Bill number or link
+        Bill numbers or links
       </label>
       <div className="mt-3 flex flex-col gap-5 md:flex-row md:items-end md:gap-6">
         <input
@@ -57,7 +75,7 @@ export function PayForm() {
           inputMode="text"
           autoComplete="off"
           spellCheck={false}
-          placeholder="12"
+          placeholder="12, 13, 14"
           value={value}
           onChange={(e) => {
             setValue(e.target.value);

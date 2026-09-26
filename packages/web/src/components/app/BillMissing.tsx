@@ -7,7 +7,8 @@ const d = (n: number) => ({ "--d": n }) as CSSProperties;
 type BillMissingProps =
   | { kind: "none"; id: bigint; count: bigint | null }
   | { kind: "invalid"; raw: string }
-  | { kind: "unavailable"; id: bigint };
+  | { kind: "unavailable"; id: bigint }
+  | { kind: "refused"; message: string };
 
 // Three different truths, never merged: no such bill, not a bill number, and Arc not answering (C19).
 export function BillMissing(props: BillMissingProps) {
@@ -27,6 +28,13 @@ export function BillMissing(props: BillMissingProps) {
         : props.count === 0n
           ? "No bills have been written on Arc so far. Check the number with whoever sent it."
           : `The newest bill is #${props.count}. Check the number with whoever sent you the link.`;
+  } else if (props.kind === "refused") {
+    title = (
+      <>
+        Too many <em className="font-semibold text-gold italic">bills</em>.
+      </>
+    );
+    body = props.message;
   } else if (props.kind === "invalid") {
     title = (
       <>

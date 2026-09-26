@@ -27,6 +27,16 @@ export function billPaidIn(logs: readonly Log[], billId: bigint): BillPaidProof 
   return null;
 }
 
+// Every bill in a basket, each proven by its own BillPaid from Adag's address (C16). A missing id is simply absent.
+export function billsPaidIn(logs: readonly Log[], ids: readonly bigint[]): Map<bigint, BillPaidProof> {
+  const out = new Map<bigint, BillPaidProof>();
+  for (const id of ids) {
+    const proof = billPaidIn(logs, id);
+    if (proof) out.set(id, proof);
+  }
+  return out;
+}
+
 export function billVoidedIn(logs: readonly Log[], billId: bigint): boolean {
   return logs.some((log) => {
     if (log.removed || !isAddressEqual(log.address, ADAG_BILLS)) return false;

@@ -16,3 +16,26 @@ export function parseBillParam(param: string): bigint | null {
   if (!/^[1-9]\d{0,77}$/.test(param)) return null;
   return BigInt(param);
 }
+
+export const MAX_BASKET = 10;
+
+// A basket link carries only ids (C3). Pasting one back in is read the same way as typed numbers.
+const BASKET_LINK = /\S*\/pay\/basket\?\S*?\bbills=((?:[0-9]+(?:,|%2C)?)+)\S*/gi;
+
+// Numbers or bill links, separated by commas, spaces or new lines. Duplicates collapse to the first one. Anything
+// that is not a bill number comes back in `dropped` so the page can say so. More than MAX_BASKET ids throws.
+export function parseBillList(input: string): { ids: bigint[]; dropped: string[] } {
+  const expanded = input.replace(BASKET_LINK, (_match, ids: string) => ` ${ids.replace(/%2C/gi, ",")} `);
+  const ids: bigint[] = [];
+  const dropped: string[] = [];
+  for (const token of expanded.split(/[\s,]+/)) {
+    if (!token) continue;
+    const id = parseBillInput(token);
+    if (id === null) dropped.push(token.slice(0, 80));
+    else if (!ids.includes(id)) ids.push(id);
+  }
+  if (ids.length > MAX_BASKET) {
+    throw new Error(`That is ${ids.length} bills. One signature pays at most ${MAX_BASKET}; split them into two baskets.`);
+  }
+  return { ids, dropped };
+}

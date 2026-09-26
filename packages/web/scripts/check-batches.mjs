@@ -29,9 +29,9 @@ process.emitWarning = (warning, ...rest) => {
 };
 
 const pay = (file) => import(new URL(`../src/lib/pay/${file}`, import.meta.url).href);
-const { buildPayFromBalance, buildPayFromBitcoin, suggestPledge, buildCreateBill, buildAddCollateral, buildCloseLoan, referenceBytes, BATCH_TARGETS, APPROVAL_SPENDERS } = await pay('build.ts');
+const { buildPayFromBalance, buildPayFromBitcoin, suggestPledge, buildCreateBill, buildAddCollateral, buildCloseLoan, buildPayMany, referenceBytes, BATCH_TARGETS, APPROVAL_SPENDERS } = await pay('build.ts');
 const { debtFromShares, closeApproval } = await pay('loan.ts');
-const { billCreatedIn, morphoEventsIn } = await pay('receipt.ts');
+const { billCreatedIn, billsPaidIn, morphoEventsIn } = await pay('receipt.ts');
 const { decodeAdagError } = await pay('errors.ts');
 const { verifyMarketParams, paramsFromTuple } = await pay('market.ts');
 const { adagAbi, erc20Abi, morphoAbi, multicall3FromAbi } = await pay('abi.ts');
@@ -338,6 +338,88 @@ async function main() {
   const jClose = outcome(() => buildCloseLoan(PAYER, usdcCurrency, { shares: hShares, collateral: hCollateral }, hApproval, otherParams));
   record("(j) buildAddCollateral and buildCloseLoan throw on the second USDC/cirBTC market's params",
     jAdd !== null && jClose !== null, [`buildAddCollateral: ${jAdd ?? 'ACCEPTED'}`, `buildCloseLoan: ${jClose ?? 'ACCEPTED'}`]);
+
+  // (k) to (m): several bills, one signature. Each basket starts again from the live block.
+  const eurcCurrency = C.CURRENCIES.find((c) => c.symbol === 'EURC');
+  const eurcParams = paramsFromTuple(await ethCall(read(C.MORPHO, morphoAbi, 'idToMarketParams', [C.MARKET_EURC])));
+  const billCountNow = async () =>
+    decode(read(C.ADAG_BILLS, adagAbi, 'billCount'), (await simulate([{ from: PAYEE, ...read(C.ADAG_BILLS, adagAbi, 'billCount') }]))[0].returnData);
+  const writeBill = async (currency, amount, label) => {
+    const id = (await billCountNow()) + 1n;
+    const res = await send({ from: PAYEE, ...buildCreateBill(currency, amount, 0n, label) }, { after: [read(C.ADAG_BILLS, adagAbi, 'bill', [id])] });
+    if (!res.ok) throw new Error(`createBill reverted: ${decodeAdagError(res.revertData).text}`);
+    return billFromTuple(id, res.after[0]);
+  };
+  const writeBasket = async (tag) => [
+    await writeBill(usdcCurrency, 300_000n, `${tag}-1`),
+    await writeBill(usdcCurrency, 200_000n, `${tag}-2`),
+    await writeBill(eurcCurrency, 150_000n, `${tag}-3`),
+  ];
+  const needed = async (marketId, total) =>
+    decode(read(C.ADAG_BILLS, adagAbi, 'collateralNeeded', [PAYER, marketId, 0n]),
+      (await simulate([{ from: PAYER, ...read(C.ADAG_BILLS, adagAbi, 'collateralNeeded', [PAYER, marketId, total]) }]))[0].returnData);
+  const eurcBal = (who) => read(C.EURC, erc20Abi, 'balanceOf', [who]);
+  const ltvOf = (m) => read(C.ADAG_BILLS, adagAbi, 'loanToValue', [PAYER, m]);
+  const basketChecks = async (label, bills, plan) => {
+    const built = buildPayMany(bills, PAYER, plan);
+    const res = await send({ from: PAYER, to: built.to, data: built.data }, {
+      before: [payeeBal(), eurcBal(PAYEE)],
+      after: [payeeBal(), eurcBal(PAYEE), ltvOf(C.MARKET_USDC), ltvOf(C.MARKET_EURC), ...bills.map((b) => read(C.ADAG_BILLS, adagAbi, 'bill', [b.id]))],
+    });
+    if (!res.ok) return { ok: false, detail: [`reverted: ${decodeAdagError(res.revertData).text}`] };
+    const proofs = billsPaidIn(res.logs.map((l) => ({ ...l, removed: false })), bills.map((b) => b.id));
+    const usdcRise = res.after[0] - res.before[0];
+    const eurcRise = res.after[1] - res.before[1];
+    const [ltvU, ltvE] = [res.after[2], res.after[3]];
+    const allPaid = res.after.slice(4).every((b) => b.status === C.BILL_STATUS.Paid);
+    const first = proofs.get(bills[0].id);
+    const ok = shapeProblems(built).length === 0 && proofs.size === 3 && allPaid && first?.loanChecked === true
+      && usdcRise === 500_000n && eurcRise === 150_000n && ltvU <= C.MAX_LTV_WAD && ltvE <= C.MAX_LTV_WAD;
+    return {
+      ok,
+      detail: [
+        `${label}: bills #${bills.map((b) => b.id).join(', #')}; ${built.calls.length} calls; ${proofs.size} BillPaid from Adag, loanChecked ${bills.map((b) => proofs.get(b.id)?.loanChecked).join('/')}`,
+        `payee +${usdc(usdcRise)} and +${(Number(eurcRise) / 1e6).toFixed(6)} EURC; loan-to-value after: USDC ${(Number(ltvU) / 1e16).toFixed(2)}%, EURC ${(Number(ltvE) / 1e16).toFixed(2)}%; gas ${res.gas}`,
+      ],
+    };
+  };
+
+  // (k) Two USDC bills and one EURC bill, all from bitcoin, in one batch.
+  reset();
+  const kBills = await writeBasket('K');
+  const kUsdcPledge = suggestPledge(await needed(C.MARKET_USDC, 500_000n));
+  const kEurcPledge = suggestPledge(await needed(C.MARKET_EURC, 150_000n));
+  const k = await basketChecks('all from bitcoin', kBills, {
+    USDC: { from: 'bitcoin', pledge: kUsdcPledge, marketParams: usdcParams },
+    EURC: { from: 'bitcoin', pledge: kEurcPledge, marketParams: eurcParams },
+  });
+  record('(k) buildPayMany pays 2 USDC bills and 1 EURC bill from bitcoin in one batch: 3 BillPaid, payees exact, both loans at or under 40%',
+    k.ok, [`pledges ${btc(kUsdcPledge)} (USDC market) and ${btc(kEurcPledge)} (EURC market)`, ...k.detail]);
+
+  // (l) The same basket, USDC from balance and EURC from bitcoin.
+  reset();
+  const lBills = await writeBasket('L');
+  const lEurcPledge = suggestPledge(await needed(C.MARKET_EURC, 150_000n));
+  const l = await basketChecks('mixed', lBills, {
+    USDC: { from: 'balance' },
+    EURC: { from: 'bitcoin', pledge: lEurcPledge, marketParams: eurcParams },
+  });
+  record('(l) the same basket with USDC from balance and EURC from bitcoin', l.ok, [`EURC pledge ${btc(lEurcPledge)}`, ...l.detail]);
+
+  // (m) What buildPayMany refuses.
+  const template = kBills[0];
+  const eurcBill = kBills[2];
+  const fromBtc = { USDC: { from: 'bitcoin', pledge: 1_000n, marketParams: usdcParams }, EURC: { from: 'bitcoin', pledge: 1_000n, marketParams: eurcParams } };
+  const refusals = [
+    ['a duplicate id', () => buildPayMany([template, template], PAYER, fromBtc)],
+    ['11 bills', () => buildPayMany(Array.from({ length: 11 }, (_, i) => ({ ...template, id: 1_000n + BigInt(i) })), PAYER, fromBtc)],
+    ['a paid bill', () => buildPayMany([{ ...template, status: C.BILL_STATUS.Paid }], PAYER, fromBtc)],
+    ["the payer's own bill", () => buildPayMany([{ ...template, payee: PAYER }], PAYER, fromBtc)],
+    ['a currency with no plan', () => buildPayMany([template, eurcBill], PAYER, { USDC: { from: 'balance' } })],
+    ['the look-alike market params', () => buildPayMany([template], PAYER, { USDC: { from: 'bitcoin', pledge: 1_000n, marketParams: otherParams } })],
+  ].map(([what, fn]) => [what, outcome(fn)]);
+  record('(m) buildPayMany refuses a duplicate, 11 bills, a paid bill, its own bill, an unplanned currency and look-alike params',
+    refusals.every(([, message]) => message !== null), refusals.map(([what, message]) => `${what}: ${message ?? 'ACCEPTED'}`));
 
   const passed = results.filter((r) => r.ok).length;
   console.log();

@@ -10,7 +10,7 @@ import { createRequire } from 'node:module';
 import { existsSync, rmSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
-import { createPublicClient, http, parseAbi, parseAbiItem, stringToHex } from 'viem';
+import { createPublicClient, http, parseAbi, parseAbiItem, parseEventLogs, stringToHex } from 'viem';
 
 const WEB = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const REPO = resolve(WEB, '../..');
@@ -39,6 +39,7 @@ const tokenAbi = parseAbi(['function balanceOf(address) view returns (uint256)',
 const morphoAbi = parseAbi(['function position(bytes32 id, address user) view returns (uint256 supplyShares, uint128 borrowShares, uint128 collateral)']);
 const adagAbi = parseAbi([
   'function bill(uint256 id) view returns ((address payee, uint8 status, uint64 due, address currency, uint64 createdAt, uint256 amount, address payer, uint64 paidAt, bytes ref))',
+  'function loanToValue(address user, bytes32 marketId) view returns (uint256)',
 ]);
 const billPaidEvent = parseAbiItem('event BillPaid(uint256 indexed id, address indexed payer, address indexed payee, address currency, uint256 amount, bool loanChecked)');
 const fork = createPublicClient({ transport: http(FORK, { timeout: 60_000 }) });
@@ -146,10 +147,12 @@ async function connect(page, path) {
 }
 
 // Reveals only fire in view, so walk the page before a full-page capture; then shoot 1440 dark and 375 light.
-// Only the newest work order's states (f7b-) are shot by default. --all-shots re-shoots the approved F5b and F7 images too.
+// By default only the screens named with NEWEST_SHOTS are captured, so a run never overwrites images already approved.
+// --all-shots captures every screen the run passes through, the older ones included.
+const NEWEST_SHOTS = 'f9-';
 async function shoot(page, name) {
   const all = process.argv.includes('--all-shots');
-  const file = name.startsWith('f7b-') ? name : !all ? null : name.startsWith('f7-') ? name : `e2e-${name}`;
+  const file = name.startsWith(NEWEST_SHOTS) ? name : !all ? null : /^f\d/.test(name) ? name : `e2e-${name}`;
   if (!file) return;
   const walk = async () => {
     await page.evaluate(async () => {
@@ -564,6 +567,120 @@ async function main() {
         `bill #${N} amount ${onFork.amount}; "1,250.50": "${message}"; eth_sendTransaction requests ${sent}`);
     }
 
+    // Baskets: several bills, one signature.
+    const ltvOnFork = (m) => fork.readContract({ address: ADAG, abi: adagAbi, functionName: 'loanToValue', args: [PAYER, m] });
+    const receiptOf = async (page) => {
+      const href = await page.locator('[data-tx-result="basket-paid"] a').first().getAttribute('href');
+      const receipt = await fork.getTransactionReceipt({ hash: href.split('/tx/')[1] });
+      const paidLogs = parseEventLogs({ abi: [billPaidEvent], logs: receipt.logs }).filter((l) => l.address.toLowerCase() === ADAG.toLowerCase());
+      return { receipt, paidLogs };
+    };
+    const openBasket = async (page, ids) => {
+      await page.goto(`${APP}/pay/basket?bills=${ids.join(',')}`, { waitUntil: 'networkidle', timeout: 120_000 });
+      await page.getByRole('button', { name: 'Connect wallet' }).first().click();
+      await page.locator('[data-group]').first().waitFor({ timeout: 60_000 });
+      await page.waitForFunction(() => !document.querySelector('.live-shimmer'), null, { timeout: 60_000 }).catch(() => {});
+    };
+    const payBasket = async (page) => {
+      await page.locator('[data-action="pay-basket"]:not([disabled])').waitFor({ timeout: 60_000 });
+      await page.locator('[data-action="pay-basket"]').click();
+      await acceptDisclaimer(page);
+      await page.locator('[data-tx-result="basket-paid"]').waitFor({ timeout: 120_000 });
+      await page.waitForFunction(() => [...document.querySelectorAll('[data-basket-bill]')].every((e) => e.getAttribute('data-landed') === 'paid'), null, { timeout: 10_000 });
+    };
+
+    // (o) Three bills, one in euros, all from bitcoin, typed on /pay.
+    {
+      const ids = [newBill('USDC', 300_000, 'E2E-O-1'), newBill('USDC', 200_000, 'E2E-O-2'), newBill('EURC', 150_000, 'E2E-O-3')];
+      const { context, page } = await openPage({ account: PAYER });
+      await page.goto(`${APP}/pay`, { waitUntil: 'networkidle', timeout: 120_000 });
+      await page.getByLabel('Bill numbers or links').fill(`${ids[0]}, ${ids[1]} ${ids[2]}`);
+      await page.getByRole('button', { name: 'Open the bill' }).click();
+      await page.waitForURL(`**/pay/basket?bills=${ids.join(',')}`, { timeout: 60_000 });
+      await page.getByRole('button', { name: 'Connect wallet' }).first().click();
+      await page.locator('[data-group="EURC"]').waitFor({ timeout: 60_000 });
+      await page.waitForFunction(() => !document.querySelector('.live-shimmer'), null, { timeout: 60_000 }).catch(() => {});
+      const bitcoinChosen = (await page.locator('[data-choice$="-bitcoin"][aria-checked="true"]').count()) === 2;
+      await shoot(page, 'f9-o-basket');
+      await payBasket(page);
+      await page.waitForTimeout(700);
+      await shoot(page, 'f9-o-landed');
+      const { paidLogs } = await receiptOf(page);
+      const statuses = await Promise.all(ids.map(statusOf));
+      const [ltvU, ltvE] = await Promise.all([ltvOnFork(MARKET_USDC), ltvOnFork(MARKET_EURC)]);
+      const sold = await page.locator('[data-sold]').innerText();
+      const sent = await sends(page);
+      record(`(o) bills #${ids.join(', #')} (2 USDC, 1 EURC) paid from bitcoin in one signature: 3 BillPaid, all PAID, both loans at or under 40%`,
+        bitcoinChosen && sent === 1 && paidLogs.length === 3 && paidLogs[0].args.loanChecked === true && statuses.every((s) => s === 2)
+          && ltvU > 0n && ltvU <= 400000000000000000n && ltvE > 0n && ltvE <= 400000000000000000n && sold.startsWith('0 cirBTC'),
+        `wallet sends ${sent}; BillPaid ${paidLogs.map((l) => `#${l.args.id} checked ${l.args.loanChecked}`).join(', ')}; LTV USDC ${(Number(ltvU) / 1e16).toFixed(2)}%, EURC ${(Number(ltvE) / 1e16).toFixed(2)}%; Bitcoin sold ${sold}`);
+      await context.close();
+    }
+
+    // (p) A mixed basket: the USDC bills from balance, the EURC bill from bitcoin.
+    {
+      const ids = [newBill('USDC', 300_000, 'E2E-P-1'), newBill('USDC', 200_000, 'E2E-P-2'), newBill('EURC', 150_000, 'E2E-P-3')];
+      const usdcLoanBefore = await positionOf(PAYER);
+      const { context, page } = await openPage({ account: PAYER });
+      await openBasket(page, ids);
+      await page.locator('[data-choice="USDC-balance"]:not([disabled])').click();
+      await page.waitForTimeout(400);
+      await shoot(page, 'f9-p-mixed');
+      await payBasket(page);
+      await page.waitForTimeout(700);
+      await shoot(page, 'f9-p-paid');
+      const { paidLogs } = await receiptOf(page);
+      const usdcLoanAfter = await positionOf(PAYER);
+      const ltvE = await ltvOnFork(MARKET_EURC);
+      const statuses = await Promise.all(ids.map(statusOf));
+      record(`(p) mixed basket #${ids.join(', #')}: USDC from balance (USDC loan unchanged), EURC from bitcoin`,
+        paidLogs.length === 3 && statuses.every((s) => s === 2) && usdcLoanAfter[1] === usdcLoanBefore[1] && usdcLoanAfter[2] === usdcLoanBefore[2] && ltvE <= 400000000000000000n,
+        `BillPaid ${paidLogs.length}; USDC loan shares ${usdcLoanBefore[1]} -> ${usdcLoanAfter[1]}; EURC LTV ${(Number(ltvE) / 1e16).toFixed(2)}%`);
+      await context.close();
+    }
+
+    // (q) A paid bill, a void bill and an open one: only the open one is paid.
+    {
+      const Q = newBill('USDC', 100_000, 'E2E-Q');
+      const { context, page } = await openPage({ account: PAYER });
+      await openBasket(page, [A, C, Q]);
+      const reasons = await page.locator('[data-aside-bill]').evaluateAll((els) => els.map((e) => [e.getAttribute('data-aside-bill'), e.querySelector('[data-reason]')?.textContent ?? '']));
+      const inBasket = await page.locator('[data-basket-bill]').evaluateAll((els) => els.map((e) => e.getAttribute('data-basket-bill')));
+      await shoot(page, 'f9-q-aside');
+      await payBasket(page);
+      await page.waitForTimeout(700);
+      await shoot(page, 'f9-q-paid');
+      const { paidLogs } = await receiptOf(page);
+      const reasonOf = (id) => reasons.find(([r]) => r === String(id))?.[1] ?? '';
+      record(`(q) basket of paid #${A}, void #${C} and open #${Q}: the first two set apart with reasons, only #${Q} paid`,
+        reasonOf(A).includes('Already paid') && reasonOf(C).includes('Cancelled') && inBasket.length === 1 && inBasket[0] === String(Q)
+          && paidLogs.length === 1 && paidLogs[0].args.id === Q && (await statusOf(Q)) === 2 && (await statusOf(C)) === 3,
+        `set apart: ${reasons.map(([r, t]) => `#${r} "${t}"`).join(', ')}; paid ${paidLogs.map((l) => `#${l.args.id}`).join(', ')}`);
+      await context.close();
+    }
+
+    // (r) Duplicates collapse to one; eleven numbers are refused before any wallet request.
+    {
+      const { context, page } = await openPage({ account: PAYER });
+      await page.goto(`${APP}/pay`, { waitUntil: 'networkidle', timeout: 120_000 });
+      await page.getByLabel('Bill numbers or links').fill(`${A}, ${A} #${A}, ${B}`);
+      await page.getByRole('button', { name: 'Open the bill' }).click();
+      await page.waitForURL('**/pay/basket?bills=*', { timeout: 60_000 });
+      const collapsed = new URL(page.url()).searchParams.get('bills');
+      await page.goto(`${APP}/pay`, { waitUntil: 'networkidle', timeout: 120_000 });
+      await page.getByLabel('Bill numbers or links').fill(Array.from({ length: 11 }, (_, i) => i + 1).join(' '));
+      await page.getByRole('button', { name: 'Open the bill' }).click();
+      await page.getByText('One signature pays at most 10').waitFor({ timeout: 10_000 });
+      const stayed = new URL(page.url()).pathname === '/pay';
+      await shoot(page, 'f9-r-refused');
+      await page.goto(`${APP}/pay/basket?bills=${Array.from({ length: 11 }, (_, i) => i + 1).join(',')}`, { waitUntil: 'networkidle', timeout: 120_000 });
+      const direct = await page.getByText('Too many').first().isVisible();
+      const sent = await sends(page);
+      record('(r) duplicate numbers collapse to one, and 11 numbers are refused on /pay and in a basket link, with no wallet request',
+        collapsed === `${A},${B}` && stayed && direct && sent === 0, `"${A}, ${A} #${A}, ${B}" opened bills=${collapsed}; 11 numbers stayed on /pay: ${stayed}; basket link refused: ${direct}; sends ${sent}`);
+      await context.close();
+    }
+
     // The mobile menu open, and the wallet page before connecting.
     {
       const { context, page } = await openPage({ account: PAYER, width: 375, theme: 'light' });
@@ -595,7 +712,7 @@ try {
   await main();
   const passed = results.filter((r) => r.ok).length;
   console.log(`\nconsole errors: ${consoleErrors.length}${consoleErrors.length ? `\n  ${consoleErrors.join('\n  ')}` : ''}`);
-  const allOk = passed === results.length && results.length === 14 && consoleErrors.length === 0;
+  const allOk = passed === results.length && results.length === 18 && consoleErrors.length === 0;
   console.log(allOk ? `ALL ${passed} SCENARIOS PASSED` : `${results.length - passed} of ${results.length} scenarios failed`);
   code = allOk ? 0 : 1;
 } catch (error) {
