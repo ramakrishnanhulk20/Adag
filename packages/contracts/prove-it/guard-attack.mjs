@@ -6,14 +6,20 @@
 //   node packages/contracts/prove-it/guard-attack.mjs
 //
 // Before AdagGuard is deployed its runtime code is injected at its predicted address, exactly as guard-prove.mjs
-// explains; after the deploy the same run targets the live contract. State overrides are used for two things
-// only: giving the simulated stranger some native USDC, and in G8 and G9 a mock oracle at the market oracle's
-// address, labelled as a simulated price crash to zero. AdagGuard and Morpho state are never overridden.
+// explains; after the deploy the same run targets the live contract.
+//
+// Every row starts from the same SIMULATED PREMISE, run as the first block of every simulation and printed:
+// the payer clears any live guard rule and approval it holds, then borrows or repays on Morpho so the loan sits
+// at 38.00% (loanPremise in guard-prove.mjs). These are ordinary calls the payer really can make; no contract
+// storage is overridden for them. State overrides are used for three things only: giving the simulated stranger
+// some native USDC, topping the payer's wallet up to 1 USDC (labelled SIMULATED FUNDING) only if the premise
+// leaves it under that, and in G8 and G9 a mock oracle at the market oracle's address, labelled as a simulated
+// price crash to zero. AdagGuard and Morpho state are never overridden.
 import { appendFileSync, existsSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { getAddress, keccak256, parseAbi, stringToHex, toFunctionSelector } from 'viem';
 import * as L from './lib.mjs';
-import { STRANGER, STRANGER_FUNDS, Stop, baseline, debtDown, debtUp, loadGuard, ltvOf, makeSim } from './guard-prove.mjs';
+import { PREMISE_LTV, STRANGER, STRANGER_FUNDS, Stop, baseline, debtDown, debtUp, loadGuard, loanPremise, ltvOf, makeSim } from './guard-prove.mjs';
 
 const TRIGGER = 350000000000000000n;
 const TARGET = 300000000000000000n;
@@ -52,8 +58,14 @@ function setupOk(results, what) {
   if (bad) throw new Stop(`setup (${what}) failed: ${out(bad)}`);
 }
 
+// An approval that never binds: twice this run's debt, and at least 1 USDC.
+const fullApproval = () => (ctx.b.debt * 2n > 1_000000n ? ctx.b.debt * 2n : 1_000000n);
+
+// Half of what the loan needs (G6 measures it first), so the approval, not the target, is what binds.
+const halfNeed = () => (ctx.need > 1n ? ctx.need / 2n : 100_000n);
+
 async function G1() {
-  const cap = 100_000n;
+  const cap = halfNeed();
   const res = await ctx.s.run([
     { time: ctx.s.t(1), overrides: STRANGER_FUNDS, calls: [rule(TRIGGER, TARGET), approve(cap), bal(ctx.payer)] },
     { time: ctx.s.t(2), calls: [quote(), protect(), bal(ctx.payer), allowance(ctx.payer, ctx.guard.address), bal(ctx.guard.address)] },
@@ -77,7 +89,7 @@ function ctxNeed() {
 
 async function G2() {
   const res = await ctx.s.run([
-    { time: ctx.s.t(1), overrides: STRANGER_FUNDS, calls: [rule(TRIGGER, TARGET), approve(1_000000n)] },
+    { time: ctx.s.t(1), overrides: STRANGER_FUNDS, calls: [rule(TRIGGER, TARGET), approve(fullApproval())] },
     { time: ctx.s.t(2), calls: [
       protect(ctx.payer, L.OTHER_USDC_CIRBTC_MARKET),
       ctx.s.g(ctx.payer, 'setRule', [LOOK_ALIKE, TRIGGER, TARGET, 0n]),
@@ -105,7 +117,7 @@ async function G2() {
 
 async function G3() {
   const res = await ctx.s.run([
-    { time: ctx.s.t(1), overrides: STRANGER_FUNDS, calls: [rule(500000000000000000n, 400000000000000000n), approve(1_000000n), bal(ctx.payer)] },
+    { time: ctx.s.t(1), overrides: STRANGER_FUNDS, calls: [rule(500000000000000000n, 400000000000000000n), approve(fullApproval()), bal(ctx.payer)] },
     { time: ctx.s.t(2), calls: [quote(), protect(), bal(ctx.payer)] },
   ]);
   setupOk(res[0].slice(0, 2), 'a 50% / 40% rule');
@@ -120,7 +132,7 @@ async function G3() {
 async function G4() {
   const expiry = ctx.s.t(1) + 60n;
   const res = await ctx.s.run([
-    { time: ctx.s.t(1), overrides: STRANGER_FUNDS, calls: [rule(TRIGGER, TARGET, expiry), approve(1_000000n), quote(), bal(ctx.payer)] },
+    { time: ctx.s.t(1), overrides: STRANGER_FUNDS, calls: [rule(TRIGGER, TARGET, expiry), approve(fullApproval()), quote(), bal(ctx.payer)] },
     { time: expiry, calls: [quote(), protect(), bal(ctx.payer)] },
   ]);
   setupOk(res[0].slice(0, 2), 'a rule that expires in 60 seconds');
@@ -158,7 +170,7 @@ async function G5() {
 
 async function G6() {
   const res = await ctx.s.run([
-    { time: ctx.s.t(1), overrides: STRANGER_FUNDS, calls: [rule(TRIGGER, TARGET), approve(1_000000n), quote()] },
+    { time: ctx.s.t(1), overrides: STRANGER_FUNDS, calls: [rule(TRIGGER, TARGET), approve(fullApproval()), quote()] },
     { time: ctx.s.t(2), calls: [protect(), protect(), bal(ctx.payer)] },
     { time: ctx.s.t(3), calls: [protect(), bal(ctx.payer)] },
   ]);
@@ -174,9 +186,9 @@ async function G6() {
 }
 
 async function G7() {
-  const keep = 50_000n;
+  const keep = halfNeed();
   const res = await ctx.s.run([
-    { time: ctx.s.t(1), overrides: STRANGER_FUNDS, calls: [rule(TRIGGER, TARGET), approve(1_000000n)] },
+    { time: ctx.s.t(1), overrides: STRANGER_FUNDS, calls: [rule(TRIGGER, TARGET), approve(fullApproval())] },
     { time: ctx.s.t(2), calls: [ctx.s.from(ctx.payer, L.USDC, L.erc20Abi, 'transfer', [L.DEMO_PAYEE, ctx.b.usdc - keep]), bal(ctx.payer)] },
     { time: ctx.s.t(3), calls: [protect(), bal(ctx.payer), bal(ctx.guard.address)] },
   ]);
@@ -190,14 +202,16 @@ async function G7() {
 
 // SIMULATED PRICE CRASH TO ZERO: mock/MockOracle.sol sits at the market oracle's address from the second block on.
 async function G8() {
+  // Twice the debt: enough that only the debt rounded down can bind.
+  const approval = ctx.b.debt * 2n;
   const res = await ctx.s.run([
-    { time: ctx.s.t(1), overrides: STRANGER_FUNDS, calls: [rule(TRIGGER, TARGET), approve(2_000000n)] },
+    { time: ctx.s.t(1), overrides: STRANGER_FUNDS, calls: [rule(TRIGGER, TARGET), approve(approval)] },
     { time: ctx.s.t(2), overrides: crash(), calls: [
       ctx.s.from(STRANGER, L.MORPHO, accrueAbi, 'accrueInterest', [ctx.b.params]),
       pos(ctx.payer), mkt(), quote(), protect(), pos(ctx.payer), mkt(), bal(ctx.guard.address),
     ] },
   ]);
-  setupOk(res[0], 'rule and a 2 USDC approval');
+  setupOk(res[0], `rule and a ${L.usdc(approval)} approval`);
   if (!res[1][0].ok) throw new Stop(`accrueInterest failed: ${out(res[1][0])}`);
   const p0 = ctx.s.decode(L.morphoAbi, 'position', res[1][1]);
   const m0 = ctx.s.decode(L.morphoAbi, 'market', res[1][2]);
@@ -207,7 +221,7 @@ async function G8() {
   const left = res[1][5].ok && res[1][6].ok
     ? debtUp(ctx.s.decode(L.morphoAbi, 'position', res[1][5])[1], ctx.s.decode(L.morphoAbi, 'market', res[1][6]))
     : null;
-  row('G8', `SIMULATED PRICE CRASH TO ZERO (mock oracle): protect with a 2 USDC approval against a ${L.usdc(debtUp(p0[1], m0))} loan`,
+  row('G8', `SIMULATED PRICE CRASH TO ZERO (mock oracle): protect with a ${L.usdc(approval)} approval against a ${L.usdc(debtUp(p0[1], m0))} loan`,
     'the repay is capped at the debt rounded down, so Morpho\'s share maths cannot underflow; no revert (C36, C37)',
     `quote ${wouldAct} at ${L.pct(ltv)}, ${L.usdc(quoted)}; protect ${repaid === null ? out(res[1][4]) : `repaid ${L.usdc(repaid)}`} against a rounded-down debt of ${L.usdc(cap)}; debt left ${left === null ? '?' : L.usdc(left)}; guard holds ${L.usdc(num(res[1][7]))}`,
     wouldAct && quoted === cap && repaid === cap && left !== null && left <= 1n && num(res[1][7]) === 0n);
@@ -247,6 +261,61 @@ async function G10() {
     writes.join(',') === 'clearRule,protect,setRule' && !hasFallback && refused);
 }
 
+// The shared SIMULATED PREMISE, run as the first block of every row's simulation: the payer clears any live guard
+// rule and approval, then borrows or repays on Morpho to put the loan at 38.00%. Sets ctx.s and moves ctx.b to
+// the state every row starts from. Returns the lines to print.
+async function setPremise() {
+  const b = ctx.b;
+  const probe = makeSim(b.pin, ctx.guard);
+  const reads = await probe.run([{ time: probe.t(1), calls: [
+    probe.g(STRANGER, 'ruleOf', [ctx.payer, MU]),
+    probe.from(STRANGER, L.USDC, L.erc20Abi, 'allowance', [ctx.payer, ctx.guard.address]),
+  ] }]);
+  const liveRule = probe.decode(ctx.guard.abi, 'ruleOf', reads[0][0]);
+  const liveApproval = probe.decode(L.erc20Abi, 'allowance', reads[0][1]);
+
+  const calls = [];
+  const lines = [];
+  const hasRule = liveRule.triggerWad !== 0n;
+  if (hasRule) calls.push(probe.g(ctx.payer, 'clearRule', [MU]));
+  if (liveApproval !== 0n) calls.push(probe.from(ctx.payer, L.USDC, L.erc20Abi, 'approve', [ctx.guard.address, 0n]));
+  if (calls.length) {
+    const what = [
+      ...(hasRule ? [`clears its live guard rule (${L.pct(liveRule.triggerWad)} / ${L.pct(liveRule.targetWad)})`] : []),
+      ...(liveApproval !== 0n ? [`sets its ${L.usdc(liveApproval)} approval to AdagGuard to 0`] : []),
+    ];
+    lines.push(`SIMULATED PREMISE: the payer ${what.join(' and ')}, so every row starts with neither.`);
+  }
+  const loan = loanPremise(b, ctx.payer);
+  if (loan.calls.length) {
+    calls.push(...loan.calls.map((c) => ({ from: ctx.payer, ...c })));
+    lines.push(loan.line);
+  }
+
+  const least = 1_000000n;
+  const walletAfter = b.usdc + (loan.kind === 'borrow' ? loan.amount : 0n) - (loan.kind === 'repay' ? loan.amount : 0n);
+  let overrides;
+  if (walletAfter < least) {
+    const start = least + (loan.kind === 'repay' ? loan.amount : 0n) - (loan.kind === 'borrow' ? loan.amount : 0n);
+    overrides = L.nativeBalance(ctx.payer, start * 10n ** 12n);
+    lines.push(`SIMULATED FUNDING: a state override sets the payer's wallet to ${L.usdc(start)} before the premise, so it holds ${L.usdc(least)} after it, the least these rows assume.`);
+  }
+  if (lines.length) lines.push('These are ordinary steps the payer can take (the funding aside), run inside the simulation only; no contract storage is overridden.');
+
+  ctx.s = makeSim(b.pin, ctx.guard, calls.length ? [{ overrides, calls }] : []);
+  const after = await ctx.s.run([{ time: ctx.s.t(1), calls: [pos(ctx.payer), mkt(), bal(ctx.payer)] }]);
+  const p = ctx.s.decode(L.morphoAbi, 'position', after[0][0]);
+  b.market = ctx.s.decode(L.morphoAbi, 'market', after[0][1]);
+  b.usdc = num(after[0][2]);
+  b.shares = p[1];
+  b.collateral = p[2];
+  b.debt = debtUp(b.shares, b.market);
+  b.ltv = ltvOf(b.debt, b.collateral, b.price);
+  if (L.pct(b.ltv) !== L.pct(PREMISE_LTV)) throw new Stop(`The simulated premise left the loan at ${L.pct(b.ltv)}, not ${L.pct(PREMISE_LTV)}.`);
+  if (b.usdc < least) throw new Stop(`The payer holds ${L.usdc(b.usdc)} after the premise; these attacks assume at least 1 USDC.`);
+  return lines;
+}
+
 const cell = (s) => String(s).replace(/\|/g, '\\|');
 function table() {
   const lines = ['| # | Attack | What should stop it | Actual | Result |', '|---|---|---|---|---|'];
@@ -260,17 +329,18 @@ async function main() {
   ctx.guard = await loadGuard();
   L.setAdagAbi(ctx.guard.abi);
   ctx.b = await baseline(ctx.payer);
-  ctx.s = makeSim(ctx.b.pin, ctx.guard);
   const b = ctx.b;
   const when = new Date(Number(b.pin.timestamp) * 1000).toISOString();
   if (b.shares === 0n) throw new Stop('The payer has no USDC-market loan, so these attacks have nothing to aim at.');
-  if (b.ltv < TRIGGER) throw new Stop(`The payer's loan is at ${L.pct(b.ltv)}, under the 35% trigger these attacks assume.`);
-  if (b.usdc < 1_000000n) throw new Stop(`The payer holds ${L.usdc(b.usdc)}; these attacks assume at least 1 USDC.`);
+  const live = `Payer ${ctx.payer} on chain: loan ${L.usdc(b.debt)} against ${L.btc(b.collateral)} pledged, loan-to-value ${L.pct(b.ltv)}; wallet ${L.usdc(b.usdc)}. BTC price ${L.btcPrice(b.price)}.`;
+  const premiseLines = await setPremise();
 
   const state = [
     ...(wallets.fromEnv ? [] : [L.demoWalletsNote()]),
     `Block ${b.pin.number} (${when}), dRPC eth_simulateV1. ${ctx.guard.how}`,
-    `Payer ${ctx.payer}: loan ${L.usdc(b.debt)} against ${L.btc(b.collateral)} pledged, loan-to-value ${L.pct(ltvOf(b.debt, b.collateral, b.price))}; wallet ${L.usdc(b.usdc)}. BTC price ${L.btcPrice(b.price)}. Simulated stranger ${STRANGER}.`,
+    live,
+    ...premiseLines,
+    `Every row starts from: loan ${L.usdc(b.debt)} against ${L.btc(b.collateral)} pledged, loan-to-value ${L.pct(b.ltv)}; wallet ${L.usdc(b.usdc)}; no guard rule and no approval. Simulated stranger ${STRANGER}.`,
     'Unless a row says otherwise the payer\'s rule is: act at 35%, bring the loan back to 30%, no expiry.',
   ];
   console.log(state.join('\n'));
@@ -299,8 +369,10 @@ async function main() {
       '',
       'Each run tries to break AdagGuard with `node packages/contracts/prove-it/guard-attack.mjs`. Every attack is',
       'simulated with eth_simulateV1 from a real mainnet block against the demo payer\'s real Morpho loan. Nothing',
-      'is signed or sent. Before the deploy, AdagGuard\'s runtime code is injected at its predicted address. State',
-      'overrides only fund a simulated stranger; G8 and G9 alone swap in a mock oracle, labelled as a simulated',
+      'is signed or sent. Before the deploy, AdagGuard\'s runtime code is injected at its predicted address. Every',
+      'row starts from a printed SIMULATED PREMISE: ordinary calls by the payer that clear any live guard rule and',
+      'put the loan at 38.00% on Morpho. State overrides only fund a simulated stranger (and the payer, labelled,',
+      'if the premise leaves it under 1 USDC); G8 and G9 alone swap in a mock oracle, labelled as a simulated',
       'price crash to zero.',
       '',
     ].join('\n'));

@@ -5,6 +5,11 @@
 //   node packages/contracts/prove-it/guard-prove.mjs              dry run on live mainnet state, sends nothing
 //   node packages/contracts/prove-it/guard-prove.mjs --broadcast  the real thing, asks for a typed "yes" first
 //   node packages/contracts/prove-it/guard-prove.mjs --clear      removes the payer's rule and sets the approval to 0
+//   add --block N to the dry run to pin it to an earlier mainnet block; --help lists every option
+//
+// When the live loan is under 35% or over 40%, the dry run starts with a SIMULATED PREMISE block: the payer
+// borrows or repays on Morpho to put the loan at 38.00% (see loanPremise). It is a step the payer really can
+// take, printed as such, and it overrides no contract storage.
 //
 // The dry run: every step runs inside eth_simulateV1 on dRPC from one real mainnet block. Nothing is signed or
 // sent and no key is read. Before AdagGuard is deployed, its runtime code from the local build (out-guard) is
@@ -33,6 +38,8 @@ export const STRANGER_FUNDS = L.nativeBalance(STRANGER, 100n * 10n ** 18n);
 const TRIGGER = 350000000000000000n;
 const TARGET = 300000000000000000n;
 const APPROVAL = 1_000000n;
+// Above this the dry run also moves the loan to 38.00% first, so every run shows the same size of step.
+const PREMISE_HIGH = 400000000000000000n;
 
 export class Stop extends Error {}
 
@@ -107,11 +114,70 @@ export function ltvOf(debt, collateral, price) {
   return (debt * WAD + value - 1n) / value;
 }
 
-export function makeSim(pin, guard) {
+export const PREMISE_LTV = 380000000000000000n;
+const ceilDiv = (a, b) => (a + b - 1n) / b;
+
+// SIMULATED PREMISE. Puts the payer's USDC-market loan at `level` with one action the payer really can take on
+// Morpho: borrow more, or repay part. The amount follows Morpho's own rounding (shares minted rounded up on a
+// borrow, burned rounded down on a repay, debt read back rounded up) on the pinned block's stored totals, so the
+// loan lands at or just under the level; the seconds of interest before the simulated block move it far less
+// than the 0.01% printed. `b` is what baseline() returns. The calls are sent from the payer; none is needed when
+// the loan already sits exactly at the level.
+export function loanPremise(b, payer, level = PREMISE_LTV) {
+  if (b.shares === 0n || b.collateral === 0n) {
+    throw new Stop('The payer has no USDC-market loan with collateral behind it, so no premise can place it at a level.');
+  }
+  const value = (b.collateral * b.price) / 10n ** 36n;
+  const maxDebt = (value * level) / WAD;
+  const P = b.market[2] + 1n;
+  const Q = b.market[3] + 1_000_000n;
+  const s = b.shares;
+  const range = `taking the loan from ${L.pct(b.ltv)} to ${L.pct(level)}`;
+  if (b.debt === maxDebt) return { kind: 'none', amount: 0n, calls: [], line: '' };
+  if (b.debt < maxDebt) {
+    const debtAfter = (x) => {
+      const minted = ceilDiv(x * Q, P);
+      return ceilDiv((s + minted) * (P + x), Q + minted);
+    };
+    let x = maxDebt - b.debt;
+    while (x > 0n && debtAfter(x) > maxDebt) x -= 1n;
+    return {
+      kind: 'borrow', amount: x, calls: [L.calls.borrow(b.params, x, payer, payer)],
+      line: `SIMULATED PREMISE: the payer borrows ${L.usdc(x)} more on Morpho, ${range}.`,
+    };
+  }
+  const debtAfter = (x) => {
+    const burned = (x * Q) / P;
+    return burned >= s ? 0n : ceilDiv((s - burned) * (P - x), Q - burned);
+  };
+  let x = b.debt - maxDebt;
+  while (debtAfter(x) > maxDebt) x += 1n;
+  // Never past the debt rounded down, the most a repayment by amount can be without Morpho underflowing.
+  const most = (s * P) / Q;
+  if (x > most) x = most;
+  return {
+    kind: 'repay', amount: x,
+    calls: [L.calls.approve(L.USDC, L.MORPHO, x), { to: L.MORPHO, data: L.enc(L.morphoAbi, 'repay', [b.params, x, 0n, payer, '0x']) }],
+    line: `SIMULATED PREMISE: the payer repays ${L.usdc(x)} of the loan on Morpho, ${range}.`,
+  };
+}
+
+// `prefix` blocks ({ calls, overrides? }) run first in every request, one second apart from the pinned block; the
+// blocks a caller passes come after them, and only their results are returned. A prefix call that reverts stops
+// the run, so no result ever rests on a premise that did not happen.
+export function makeSim(pin, guard, prefix = []) {
   const from = (who, to, abi, fn, args = []) => ({ from: who, to, data: L.enc(abi, fn, args) });
   const g = (who, fn, args = []) => from(who, guard.address, guard.abi, fn, args);
-  const run = (blocks) => L.simulate(blocks, pin.number, guard.inject);
-  const t = (k) => pin.timestamp + BigInt(k);
+  const lead = prefix.map((p, i) => ({ time: pin.timestamp + BigInt(i + 1), overrides: p.overrides, calls: p.calls }));
+  const run = async (blocks) => {
+    const res = await L.simulate([...lead, ...blocks], pin.number, guard.inject);
+    lead.forEach((_, i) => {
+      const bad = res[i].find((r) => !r.ok);
+      if (bad) throw new Stop(`The simulated premise reverted: ${L.decodeRevert(bad.revertData)}`);
+    });
+    return res.slice(lead.length);
+  };
+  const t = (k) => pin.timestamp + BigInt(lead.length + k);
   const outcome = (r) => (r.ok ? 'success' : L.decodeRevert(r.revertData));
   const decode = (abi, fn, r) => {
     if (!r.ok) throw new Stop(`${fn} failed: ${outcome(r)}`);
@@ -120,13 +186,21 @@ export function makeSim(pin, guard) {
   return { from, g, run, t, outcome, decode };
 }
 
-// The pinned block, the verified USDC market, and the payer's loan in it.
-export async function baseline(payer) {
+// The pinned block (dRPC's latest, or `atBlock` when given), the verified USDC market, and the payer's loan in it.
+export async function baseline(payer, atBlock = null) {
   const chainId = await L.circle.getChainId();
   if (chainId !== L.CHAIN_ID) throw new Stop(`${L.WRITE_RPC} reports chain ${chainId}, not Arc mainnet ${L.CHAIN_ID}.`);
   const simChain = await L.simChainId();
   if (simChain !== L.CHAIN_ID) throw new Stop(`${L.SIM_RPC} reports chain ${simChain}, not Arc mainnet ${L.CHAIN_ID}.`);
-  const pin = await L.simHead();
+  let pin;
+  if (atBlock === null) {
+    pin = await L.simHead();
+  } else {
+    const head = await L.simHead();
+    if (atBlock > head.number) throw new Stop(`Block ${atBlock} is past the latest block dRPC has, ${head.number}.`);
+    const blk = await L.circle.getBlock({ blockNumber: atBlock });
+    pin = { number: blk.number, timestamp: blk.timestamp };
+  }
   const specs = [
     L.read('p', L.MORPHO, L.morphoAbi, 'idToMarketParams', [L.MARKET_USDC]),
     L.read('pos', L.MORPHO, L.morphoAbi, 'position', [L.MARKET_USDC, payer]),
@@ -162,13 +236,12 @@ export const exactPct = (wad) => {
 };
 const gasOf = (r) => r.gas.toLocaleString('en-US').padStart(9);
 
-async function dryRun() {
+async function dryRun(atBlock) {
   const wallets = L.dryRunAddresses();
   const payer = wallets.payer;
   const guard = await loadGuard();
   L.setAdagAbi(guard.abi);
-  const b = await baseline(payer);
-  const s = makeSim(b.pin, guard);
+  const b = await baseline(payer, atBlock);
   const when = new Date(Number(b.pin.timestamp) * 1000).toISOString();
 
   line(`AdagGuard prove-it: DRY RUN on live Arc mainnet state (chain ${L.CHAIN_ID}, block ${b.pin.number}, ${when}).`);
@@ -182,7 +255,20 @@ async function dryRun() {
   line(`  BTC price ${L.btcPrice(b.price)}; Morpho liquidates this market at ${L.pct(b.params.lltv)}`);
 
   if (b.shares === 0n) throw new Stop('The payer has no USDC-market loan, so there is nothing for the guard to protect.');
-  if (b.ltv < TRIGGER) throw new Stop(`The loan is at ${L.pct(b.ltv)}, under the 35% trigger, so the guard would rightly do nothing and this run would prove nothing.`);
+  // The proof needs a loan at or over the 35% trigger and near it. When the live loan is elsewhere (the guard
+  // itself brought it to 30% on 26 September), a first simulated block puts it at 38.00% with an ordinary Morpho
+  // call from the payer. No storage of AdagGuard, Morpho or the oracle is overridden for it.
+  const premise = b.ltv < TRIGGER || b.ltv > PREMISE_HIGH ? loanPremise(b, payer) : null;
+  if (premise?.kind === 'repay' && b.usdc < premise.amount) {
+    throw new Stop(`The loan is at ${L.pct(b.ltv)}; bringing it to ${L.pct(PREMISE_LTV)} needs a ${L.usdc(premise.amount)} repay, and the payer holds ${L.usdc(b.usdc)}.`);
+  }
+  const s = makeSim(b.pin, guard, premise?.calls.length ? [{ calls: premise.calls.map((c) => ({ from: payer, ...c })) }] : []);
+  if (premise?.calls.length) {
+    line();
+    line(premise.line);
+    line(`  The live loan is outside the 35% to 40% range this proof needs, so the first simulated block takes this ordinary`);
+    line('  Morpho step as the payer. It is not on chain, and no contract storage is overridden for it.');
+  }
 
   line();
   line('Plan');
@@ -288,7 +374,7 @@ async function dryRun() {
   const allOk = checks.every(([, ok]) => ok);
   line();
   line(allOk
-    ? `PROVEN (dry run): a stranger's protect repaid ${L.usdc(repaid)} of the payer's own loan from the payer's own wallet, taking it from ${L.pct(ltvBefore)} to ${L.pct(ltvAfter)}, and no bitcoin was sold.`
+    ? `PROVEN (dry run${premise?.calls.length ? ', after the simulated premise above' : ''}): a stranger's protect repaid ${L.usdc(repaid)} of the payer's own loan from the payer's own wallet, taking it from ${L.pct(ltvBefore)} to ${L.pct(ltvAfter)}, and no bitcoin was sold.`
     : 'NOT PROVEN: at least one check failed, see above.');
   return allOk ? 0 : 1;
 }
@@ -298,12 +384,35 @@ const MIN_PAYER_GAS = 50_000n;
 const MIN_STRANGER_GAS_WEI = 10n ** 16n;
 const reportUrl = (date) => new URL(`../deployments/guard-prove-${date}.md`, import.meta.url);
 
+const HELP = `Usage: node packages/contracts/prove-it/guard-prove.mjs [option]
+
+  (no option)    dry run on live Arc mainnet state, simulated on dRPC; sends nothing and reads no key. When the
+                 demo loan is under 35% or over 40%, the first simulated block borrows or repays on Morpho as the
+                 payer to put it at 38.00%, printed as a SIMULATED PREMISE line.
+  --block N      the same dry run pinned to mainnet block N instead of the latest block.
+  --broadcast    the real run: signs from DEPLOYER_ADDRESS and PAYEE_ADDRESS in .env after a typed yes. Refuses
+                 when the live loan is under the 35% trigger.
+  --clear        removes the payer's rule and sets its approval to AdagGuard to 0, after a typed yes.
+  --help         this text.`;
+
 function parseArgs(argv) {
-  const known = new Set(['--broadcast', '--clear']);
-  const unknown = argv.filter((a) => !known.has(a));
-  if (unknown.length) throw new Stop(`Unknown option ${unknown.join(' ')}. Run with no option for the dry run, --broadcast for the real run, or --clear to remove the rule and the approval.`);
-  if (argv.includes('--broadcast') && argv.includes('--clear')) throw new Stop('--broadcast and --clear run separately.');
-  return { broadcast: argv.includes('--broadcast'), clear: argv.includes('--clear') };
+  const out = { broadcast: false, clear: false, help: false, block: null };
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    if (a === '--broadcast') out.broadcast = true;
+    else if (a === '--clear') out.clear = true;
+    else if (a === '--help' || a === '-h') out.help = true;
+    else if (a === '--block' || a.startsWith('--block=')) {
+      const v = a === '--block' ? argv[++i] : a.slice('--block='.length);
+      if (!/^[0-9]+$/.test(v ?? '')) throw new Stop('--block needs a block number, for example --block 22867200.');
+      out.block = BigInt(v);
+    } else {
+      throw new Stop(`Unknown option ${a}.\n\n${HELP}`);
+    }
+  }
+  if (out.broadcast && out.clear) throw new Stop('--broadcast and --clear run separately.');
+  if (out.block !== null && (out.broadcast || out.clear)) throw new Stop('--block pins the dry run only; --broadcast and --clear always act at the latest block.');
+  return out;
 }
 
 // Same fee rule as prove-it.mjs: twice the base fee plus the tip, never under Arc's 20 gwei floor.
@@ -472,7 +581,7 @@ async function broadcastRun() {
     throw new Stop(`The payer already has a guard rule in the USDC market (${L.pct(s0.rule.triggerWad)} / ${L.pct(s0.rule.targetWad)}), so a second run would stack another approval on it. Run with --clear first. Nothing sent.`);
   }
   if (s0.pos[1] === 0n) throw new Stop('The payer has no USDC-market loan, so there is nothing to protect. Nothing sent.');
-  if (ltv < TRIGGER) throw new Stop(`The payer's loan is at ${L.pct(ltv)} at block ${head.number}, under the 35% trigger, so the guard would rightly do nothing. Nothing sent.`);
+  if (ltv < TRIGGER) throw new Stop(`The payer's loan is at ${L.pct(ltv)} at block ${head.number}, under the 35% trigger, so the guard would rightly do nothing. Nothing sent. The dry run (no option) shows the same steps with a simulated premise that first puts the loan at 38.00%.`);
 
   // Rehearse the exact plan on dRPC first, as these two wallets, so the plan shows the amount it will repay.
   const pin = await L.simHead();
@@ -662,9 +771,13 @@ async function clearRun() {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
+  if (args.help) {
+    line(HELP);
+    return 0;
+  }
   if (args.broadcast) return broadcastRun();
   if (args.clear) return clearRun();
-  return dryRun();
+  return dryRun(args.block);
 }
 
 const runDirectly = process.argv[1] && fileURLToPath(import.meta.url).toLowerCase() === resolve(process.argv[1]).toLowerCase();

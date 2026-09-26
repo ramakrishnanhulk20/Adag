@@ -211,9 +211,36 @@ missing, and it refuses to run if the predicted address already holds code.
 
 ### guard-prove.mjs
 
-Everything runs in one eth_simulateV1 request on dRPC, pinned to dRPC's latest block. The demo payer
-`0x6e26Dd347b57ba591Ee34292A2d828CCC17A1fDE` holds a real USDC-market loan: 1.000004 USDC against 0.00003133 cirBTC,
-37.89%, on 26 September.
+```
+node packages/contracts/prove-it/guard-prove.mjs                  dry run at the latest block
+node packages/contracts/prove-it/guard-prove.mjs --block 22867200 the same dry run pinned to an earlier block
+node packages/contracts/prove-it/guard-prove.mjs --help           every option
+```
+
+Everything runs in one eth_simulateV1 request on dRPC, pinned to dRPC's latest block, or to the block `--block`
+names. It needs no `.env`. The demo payer `0x6e26Dd347b57ba591Ee34292A2d828CCC17A1fDE` holds a real USDC-market loan.
+
+The simulated premise. The proof needs that loan at or over the 35% trigger, and not far over it. The live loan
+moves: the guard itself took it from 39.07% to 30.00% on 26 September, the owner pays real bills from this wallet,
+and the keeper acts on the live rule. So when the loan at the pinned block is under 35% or over 40%, the first
+simulated block has the payer take one ordinary Morpho step. It borrows more, or repays part, to put the loan at
+38.00% (at or just under it, to the displayed 0.01%), and the output says so in a line of its own:
+
+```
+SIMULATED PREMISE: the payer borrows 0.409508 USDC more on Morpho, taking the loan from 30.00% to 38.00%.
+```
+
+Why this is honest:
+- It is an action the payer really can take, sent from the payer's address like every other step.
+- It overrides no storage in AdagGuard, Morpho or the oracle. The guard then acts on whatever state that call
+  leaves, exactly as it would on chain.
+- It is printed, and the proof's final line says the result came after it.
+- The amount uses Morpho's own rounding: shares minted rounded up on a borrow, burned rounded down on a repay, and
+  debt read back rounded up. `loanPremise` in `guard-prove.mjs` computes it; the attack suite uses the same
+  function, and the /break page is to mirror it.
+- When the live loan is already between 35% and 40%, there is no premise and the proof runs on the loan as it is.
+
+`--broadcast` never uses a premise: it acts on the real loan, and refuses when that loan is under 35%.
 
 1. The payer sets a rule on the USDC market: act at 35%, bring the loan back to 30%, no expiry.
 2. The payer approves AdagGuard for 1 USDC, the most it can ever take.
@@ -231,10 +258,17 @@ It checks, and prints PASS or FAIL for each:
 - no bitcoin was sold (wallet plus pledged)
 - the second protect repaid 0 and moved nothing
 
-Run against the live contract at block 22863666: the stranger's protect repaid 0.208166 USDC, taking the loan
-from 37.89% to 29.9999659%. The second protect repaid 0. Gas: setRule 129,321, approve 55,438, protect 211,485,
-the repeat protect 112,339. The script stops, rather than proving nothing, if the payer has no loan or the loan
-is already under 35%.
+Two dry runs on 26 September, both with no `.env`:
+
+- At block 22882655 the live loan was at 30.00%, so the premise borrowed 0.409508 USDC to 38.00%. The stranger's
+  protect then repaid 0.409509 USDC, back to 29.9999843715080089%, and all 9 checks passed.
+- With `--block 22867200` the live loan was at 39.07%, so there was no premise. The protect repaid 0.464348 USDC
+  to 29.9999843715080089%, and all 9 checks passed.
+
+The second run matches, digit for digit, Ram's real `--broadcast` a few blocks later at block 22867226
+(`deployments/guard-prove-2026-09-26.md`).
+
+The script stops only if the payer has no loan at all.
 
 #### The real run: --broadcast
 
@@ -253,9 +287,9 @@ payer's loan. Both are read from the repo `.env`.
 3. The stranger sends `protect` again at the same price.
 
 What it moves:
-- About 0.21 USDC of the payer's own USDC repays part of the payer's own Morpho loan, taking it from about 38% to
-  30%. It never leaves for anyone else: Morpho records it against the payer's debt. The exact amount is printed
-  in the plan.
+- Just enough of the payer's own USDC to take the payer's own Morpho loan from its live level to 30%. It never
+  leaves for anyone else: Morpho records it against the payer's debt. The exact amount is printed in the plan.
+  The real run on 26 September repaid 0.464348 USDC, taking the loan from 39.07% to 30.00%.
 - Gas from both wallets: about 505,000 gas in all, about 0.011 USDC at the current 20 gwei base fee plus a 1 gwei
   tip. The payer pays for the batch and the stranger pays for the two protects.
 - No bitcoin moves. The rule and the unused approval, about 0.79 USDC, stay in place until `--clear`.
@@ -265,7 +299,8 @@ Safety, the same as prove-it.mjs:
 - It checks that AdagGuard is the recorded deployment with code on chain.
 - It proves the USDC market params by hashing them to the fixed market id.
 - It refuses to send anything if the payer already has a rule in the USDC market, so a second run cannot stack
-  another approval, or if the loan is under 35% at the latest block.
+  another approval. It also refuses if the loan is under 35% at the latest block, and says the dry run shows the
+  same steps with a simulated premise.
 - It rehearses the whole plan on dRPC as these two wallets, then prints the plan with the amount it will repay and
   the gas.
 - It sends nothing until `yes` is typed at the terminal, read from `/dev/tty`, or from stdin where there is no
@@ -298,23 +333,40 @@ trigger, a target and an expiry, and the approval is the lifetime ceiling.
 
 | # | Attack | Threat model |
 |---|---|---|
-| G1 | Pull above the approval (0.1 USDC approved, about 0.21 needed), twice | C36, C38 as amended |
+| G1 | Pull above the approval (half of what the loan needs is approved), twice | C36, C38 as amended |
 | G2a to c | The other real USDC/cirBTC market id, a look-alike id one hex digit off, the EURC market | C35, C41 |
 | G3 | protect below the trigger | C36 |
 | G4 | protect at the second a rule expires | C41 |
 | G5a, b | A stranger clears, or sets, a rule hoping to reach the payer's | C34 |
 | G6 | protect three times at the same price | C38 as amended |
-| G7 | The wallet holds less than needed | C36 |
+| G7 | The wallet holds half of what the loan needs | C36 |
 | G8 | Simulated price crash to zero: capped at the debt rounded down, no revert | C36, C37 |
 | G9a, b | A payer with an approval but no rule, even at zero price; a wallet with no loan | C36, C41 |
 | G10 | Admin calls a drain would need (owner, withdraw, rescue, pause, upgrade), and the ABI's state-changing functions | C39 |
 
-State overrides are used for two things only: native USDC for the simulated stranger, and in G8 and G9
-`mock/MockOracle.sol` at the market oracle's address, labelled as a simulated crash. AdagGuard and Morpho state are
-never overridden. G7 lowers the payer's balance with a real transfer inside the simulation, not an override.
+Every row starts from the same printed SIMULATED PREMISE, the first block of each simulation, so the rows do not
+depend on where the live loan happens to be:
+- The payer clears any live guard rule and sets any approval to AdagGuard to 0, so each row starts with neither.
+- It then borrows or repays on Morpho with `loanPremise`, as in the proof, so the loan sits at 38.00%.
 
-Run against the live contract at block 22863638: 14 of 14 rows passed. The run from before the deploy, against
-the local build, is in the same file at block 22858500, also 14 of 14.
+Both are ordinary calls from the payer. Every amount a row uses is computed in the same run: the amount the loan
+needs (G6 measures it first), half of that for G1 and G7, and twice the debt for the approvals that must not
+bind. The checks compare against these figures, not against numbers from an earlier day.
+
+State overrides are used for three things only:
+- native USDC for the simulated stranger;
+- a top-up of the payer's wallet to 1 USDC, printed as SIMULATED FUNDING, only if the premise leaves it under
+  that;
+- in G8 and G9, `mock/MockOracle.sol` at the market oracle's address, labelled as a simulated crash.
+
+AdagGuard and Morpho state are never overridden. G7 lowers the payer's balance with a real transfer inside the
+simulation, not an override.
+
+Run with no `.env` at block 22882880 on 26 September, when the live loan was at 30.00% with the payer's live
+35%/30% rule still in place: the premise cleared that rule and its 0.535652 USDC approval, and borrowed 0.409508
+USDC to 38.00%, and 14 of 14 rows passed. Earlier runs are in `deployments/attacks-2026-09-26-guard.md`: against
+the live contract at block 22863638, 14 of 14, and against the local build before the deploy at block 22858500,
+also 14 of 14.
 
 ### verify-guard.sh
 
