@@ -293,11 +293,11 @@ All reads are `eth_call` views over the RPC, or `eth_getLogs` where named. "Adag
 | `balanceOf(payer)` on USDC, EURC, cirBTC | tokens | Can the payer pay from balance, and how much cirBTC is free. |
 | `idToMarketParams(m)` | Morpho | The market params that go into the batch. Hash-checked first (section 7). |
 | `position(m, payer)` and `market(m)` for both markets | Morpho | Current pledge and debt. Debt is `ceil(borrowShares * (totalBorrowAssets + 1) / (totalBorrowShares + 1e6))`. |
-| `seenPosition(payer, m)` for both markets, `enrolledAt(payer)` | Adag | Whether this payment will run the 40% check on debt the payer already had. A loan above 40% that Adag has never seen is refused even from cash, so the page offers to record it first (C32). |
+| `seenPosition(payer, m)` for both markets, `enrolledAt(payer)` | Adag | Whether this payment will run the 40% check on debt the payer already had. A loan above 40% that Adag has never seen is refused even from cash, so the bill page and the basket show "Record your existing loan first" with the button "Record my existing loan" (C32). |
 | `price()` on the market's oracle | oracle | cirBTC value in the loan token, scaled 1e36. |
 | `loanToValue(payer, m)` and `collateralNeeded(payer, m, bill.amount)` | Adag | The payer's loan-to-value now, and the pledge to propose before the margin in section 7. |
 | `priceStatus(m)` | Adag | If `fresh` is false, say "New loans are paused until the price feed updates. Paying from your balance still works." and do not offer the bitcoin path. |
-| `ruleOf(payer, m)`, `allowance(payer, AdagGuard)` and `quote(payer, m)` | AdagGuard, token | Whether this payment would trip the payer's own guard, and what the guard is about to take, which the pay screens keep aside from the balance the payment can use (C45, C58). |
+| `ruleOf(payer, m)`, `allowance(payer, AdagGuard)` and `quote(payer, m)` | AdagGuard, token | Whether a bitcoin payment takes the loan to or past the payer's own trigger, and if so the sentence "This payment takes the loan to X%, at or past your guard's Y% trigger. The guard will then repay about Z from this wallet within minutes, back to W%." (C58). What the guard is about to repay is kept aside from the balance the payment can use, with "Your loan guard will repay about Z from this wallet within minutes, so that is kept aside." If this cannot be read, the pay buttons stay off and the page says "Adag could not read your loan guard, so it cannot check this wallet can cover the payment. Try again." (C45). |
 | `BillPaid` logs, topic1 = `id` | the bill's own AdagBills, `eth_getLogs` | For a paid bill, the transaction that paid it (C16). Search a window around `paidAt`, in pages of at most 10,000 blocks. |
 
 ### Wallet page (`/app`)
@@ -354,7 +354,7 @@ If `P` is 0 because the pledge already covers the loan, leave out steps 1 and 2,
 
 Every bill keeps its own memo, and one failure undoes the whole batch (C20). Duplicate ids are removed before building, since a repeat reverts the batch with `BillNotOpen`. A batch holds at most 10 bills: by extrapolating from the measured three-bill batch across two markets (828,382 gas), that is about 2.8M gas at most, under 10% of Arc's 30M block. The 10-bill figure has not been measured.
 
-**Record an existing loan.** A direct transaction: `AdagBills.enrol()`. No money moves. Proven by the contract's own `Enrolled` for this wallet and a fresh `seenPosition` equal to Morpho's position in both markets.
+**Record an existing loan.** A direct transaction: `AdagBills.enrol()`, sent by the button "Record my existing loan" on a bill or a basket. No money moves, and the payment opens in the next block. Proven by the contract's own `Enrolled` for this wallet and a fresh `seenPosition` equal to Morpho's position in both markets.
 
 **Void a bill.** A direct transaction: `AdagBills.voidBill(N)`.
 
@@ -364,7 +364,7 @@ Every bill keeps its own memo, and one failure undoes the whole batch (C20). Dup
 3. `Morpho.withdrawCollateral(params, K, payer, payer)`
 4. `C.approve(Morpho, 0)`
 
-Repaying by the live share count is what leaves zero debt; repaying by assets leaves dust that blocks the withdrawal. The approval is reset to 0 in the same batch (C30). Closing a loan also stops its guard: the batch clears the rule and sets AdagGuard's approval to 0.
+Repaying by the live share count is what leaves zero debt; repaying by assets leaves dust that blocks the withdrawal. The approval is reset to 0 in the same batch (C30). Closing a loan also stops its guard, and the page says so before signing: "Closing also stops the loan guard for this loan: the rule is cleared and its approval set to 0." The same batch adds `AdagGuard.clearRule(m)` when a rule exists and `C.approve(AdagGuard, 0)` when a rule or an approval exists.
 
 **Repay part of a loan:** `C.approve(Morpho, X)`, then `Morpho.repay(params, X, 0, payer, 0x)`, with `X` at most the debt rounded down. **Add collateral:** `cirBTC.approve(Morpho, X)`, then `Morpho.supplyCollateral(params, X, payer, 0x)`.
 
@@ -376,7 +376,7 @@ Repaying by the live share count is what leaves zero debt; repaying by assets le
 
 ### Signed by a Safe's owners
 
-A Safe payment is one Safe transaction to `MultiSendCallOnly` by `delegatecall`, whose inner calls are plain calls with no value to build-time addresses only: the pledge and borrow on Morpho as the Safe, exact approvals to Morpho or AdagBills, and `AdagBills.pay(N)` for each bill, called directly (Memo and Multicall3From need an ordinary wallet). `gasPrice`, `gasToken`, `refundReceiver`, `safeTxGas` and `baseGas` are all 0, so any inner failure reverts the whole execution without spending the nonce (C51, C54). Before the owner signs, the app reads from the Safe itself that it is a Safe of version 1.3.0 or later, that the connected account is an owner, and the nonce, and simulates the batch as the Safe (C52). A Safe records its existing loan with `enrol()` as the only call of its own Safe transaction (C55). Safe payments are for bills on the current AdagBills.
+A Safe payment is one Safe transaction to `MultiSendCallOnly` by `delegatecall`, whose inner calls are plain calls with no value to build-time addresses only: the pledge and borrow on Morpho as the Safe, exact approvals to Morpho or AdagBills, and `AdagBills.pay(N)` for each bill, called directly (Memo and Multicall3From need an ordinary wallet). `gasPrice`, `gasToken`, `refundReceiver`, `safeTxGas` and `baseGas` are all 0, so any inner failure reverts the whole execution without spending the nonce (C51, C54). Before the owner signs, the app reads from the Safe itself that it is a Safe of version 1.3.0 or later, that the connected account is an owner, and the nonce, and simulates the batch as the Safe (C52). A Safe records its existing loan with `enrol()` as the only call of its own Safe transaction, offered as "Propose: record this Safe's existing loan"; the payment can be proposed once that has executed (C55). Safe payments are for bills on the current AdagBills.
 
 ### Server routes
 

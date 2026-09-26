@@ -54,7 +54,7 @@ A basket link carries only the bill numbers, like `/pay/basket?bills=12,13,14`, 
 
 If your wallet already borrowed against cirBTC on Morpho before it used Adag, Adag has never seen that loan, so it counts as new debt at your first payment. Above 40%, that payment is refused, even one paid from cash.
 
-The pay page says so and offers **Record my existing loan**: one signature, `enrol()`, no money moves. It records your position exactly as Morpho reports it. From the next block on, a payment from cash goes through, and borrowing more is checked against the 40% line as usual. Recording does not change your loan or make it safer; it tells Adag to judge only what you borrow from now on. A Safe records its loan in its own Safe transaction. More on [How it works](/docs/how-it-works#recording-an-existing-loan).
+The bill page and the basket both say so, in a card headed "Record your existing loan first", with the button **Record my existing loan**: one signature, `enrol()`, no money moves. It records your position exactly as Morpho reports it. From the next block on, a payment from cash goes through, and borrowing more is checked against the 40% line as usual. As the card puts it: "Recording does not change your loan or make it safer: it tells Adag to judge only what you borrow from now on." A Safe gets **Propose: record this Safe's existing loan**, a Safe transaction of its own, and the payment can be proposed once it has executed. More on [How it works](/docs/how-it-works#recording-an-existing-loan).
 
 ### Your loan afterwards
 
@@ -65,7 +65,7 @@ The loan is an ordinary Morpho loan in your own name. Interest accrues slowly, a
 - **Protect this loan**: a trigger, a target, and an approval of exactly the USDC or EURC the guard may use, which is the most it can ever take. When the loan crosses the trigger, the guard repays only what brings it back to the target, from your own wallet. The steps and the limits are on [The loan guard](/docs/loan-guard). **Stop protecting** clears the rule and sets the approval to 0 together.
 - **Add cirBTC** to lower the loan-to-value. It adds no debt.
 - **Repay some** to bring the loan down by an exact amount.
-- **Close the loan** to repay it in full and take all your cirBTC back. The page shows the amount to repay and whether your wallet holds enough; the approval it uses is reset to zero in the same signature, and the loan's guard stops too.
+- **Close loan** to repay it in full and take all your cirBTC back. The page shows the amount to repay and whether your wallet holds enough; the approval it uses is reset to zero in the same signature. If the loan has a guard, the page adds "Closing also stops the loan guard for this loan: the rule is cleared and its approval set to 0." and does it in that same signature.
 
 For Telegram messages when a loan gets close, and each time the guard repays, link a chat on [Alerts](/app/protect): see [Telegram alerts](/docs/alerts).
 

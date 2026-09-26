@@ -76,11 +76,11 @@ Recording and paying in the same block is refused (`EnrolledThisBlock`), so new 
   Someone who borrows outside Adag, records it in one block and pays from cash in the next has their earlier borrowing forgiven by the record. That is what recording means, and it affects only their own position. The attack suite runs exactly this every time and shows it behaving as documented.
 </Callout>
 
-This was proven on 26 September 2026 on a real borrower's wallet at 70.26%, simulated on live state because only that borrower could sign: a cash payment was refused before recording; after recording, borrowing more in the paying batch was refused, and the same bill paid from cash went through. A Safe records its loan in its own Safe transaction.
+This was proven on 26 September 2026 on a real borrower's wallet at 70.26%, simulated on live state because only that borrower could sign: a cash payment was refused before recording; after recording, borrowing more in the paying batch was refused, and the same bill paid from cash went through. A Safe records its loan in a Safe transaction of its own: see [Safe payments](/docs/safe#an-existing-loan).
 
 ## After the payment: the loan guard
 
-Adag checks the 40% line at the moment you pay. After that, [AdagGuard](/docs/loan-guard) can watch the loan: you set a trigger and a target and approve an amount of the loan's currency, and once the loan passes the trigger anyone may call `protect`, which repays only what brings the loan back to your target, from your own wallet. Adag's keeper calls it when Chainlink's price updates, and [Telegram alerts](/docs/alerts) tell you when a loan gets close. A payment that would take your loan past your own trigger says so before you sign, and the pay screens keep aside what the guard is about to take.
+Adag checks the 40% line at the moment you pay. After that, [AdagGuard](/docs/loan-guard) can watch the loan: you set a trigger and a target and approve an amount of the loan's currency, and once the loan passes the trigger anyone may call `protect`, which repays only what brings the loan back to your target, from your own wallet. Adag's keeper calls it when Chainlink's price updates, and [Telegram alerts](/docs/alerts) tell you when a loan gets close. Before a bitcoin payment that takes your loan to or past your own trigger, the pay screen says how much the guard will then repay. A payment from your balance keeps aside what the guard is about to repay and says so under the button, and if the guard cannot be read, the pay screens do not pay.
 
 ## Diagrams
 
