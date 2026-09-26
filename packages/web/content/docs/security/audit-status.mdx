@@ -11,19 +11,19 @@ description: Self-audited, with every result published. What was tested, what wa
 
 | Step | Result |
 | --- | --- |
-| Threat model before code | Written first, with 24 invariants as the definition of done |
+| Threat model before code | Written first, with 24 invariants as the definition of done; 6 more for the app layer added at the final review |
 | Tests | 73 passing |
 | Fuzzing | 5 fuzz tests at 1,000 runs each |
 | Invariants | 7, each at 256 runs of 64 random calls |
 | Static analysis | slither, solhint and arc-forge lint: 0 real bugs |
-| Separate reviews | 2, one of which found a bypass, fixed before deploy |
+| Separate reviews | 3: the second found a bypass, fixed before deploy; the third found three app-layer issues, fixed before release |
 | Attack suite on live state | 18 of 18 behave as the threat model says |
 | Live proof on mainnet | A real bill paid from a bitcoin-backed loan |
 | Source verification | Exact match on Sourcify and explorer.arc.io |
 
 ## Threat model first
 
-Before any contract code, the design was reviewed from a plain description of what Adag does, with security deliberately left out of that description so the review had to reason from scratch. The output is the [threat model](/docs/security/threat-model): what kind of system this is, who can attack it and how, and 24 numbered invariants in section C. Three of them cover features that were never built (a fee sponsor, delegated wallets, an admin), and the contract and the app were built against the rest.
+Before any contract code, the design was reviewed from a plain description of what Adag does, with security deliberately left out of that description so the review had to reason from scratch. The output is the [threat model](/docs/security/threat-model): what kind of system this is, who can attack it and how, and 24 numbered invariants in section C. Three of them cover features that were never built (a fee sponsor, delegated wallets, an admin), and the contract and the app were built against the rest. The final review added six more for the app layer, C25 to C30, each naming the file and function that upholds it.
 
 ## Tests
 
@@ -45,9 +45,9 @@ Three tools over the contract and its interfaces: slither with all detectors on,
 bash packages/contracts/analysis/run-analysis.sh
 ```
 
-## Two separate reviews
+## Three separate reviews
 
-Both were done by a reviewer that did not write the code. Neither is a third-party audit.
+All three were done by a reviewer that did not write the code. None is a third-party audit.
 
 The first was the threat model review above, before any code existed.
 
@@ -57,6 +57,14 @@ The second was a code review of the finished backend, before deploy. It found tw
 2. **The proof script trusted the RPC for market details.** It now proves them by hashing them to the fixed market id and comparing the oracle, rate model and liquidation line to known values, so a lying RPC cannot steer a pledge into Arc's other USDC/cirBTC market.
 
 A follow-up review checked both fixes across every sequence of a payer's own actions, found nothing else to change, and cleared the contract to deploy.
+
+The third was a code review of the finished app, before release. It read the app's money paths, its API routes and the changes to the proof script. It found three problems, all fixed before release:
+
+1. **A funding choice could change without a click** (medium). In the basket of several bills, the 30-second refresh could replace a payer's chosen source, from balance to bitcoin. A choice that becomes invalid is now cleared, never replaced (C26).
+2. **No fee reserve when paying from balance** (low). Arc takes the fee from the same USDC balance, yet paying from balance was offered to a payer holding exactly the bill amount. The app now checks that the balance covers every USDC the batch moves out plus the worst-case fee before it asks for a signature (C25).
+3. **The loan close missed recent interest** (low). It sized its approval from Morpho's stored totals, which leave out the interest since the market's last update. The debt is now accrued to the current block before the approval is sized (C28).
+
+It checked and found sound: every approval exact, with its target and spender asserted on every call; market details hashed to the fixed market id before use; every onBehalf and receiver the payer; receipts read only from Adag's and Morpho's own logs; each bill read again right before paying; and the proof script's `--broadcast` gate. It also proposed six invariants for the app layer that the standard did not yet state. They are now C25 to C30 in the [threat model](/docs/security/threat-model).
 
 ## The attack suite on live state
 
@@ -89,6 +97,6 @@ The contract is verified with an exact match on [Sourcify](https://repo.sourcify
 ## What this does not cover
 
 - No outside firm has reviewed the contract or the app.
-- The web app is covered by the threat model's rules and by its own checks, not by a formal review. A compromised page build is a named non-goal.
+- The web app is covered by the threat model's rules, its own checks and the final review, not by an outside audit. A compromised page build is a named non-goal.
 - The live proof paid one USDC bill. The EURC market and multi-bill batches are covered by tests on a mainnet fork, not by a live mainnet payment.
 - Adag relies on Morpho, the oracles and the token contracts being correct. It fails closed on their errors, and nothing more.

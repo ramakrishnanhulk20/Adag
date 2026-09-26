@@ -530,11 +530,11 @@ Paying from bitcoin costs about 209,000 gas more than paying from a balance: tha
 
 Self-audited, not audited by a firm. The evidence is published so you can check each step:
 
-- The [threat model](docs/security/threat-model.md), written before any contract code, with its section C as the definition of done.
+- The [threat model](docs/security/threat-model.md), written before any contract code, with its section C as the definition of done, including six app-layer invariants (C25 to C30) added at the final review.
 - [Attack results](packages/contracts/deployments/attacks-2026-09-25.md): 18 attacks against the live contract, every one behaving as the threat model says, including the reused-shares bypass that a separate review found before deploy and that the contract now refuses.
 - [Static analysis](packages/contracts/analysis/STATIC-ANALYSIS.md): slither, solhint and arc-forge lint, with no real bugs and a verdict for every finding.
 - 73 passing tests, including fuzzing and invariants.
-- Two separate reviews by a reviewer who did not write the code; the full account is on the [audit status]({{LIVE_URL}}/docs/security/audit-status) page.
+- Three separate reviews by a reviewer who did not write the code: the second found a contract bypass before deploy, and the third found three app-layer issues, fixed before release. The full account is on the [audit status]({{LIVE_URL}}/docs/security/audit-status) page.
 
 The design goal is that if the page, a link or the RPC is wrong, the worst case is a transaction that reverts, never one that loses money. The contract cannot take a payer's bitcoin: the only token movement it can cause is the exact bill amount, from the payer, to that bill's supplier, inside the call that marks the bill paid.
 

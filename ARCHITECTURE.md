@@ -330,6 +330,12 @@ From `docs/security/threat-model.md` section C.
 - **C19, fetch limits.** Every fetch has an explicit timeout and a response size cap. Log queries stay within the RPC's 10,000-block window, with a bounded number of pages. A failed or malformed answer shows as "unavailable", never as zero, unpaid or paid.
 - **Ordinary wallets only.** Arc's CallFrom only lets a batch act as the wallet that signed the transaction, so Memo and Multicall3From work only for plain EOAs such as MetaMask or Rabby. Smart-account wallets (Safe, ERC-4337 accounts, Circle's smart wallets) cannot pay through Adag, and sponsored or relayed transactions fail too. Check `getCode(wallet)`: if there is code, say plainly that this wallet type cannot pay here. EIP-7702-delegated wallets have code, but they can pay when they send their own transaction: tested on a mainnet fork (`packages/web/scripts/fork-7702.sh`).
 - **C24, fresh prices.** Offer the bitcoin path only when `priceStatus(m).fresh` is true.
+- **C25, fee and principal from one balance.** Before any signature, the payer's USDC covers every USDC the batch moves out plus the worst-case fee, since Arc takes gas from the same balance (`simulateAndSend`, `lib/wallet/send.ts`).
+- **C26, consent to the funding source.** Balance or loan is the payer's choice and the app never substitutes it; a choice that becomes invalid is cleared, not replaced (the funding-choice effect in `components/app/Basket.tsx`).
+- **C27, signer identity.** No signature unless the connected account is the one every onBehalf, receiver and balance check used (`simulateAndSend`, `lib/wallet/send.ts`).
+- **C28, interest accrual on repay.** Every debt figure shown or approved is accrued to the current block from the rate and lastUpdate, with a margin only for the seconds before the block (`accrueBorrowAssets`, `closeApproval`, `lib/pay/loan.ts`).
+- **C29, the displayed amount bounds the approval.** No approval exceeds what the payer was shown, so a wrong upstream answer can only cause a revert (the builders in `lib/pay/build.ts`).
+- **C30, over-approval reset.** An approval above the amount used is reset to zero in the same batch, so none outlives it (`buildCloseLoan`, `lib/pay/build.ts`, ends with approve 0).
 
 ## 8. Morpho's UI requirements
 

@@ -203,6 +203,22 @@ Residual, named: the check runs at the moment Adag's step executes. A payer who 
 
 **C24.** New debt is accepted only if every nonzero feed that the market oracle's `price()` reads has a positive answer and an update time within its window: 26 hours for BTC/USD, 96 hours for EUR/USD. A fork test pins the oracle layout this assumes: no vaults, no second base feed, no second quote feed, and a quote feed only on the EURC market. Both oracles are immutable, and their addresses are part of each fixed market id, so the layout cannot change under a deployed Adag. (Added at the backend review; until then freshness was a design note, not a numbered invariant.)
 
+### Added at the final review (26 September)
+
+A third review, made once the app was built, read its money paths, its API routes and the proof script. It proposed six invariants for the app layer that the standard above did not yet state. Each names the flow it guards and where it is upheld.
+
+**C25. Fee and principal from one balance.** Before a signature is requested, the payer's USDC covers every USDC the batch moves out plus the worst-case fee, because Arc pays gas from that same balance. It guards every payment from a USDC balance, one bill or a basket of them. Upheld by `simulateAndSend` in `packages/web/src/lib/wallet/send.ts`: its usdcOut check requires the native balance to be at least gas times maxFeePerGas plus the USDC the batch moves out. Prompted by a finding: paying from balance was offered with no fee reserve, so a payer holding exactly the bill amount was offered a payment Arc could not carry out. Fixed before release.
+
+**C26. Consent to the funding source.** Whether a payment draws on a balance or opens a loan is the payer's choice and is never substituted by the app. A choice that becomes invalid is cleared, not replaced. It guards the basket of several bills, where the source is chosen per currency and the numbers refresh while the payer decides. Upheld by the funding-choice effect in `packages/web/src/components/app/Basket.tsx`. Prompted by a finding: the basket's 30-second refresh could switch a payer's chosen source from balance to bitcoin without a click. Fixed before release.
+
+**C27. Signer identity.** No signature is requested unless the connected account equals the account every onBehalf, receiver and balance check used. It guards every batch the app asks a wallet to sign, including after the wallet switches accounts between reading and signing. Upheld by the connected-account check in `simulateAndSend` in `packages/web/src/lib/wallet/send.ts`.
+
+**C28. Interest accrual on repay.** Any debt figure shown or approved is accrued to the current block from the market's rate and lastUpdate, with a margin only for the seconds before the block. It guards closing a loan and every debt figure on the wallet page. Upheld by `accrueBorrowAssets` and `closeApproval` in `packages/web/src/lib/pay/loan.ts`. Prompted by a finding: the loan close sized its approval from Morpho's stored totals, which leave out the interest since the market's last update, so a close could revert for want of a few units of approval. Fixed before release.
+
+**C29. The displayed amount bounds the approval.** Every approval the app builds is at most what the payer was shown, so a wrong upstream answer can only make a payment revert. It guards every payment and loan batch. Upheld by the builders in `packages/web/src/lib/pay/build.ts`, which take each approval exactly from the bill record the payer was shown.
+
+**C30. Over-approval reset.** An approval above the amount used is reset to zero in the same batch, and no approval outlives a batch. It guards closing a loan, the one batch that approves more than it uses: the live debt plus a margin for accrual. Upheld by `buildCloseLoan` in `packages/web/src/lib/pay/build.ts`, whose last call approves 0.
+
 ### Rendering and outputs
 
 **C14.** The reference is stored, emitted and rendered as opaque bytes shown as plain text.
