@@ -10,12 +10,14 @@ import { Button } from "@/components/Button";
 import { GuardSection } from "@/components/guard/GuardSection";
 import { adagAbi, erc20Abi, irmAbi, morphoAbi, oracleAbi } from "@/lib/pay/abi";
 import { parseAmountInput } from "@/lib/pay/amount";
-import { buildAddCollateral, buildCloseLoan, buildRepaySome } from "@/lib/pay/build";
+import { buildAddCollateral, buildCloseLoan, buildRepaySome, type GuardStop } from "@/lib/pay/build";
+import { guardAbi } from "@/lib/guard/abi";
+import { ADAG_GUARD } from "@/lib/guard/constants";
 import { ADAG_BILLS, CIRBTC, CIRBTC_DECIMALS, EXPLORER, MAX_LTV_WAD, MORPHO, USDC, WAD, type Currency } from "@/lib/pay/constants";
 import { formatPercentWad, formatUnitsExact, shortAddress, usdOfSats } from "@/lib/pay/format";
 import { accrueBorrowAssets, closeApproval, debtFromShares, liquidationDropWad, ltvWad, repaySomeCap } from "@/lib/pay/loan";
 import { paramsFromTuple } from "@/lib/pay/market";
-import { morphoEventsIn } from "@/lib/pay/receipt";
+import { morphoEventsIn, ruleClearedIn } from "@/lib/pay/receipt";
 import { hasAcceptedMorphoDisclaimer, rememberMorphoDisclaimer } from "@/lib/wallet/consent";
 import { estimateFee, publicArc, simulateAndSend, type TxStep } from "@/lib/wallet/send";
 import { RetryContext, Value, type Cell } from "./cells";
@@ -125,14 +127,23 @@ export function LoanTicket(props: LoanTicketProps) {
   if (mode === "add" && addText && addError && cirBtc.state === "ok" && add.ok && add.value > cirBtc.value) setupNeeds.push("cirbtc");
   if (mode === "close" && ((isUsdc && short !== null && short > 0n) || gasShort)) setupNeeds.push("usdc");
 
+  // C60: the loan guard's rule and approval for this market, so a close can stop the guard in the same transaction.
+  const guardState = useQuery({
+    queryKey: ["adag-close-guard", address, m],
+    enabled: ADAG_GUARD !== null,
+    refetchInterval: 30_000,
+    queryFn: () => readGuardStop(address, currency),
+  });
+  const stopsGuard = guardState.data ? guardState.data.hasRule || guardState.data.allowance > 0n : false;
+
   // The close's fee, from the same helper every screen uses. The fixed params stand in; the real close re-reads Morpho's.
   const closeFee = useQuery({
-    queryKey: ["adag-fee", "close", m, address, shares.toString(), collateral.toString(), approval.toString()],
-    enabled: mode === "close" && canSign && !done && (shares === 0n ? collateral > 0n : approval > 0n && short === 0n),
+    queryKey: ["adag-fee", "close", m, address, shares.toString(), collateral.toString(), approval.toString(), String(stopsGuard)],
+    enabled: mode === "close" && canSign && !done && (ADAG_GUARD === null || guardState.data !== undefined) && (shares === 0n ? collateral > 0n : approval > 0n && short === 0n),
     staleTime: 30_000,
     retry: false,
     queryFn: () => {
-      const built = buildCloseLoan(address, currency, { shares, collateral }, approval, currency.params);
+      const built = buildCloseLoan(address, currency, { shares, collateral }, approval, currency.params, guardState.data);
       return estimateFee({ account: address, to: built.to, data: built.data });
     },
   });
@@ -303,9 +314,15 @@ export function LoanTicket(props: LoanTicketProps) {
     if (tokenHeld < liveNeed) {
       return fail(`Closing needs ${formatUnitsExact(liveNeed, currency.decimals)} ${currency.symbol} and your wallet holds ${formatUnitsExact(tokenHeld, currency.decimals)}. Add ${formatUnitsExact(liveNeed - tokenHeld, currency.decimals)} ${currency.symbol}, then try again. Nothing was sent.`);
     }
+    let stop: GuardStop;
+    try {
+      stop = await readGuardStop(address, currency);
+    } catch {
+      return fail("Arc did not answer about your loan guard, so the close was not built. Nothing was sent. Try again.");
+    }
     let built;
     try {
-      built = buildCloseLoan(address, currency, { shares: liveShares, collateral: liveCollateral }, liveApproval, paramsFromTuple(tuple));
+      built = buildCloseLoan(address, currency, { shares: liveShares, collateral: liveCollateral }, liveApproval, paramsFromTuple(tuple), stop);
     } catch (error) {
       return fail(`${(error as Error).message} Nothing was sent.`);
     }
@@ -315,22 +332,27 @@ export function LoanTicket(props: LoanTicketProps) {
     const events = morphoEventsIn(out.receipt.logs).filter((e) => e.id.toLowerCase() === m.toLowerCase() && e.onBehalf.toLowerCase() === address.toLowerCase());
     const repaid = events.find((e) => e.name === "Repay");
     const withdrawn = events.find((e) => e.name === "WithdrawCollateral");
-    const [after, allowance, btcAfter] = await Promise.all([
+    const [after, allowance, btcAfter, guardAfter] = await Promise.all([
       client.readContract({ address: MORPHO, abi: morphoAbi, functionName: "position", args: [m, address] }),
       client.readContract({ address: currency.address, abi: erc20Abi, functionName: "allowance", args: [address, MORPHO] }),
       client.readContract({ address: CIRBTC, abi: erc20Abi, functionName: "balanceOf", args: [address] }),
-    ]).catch(() => [null, null, null] as const);
+      ADAG_GUARD ? readGuardStop(address, currency) : Promise.resolve({ hasRule: false, allowance: 0n }),
+    ]).catch(() => [null, null, null, null] as const);
+    // C60: when the close stopped the guard, AdagGuard's own RuleCleared (if there was a rule) and a 0 approval prove it.
+    const guardStopped =
+      !(stop.hasRule || stop.allowance > 0n) ||
+      (guardAfter !== null && !guardAfter.hasRule && guardAfter.allowance === 0n && (!stop.hasRule || ruleClearedIn(out.receipt.logs, address, m)));
     const proven =
       (liveShares === 0n || (repaid?.name === "Repay" && repaid.shares === liveShares)) &&
       (liveCollateral === 0n || (withdrawn?.name === "WithdrawCollateral" && withdrawn.assets === liveCollateral && withdrawn.receiver.toLowerCase() === address.toLowerCase())) &&
-      after !== null && after[1] === 0n && after[2] === 0n && (liveShares === 0n || allowance === 0n);
+      after !== null && after[1] === 0n && after[2] === 0n && (liveShares === 0n || allowance === 0n) && guardStopped;
     if (!proven || btcAfter === null) return fail("Arc confirmed the transaction, but Morpho does not read the loan as closed. Check the transaction.", out.hash);
     const back = btcAfter - btcBefore;
     const returned = `${formatUnitsExact(back, CIRBTC_DECIMALS)} cirBTC is back in your wallet.`;
     setDone({
       kind: "closed",
       hash: out.hash,
-      text: liveShares > 0n ? `Loan closed. 0 owed, 0 pledged. ${returned}` : `Done. 0 pledged in this market, and ${returned}`,
+      text: `${liveShares > 0n ? `Loan closed. 0 owed, 0 pledged. ${returned}` : `Done. 0 pledged in this market, and ${returned}`}${stop.hasRule || stop.allowance > 0n ? " The loan guard for this loan is off: no rule, and its approval is 0." : ""}`,
     });
     setTx({ kind: "idle" });
     onChanged();
@@ -502,6 +524,11 @@ export function LoanTicket(props: LoanTicketProps) {
                   <p className="type-body mt-3 text-danger">Keep a little USDC in this wallet for the network fee.</p>
                 ) : (
                   <>
+                    {stopsGuard && (
+                      <p className="type-body mt-3 text-text" data-close-stops-guard>
+                        Closing also stops the loan guard for this loan: the rule is cleared and its approval set to 0.
+                      </p>
+                    )}
                     <Button variant="primary" disabled={Boolean(busy) || (shares > 0n && short === null)} onClick={() => start("close")} data-action="close-loan" className="mt-5 w-full md:w-auto">
                       {busy ? <BusyLabel step={busy.step} since={busy.since} /> : shares > 0n ? "Close loan" : "Take your bitcoin back"}
                     </Button>
@@ -589,4 +616,16 @@ function Gauge({ ltv, lltv }: { ltv: Cell<bigint>; lltv: bigint }) {
       <div className="h-7" />
     </div>
   );
+}
+
+// The wallet's guard state for one market: whether a rule exists (AdagGuard stores a trigger of 0 for none) and what
+// the loan token still lets AdagGuard pull. Read fresh before a close, never from a cached figure (C60).
+async function readGuardStop(address: Address, currency: Currency): Promise<GuardStop> {
+  if (!ADAG_GUARD) return { hasRule: false, allowance: 0n };
+  const client = publicArc();
+  const [rule, allowance] = await Promise.all([
+    client.readContract({ address: ADAG_GUARD, abi: guardAbi, functionName: "ruleOf", args: [address, currency.marketId] }),
+    client.readContract({ address: currency.address, abi: erc20Abi, functionName: "allowance", args: [address, ADAG_GUARD] }),
+  ]);
+  return { hasRule: rule.triggerWad !== 0n, allowance };
 }

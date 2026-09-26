@@ -41,9 +41,13 @@ const { assertSafeTxShape } = await safeLib('multisend.ts');
 const { privateKeyToAccount } = await import('viem/accounts');
 const { keccak256, parseAbi } = await import('viem');
 const transferAbi = parseAbi(['function transfer(address to, uint256 amount) returns (bool)']);
-const { toEventSelector } = await import('viem');
+const { toEventSelector, toFunctionSelector } = await import('viem');
 const EXECUTION_SUCCESS = toEventSelector('ExecutionSuccess(bytes32,uint256)');
-const { billCreatedIn, billsPaidIn, morphoEventsIn } = await pay('receipt.ts');
+const { billCreatedIn, billsPaidIn, morphoEventsIn, ruleClearedIn } = await pay('receipt.ts');
+const { buildEnrol } = await pay('build.ts');
+const G = await import(new URL('../src/lib/guard/constants.ts', import.meta.url).href);
+const { guardAbi } = await import(new URL('../src/lib/guard/abi.ts', import.meta.url).href);
+const CLEAR_RULE = toFunctionSelector('clearRule(bytes32)');
 const { decodeAdagError } = await pay('errors.ts');
 const { verifyMarketParams, paramsFromTuple } = await pay('market.ts');
 const { adagAbi, erc20Abi, irmAbi, morphoAbi, multicall3FromAbi } = await pay('abi.ts');
@@ -155,6 +159,15 @@ function shapeProblems(built) {
   const [calls] = decoded.args;
   const problems = [];
   for (const call of calls) {
+    // AdagGuard is not on the lists: a close may clear this loan's rule and set the guard's approval to 0, nothing more.
+    if (G.ADAG_GUARD && isAddressEqual(call.target, G.ADAG_GUARD)) {
+      if (!call.callData.startsWith(CLEAR_RULE)) problems.push(`a guard call other than clearRule: ${call.callData.slice(0, 10)}`);
+      continue;
+    }
+    if (call.callData.startsWith('0x095ea7b3') && G.ADAG_GUARD && isAddressEqual(getAddress(`0x${call.callData.slice(34, 74)}`), G.ADAG_GUARD)) {
+      if (BigInt(`0x${call.callData.slice(74, 138)}`) !== 0n) problems.push('an approval to the guard other than 0');
+      continue;
+    }
     if (!BATCH_TARGETS.some((t) => isAddressEqual(t, call.target))) problems.push(`target ${call.target} is not a build-time constant`);
     if (call.allowFailure !== false) problems.push(`a call to ${call.target} may fail on its own`);
     if (call.callData.startsWith('0x095ea7b3')) {
@@ -183,6 +196,7 @@ async function createBill(label, contract = C.ADAG_BILLS) {
 }
 
 const usdc = (v) => `${(Number(v) / 1e6).toFixed(6)} USDC`;
+const formatWadPct = (v) => `${(Number(v) / 1e16).toFixed(2)}%`;
 const btc = (v) => `${(Number(v) / 1e8).toFixed(8)} cirBTC`;
 const results = [];
 const record = (label, ok, detail) => {
@@ -579,6 +593,56 @@ async function main() {
       ? [`first-deployment bill #${q.id} on ${C.ADAG_BILLS_FIRST}; Memo target ${qMemo.args[0]}; BillPaid from the first deployment: ${!!qProof}, from the current contract: ${!!qCurrentProof}`,
         `payee +${usdc(qRise)}; status ${qRes.after[1].status}; USDC allowance left ${qRes.after[2]}; gas ${qRes.gas}; a bill naming Morpho as its contract: ${qForeign ?? 'ACCEPTED'}`]
       : [`reverted: ${decodeAdagError(qRes.revertData).text}`]);
+
+  // (r) Close stops the guard (C60): the demo payer's live loan has a live AdagGuard rule and approval. The close batch
+  // repays by shares, takes the cirBTC back, clears the rule and sets the guard's approval to 0, in one transaction.
+  reset();
+  const GUARD = G.ADAG_GUARD;
+  const ruleRead = (who, m) => read(GUARD, guardAbi, 'ruleOf', [who, m]);
+  const guardAllowance = (who, token) => read(token, erc20Abi, 'allowance', [who, GUARD]);
+  const [, rShares, rCollateral] = await ethCall(pos());
+  const rRule = await ethCall(ruleRead(PAYER, C.MARKET_USDC));
+  const rAllowance = await ethCall(guardAllowance(PAYER, C.USDC));
+  const rMarket = await ethCall(mkt());
+  const rRateSpec = read(C.ADAPTIVE_CURVE_IRM, irmAbi, 'borrowRateView', [usdcParams, marketArg(rMarket)]);
+  const rTime = nextTime();
+  const rRate = decode(rRateSpec, (await simulate([{ from: PAYER, ...rRateSpec }], rTime))[0].returnData);
+  const rApproval = closeApproval(rShares, accrueBorrowAssets(rMarket[2], rRate, rTime - rMarket[4]), rMarket[3]);
+  const rStop = { hasRule: rRule.triggerWad !== 0n, allowance: rAllowance };
+  const rBuilt = buildCloseLoan(PAYER, usdcCurrency, { shares: rShares, collateral: rCollateral }, rApproval, usdcParams, rStop);
+  const rRes = await send({ from: PAYER, to: rBuilt.to, data: rBuilt.data }, { after: [pos(), allowance(C.USDC), ruleRead(PAYER, C.MARKET_USDC), guardAllowance(PAYER, C.USDC)] });
+  const rCleared = rRes.ok && ruleClearedIn(rRes.logs.map((l) => ({ ...l, removed: false })), PAYER, C.MARKET_USDC);
+  record('(r) the close batch also stops the loan guard: loan closed, AdagGuard RuleCleared, the guard approval and the Morpho approval both 0',
+    rStop.hasRule && rAllowance > 0n && rRes.ok && shapeProblems(rBuilt).length === 0 && rCleared && rRes.after[0][1] === 0n && rRes.after[0][2] === 0n
+      && rRes.after[1] === 0n && rRes.after[2].triggerWad === 0n && rRes.after[3] === 0n,
+    rRes.ok
+      ? [`live rule ${formatWadPct(rRule.triggerWad)} to ${formatWadPct(rRule.targetWad)}, guard approval ${usdc(rAllowance)}; ${rBuilt.calls.length} calls ending clearRule and approve(AdagGuard, 0)`,
+        `after: ${rRes.after[0][1]} shares, ${rRes.after[0][2]} pledged; Morpho approval ${rRes.after[1]}; RuleCleared ${rCleared}; rule trigger ${rRes.after[2].triggerWad}; guard approval ${rRes.after[3]}; gas ${rRes.gas}`]
+      : [`live rule trigger ${rRule.triggerWad}, guard approval ${rAllowance}`, `reverted: ${decodeAdagError(rRes.revertData).text}`]);
+
+  // (s) Enrol for a borrower far over 40%, then pay a fresh bill from cash one block later: the recording matches
+  // Morpho's position exactly, and the payment goes through with no 40% check, because no new debt was added (C32).
+  reset();
+  const BORROWER = getAddress('0x87367570B77D92AAC699475d2894539C6092ef24');
+  const sBill = await createBill('ADAG-CHECK-S');
+  const morphoPos = (m) => read(C.MORPHO, morphoAbi, 'position', [m, BORROWER]);
+  const seenPos = (m) => read(C.ADAG_BILLS, adagAbi, 'seenPosition', [BORROWER, m]);
+  const ltvRead = read(C.ADAG_BILLS, adagAbi, 'loanToValue', [BORROWER, C.MARKET_USDC]);
+  const sLtv = await ethCall(ltvRead);
+  const sEnrol = buildEnrol(C.ADAG_BILLS);
+  const sEnrolRes = await send({ from: BORROWER, ...sEnrol }, { after: [morphoPos(C.MARKET_USDC), seenPos(C.MARKET_USDC), morphoPos(C.MARKET_EURC), seenPos(C.MARKET_EURC)] });
+  const sEnrolled = sEnrolRes.ok ? adagEvent(sEnrolRes.logs, 'Enrolled') : null;
+  const [mU, sU, mE, sE] = sEnrolRes.ok ? sEnrolRes.after : [];
+  const sMatches = sEnrolRes.ok && sU[0] === mU[1] && sU[1] === mU[2] && sE[0] === mE[1] && sE[1] === mE[2];
+  const sPay = buildPayFromBalance(sBill.bill, BORROWER);
+  // Arc's native balance is its USDC: the borrower is given 5 USDC in the payment's block, so the check tests one thing.
+  const sFunded = { [BORROWER]: { balance: toHex(5n * 10n ** 18n) } };
+  const sPayRes = (await simulate([{ from: BORROWER, to: sPay.to, data: sPay.data }], nextTime(), sFunded))[0];
+  const sPaid = sPayRes.ok ? adagEvent(sPayRes.logs, 'BillPaid') : null;
+  record('(s) enrol for the 70% borrower, then a cash payment one block later: the recording equals Morpho, the payment passes with loanChecked false',
+    sLtv > 4n * 10n ** 17n && !!sEnrolled && sMatches && sPayRes.ok && !!sPaid && sPaid.loanChecked === false && sPaid.id === sBill.id,
+    [`borrower ${BORROWER} at ${formatWadPct(sLtv)} on the USDC market; enrol ${sEnrolRes.ok ? 'recorded' : `reverted: ${decodeAdagError(sEnrolRes.revertData).text}`}: USDC ${sU?.[0]} shares ${sU?.[1]} sat, EURC ${sE?.[0]} shares ${sE?.[1]} sat, equal to Morpho: ${sMatches}`,
+      sPayRes.ok ? `bill #${sBill.id} paid in the next block, BillPaid loanChecked ${sPaid?.loanChecked}; gas ${sPayRes.gas}` : `payment reverted: ${decodeAdagError(sPayRes.revertData).text}`]);
 
   const passed = results.filter((r) => r.ok).length;
   console.log();

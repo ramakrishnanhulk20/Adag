@@ -14,6 +14,7 @@ const LINKS = [
   { label: "Pay a bill", href: "/pay" },
   { label: "Write a bill", href: "/bill/new" },
   { label: "Your wallet", href: "/app" },
+  { label: "Loan guard", href: "/app/protect" },
   { label: "Docs", href: "/docs" },
 ];
 
@@ -78,7 +79,8 @@ export function AppNav() {
     };
   }, [open]);
 
-  const current = (href: string) => (href === "/bill/new" ? pathname === href : pathname === href || pathname.startsWith(`${href}/`));
+  // "/bill/new" and "/app" have pages under them with their own links, so those two match exactly.
+  const current = (href: string) => (href === "/bill/new" || href === "/app" ? pathname === href : pathname === href || pathname.startsWith(`${href}/`));
 
   return (
     <>

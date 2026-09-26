@@ -1,5 +1,5 @@
 import { concat, decodeFunctionData, encodeFunctionData, encodePacked, getAddress, isAddressEqual, size, slice, hexToBigInt, hexToNumber, type Address, type Hex } from "viem";
-import { erc20Abi, morphoAbi } from "../pay/abi";
+import { adagAbi, erc20Abi, morphoAbi } from "../pay/abi";
 import { ADAG_BILLS, CIRBTC, EURC, MORPHO, USDC } from "../pay/constants";
 import { multiSendAbi } from "./abi";
 import { MULTISEND_CALL_ONLY, ZERO_ADDRESS } from "./constants";
@@ -13,6 +13,8 @@ export type SafeInnerCall = { to: Address; value: 0n; data: Hex; operation: 0 };
 const SAFE_TARGETS: readonly Address[] = [ADAG_BILLS, MORPHO, USDC, EURC, CIRBTC];
 const SPENDERS: readonly Address[] = [MORPHO, ADAG_BILLS];
 const APPROVE = "0x095ea7b3";
+const ENROL = encodeFunctionData({ abi: adagAbi, functionName: "enrol" }).toLowerCase();
+const PAY = encodeFunctionData({ abi: adagAbi, functionName: "pay", args: [1n] }).slice(0, 10).toLowerCase();
 
 export function encodeMultiSend(calls: readonly SafeInnerCall[]): Hex {
   const packed = concat(
@@ -46,6 +48,9 @@ export function decodeMultiSend(data: Hex): { operation: number; to: Address; va
 // C51 on the inner calls, from their bytes: fixed targets only, plain calls, no value, approvals only to Morpho or
 // AdagBills, and every Morpho onBehalf and receiver the Safe (C55). The builder runs this on its own output, and the
 // server runs it again on whatever the browser sends before proposing anything.
+// AdagBills may be called only to pay a bill, or to enrol the Safe's existing loan (C55). Enrol is allowed only as
+// the one and only inner call: a payment in the same execution would revert EnrolledThisBlock, and an enrol after a
+// borrow in one batch is exactly what the contract forbids.
 export function assertSafeInnerCalls(safe: Address, calls: readonly { operation: number; to: Address; value: bigint; data: Hex }[]): void {
   if (calls.length === 0) throw new Error("The Safe batch is empty.");
   for (const c of calls) {
@@ -53,6 +58,13 @@ export function assertSafeInnerCalls(safe: Address, calls: readonly { operation:
     if (c.value !== 0n) throw new Error("Refusing a Safe batch step that sends value.");
     if (!SAFE_TARGETS.some((t) => isAddressEqual(t, c.to))) throw new Error(`Refusing a Safe batch that calls ${c.to}.`);
     const selector = c.data.slice(0, 10).toLowerCase();
+    if (isAddressEqual(c.to, ADAG_BILLS)) {
+      if (selector === ENROL) {
+        if (calls.length !== 1 || c.data.toLowerCase() !== ENROL) throw new Error("Refusing a Safe batch that records the loan alongside anything else.");
+      } else if (selector !== PAY) {
+        throw new Error("Refusing an AdagBills call other than paying a bill or recording the Safe's loan.");
+      }
+    }
     if (selector === APPROVE) {
       const { args } = decodeFunctionData({ abi: erc20Abi, data: c.data });
       if (!SPENDERS.some((s) => isAddressEqual(s, args[0] as Address))) throw new Error(`Refusing an approval to ${String(args[0])}.`);

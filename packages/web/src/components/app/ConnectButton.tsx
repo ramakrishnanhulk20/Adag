@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
+import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
 import type { EIP1193Provider } from "viem";
 import { useConnect, useConnection, useConnectors, useDisconnect, type Connector } from "wagmi";
@@ -170,6 +171,9 @@ export function ConnectButton() {
             ))}
           </motion.ul>
         )}
+      </AnimatePresence>
+      <PhoneSheet>
+      <AnimatePresence>
         {note && (
           <motion.p
             key="note"
@@ -191,8 +195,24 @@ export function ConnectButton() {
           </motion.div>
         )}
       </AnimatePresence>
+      </PhoneSheet>
     </div>
   );
+}
+
+const DESKTOP = "(min-width: 768px)";
+const subscribeDesktop = (onChange: () => void) => {
+  const query = window.matchMedia(DESKTOP);
+  query.addEventListener("change", onChange);
+  return () => query.removeEventListener("change", onChange);
+};
+
+// On a phone the note and the no-wallet help are sheets fixed to the bottom of the screen. A fixed box inside a
+// transformed ancestor (every panel that rises into view) is placed against that panel instead of the screen, so on a
+// phone they render at the end of <body>. On a wider screen they stay next to the button.
+function PhoneSheet({ children }: { children: React.ReactNode }) {
+  const desktop = useSyncExternalStore(subscribeDesktop, () => window.matchMedia(DESKTOP).matches, () => true);
+  return desktop ? <>{children}</> : createPortal(children, document.body);
 }
 
 // No wallet in this browser. On a phone, installing an app does not add a wallet to Safari or Chrome, so the useful

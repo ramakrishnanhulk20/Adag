@@ -12,6 +12,12 @@ import { formatPercentWad, formatUnitsExact } from "@/lib/pay/format";
 import { debtFromShares, liquidationDropWad, ltvWad } from "@/lib/pay/loan";
 import { paramsFromTuple } from "@/lib/pay/market";
 import { billPaidIn } from "@/lib/pay/receipt";
+import type { Blocker } from "@/lib/pay/enrol";
+import { GUARD_UNREADABLE, coverNeeds, guardRepayAfterBorrow, keptAsideText, type GuardRule, type Pending } from "@/lib/pay/guardView";
+import { guardAbi } from "@/lib/guard/abi";
+import { ADAG_GUARD } from "@/lib/guard/constants";
+import { pendingGuardOutflow } from "@/lib/guard/outflow";
+import { EnrolCard } from "./EnrolCard";
 import { hasAcceptedMorphoDisclaimer, rememberMorphoDisclaimer } from "@/lib/wallet/consent";
 import { estimateFee, publicArc, simulateAndSend, watchBills, type TxOutcome, type TxStep } from "@/lib/wallet/send";
 import { Reading, Value, type Cell } from "./cells";
@@ -40,7 +46,13 @@ export type PayActionsProps = {
   needed: Cell<bigint>;
   borrowApy: Cell<number>;
   onSettled: () => void;
+  // The loans this payment would check and fail, per path, from enrol.blockers (null until read), and whether the
+  // loan was recorded in the current block.
+  enrol: { balance: Blocker[] | null; bitcoin: Blocker[] | null; sameBlock: boolean };
+  onRecorded: () => void;
 };
+
+type GuardReads = { rule: GuardRule; allowance: bigint };
 
 // Used only until the live fee estimate arrives, and if it cannot be read.
 const USDC_FEE_FALLBACK = 10_000n;
@@ -49,7 +61,33 @@ const NATIVE_PER_USDC_UNIT = 10n ** 12n;
 type Paid = { method: "balance" | "bitcoin"; hash: Hex; loanChecked: boolean | null; ltvAfter?: bigint; sold?: bigint; pledged?: bigint };
 
 export function PayActions(props: PayActionsProps) {
-  const { bill, address, currency, balance, cirBtc, position, market, price, priceStatus, needed, borrowApy, onSettled } = props;
+  const { bill, address, currency, balance, cirBtc, position, market, price, priceStatus, needed, borrowApy, onSettled, enrol, onRecorded } = props;
+  const [enrolling, setEnrolling] = useState(false);
+  const balanceBlockers = enrol.balance ?? [];
+  const bitcoinBlockers = enrol.bitcoin ?? [];
+
+  // C45: a guard rule that would act now pulls from this wallet within minutes, so that much is treated as spent.
+  const pendingQuery = useQuery({
+    queryKey: ["adag-guard-pending", address],
+    queryFn: () => pendingGuardOutflow(publicArc(), address),
+    refetchInterval: 30_000,
+    staleTime: 15_000,
+  });
+  const pending: Pending | null | undefined = pendingQuery.data;
+  // C58: the payer's own rule for this market and what it may still pull.
+  const guardQuery = useQuery({
+    queryKey: ["adag-guard-rule", address, currency.marketId],
+    enabled: ADAG_GUARD !== null,
+    refetchInterval: 30_000,
+    queryFn: async (): Promise<GuardReads> => {
+      const client = publicArc();
+      const [rule, allowance] = await Promise.all([
+        client.readContract({ address: ADAG_GUARD!, abi: guardAbi, functionName: "ruleOf", args: [address, currency.marketId] }),
+        client.readContract({ address: currency.address, abi: erc20Abi, functionName: "allowance", args: [address, ADAG_GUARD!] }),
+      ]);
+      return { rule: { triggerWad: rule.triggerWad, targetWad: rule.targetWad, expiry: rule.expiry }, allowance };
+    },
+  });
   const router = useRouter();
   const usd = useUsdPrice();
   const [tx, setTx] = useState<TxState>({ kind: "idle" });
@@ -101,9 +139,12 @@ export function PayActions(props: PayActionsProps) {
       return estimateFee({ account: address, to: built.to, data: built.data });
     },
   });
-  // A USDC bill from balance needs the bill plus the most the fee can be, because on Arc both come from one balance.
+  // A USDC bill from balance needs the bill plus the most the fee can be, because on Arc both come from one balance,
+  // plus whatever the loan guard is about to pull in the same token (C45).
   const reserve = isUsdc ? (balanceFee.data ? (balanceFee.data.keepUpTo + NATIVE_PER_USDC_UNIT - 1n) / NATIVE_PER_USDC_UNIT : USDC_FEE_FALLBACK) : 0n;
-  const enough: boolean | null = balance.state !== "ok" ? null : isUsdc && balanceFee.isPending && heldEnoughForBill ? null : balance.value >= bill.amount + reserve;
+  const keptAside = pending ? (isUsdc ? pending.usdc : pending.eurc) : 0n;
+  const enough: boolean | null =
+    balance.state !== "ok" || pending === undefined ? null : isUsdc && balanceFee.isPending && heldEnoughForBill ? null : balance.value >= bill.amount + reserve + keptAside;
 
   const settle = async (method: Paid["method"], hash: Hex, logs: Parameters<typeof billPaidIn>[0] | null, extra: () => Promise<Partial<Paid>>) => {
     const record = await publicArc()
@@ -128,7 +169,11 @@ export function PayActions(props: PayActionsProps) {
   // itself for up to two minutes, so nobody pays twice.
   const conclude = async (out: TxOutcome, method: Paid["method"], extra: () => Promise<Partial<Paid>>) => {
     if (out.ok) return settle(method, out.hash, out.receipt.logs, extra);
-    if (out.stage === "refused") return setTx({ kind: "refused", error: out.error });
+    if (out.stage === "refused") {
+      // A check on an existing loan: read the loans again, so the enrol card can take the place of the raw refusal.
+      if (out.error.name === "LtvAboveLimit" || out.error.name === "StalePrice") onRecorded();
+      return setTx({ kind: "refused", error: out.error });
+    }
     if (out.stage === "unconfirmed") {
       step("watching");
       if (await watchBills(bill.contract, [bill.id], BILL_STATUS.Paid, address)) return settle(method, out.hash, null, extra);
@@ -146,8 +191,25 @@ export function PayActions(props: PayActionsProps) {
       setTx({ kind: "failed", message: (error as Error).message });
       return;
     }
-    // On Arc a USDC payment and the fee come out of one balance, so the check covers both; EURC moves no USDC.
-    const out = await simulateAndSend({ account: address, to: built.to, data: built.data, onStep: step, usdcOut: isUsdc ? bill.amount : 0n });
+    step("checking");
+    // C45, read again at the moment of paying: what the guard is about to pull counts as already spent.
+    const fresh = await pendingGuardOutflow(publicArc(), address);
+    if (!fresh) return setTx({ kind: "failed", message: GUARD_UNREADABLE });
+    const cover = coverNeeds({ symbol: currency.symbol, from: "balance", amount: bill.amount, pending: fresh });
+    if (!isUsdc) {
+      const held = await publicArc()
+        .readContract({ address: currency.address, abi: erc20Abi, functionName: "balanceOf", args: [address] })
+        .catch(() => null);
+      if (held === null) return setTx({ kind: "failed", message: "Arc did not answer with your balance. Nothing was sent. Try again." });
+      if (held < cover.needInToken) {
+        return setTx({
+          kind: "failed",
+          message: `This payment needs ${formatUnitsExact(cover.needInToken, currency.decimals)} ${currency.symbol}: the bill plus ${formatUnitsExact(fresh.eurc, currency.decimals)} your loan guard is about to repay. Your wallet holds ${formatUnitsExact(held, currency.decimals)}. Nothing was sent.`,
+        });
+      }
+    }
+    // On Arc a USDC payment and the fee come out of one balance, so the check covers both, plus the guard's USDC.
+    const out = await simulateAndSend({ account: address, to: built.to, data: built.data, onStep: step, usdcOut: cover.usdcOut });
     await conclude(out, "balance", async () => ({}));
   };
 
@@ -191,7 +253,9 @@ export function PayActions(props: PayActionsProps) {
       setTx({ kind: "failed", message: `${(error as Error).message} Nothing was sent.` });
       return;
     }
-    const out = await simulateAndSend({ account: address, to: built.to, data: built.data, onStep: step, usdcOut: 0n });
+    const pendingNow = await pendingGuardOutflow(client, address);
+    if (!pendingNow) return setTx({ kind: "failed", message: GUARD_UNREADABLE });
+    const out = await simulateAndSend({ account: address, to: built.to, data: built.data, onStep: step, usdcOut: coverNeeds({ symbol: currency.symbol, from: "bitcoin", amount: bill.amount, pending: pendingNow }).usdcOut });
     await conclude(out, "bitcoin", async () => {
       const [heldAfter, afterPos, ltv] = await Promise.all([
         client.readContract({ address: CIRBTC, abi: erc20Abi, functionName: "balanceOf", args: [address] }),
@@ -253,9 +317,54 @@ export function PayActions(props: PayActionsProps) {
             : null;
 
   const busyStep = tx.kind === "busy" ? tx : null;
+
+  // C58: this payment's loan-to-value against the payer's own guard trigger, and what the guard would then repay.
+  const guardAfter =
+    guardQuery.data && after.state === "ok" && position.state === "ok" && market.state === "ok" && price.state === "ok" && pledge.state === "ok" && balance.state === "ok"
+      ? guardRepayAfterBorrow({
+          rule: guardQuery.data.rule,
+          nowSeconds: BigInt(Math.floor(Date.now() / 1000)),
+          ltvAfterWad: after.value.ltv,
+          before: { shares: position.value[1], collateral: position.value[2] },
+          totals: { totalBorrowAssets: market.value[2], totalBorrowShares: market.value[3] },
+          borrow: bill.amount,
+          pledge: pledge.value,
+          price: price.value,
+          allowance: guardQuery.data.allowance,
+          balanceAfter: balance.value,
+        })
+      : null;
+
+  // A refusal from the dry run about a loan the payer already had is answered by the enrol card, not raw words.
+  const refusedOnOldLoan =
+    tx.kind === "refused" &&
+    ((tx.error.name === "LtvAboveLimit" && balanceBlockers.some((b) => b.market.toLowerCase() === String(tx.error.args?.[0] ?? "").toLowerCase())) ||
+      (tx.error.name === "StalePrice" && balanceBlockers.some((b) => b.reason === "stale")));
+  // Stays mounted while recording, so a background re-read that already sees the recorded loan cannot drop the card
+  // before it has waited for the next block.
+  const showEnrol = balanceBlockers.length > 0 || refusedOnOldLoan || enrolling;
+  const guardBlocked = pending === null;
+  const pendingText = pending ? keptAsideText(pending) : null;
+
   return (
     <div className="app-panel flex h-full flex-col p-6 md:p-8">
       <p className="type-label text-muted">Pay this bill</p>
+
+      {showEnrol && (
+        <div className="mt-5">
+          <EnrolCard contract={bill.contract} address={address} blockers={balanceBlockers} canSign={!busy} onBusy={setEnrolling} onRecorded={() => (setTx({ kind: "idle" }), onRecorded())} />
+        </div>
+      )}
+      {enrol.sameBlock && !showEnrol && (
+        <p className="type-body mt-5 text-muted" data-enrol-state="same-block">
+          Your loan was recorded in Arc&apos;s latest block. The payment opens with the next one, in a moment.
+        </p>
+      )}
+      {guardBlocked && (
+        <p className="type-body mt-5 text-danger" data-guard-unreadable>
+          {GUARD_UNREADABLE}
+        </p>
+      )}
 
       <div className="mt-5 border-b border-rule pb-6">
         <p className="type-h4 text-text">From your balance</p>
@@ -276,11 +385,22 @@ export function PayActions(props: PayActionsProps) {
         </p>
         {enough && (
           <>
-            <Button variant={fresh ? "secondary" : "primary"} disabled={busy} onClick={() => void payFromBalance()} className="mt-5 w-full md:w-auto" data-action="pay-balance">
+            <Button
+              variant={fresh ? "secondary" : "primary"}
+              disabled={busy || enrolling || balanceBlockers.length > 0 || enrol.sameBlock || guardBlocked}
+              onClick={() => void payFromBalance()}
+              className="mt-5 w-full md:w-auto"
+              data-action="pay-balance"
+            >
               {busyStep && active === "balance" ? <BusyLabel step={busyStep.step} since={busyStep.since} /> : `Pay ${amountText} from balance`}
             </Button>
             <FeeLine query={balanceFee} className="mt-3" />
           </>
+        )}
+        {pendingText && (
+          <p className="type-body mt-2 text-muted" data-guard-pending>
+            {pendingText}
+          </p>
         )}
       </div>
 
@@ -330,9 +450,16 @@ export function PayActions(props: PayActionsProps) {
               </div>
             </details>
 
+            {guardAfter && (
+              <p className="type-body mt-5 text-text" data-guard-trigger>
+                This payment takes the loan to {after.state === "ok" ? formatPercentWad(after.value.ltv) : ""}, at or past your guard&apos;s {formatPercentWad(guardAfter.triggerWad)}{" "}
+                trigger. The guard will then repay about {formatUnitsExact(guardAfter.amount, currency.decimals)} {currency.symbol} from this wallet within minutes, back to{" "}
+                {formatPercentWad(guardAfter.targetWad)}.
+              </p>
+            )}
             <Button
               variant="primary"
-              disabled={busy || fresh !== true || shortOfBtc || pledge.state !== "ok"}
+              disabled={busy || enrolling || fresh !== true || shortOfBtc || pledge.state !== "ok" || bitcoinBlockers.length > 0 || enrol.sameBlock || guardBlocked}
               onClick={onBitcoin}
               className="mt-6 w-full md:w-auto"
               data-action="pay-bitcoin"
@@ -351,7 +478,7 @@ export function PayActions(props: PayActionsProps) {
       {needs.length > 0 && <GetSetUp needs={needs} className="mt-6" />}
 
       <div className="mt-5">
-        <TxMessage state={tx} />
+        <TxMessage state={refusedOnOldLoan ? { kind: "idle" } : tx} />
       </div>
 
       <MorphoDisclaimer

@@ -29,10 +29,12 @@ export async function searchBillPaid(client: PublicClient, bill: Bill): Promise<
     const paidAt = bill.paidAt;
     if (paidAt < deploy.timestamp || paidAt > head.timestamp) return { kind: "not-found" };
 
-    // lo is always a block before paidAt; hi is always a block at or after it, so the payment sits in (lo, hi].
+    // Several Arc blocks share one second, so a block stamped paidAt can sit before or after the payment. lo only
+    // moves to blocks stamped before paidAt and hi only to blocks stamped after it, so the payment sits in [lo, hi].
+    // A probe that lands exactly on paidAt is inside the run of blocks with that stamp, so the search then narrows to
+    // one page around it.
     let lo: Mark = deploy;
     let hi: Mark = head;
-    if (lo.timestamp >= paidAt) hi = lo;
     for (let i = 0; i < MAX_PROBES && hi.number - lo.number > LOG_PAGE_BLOCKS; i++) {
       const span = hi.timestamp - lo.timestamp;
       let guess = span > 0n ? lo.number + ((paidAt - lo.timestamp) * (hi.number - lo.number)) / span : lo.number + 1n;
@@ -40,7 +42,13 @@ export async function searchBillPaid(client: PublicClient, bill: Bill): Promise<
       if (guess >= hi.number) guess = hi.number - 1n;
       const probe = mark(await client.getBlock({ blockNumber: guess }));
       if (probe.timestamp < paidAt) lo = probe;
-      else hi = probe;
+      else if (probe.timestamp > paidAt) hi = probe;
+      else {
+        const half = LOG_PAGE_BLOCKS / 2n;
+        if (probe.number - half > lo.number) lo = { number: probe.number - half, timestamp: lo.timestamp };
+        if (probe.number + half < hi.number) hi = { number: probe.number + half, timestamp: hi.timestamp };
+        break;
+      }
     }
 
     for (let page = 0, from = lo.number; page < LOG_MAX_PAGES && from <= hi.number; page++, from += LOG_PAGE_BLOCKS) {

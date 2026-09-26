@@ -11,7 +11,7 @@ import { existsSync, mkdirSync, rmSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { createServer } from 'node:http';
-import { createPublicClient, encodeFunctionData, getAddress, http, keccak256, parseAbi, parseAbiItem, parseEventLogs, stringToHex } from 'viem';
+import { createPublicClient, decodeFunctionData, encodeFunctionData, formatUnits, getAddress, http, keccak256, parseAbi, parseAbiItem, parseEventLogs, recoverTypedDataAddress, stringToHex, toFunctionSelector } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 
 const WEB = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -138,7 +138,14 @@ const appEnv = {
   // The Safe routes talk to the harness's stand-in Transaction Service, never Safe's real one, and with a dummy key.
   SAFE_API_KEY: 'e2e-mock-key',
   SAFE_TX_SERVICE_URL: `http://127.0.0.1:${MOCK_PORT}/api`,
+  // The Safe routes need a store for their rate limits; main() points these at a local stand-in before the build.
+  UPSTASH_REDIS_REST_URL: '',
+  UPSTASH_REDIS_REST_TOKEN: '',
+  KV_REST_API_URL: '',
+  KV_REST_API_TOKEN: '',
+  ADAG_STORE_NAMESPACE: '',
 };
+const { startMockUpstash } = await import(new URL('../src/lib/store/test/mock-upstash.mjs', import.meta.url).href);
 
 function buildApp() {
   if (existsSync(resolve(WEB, DIST))) rmSync(resolve(WEB, DIST), { recursive: true, force: true });
@@ -232,7 +239,7 @@ async function connect(page, path) {
 // Reveals only fire in view, so walk the page before a full-page capture; then shoot 1440 dark and 375 light.
 // By default only the screens named with NEWEST_SHOTS are captured, which keeps a run short.
 // --all-shots captures every screen the run passes through, the older ones included.
-const NEWEST_SHOTS = 'a2-';
+const NEWEST_SHOTS = 'a2b-';
 async function shoot(page, name) {
   const all = process.argv.includes('--all-shots');
   const file = name.startsWith(NEWEST_SHOTS) ? name : !all ? null : /^f\d/.test(name) ? name : `e2e-${name}`;
@@ -320,6 +327,10 @@ async function main() {
   const C = newBill('EURC', 200_000, 'E2E-C');
   console.log(`  payee wrote bills #${A} (0.40 USDC), #${B} (0.30 USDC), #${C} (0.20 EURC) on the fork`);
   console.log('  the EURC bill is only voided, so the payer needs no EURC');
+
+  const store = await startMockUpstash({ token: keccak256(stringToHex(`adag e2e store ${Date.now()}`)).slice(2, 34) });
+  appEnv.UPSTASH_REDIS_REST_URL = store.url;
+  appEnv.UPSTASH_REDIS_REST_TOKEN = store.token;
 
   console.log('e2e: building the app against the fork (.next-e2e) and serving it on :3400');
   buildApp();
@@ -1143,8 +1154,7 @@ async function main() {
     console.log(`  Safe ${SAFE} on the fork (2 of 2: ${OWNER1.address}, ${OWNER2.address}); created ${created.status}; cirBTC funding ${funded}`);
     const safeNonce = () => fork.readContract({ address: SAFE, abi: safeE2EAbi, functionName: 'nonce' });
     // The second owner confirms, then anyone executes with both signatures, sorted by owner address.
-    const confirmAndExecute = async (proposal) => {
-      const typed = {
+    const typedOf = (proposal) => ({
         domain: { chainId: 5042, verifyingContract: SAFE },
         types: { SafeTx: [
           { name: 'to', type: 'address' }, { name: 'value', type: 'uint256' }, { name: 'data', type: 'bytes' }, { name: 'operation', type: 'uint8' },
@@ -1156,7 +1166,9 @@ async function main() {
           to: proposal.to, value: BigInt(proposal.value), data: proposal.data, operation: Number(proposal.operation), safeTxGas: BigInt(proposal.safeTxGas),
           baseGas: BigInt(proposal.baseGas), gasPrice: BigInt(proposal.gasPrice), gasToken: proposal.gasToken, refundReceiver: proposal.refundReceiver, nonce: BigInt(proposal.nonce),
         },
-      };
+    });
+    const confirmAndExecute = async (proposal) => {
+      const typed = typedOf(proposal);
       const second = await OWNER2.signTypedData(typed);
       proposal.confirmations.push({ owner: OWNER2.address, signature: second });
       const signatures = `0x${[...proposal.confirmations].sort((x, y) => (x.owner.toLowerCase() < y.owner.toLowerCase() ? -1 : 1)).map((c) => c.signature.slice(2)).join('')}`;
@@ -1320,6 +1332,222 @@ async function main() {
         `first page: contract ${sheetContract}, reference shown ${sheetText.includes('E2E-DD-FIRST')}, Safe sentence ${safeSentence}, Safe button ${safeButton}; after paying: first deployment status ${firstAfter.status} payer ${firstAfter.payer}, BillPaid on first ${firstLogs.length}, on current ${currentLogs.length}; current bill #${F} status ${currentBefore.status} -> ${currentAfter.status}, page contract ${otherContract}, shows the first bill's reference ${otherText.includes('E2E-DD-FIRST')}`);
     }
 
+    // (ee) to (jj): the pay screens and the existing loan (enrol), the loan guard (C45, C58, C60), the Safe's own
+    // enrol proposal (C55), and the phone sheet.
+    const oracleAbi = parseAbi(['function price() view returns (uint256)']);
+    const marketAbi = parseAbi(['function market(bytes32 id) view returns (uint128 totalSupplyAssets, uint128 totalSupplyShares, uint128 totalBorrowAssets, uint128 totalBorrowShares, uint128 lastUpdate, uint128 fee)']);
+    const quoteAbi = parseAbi([
+      'function quote(address borrower, bytes32 marketId) view returns (bool wouldAct, uint256 amount, uint256 ltvWad)',
+      'event RuleCleared(address indexed borrower, bytes32 indexed marketId)',
+    ]);
+    const enrolledEvent = parseAbiItem('event Enrolled(address indexed payer, uint256 usdcShares, uint256 usdcCollateral, uint256 eurcShares, uint256 eurcCollateral)');
+    const ltvAbi = parseAbi(['function loanToValue(address user, bytes32 marketId) view returns (uint256)']);
+    const USDC_ORACLE = '0x2AA87fF48933Ce6aBA240BEE916Fc2e6Ec1e51Ab';
+    const IRM = '0xF02615d094Fc02fC031C35fe705e175aA4653f20';
+    const usdcParamsObj = { loanToken: USDC, collateralToken: CIRBTC, oracle: USDC_ORACLE, irm: IRM, lltv: 860000000000000000n };
+    const borrowAbi = parseAbi(['function borrow((address loanToken, address collateralToken, address oracle, address irm, uint256 lltv) marketParams, uint256 assets, uint256 shares, address onBehalf, address receiver) returns (uint256, uint256)']);
+    const usdcUnits = (n) => `0x${(n * 10n ** 18n / 1_000_000n).toString(16)}`;
+    const setUsdc = (who, sixDecimals) => rpc('anvil_setBalance', [who, usdcUnits(sixDecimals)]);
+
+    // (ee) A borrower far over 40% who never paid through Adag: the page asks for the one "record my existing loan"
+    // signature first, then the payment from cash goes through with no 40% check.
+    {
+      const BORROWER = getAddress('0x87367570B77D92AAC699475d2894539C6092ef24');
+      await rpc('anvil_impersonateAccount', [BORROWER]);
+      await setUsdc(BORROWER, 10_000_000n);
+      const EE = newBill('USDC', 100_000, 'E2E-EE');
+      const ltv = await fork.readContract({ address: ADAG, abi: ltvAbi, functionName: 'loanToValue', args: [BORROWER, MARKET_USDC] });
+      const { context, page } = await openPage({ account: BORROWER });
+      await connect(page, `/bill/${EE}`).catch(() => {});
+      const card = page.locator('[data-enrol="current"]');
+      await card.waitFor({ timeout: 60_000 });
+      const cardText = await card.innerText();
+      const disabledBefore = await page.locator('[data-action="pay-balance"]').isDisabled();
+      await shoot(page, 'a2b-ee-enrol');
+      const fromBlock = await fork.getBlockNumber();
+      await page.locator('[data-action="enrol"]').click();
+      await page.locator('[data-enrol-state="waiting-block"]').waitFor({ timeout: 120_000 }).catch(async (e) => {
+        console.log(`  (ee) stalled, the card reads:${(await card.innerText().catch(() => 'gone')).replace(/\s+/g, ' ')} | log ${JSON.stringify(await page.evaluate(() => window.__walletLog))}`);
+        throw e;
+      });
+      await rpc('evm_mine');
+      await page.locator('[data-action="pay-balance"]:not([disabled])').waitFor({ timeout: 90_000 });
+      await page.locator('[data-action="pay-balance"]').click();
+      await page.locator('[data-tx-result="paid"]').waitFor({ timeout: 120_000 });
+      await page.waitForTimeout(1200);
+      await shoot(page, 'a2b-ee-paid');
+      const sent = await sends(page);
+      await context.close();
+      const enrolled = await fork.getLogs({ address: ADAG, event: enrolledEvent, args: { payer: BORROWER }, fromBlock });
+      const paidLog = await billPaidLog(EE);
+      record(`(ee) a ${(Number(ltv) / 1e16).toFixed(2)}% borrower sees the enrol card, records the loan in one signature, then pays bill #${EE} from cash with no 40% check`,
+        ltv > 4n * 10n ** 17n && /record the loan you have first/.test(cardText) && /does not change your loan/.test(cardText) && disabledBefore
+          && enrolled.length === 1 && paidLog?.args.payer.toLowerCase() === BORROWER.toLowerCase() && paidLog?.args.loanChecked === false && sent === 2,
+        `card: "${cardText.split('\n').slice(1, 2).join('')}"; pay button disabled before: ${disabledBefore}; Enrolled logs ${enrolled.length}; BillPaid loanChecked ${paidLog?.args.loanChecked}; wallet sends ${sent}`);
+    }
+
+    // (ff) A guard rule that would act now: the pay page keeps its repayment aside and says so, and a balance that
+    // covers the bill only without it is not offered pay from balance.
+    const price = await fork.readContract({ address: USDC_ORACLE, abi: oracleAbi, functionName: 'price' });
+    {
+      await setUsdc(PAYER, 10_000_000n);
+      const pledge = 3_000n;
+      const held = await cirBtcOf(PAYER);
+      if (held < pledge) throw new Error(`the payer holds ${held} sat of cirBTC, less than the ${pledge} this scenario pledges`);
+      const borrow = (((pledge * price) / 10n ** 36n) * 35n) / 100n;
+      const setup = [
+        forkScript('send', PAYER, CIRBTC, 'approve(address,uint256)', MORPHO, String(pledge)),
+        forkScript('send', PAYER, MORPHO, `supplyCollateral(${MP},uint256,address,bytes)`, USDC_PARAMS, String(pledge), PAYER, '0x'),
+        forkScript('send', PAYER, MORPHO, `borrow(${MP},uint256,uint256,address,address)`, USDC_PARAMS, String(borrow), '0', PAYER, PAYER),
+        forkScript('send', PAYER, USDC, 'approve(address,uint256)', GUARD, '1000000'),
+        forkScript('send', PAYER, GUARD, 'setRule(bytes32,uint64,uint64,uint64)', MARKET_USDC, '300000000000000000', '200000000000000000', '0'),
+      ];
+      const [, fullAmount] = await fork.readContract({ address: GUARD, abi: quoteAbi, functionName: 'quote', args: [PAYER, MARKET_USDC] });
+      const FF = newBill('USDC', 100_000, 'E2E-FF');
+      // Enough for the bill and its fee, not for the bill, the fee and what the guard is about to pull. The guard's
+      // quote is capped by the wallet's balance, so it is read again once the balance is set.
+      await setUsdc(PAYER, 100_000n + fullAmount / 2n);
+      const [wouldAct, pendingAmount] = await fork.readContract({ address: GUARD, abi: quoteAbi, functionName: 'quote', args: [PAYER, MARKET_USDC] });
+      const { context, page } = await openPage({ account: PAYER });
+      await connect(page, `/bill/${FF}`).catch(() => {});
+      const note = page.locator('[data-guard-pending]');
+      await note.waitFor({ timeout: 60_000 });
+      const noteText = await note.innerText();
+      await page.waitForTimeout(1500);
+      const offered = await page.locator('[data-action="pay-balance"]').count();
+      await shoot(page, 'a2b-ff-kept-aside');
+      const sent = await sends(page);
+      await context.close();
+      await setUsdc(PAYER, 10_000_000n);
+      // The page reads the same quote; its first digits must appear in the sentence.
+      const shown = formatUnits(pendingAmount, 6).slice(0, 4);
+      record(`(ff) with the guard about to repay ${(Number(pendingAmount) / 1e6).toFixed(6)} USDC, bill #${FF} keeps it aside, says so, and pay from balance is not offered`,
+        setup.every((s) => s.includes('"status":"0x1"')) && wouldAct && pendingAmount > 0n && noteText.includes('Your loan guard will repay about') && noteText.includes(shown) && offered === 0 && sent === 0,
+        `set-up ${setup.join(' ')}; quote wouldAct ${wouldAct}, amount ${pendingAmount}; shown: "${noteText}"; pay-from-balance buttons ${offered}; wallet sends ${sent}`);
+    }
+
+    // (gg) Paying from bitcoin into that loan lands past the rule's 30% trigger: the page says so, with an amount.
+    {
+      const GG = newBill('USDC', 200_000, 'E2E-GG');
+      const { context, page } = await openPage({ account: PAYER });
+      await connect(page, `/bill/${GG}`).catch(() => {});
+      const note = page.locator('[data-guard-trigger]');
+      await note.waitFor({ timeout: 60_000 });
+      const text = await note.innerText();
+      await shoot(page, 'a2b-gg-trigger');
+      const sent = await sends(page);
+      await context.close();
+      const amount = /repay about ([0-9.,]+) USDC/.exec(text)?.[1];
+      record(`(gg) paying bill #${GG} from bitcoin shows the guard-trigger sentence with the amount it will repay`,
+        /at or past your guard's 30\.00% trigger/.test(text) && /back to 20\.00%/.test(text) && amount !== undefined && Number(amount.replace(/,/g, '')) > 0 && sent === 0,
+        `shown: "${text}"`);
+    }
+
+    // (hh) Closing a loan that has a guard rule also stops the guard, in the same transaction (C60).
+    {
+      const { context, page } = await openPage({ account: PAYER });
+      await connect(page, '/app').catch(() => {});
+      const ticket = page.locator('[data-loan="USDC"]');
+      await ticket.waitFor({ timeout: 60_000 });
+      await ticket.getByRole('tab', { name: 'Close loan' }).click();
+      const warn = ticket.locator('[data-close-stops-guard]');
+      await warn.waitFor({ timeout: 60_000 });
+      const warnText = await warn.innerText();
+      await shoot(page, 'a2b-hh-close');
+      const fromBlock = await fork.getBlockNumber();
+      await ticket.locator('[data-action="close-loan"]').click();
+      const dialog = page.getByRole('dialog', { name: /Borrowing through Morpho/ });
+      if (await dialog.waitFor({ timeout: 5_000 }).then(() => true, () => false)) {
+        await dialog.getByRole('checkbox').check();
+        await dialog.getByRole('button', { name: 'Continue to payment' }).click();
+      }
+      await ticket.locator('[data-tx-result="closed"]').waitFor({ timeout: 120_000 });
+      const done = await ticket.locator('[data-tx-result="closed"]').innerText();
+      await shoot(page, 'a2b-hh-closed');
+      await context.close();
+      const rule = await fork.readContract({ address: GUARD, abi: guardAbi, functionName: 'ruleOf', args: [PAYER, MARKET_USDC] });
+      const allowance = await fork.readContract({ address: USDC, abi: tokenAbi, functionName: 'allowance', args: [PAYER, GUARD] });
+      const cleared = await fork.getLogs({ address: GUARD, event: quoteAbi[1], args: { borrower: PAYER }, fromBlock });
+      const end = await positionOf(PAYER);
+      record('(hh) closing the USDC loan also clears its guard rule and sets the guard approval to 0, in the same transaction',
+        /Closing also stops the loan guard/.test(warnText) && end[1] === 0n && end[2] === 0n && rule.triggerWad === 0n && allowance === 0n && cleared.length === 1 && /loan guard for this loan is off/.test(done),
+        `warned: "${warnText}"; after: ${end[1]} shares, ${end[2]} pledged; rule trigger ${rule.triggerWad}; guard approval ${allowance}; RuleCleared logs ${cleared.length}`);
+    }
+
+    // (ii) A Safe with an existing loan over 40% that Adag never saw proposes the recording as its own Safe transaction:
+    // one inner call, enrol() on the current AdagBills, by delegatecall to MultiSendCallOnly, every gas field 0.
+    {
+      const execSafe = async (to, data) => {
+        const p = { to, value: '0', data, operation: 0, safeTxGas: '0', baseGas: '0', gasPrice: '0', gasToken: ZERO, refundReceiver: ZERO, nonce: String(await safeNonce()), confirmations: [] };
+        p.confirmations.push({ owner: OWNER1.address, signature: await OWNER1.signTypedData(typedOf(p)) });
+        return confirmAndExecute(p);
+      };
+      const [, sShares, sColl] = await fork.readContract({ address: MORPHO, abi: morphoAbi, functionName: 'position', args: [MARKET_USDC, SAFE] });
+      const mk = await fork.readContract({ address: MORPHO, abi: marketAbi, functionName: 'market', args: [MARKET_USDC] });
+      const debt = (sShares * (mk[2] + 1n) + mk[3] + 1_000_000n - 1n) / (mk[3] + 1_000_000n);
+      const extra = (((sColl * price) / 10n ** 36n) * 60n) / 100n - debt;
+      const borrowed = await execSafe(MORPHO, encodeFunctionData({ abi: borrowAbi, functionName: 'borrow', args: [usdcParamsObj, extra, 0n, SAFE, SAFE] }));
+      const safeLtv = await fork.readContract({ address: ADAG, abi: ltvAbi, functionName: 'loanToValue', args: [SAFE, MARKET_USDC] });
+      const II = newBill('USDC', 100_000, 'E2E-II');
+      const { context, page } = await openPage({ account: OWNER1.address, signer: OWNER1 });
+      await connect(page, `/bill/${II}`).catch(() => {});
+      await page.locator('[data-action="safe-open"]').first().click();
+      await page.locator('[data-field="safe-address"]').fill(SAFE);
+      await page.locator('[data-action="safe-check"]').click();
+      await page.locator('[data-safe-enrol]').waitFor({ timeout: 60_000 });
+      const proposeDisabled = await page.locator('[data-action="safe-propose"]').isDisabled();
+      const before = mockSafe.proposals.size;
+      await page.locator('[data-action="safe-enrol"]').click();
+      await page.locator('[data-safe-enrol-proposed]').waitFor({ timeout: 120_000 });
+      await shoot(page, 'a2b-ii-safe-enrol');
+      const signed = await signRequests(page);
+      await context.close();
+      const proposal = lastProposal();
+      const multiSend = parseAbi(['function multiSend(bytes transactions)']);
+      const packed = decodeFunctionData({ abi: multiSend, data: proposal.data }).args[0].slice(2);
+      const inner = { operation: parseInt(packed.slice(0, 2), 16), to: getAddress(`0x${packed.slice(2, 42)}`), value: BigInt(`0x${packed.slice(42, 106)}`), length: Number(BigInt(`0x${packed.slice(106, 170)}`)), data: `0x${packed.slice(170)}` };
+      const signer = await recoverTypedDataAddress({ ...typedOf(proposal), signature: proposal.confirmations[0].signature });
+      const zero = [proposal.safeTxGas, proposal.baseGas, proposal.gasPrice, proposal.value].every((v) => String(v) === '0') && proposal.gasToken === ZERO && proposal.refundReceiver === ZERO;
+      record("(ii) a Safe over 40% proposes recording its own loan: one enrol() call on the current AdagBills, MultiSendCallOnly by delegatecall, gas fields 0, signed by the owner",
+        borrowed.status === 'success' && safeLtv > 4n * 10n ** 17n && proposeDisabled && mockSafe.proposals.size === before + 1
+          && getAddress(proposal.to) === getAddress('0x9641d764fc13c8B624c04430C7356C1C7C8102e2') && Number(proposal.operation) === 1 && zero
+          && inner.operation === 0 && inner.to === getAddress(ADAG) && inner.value === 0n && inner.length === 4 && inner.data === toFunctionSelector('enrol()')
+          && signer === getAddress(OWNER1.address) && signed === 1,
+        `Safe loan-to-value ${(Number(safeLtv) / 1e16).toFixed(2)}%; payment button disabled: ${proposeDisabled}; proposal to ${proposal.to}, operation ${proposal.operation}, gas fields zero ${zero}; inner ${inner.operation} ${inner.to} value ${inner.value} data ${inner.data}; signature from ${signer}`);
+    }
+
+    // (jj) At 375 the no-wallet sheet is placed against the screen, not the panel it was opened from, and the phone
+    // menu and the desktop nav both carry Loan guard.
+    {
+      const JJ = newBill('USDC', 100_000, 'E2E-JJ');
+      const phone = await openPage({ account: PAYER, noWallet: true, width: 375, theme: 'light' });
+      await phone.page.goto(`${APP}/bill/${JJ}`, { waitUntil: 'networkidle', timeout: 120_000 });
+      await phone.page.getByRole('button', { name: 'Connect wallet' }).last().click();
+      await phone.page.locator('[data-no-wallet]').first().waitFor({ timeout: 10_000 });
+      await phone.page.waitForTimeout(600);
+      const box = await phone.page.evaluate(() => {
+        const sheet = document.querySelector('[data-no-wallet]').parentElement;
+        const r = sheet.getBoundingClientRect();
+        return { left: r.left, right: r.right, width: window.innerWidth, inBody: sheet.parentElement === document.body };
+      });
+      await phone.page.screenshot({ path: `${SHOTS}/a2b-jj-sheet-375-light.png`, fullPage: false });
+      await phone.page.locator('[data-no-wallet] button[aria-label="Close"]').click();
+      await phone.page.locator('[data-action="menu"]').click();
+      const phoneLink = await phone.page.getByRole('dialog', { name: 'Menu' }).getByRole('link', { name: 'Loan guard' }).getAttribute('href');
+      await phone.page.screenshot({ path: `${SHOTS}/a2b-jj-menu-375-light.png`, fullPage: false });
+      await phone.context.close();
+      const desk = await openPage({ account: PAYER });
+      await desk.page.goto(`${APP}/app/protect`, { waitUntil: 'networkidle', timeout: 120_000 });
+      const deskLink = desk.page.locator('header nav[aria-label="App"]').getByRole('link', { name: 'Loan guard' });
+      const deskHref = await deskLink.getAttribute('href');
+      const deskCurrent = await deskLink.getAttribute('aria-current');
+      await desk.page.screenshot({ path: `${SHOTS}/a2b-jj-nav-1440-dark.png`, fullPage: false });
+      await desk.context.close();
+      record('(jj) at 375 the no-wallet sheet spans the screen (16px each side, out of the panel), and Loan guard is in the phone menu and the desktop nav',
+        box.inBody && Math.round(box.left) === 16 && Math.round(box.right) === box.width - 16 && phoneLink === '/app/protect' && deskHref === '/app/protect' && deskCurrent === 'page',
+        `sheet ${Math.round(box.left)} to ${Math.round(box.right)} of ${box.width}, in body ${box.inBody}; phone menu link ${phoneLink}; desktop link ${deskHref}, current ${deskCurrent}`);
+    }
+
     // The mobile menu open, and the wallet page before connecting.
     {
       const { context, page } = await openPage({ account: PAYER, width: 375, theme: 'light' });
@@ -1344,6 +1572,7 @@ async function main() {
     await browser?.close();
     stopApp(app);
     mockService.close();
+    await store.close?.();
   }
 }
 
@@ -1352,7 +1581,7 @@ try {
   await main();
   const passed = results.filter((r) => r.ok).length;
   console.log(`\nconsole errors: ${consoleErrors.length}${consoleErrors.length ? `\n  ${consoleErrors.join('\n  ')}` : ''}`);
-  const allOk = passed === results.length && results.length === 30 && consoleErrors.length === 0;
+  const allOk = passed === results.length && results.length === 36 && consoleErrors.length === 0;
   console.log(allOk ? `ALL ${passed} SCENARIOS PASSED` : `${results.length - passed} of ${results.length} scenarios failed`);
   code = allOk ? 0 : 1;
 } catch (error) {

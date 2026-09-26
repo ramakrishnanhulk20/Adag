@@ -1,6 +1,8 @@
 import { decodeEventLog, isAddressEqual, type Address, type Hex, type Log } from "viem";
 import { adagAbi, morphoAbi } from "./abi";
 import { ADAG_BILLS, MORPHO, requireDeployment } from "./constants";
+import { guardAbi } from "../guard/abi";
+import { ADAG_GUARD } from "../guard/constants";
 
 export type BillPaidProof = { txHash: Hex; logIndex: number; payer: Address; payee: Address; amount: bigint; loanChecked: boolean };
 
@@ -64,6 +66,20 @@ export function billCreatedIn(logs: readonly Log[]): bigint | null {
     }
   }
   return null;
+}
+
+// C60: a close that stopped the guard is proven by AdagGuard's own RuleCleared for this wallet and market.
+export function ruleClearedIn(logs: readonly Log[], borrower: string, market: string): boolean {
+  if (!ADAG_GUARD) return false;
+  return logs.some((log) => {
+    if (log.removed || !isAddressEqual(log.address, ADAG_GUARD!)) return false;
+    try {
+      const ev = decodeEventLog({ abi: guardAbi, data: log.data, topics: log.topics, strict: true });
+      return ev.eventName === "RuleCleared" && isAddressEqual(ev.args.borrower, borrower as Address) && ev.args.marketId.toLowerCase() === market.toLowerCase();
+    } catch {
+      return false;
+    }
+  });
 }
 
 export type MorphoEvent =

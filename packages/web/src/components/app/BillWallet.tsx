@@ -2,14 +2,16 @@
 
 import { useCallback, useMemo, useRef, useState } from "react";
 import { motion } from "motion/react";
-import { isAddressEqual, type Address } from "viem";
+import { isAddressEqual, type Address, type Hex } from "viem";
 import { arc } from "viem/chains";
 import { useBlock, useReadContract, useReadContracts } from "wagmi";
 import { Hallmark } from "@/components/Hallmark";
 import { adagAbi, erc20Abi, irmAbi, morphoAbi, oracleAbi } from "@/lib/pay/abi";
 import { billFromJson, type BillJson } from "@/lib/pay/billJson";
 import type { Bill } from "@/lib/pay/build";
+import { blockers, type Blocker, type MarketInput } from "@/lib/pay/enrol";
 import {
+  ADAG_BILLS,
   BILL_STATUS,
   CIRBTC,
   CIRBTC_DECIMALS,
@@ -103,6 +105,14 @@ function ConnectedWallet({ address, bill, wallet, justPaid, paidTxUrl }: Connect
       { chainId: arc.id, address: USDC_MARKET_ORACLE, abi: oracleAbi, functionName: "price" },
       { chainId: arc.id, address: EURC_MARKET_ORACLE, abi: oracleAbi, functionName: "price" },
       { chainId: arc.id, address: bill.contract, abi: adagAbi, functionName: "collateralNeeded", args: [address, m, bill.amount] },
+      // What the bill's own contract last saw of each loan, and both markets' price status: together they say whether
+      // this payment would run the 40% check on a loan the payer already had (the enrol card).
+      { chainId: arc.id, address: bill.contract, abi: adagAbi, functionName: "seenPosition", args: [address, MARKET_USDC] },
+      { chainId: arc.id, address: bill.contract, abi: adagAbi, functionName: "seenPosition", args: [address, MARKET_EURC] },
+      { chainId: arc.id, address: bill.contract, abi: adagAbi, functionName: "priceStatus", args: [MARKET_USDC] },
+      { chainId: arc.id, address: bill.contract, abi: adagAbi, functionName: "priceStatus", args: [MARKET_EURC] },
+      // Only the current contract has enrol, so this is read from it whatever the bill's contract.
+      { chainId: arc.id, address: ADAG_BILLS, abi: adagAbi, functionName: "enrolledAt", args: [address] },
     ],
     query: { refetchInterval: 30_000 },
   });
@@ -123,6 +133,38 @@ function ConnectedWallet({ address, bill, wallet, justPaid, paidTxUrl }: Connect
   ];
   const priceStatus = cell<readonly [boolean, bigint, bigint]>(9);
   const needed = cell<bigint>(12);
+  const seen = [cell<readonly [bigint, bigint]>(13), cell<readonly [bigint, bigint]>(14)] as const;
+  const statusOf = [cell<readonly [boolean, bigint, bigint]>(15), cell<readonly [boolean, bigint, bigint]>(16)] as const;
+  const enrolledAt = cell<bigint>(17);
+
+  // The markets whose 40% check this payment would run on debt the payer already had, and fail. null until every
+  // figure is read; the simulation before signing still has the last word.
+  function blockersFor(borrowsIn: Hex | null): Blocker[] | null {
+    const inputs: MarketInput[] = [];
+    for (let i = 0; i < 2; i++) {
+      const x = markets[i]!;
+      const s = seen[i]!;
+      const st = statusOf[i]!;
+      if (x.position.state !== "ok" || x.market.state !== "ok" || x.price.state !== "ok" || s.state !== "ok" || st.state !== "ok") return null;
+      inputs.push({
+        market: x.currency.marketId,
+        symbol: x.currency.symbol,
+        live: { shares: x.position.value[1], collateral: x.position.value[2] },
+        seen: { shares: s.value[0], collateral: s.value[1] },
+        totalBorrowAssets: x.market.value[2],
+        totalBorrowShares: x.market.value[3],
+        price: x.price.value,
+        fresh: st.value[0],
+      });
+    }
+    return blockers({ markets: inputs, borrowsIn });
+  }
+  const enrol = {
+    balance: blockersFor(null),
+    bitcoin: blockersFor(m),
+    // AdagBills refuses a payment in the block the loan was recorded in.
+    sameBlock: enrolledAt.state === "ok" && enrolledAt.value > 0n && head.data?.number !== undefined && enrolledAt.value >= head.data.number,
+  };
   const billMarket = markets.find((x) => x.currency.marketId === m)!;
   const billBalance = currency?.symbol === "EURC" ? balances[1] : balances[0];
 
@@ -202,6 +244,8 @@ function ConnectedWallet({ address, bill, wallet, justPaid, paidTxUrl }: Connect
                 needed={needed}
                 borrowApy={borrowApy}
                 onSettled={onSettled}
+                enrol={enrol}
+                onRecorded={retry}
               />
             ) : (
               <div className="app-panel p-6 md:p-8" data-blocked="true">

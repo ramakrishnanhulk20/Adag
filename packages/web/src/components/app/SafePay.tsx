@@ -8,11 +8,14 @@ import { hexToBigInt, isAddressEqual, sliceHex, type Address, type Hex, type Pub
 import { getConnection, signTypedData } from "wagmi/actions";
 import { BillStamp } from "@/components/BillStamp";
 import { Button } from "@/components/Button";
-import { adagAbi, erc20Abi, morphoAbi } from "@/lib/pay/abi";
-import { SAFE_CURRENT_ONLY, buildSafeBatch, suggestPledge, type BasketPlan, type Bill } from "@/lib/pay/build";
+import { adagAbi, erc20Abi, morphoAbi, oracleAbi } from "@/lib/pay/abi";
+import { SAFE_CURRENT_ONLY, buildSafeBatch, buildSafeEnrol, suggestPledge, type BasketPlan, type Bill, type SafeBatch } from "@/lib/pay/build";
+import { blockers, type MarketInput } from "@/lib/pay/enrol";
+import { GUARD_UNREADABLE, keptAsideText } from "@/lib/pay/guardView";
+import { pendingGuardOutflow } from "@/lib/guard/outflow";
 import { ADAG_BILLS, BILL_STATUS, CIRBTC, CIRBTC_DECIMALS, CURRENCIES, EXPLORER, MORPHO, type Currency } from "@/lib/pay/constants";
 import { decodeAdagError } from "@/lib/pay/errors";
-import { formatUnitsExact, shortAddress } from "@/lib/pay/format";
+import { formatPercentWad, formatUnitsExact, shortAddress } from "@/lib/pay/format";
 import { paramsFromTuple } from "@/lib/pay/market";
 import { SAFE_APP_URL } from "@/lib/safe/constants";
 import { assertSafeTxShape } from "@/lib/safe/multisend";
@@ -65,6 +68,7 @@ export function SafePay({ bills, onProposed }: { bills: Bill[]; onProposed?: () 
   const [since, setSince] = useState<number | null>(null);
   const [choices, setChoices] = useState<Partial<Record<"USDC" | "EURC", Choice>>>({});
   const [proposed, setProposed] = useState<Proposed | null>(null);
+  const [enrolProposed, setEnrolProposed] = useState<{ safeTxHash: Hex; threshold: number } | null>(null);
   const [asking, setAsking] = useState(false);
   const closeDisclaimer = useCallback(() => setAsking(false), []);
   const seconds = useElapsed(since);
@@ -95,11 +99,35 @@ export function SafePay({ bills, onProposed }: { bills: Bill[]; onProposed?: () 
   const reads = useQuery({
     queryKey: ["adag-safe-reads", info?.address, groups.map((g) => `${g.currency.symbol}:${g.total}`).join("|")],
     enabled: Boolean(info) && !proposed,
-    refetchInterval: 30_000,
+    refetchInterval: enrolProposed ? 6_000 : 30_000,
     queryFn: async () => {
       const safe = info!.address;
       const c = client();
       const cirBtc = await c.readContract({ address: CIRBTC, abi: erc20Abi, functionName: "balanceOf", args: [safe] });
+      // C45 for the Safe: its own guard rules pull from the Safe. C55: the Safe's own loans, as the contract saw them.
+      const pending = await pendingGuardOutflow(c, safe);
+      const loans = await Promise.all(
+        CURRENCIES.map(async (cur) => {
+          const [live, seenPos, mkt, price, status] = await Promise.all([
+            c.readContract({ address: MORPHO, abi: morphoAbi, functionName: "position", args: [cur.marketId, safe] }),
+            c.readContract({ address: ADAG_BILLS, abi: adagAbi, functionName: "seenPosition", args: [safe, cur.marketId] }),
+            c.readContract({ address: MORPHO, abi: morphoAbi, functionName: "market", args: [cur.marketId] }),
+            c.readContract({ address: cur.params.oracle, abi: oracleAbi, functionName: "price" }),
+            c.readContract({ address: ADAG_BILLS, abi: adagAbi, functionName: "priceStatus", args: [cur.marketId] }),
+          ]);
+          return {
+            market: cur.marketId,
+            symbol: cur.symbol,
+            live: { shares: live[1], collateral: live[2] },
+            seen: { shares: seenPos[0], collateral: seenPos[1] },
+            totalBorrowAssets: mkt[2],
+            totalBorrowShares: mkt[3],
+            price,
+            fresh: status[0],
+          } satisfies MarketInput;
+        }),
+      );
+      const safeBlockers = blockers({ markets: loans, borrowsIn: null });
       const per = await Promise.all(
         groups.map(async (g) => {
           const [balance, status, needed] = await Promise.all([
@@ -107,12 +135,18 @@ export function SafePay({ bills, onProposed }: { bills: Bill[]; onProposed?: () 
             c.readContract({ address: ADAG_BILLS, abi: adagAbi, functionName: "priceStatus", args: [g.currency.marketId] }),
             c.readContract({ address: ADAG_BILLS, abi: adagAbi, functionName: "collateralNeeded", args: [safe, g.currency.marketId, g.total] }),
           ]);
-          return { symbol: g.currency.symbol, balance, fresh: status[0], pledge: suggestPledge(needed) };
+          const pull = pending ? (g.currency.symbol === "USDC" ? pending.usdc : pending.eurc) : 0n;
+          return { symbol: g.currency.symbol, balance, fresh: status[0], pledge: suggestPledge(needed), pull };
         }),
       );
-      return { cirBtc, per };
+      return { cirBtc, per, pending, safeBlockers };
     },
   });
+
+  // Once the Safe's owners have executed the recording, the contract's seenPosition matches and the payment opens.
+  useEffect(() => {
+    if (enrolProposed && reads.data && reads.data.safeBlockers.length === 0) setEnrolProposed(null);
+  }, [enrolProposed, reads.data]);
 
   // A first choice per currency, only while none is set: bitcoin when the price is fresh and the Safe holds the pledge.
   useEffect(() => {
@@ -124,7 +158,7 @@ export function SafePay({ bills, onProposed }: { bills: Bill[]; onProposed?: () 
         if (next[sym]) continue;
         const g = groups.find((x) => x.currency.symbol === sym)!;
         if (p.fresh && reads.data.cirBtc >= p.pledge) next[sym] = "bitcoin";
-        else if (p.balance >= g.total) next[sym] = "balance";
+        else if (p.balance >= g.total + p.pull) next[sym] = "balance";
       }
       return next;
     });
@@ -174,6 +208,19 @@ export function SafePay({ bills, onProposed }: { bills: Bill[]; onProposed?: () 
         if (!status[0]) throw new Error(`New loans in ${g.currency.symbol} are paused until the bitcoin price updates. Choose the Safe's balance, or wait.`);
         plan[g.currency.symbol] = { from: "bitcoin", pledge: suggestPledge(needed), marketParams: paramsFromTuple(tuple) };
       }
+      // C45: the Safe's own guard rules pull from the Safe, so that much is kept aside; a failed read stops here.
+      const pendingNow = await pendingGuardOutflow(c, safe);
+      if (!pendingNow) throw new Error(GUARD_UNREADABLE);
+      for (const g of groups) {
+        if (choices[g.currency.symbol] !== "balance") continue;
+        const pull = g.currency.symbol === "USDC" ? pendingNow.usdc : pendingNow.eurc;
+        const held = await c.readContract({ address: g.currency.address, abi: erc20Abi, functionName: "balanceOf", args: [safe] });
+        if (held < g.total + pull) {
+          throw new Error(
+            `The Safe holds ${formatUnitsExact(held, g.currency.decimals)} ${g.currency.symbol} and needs ${formatUnitsExact(g.total + pull, g.currency.decimals)}${pull > 0n ? `, including ${formatUnitsExact(pull, g.currency.decimals)} its loan guard is about to repay` : ""}. Nothing was signed.`,
+          );
+        }
+      }
       const batch = buildSafeBatch(safe, bills, plan);
 
       // C54: run it as the Safe, now, before anyone signs.
@@ -188,34 +235,65 @@ export function SafePay({ bills, onProposed }: { bills: Bill[]; onProposed?: () 
         );
       }
 
-      const tx = safeTxFor(batch, fresh.nonce);
-      assertSafeTxShape(safe, tx);
-      const hash = await checkedSafeTxHash(c, safe, tx);
-
-      // C27 and C4: the account signing is the owner just checked, on Arc, at this very moment.
-      const connection = getConnection(wagmiConfig);
-      if (connection.status !== "connected" || connection.chainId !== 5042 || !connection.address || !isAddressEqual(connection.address, owner)) {
-        throw new Error("Your wallet changed account or network since the Safe was checked. Nothing was signed.");
-      }
-      go("signing");
-      let signature: Hex;
-      try {
-        signature = normaliseV(await signTypedData(wagmiConfig, { account: owner, ...safeTxTypedData(safe, tx) }));
-      } catch {
-        throw new Error("You declined in your wallet. Nothing was signed.");
-      }
-
-      go("proposing");
-      const res = await fetch("/api/safe/propose", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ safe, owner, safeTxHash: hash, signature, tx: safeTxToJson(tx) }),
-        signal: AbortSignal.timeout(30_000),
-      });
-      const body = (await res.json()) as { ok?: boolean; error?: string; threshold?: number };
-      if (!res.ok || !body.ok) throw new Error(body.error ?? "The proposal was not accepted.");
-      setProposed({ safeTxHash: hash, threshold: body.threshold ?? fresh.threshold, bills });
+      const sent = await signAndPropose(safe, batch, fresh.nonce);
+      setProposed({ safeTxHash: sent.hash, threshold: sent.threshold ?? fresh.threshold, bills });
       onProposed?.();
+    } catch (error) {
+      setProblem((error as Error).message);
+    } finally {
+      go("idle");
+    }
+  };
+
+  // Hashes the Safe transaction, checks the hash against the Safe's own, has the connected owner sign it and hands it
+  // to the server, which checks it all again before proposing (C51, C52).
+  const signAndPropose = async (safe: Address, batch: SafeBatch, nonce: bigint): Promise<{ hash: Hex; threshold?: number }> => {
+    if (!owner) throw new Error("Connect an ordinary wallet that owns the Safe, on Arc.");
+    const c = client();
+    const tx = safeTxFor(batch, nonce);
+    assertSafeTxShape(safe, tx);
+    const hash = await checkedSafeTxHash(c, safe, tx);
+
+    // C27 and C4: the account signing is the owner just checked, on Arc, at this very moment.
+    const connection = getConnection(wagmiConfig);
+    if (connection.status !== "connected" || connection.chainId !== 5042 || !connection.address || !isAddressEqual(connection.address, owner)) {
+      throw new Error("Your wallet changed account or network since the Safe was checked. Nothing was signed.");
+    }
+    go("signing");
+    let signature: Hex;
+    try {
+      signature = normaliseV(await signTypedData(wagmiConfig, { account: owner, ...safeTxTypedData(safe, tx) }));
+    } catch {
+      throw new Error("You declined in your wallet. Nothing was signed.");
+    }
+
+    go("proposing");
+    const res = await fetch("/api/safe/propose", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ safe, owner, safeTxHash: hash, signature, tx: safeTxToJson(tx) }),
+      signal: AbortSignal.timeout(30_000),
+    });
+    const body = (await res.json()) as { ok?: boolean; error?: string; threshold?: number };
+    if (!res.ok || !body.ok) throw new Error(body.error ?? "The proposal was not accepted.");
+    return { hash, threshold: body.threshold };
+  };
+
+  // C55: the Safe records its own existing loan, as itself, in a Safe transaction of its own.
+  const proposeEnrol = async () => {
+    if (!info || !owner) return;
+    setProblem(null);
+    const c = client();
+    const safe = info.address;
+    try {
+      go("checking");
+      const fresh = await verifySafe(c, safe, owner);
+      const batch = buildSafeEnrol(safe);
+      go("simulating");
+      const sim = await simulateFromSafe(c, safe, batch);
+      if (!sim.ok) throw new Error(`Run from the Safe right now, recording its loan would fail: ${decodeAdagError(sim.returnData).text}`);
+      const sent = await signAndPropose(safe, batch, fresh.nonce);
+      setEnrolProposed({ safeTxHash: sent.hash, threshold: sent.threshold ?? fresh.threshold });
     } catch (error) {
       setProblem((error as Error).message);
     } finally {
@@ -233,6 +311,9 @@ export function SafePay({ bills, onProposed }: { bills: Bill[]; onProposed?: () 
 
   const busy = step !== "idle";
   const allChosen = groups.every((g) => choices[g.currency.symbol]);
+  const safeBlockers = reads.data?.safeBlockers ?? [];
+  const guardUnread = reads.data !== undefined && reads.data.pending === null;
+  const safePendingText = reads.data?.pending ? keptAsideText(reads.data.pending) : null;
   return (
     <div className="app-panel p-6 md:p-8" data-safe-pay>
       <p className="type-label text-gold">Pay from a Safe</p>
@@ -301,10 +382,29 @@ export function SafePay({ bills, onProposed }: { bills: Bill[]; onProposed?: () 
                 Safe <span className="type-address">{shortAddress(info.address)}</span> · version {info.version} · {info.threshold} of {info.owners.length} owners must
                 sign · you are an owner.
               </p>
+              {safeBlockers.length > 0 && (
+                <div className="mt-4 rounded-[8px] border border-gold/50 p-4" data-safe-enrol>
+                  <p className="type-label text-gold">Record this Safe&apos;s existing loan first</p>
+                  <p className="type-body mt-2 text-text">
+                    This Safe already borrows on Morpho: its {safeBlockers[0]!.symbol} loan is at {formatPercentWad(safeBlockers[0]!.ltvWad)}. Adag checks the 40% line only on
+                    new borrowing, so the Safe records the loan it has first, in a Safe transaction of its own. No money moves.
+                  </p>
+                  <p className="type-body mt-2 text-muted">Recording does not change the loan or make it safer: it tells Adag to judge only what the Safe borrows from now on.</p>
+                  {enrolProposed ? (
+                    <p className="type-body mt-3 text-text" data-safe-enrol-proposed>
+                      Proposed ({shortAddress(enrolProposed.safeTxHash)}). Once your other owners execute it in Safe&apos;s app, the payment can be proposed here.
+                    </p>
+                  ) : (
+                    <Button variant="primary" size="sm" disabled={busy} onClick={() => void proposeEnrol()} className="mt-3" data-action="safe-enrol">
+                      Propose: record this Safe&apos;s existing loan
+                    </Button>
+                  )}
+                </div>
+              )}
               <div className="mt-4 grid gap-3">
                 {groups.map((g) => {
                   const p = reads.data?.per.find((x) => x.symbol === g.currency.symbol);
-                  const canBalance = p ? p.balance >= g.total : false;
+                  const canBalance = p ? p.balance >= g.total + p.pull : false;
                   const canBitcoin = p ? p.fresh && (reads.data?.cirBtc ?? 0n) >= p.pledge : false;
                   const choice = choices[g.currency.symbol];
                   return (
@@ -345,10 +445,27 @@ export function SafePay({ bills, onProposed }: { bills: Bill[]; onProposed?: () 
                   );
                 })}
               </div>
-              <Button variant="primary" disabled={busy || !allChosen} onClick={onPropose} className="mt-5 w-full md:w-auto" data-action="safe-propose">
+              <Button
+                variant="primary"
+                disabled={busy || !allChosen || safeBlockers.length > 0 || guardUnread}
+                onClick={onPropose}
+                className="mt-5 w-full md:w-auto"
+                data-action="safe-propose"
+              >
                 {busy ? `${LABEL[step]}${seconds >= 2 ? ` · ${seconds}s` : ""}` : "Propose to the Safe"}
               </Button>
               {!allChosen && !busy && <p className="type-body mt-2 text-muted">Choose how the Safe pays each currency.</p>}
+              {safeBlockers.length > 0 && <p className="type-body mt-2 text-muted">The payment can be proposed once the recording above has executed.</p>}
+              {safePendingText && (
+                <p className="type-body mt-2 text-muted" data-guard-pending>
+                  {safePendingText.replace("this wallet", "this Safe")}
+                </p>
+              )}
+              {guardUnread && (
+                <p className="type-body mt-2 text-danger" data-guard-unreadable>
+                  {GUARD_UNREADABLE}
+                </p>
+              )}
             </div>
           )}
           {busy && !info && <p className="type-body mt-4 text-muted">{LABEL[step]}{seconds >= 2 ? ` · ${seconds}s` : ""}</p>}

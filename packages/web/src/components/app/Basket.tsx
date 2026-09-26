@@ -30,6 +30,10 @@ import { formatPercentWad, formatUnitsExact, fullAddress, referenceText, shortAd
 import { debtFromShares, liquidationDropWad, ltvWad } from "@/lib/pay/loan";
 import { currencyOf, paramsFromTuple } from "@/lib/pay/market";
 import { billsPaidIn } from "@/lib/pay/receipt";
+import { GUARD_UNREADABLE, guardRepayAfterBorrow, keptAsideText, type GuardRule, type Pending } from "@/lib/pay/guardView";
+import { guardAbi } from "@/lib/guard/abi";
+import { ADAG_GUARD } from "@/lib/guard/constants";
+import { pendingGuardOutflow } from "@/lib/guard/outflow";
 import { hasAcceptedMorphoDisclaimer, rememberMorphoDisclaimer } from "@/lib/wallet/consent";
 import { estimateFee, publicArc, simulateAndSend, watchBills, type TxStep } from "@/lib/wallet/send";
 import { readyToSign, useWallet } from "@/lib/wallet/useWallet";
@@ -161,8 +165,37 @@ export function Basket({
     };
   });
 
+  // C45: what the loan guard is about to pull from this wallet counts as spent. null when it could not be read.
+  const pendingQuery = useQuery({
+    queryKey: ["adag-guard-pending", me],
+    enabled: Boolean(me),
+    queryFn: () => pendingGuardOutflow(publicArc(), me!),
+    refetchInterval: 30_000,
+    staleTime: 15_000,
+  });
+  const pending: Pending | null | undefined = pendingQuery.data;
+  const guardPullOf = (g: Group) => (pending ? (g.currency.symbol === "USDC" ? pending.usdc : pending.eurc) : 0n);
+  // C58: the payer's own rule and remaining approval in each market this basket could borrow in.
+  const guardQuery = useQuery({
+    queryKey: ["adag-basket-guard", me],
+    enabled: Boolean(me) && ADAG_GUARD !== null,
+    refetchInterval: 30_000,
+    queryFn: async () => {
+      const client = publicArc();
+      return Promise.all(
+        CURRENCIES.map(async (c) => {
+          const [rule, allowance] = await Promise.all([
+            client.readContract({ address: ADAG_GUARD!, abi: guardAbi, functionName: "ruleOf", args: [me!, c.marketId] }),
+            client.readContract({ address: c.address, abi: erc20Abi, functionName: "allowance", args: [me!, ADAG_GUARD!] }),
+          ]);
+          return { symbol: c.symbol, rule: { triggerWad: rule.triggerWad, targetWad: rule.targetWad, expiry: rule.expiry } as GuardRule, allowance };
+        }),
+      );
+    },
+  });
+
   const balanceEnough = (g: Group, d: GroupData) =>
-    d.balance.state === "ok" && d.balance.value >= g.total + (isAddressEqual(g.currency.address, USDC) ? USDC_FEE_RESERVE : 0n);
+    d.balance.state === "ok" && d.balance.value >= g.total + (isAddressEqual(g.currency.address, USDC) ? USDC_FEE_RESERVE : 0n) + guardPullOf(g);
   const pledgeOf = (d: GroupData) => (d.needed.state === "ok" ? suggestPledge(d.needed.value) : null);
 
   // The payer's choice is theirs. The app picks a default only for a group that has never had one; a choice that
@@ -202,7 +235,35 @@ export function Basket({
   const pledgeTotal = groups.reduce((s, g, gi) => (choices[g.currency.symbol] === "bitcoin" ? s + (pledgeOf(groupData[gi]!) ?? 0n) : s), 0n);
   const shortOfBtc = cirBtc.state === "ok" && pledgeTotal > cirBtc.value;
   const allChosen = groups.length > 0 && groups.every((g) => choices[g.currency.symbol]);
-  const canPay = ready && allChosen && !shortOfBtc && !busy && payable.length > 0;
+  const canPay = ready && allChosen && !shortOfBtc && !busy && payable.length > 0 && pending !== null && pending !== undefined;
+  const pendingText = pending ? keptAsideText(pending) : null;
+
+  // C58, per group paid from bitcoin: the loan-to-value after this basket against the payer's own trigger.
+  const triggerNotes = groups.flatMap((g, gi) => {
+    if (choices[g.currency.symbol] !== "bitcoin") return [];
+    const d = groupData[gi]!;
+    const pledge = pledgeOf(d);
+    const guard = guardQuery.data?.find((x) => x.symbol === g.currency.symbol);
+    if (!guard || pledge === null || d.position.state !== "ok" || d.market.state !== "ok" || d.price.state !== "ok" || d.balance.state !== "ok") return [];
+    const debt = debtFromShares(d.position.value[1], d.market.value[2], d.market.value[3]) + g.total;
+    const after = ltvWad(debt, d.position.value[2] + pledge, d.price.value);
+    const repay = guardRepayAfterBorrow({
+      rule: guard.rule,
+      nowSeconds: BigInt(Math.floor(Date.now() / 1000)),
+      ltvAfterWad: after,
+      before: { shares: d.position.value[1], collateral: d.position.value[2] },
+      totals: { totalBorrowAssets: d.market.value[2], totalBorrowShares: d.market.value[3] },
+      borrow: g.total,
+      pledge,
+      price: d.price.value,
+      allowance: guard.allowance,
+      balanceAfter: d.balance.value,
+    });
+    if (!repay) return [];
+    return [
+      `This payment takes the ${g.currency.symbol} loan to ${formatPercentWad(after)}, at or past your guard's ${formatPercentWad(repay.triggerWad)} trigger. The guard will then repay about ${formatUnitsExact(repay.amount, g.currency.decimals)} ${g.currency.symbol} from this wallet within minutes, back to ${formatPercentWad(repay.targetWad)}.`,
+    ];
+  });
   const usd = useUsdPrice();
   const refetchReads = data.refetch;
   const retryReads = useCallback(() => void refetchReads(), [refetchReads]);
@@ -268,6 +329,9 @@ export function Basket({
       return fail("Arc did not answer, so nothing was built. Try again.");
     }
 
+    // C45, read again at the moment of paying.
+    const pendingNow = await pendingGuardOutflow(client, me);
+    if (!pendingNow) return fail(GUARD_UNREADABLE);
     const plan: BasketPlan = {};
     let held: bigint;
     try {
@@ -277,8 +341,12 @@ export function Basket({
         const m = g.currency.marketId;
         if (choices[g.currency.symbol] === "balance") {
           const bal = await client.readContract({ address: g.currency.address, abi: erc20Abi, functionName: "balanceOf", args: [me] });
-          const need = g.total + (isAddressEqual(g.currency.address, USDC) ? USDC_FEE_RESERVE : 0n);
-          if (bal < need) return fail(`Paying the ${g.currency.symbol} bills from balance needs ${formatUnitsExact(need, g.currency.decimals)} ${g.currency.symbol}; your wallet holds ${formatUnitsExact(bal, g.currency.decimals)}. Nothing was sent.`);
+          const guardPull = g.currency.symbol === "USDC" ? pendingNow.usdc : pendingNow.eurc;
+          const need = g.total + (isAddressEqual(g.currency.address, USDC) ? USDC_FEE_RESERVE : 0n) + guardPull;
+          if (bal < need) {
+            const why = guardPull > 0n ? `, including ${formatUnitsExact(guardPull, g.currency.decimals)} your loan guard is about to repay` : "";
+            return fail(`Paying the ${g.currency.symbol} bills from balance needs ${formatUnitsExact(need, g.currency.decimals)} ${g.currency.symbol}${why}; your wallet holds ${formatUnitsExact(bal, g.currency.decimals)}. Nothing was sent.`);
+          }
           plan[g.currency.symbol] = { from: "balance" };
           continue;
         }
@@ -315,7 +383,7 @@ export function Basket({
     };
     const btcBefore = await pledgedNow().catch(() => null);
 
-    const usdcOut = groups.reduce((s, g) => (choices[g.currency.symbol] === "balance" && isAddressEqual(g.currency.address, USDC) ? s + g.total : s), 0n);
+    const usdcOut = groups.reduce((s, g) => (choices[g.currency.symbol] === "balance" && isAddressEqual(g.currency.address, USDC) ? s + g.total : s), pendingNow.usdc);
     const out = await simulateAndSend({ account: me, to: built.to, data: built.data, onStep: step, usdcOut });
     let logs: Parameters<typeof billsPaidIn>[0] | null;
     let hash: Hex;
@@ -475,12 +543,27 @@ export function Basket({
                 step succeeds together or nothing moves.
               </p>
               <FeeLine query={feeQuery} idle="The network fee shows once each currency has a choice." className="mt-3" />
+              {triggerNotes.map((t) => (
+                <p key={t} className="type-body mt-4 text-text" data-guard-trigger>
+                  {t}
+                </p>
+              ))}
               <Button variant="primary" disabled={!canPay} onClick={onPay} className="mt-6 w-full" data-action="pay-basket">
                 {busy ? <BusyLabel step={busy.step} since={busy.since} /> : `Pay ${n} bill${n === 1 ? "" : "s"} with one signature`}
               </Button>
               {payBlocked && (
                 <p className={`type-body mt-3 ${shortOfBtc ? "text-danger" : "text-muted"}`} data-blocked-reason>
                   {payBlocked}
+                </p>
+              )}
+              {pendingText && (
+                <p className="type-body mt-3 text-muted" data-guard-pending>
+                  {pendingText}
+                </p>
+              )}
+              {pending === null && (
+                <p className="type-body mt-3 text-danger" data-guard-unreadable>
+                  {GUARD_UNREADABLE}
                 </p>
               )}
               <div className="mt-4">

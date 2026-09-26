@@ -20,6 +20,8 @@ import { assertMarketConstants, currencyOf, verifyMarketParams } from "./market"
 import { MULTISEND_CALL_ONLY } from "../safe/constants";
 import { assertSafeInnerCalls, assertSafeTxShape, encodeMultiSend, type SafeInnerCall } from "../safe/multisend";
 import { safeTxFor } from "../safe/typedData";
+import { guardAbi } from "../guard/abi";
+import { ADAG_GUARD } from "../guard/constants";
 
 // The fields of bill(id), exactly as the contract returns them, plus the contract and id they were read from (C33).
 export type Bill = {
@@ -74,6 +76,7 @@ export type DirectCall = { to: Address; data: Hex };
 const TARGETS: readonly Address[] = [ADAG_BILLS, ADAG_BILLS_FIRST, MORPHO, MEMO, MULTICALL3_FROM, USDC, EURC, CIRBTC];
 const SPENDERS: readonly Address[] = [MORPHO, ADAG_BILLS, ADAG_BILLS_FIRST];
 const APPROVE_SELECTOR = "0x095ea7b3";
+const CLEAR_RULE_SELECTOR = encodeFunctionData({ abi: guardAbi, functionName: "clearRule", args: [`0x${"00".repeat(32)}`] }).slice(0, 10).toLowerCase();
 
 export const PLEDGE_MARGIN_PERCENT = 105n;
 
@@ -129,19 +132,33 @@ function oneContract(bills: readonly Bill[]): Address {
   return contract;
 }
 
-function assertCalls(calls: readonly Call3[]) {
+// One rule for AdagGuard, rather than a place on the lists: a close may call it only to clear the rule of the market
+// it closes, and may approve it only to 0. No other batch may touch it at all (C60).
+function assertCalls(calls: readonly Call3[], guardMarket: Hex | null = null) {
   for (const c of calls) {
-    if (!TARGETS.some((t) => isAddressEqual(t, c.target))) throw new Error(`Refusing a batch that calls ${c.target}.`);
     if (c.allowFailure !== false) throw new Error("Refusing a batch step that may fail on its own.");
+    const toGuard = ADAG_GUARD !== null && isAddressEqual(c.target, ADAG_GUARD);
+    if (toGuard) {
+      if (!guardMarket || c.callData.slice(0, 10).toLowerCase() !== CLEAR_RULE_SELECTOR) throw new Error("Refusing a loan guard call other than stopping this loan's rule.");
+      const { args } = decodeFunctionData({ abi: guardAbi, data: c.callData });
+      if (String(args[0]).toLowerCase() !== guardMarket.toLowerCase()) throw new Error("Refusing to stop the guard of another market.");
+      continue;
+    }
+    if (!TARGETS.some((t) => isAddressEqual(t, c.target))) throw new Error(`Refusing a batch that calls ${c.target}.`);
     if (c.callData.slice(0, 10).toLowerCase() === APPROVE_SELECTOR) {
       const { args } = decodeFunctionData({ abi: erc20Abi, data: c.callData });
+      if (ADAG_GUARD !== null && isAddressEqual(args[0] as Address, ADAG_GUARD)) {
+        const loanToken = CURRENCIES.find((x) => guardMarket !== null && x.marketId.toLowerCase() === guardMarket.toLowerCase())?.address;
+        if (!loanToken || args[1] !== 0n || !isAddressEqual(c.target, loanToken)) throw new Error("Refusing an approval to the loan guard other than setting this loan's token to 0.");
+        continue;
+      }
       if (!SPENDERS.some((s) => isAddressEqual(s, args[0] as Address))) throw new Error(`Refusing an approval to ${String(args[0])}.`);
     }
   }
 }
 
-function batch(calls: Call3[]): Batch {
-  assertCalls(calls);
+function batch(calls: Call3[], guardMarket: Hex | null = null): Batch {
+  assertCalls(calls, guardMarket);
   return { to: MULTICALL3_FROM, data: encodeFunctionData({ abi: multicall3FromAbi, functionName: "aggregate3", args: [calls] }), calls };
 }
 
@@ -300,28 +317,53 @@ export function buildRepaySome(payer: string, currency: Currency, assets: bigint
   ]);
 }
 
+// The loan guard's state for the market being closed, read by the caller: whether a rule exists, and the approval.
+export type GuardStop = { hasRule: boolean; allowance: bigint };
+
+// C60: when a guard rule or approval exists for this market, the close also stops the guard in the same transaction:
+// clearRule for that market (only if there is a rule), then the loan token's approval to AdagGuard set to 0.
 export function buildCloseLoan(
   payer: string,
   currency: Currency,
   position: { shares: bigint; collateral: bigint },
   repayApproval: bigint,
   marketParams: MarketParams,
+  guardStop: GuardStop = { hasRule: false, allowance: 0n },
 ): Batch {
   const who = checkedPayer(payer);
   const { c, params } = verifiedParams(currency, marketParams);
   const { shares, collateral } = position;
   if (shares < 0n || collateral < 0n) throw new Error("The loan position reads as negative, so nothing was built.");
   if (shares === 0n && collateral === 0n) throw new Error("There is no loan and no pledged cirBTC in this market.");
+  if (typeof guardStop.allowance !== "bigint" || guardStop.allowance < 0n) throw new Error("The loan guard's approval reads as negative, so nothing was built.");
   const withdraw = call(MORPHO, encodeFunctionData({ abi: morphoAbi, functionName: "withdrawCollateral", args: [params, collateral, who, who] }));
-  if (shares === 0n) return batch([withdraw]);
-  if (typeof repayApproval !== "bigint" || repayApproval <= 0n) throw new Error("The repay approval must be more than zero.");
-  const calls = [
-    approve(c.address, MORPHO, repayApproval),
-    call(MORPHO, encodeFunctionData({ abi: morphoAbi, functionName: "repay", args: [params, 0n, shares, who, "0x"] })),
-  ];
-  if (collateral > 0n) calls.push(withdraw);
-  calls.push(approve(c.address, MORPHO, 0n));
-  return batch(calls);
+  const calls: Call3[] = [];
+  if (shares === 0n) {
+    calls.push(withdraw);
+  } else {
+    if (typeof repayApproval !== "bigint" || repayApproval <= 0n) throw new Error("The repay approval must be more than zero.");
+    calls.push(
+      approve(c.address, MORPHO, repayApproval),
+      call(MORPHO, encodeFunctionData({ abi: morphoAbi, functionName: "repay", args: [params, 0n, shares, who, "0x"] })),
+    );
+    if (collateral > 0n) calls.push(withdraw);
+    calls.push(approve(c.address, MORPHO, 0n));
+  }
+  const stops = guardStop.hasRule || guardStop.allowance > 0n;
+  if (stops) {
+    if (!ADAG_GUARD) throw new Error("The loan guard is not deployed, so its rule cannot be stopped.");
+    if (guardStop.hasRule) calls.push(call(ADAG_GUARD, encodeFunctionData({ abi: guardAbi, functionName: "clearRule", args: [c.marketId] })));
+    calls.push(approve(c.address, ADAG_GUARD, 0n));
+  }
+  return batch(calls, stops ? c.marketId : null);
+}
+
+// Records the caller's existing Morpho loans as they stand on the current AdagBills, so later payments are judged only
+// on new borrowing (C32). The first deployment has no enrol, so it is refused here.
+export function buildEnrol(contract: string): DirectCall {
+  const d = requireDeployment(contract);
+  if (d.label !== "current") throw new Error("Only the current AdagBills contract can record an existing loan. This bill is on the first deployment.");
+  return { to: d.address, data: encodeFunctionData({ abi: adagAbi, functionName: "enrol" }) };
 }
 
 export type SafeBatch = { to: Address; data: Hex; operation: 1; value: 0n; inner: SafeInnerCall[] };
@@ -381,6 +423,18 @@ export function buildSafeBatch(safe: Address, bills: Bill[], plan: BasketPlan): 
   // The outer shape too, with a placeholder nonce: the real nonce is read from the Safe right before signing (C52).
   assertSafeTxShape(who, safeTxFor(batch, 0n));
   return batch;
+}
+
+// C55: a Safe records its own existing loan as itself, in a Safe transaction of its own: one inner call, enrol() on
+// the current AdagBills, by the same MultiSendCallOnly delegatecall with every gas field 0 (C51). A payment is
+// proposed separately, once this one has executed.
+export function buildSafeEnrol(safe: Address): SafeBatch {
+  const who = checkedPayer(safe);
+  const inner: SafeInnerCall[] = [{ to: ADAG_BILLS, value: 0n, data: encodeFunctionData({ abi: adagAbi, functionName: "enrol" }), operation: 0 }];
+  assertSafeInnerCalls(who, inner);
+  const out: SafeBatch = { to: MULTISEND_CALL_ONLY, data: encodeMultiSend(inner), operation: 1, value: 0n, inner };
+  assertSafeTxShape(who, safeTxFor(out, 0n));
+  return out;
 }
 
 export const APPROVAL_SPENDERS = SPENDERS;

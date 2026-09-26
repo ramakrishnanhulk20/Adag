@@ -10,6 +10,8 @@ export type PlainError = {
   next: string;
   // message and next together: the sentence the app shows.
   text: string;
+  // The error's decoded arguments, so a screen can tell which market a refusal was about.
+  args?: readonly unknown[];
 };
 
 const errorAbi = [...adagAbi, ...memoAbi, ...erc20Abi];
@@ -44,6 +46,8 @@ function fromName(name: string, args: readonly unknown[]): PlainError {
     }
     case "StalePrice":
       return plain(name, "New loans are paused until the bitcoin price updates.", "Paying from your balance still works.");
+    case "EnrolledThisBlock":
+      return plain(name, "Your loan was recorded in this same block, and Adag takes the payment only from the next one.", "Wait a moment, then pay again.");
     case "ZeroPrice":
       return plain(name, "The bitcoin price reads zero, so new loans are off.", "Paying from your balance still works.");
     case "BadFeed":
@@ -116,7 +120,7 @@ export function decodeAdagError(revert: unknown): PlainError {
     }
     if (decoded.errorName === "Error") return fromString(String(args[0] ?? ""));
     if (decoded.errorName === "Panic") return plain("Panic", "The payment hit an arithmetic error and was refused.", "Nothing moved. Reload the page and try again.");
-    return fromName(decoded.errorName, args);
+    return { ...fromName(decoded.errorName, args), args };
   }
   if (typeof revert === "string") return isHex(revert) ? UNKNOWN : fromString(revert);
   const text = (revert as { shortMessage?: string; message?: string } | null)?.shortMessage ?? (revert as { message?: string } | null)?.message;
