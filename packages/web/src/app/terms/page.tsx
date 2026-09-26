@@ -5,7 +5,7 @@ import { AppShell } from "@/components/app/AppShell";
 import { CONTRACTS } from "@/components/landing/contracts";
 
 export const metadata: Metadata = {
-  title: "Terms of Use · Adag",
+  title: "Terms of Use",
   description: "The plain-English terms for using Adag, an interface to immutable bill contracts on Arc mainnet.",
 };
 

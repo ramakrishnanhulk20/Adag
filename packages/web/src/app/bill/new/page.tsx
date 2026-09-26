@@ -3,7 +3,7 @@ import { AppShell } from "@/components/app/AppShell";
 import { WriteBill } from "@/components/app/WriteBill";
 
 export const metadata: Metadata = {
-  title: "Write a bill · Adag",
+  title: "Write a bill",
   description: "Write a bill on Arc in USDC or EURC, payable to your wallet exactly once, and share its link.",
 };
 

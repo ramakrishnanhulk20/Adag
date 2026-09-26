@@ -31,5 +31,5 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const page = source.getPage(slug);
   if (!page) notFound();
-  return { title: `${page.data.title} · Adag docs`, description: page.data.description };
+  return { title: `${page.data.title} · Docs`, description: page.data.description };
 }

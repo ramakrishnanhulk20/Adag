@@ -5,7 +5,7 @@ import { PayForm } from "@/components/app/PayForm";
 import { readTotalBillCount } from "@/lib/pay/read";
 
 export const metadata: Metadata = {
-  title: "Pay a bill · Adag",
+  title: "Pay a bill",
   description: "Open a bill on Arc by its number or link, and see exactly who it pays and how much.",
 };
 

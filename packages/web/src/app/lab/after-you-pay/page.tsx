@@ -5,7 +5,7 @@ import { AfterYouPay } from "@/components/landing/AfterYouPay";
 import { HeroCopyTweaks } from "./HeroCopyTweaks";
 
 export const metadata: Metadata = {
-  title: "After you pay · Adag lab",
+  title: "After you pay · Lab",
   robots: { index: false, follow: false, nocache: true, googleBot: { index: false, follow: false } },
 };
 

@@ -18,7 +18,7 @@ import { ThemeImage } from "@/components/ThemeImage";
 import { images, VAULT_COIN_CENTRE } from "@/lib/images";
 
 export const metadata: Metadata = {
-  title: "Lab · Adag",
+  title: "Lab",
   robots: { index: false, follow: false, nocache: true, googleBot: { index: false, follow: false } },
 };
 

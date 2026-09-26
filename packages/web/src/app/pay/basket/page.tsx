@@ -8,7 +8,7 @@ import { ADAG_BILLS } from "@/lib/pay/constants";
 import { readBill } from "@/lib/pay/read";
 
 export const metadata: Metadata = {
-  title: "Pay several bills · Adag",
+  title: "Pay several bills",
   description: "Pay up to ten bills on Arc with one signature, from your balance or from a loan against your cirBTC.",
   robots: { index: false, follow: false },
 };

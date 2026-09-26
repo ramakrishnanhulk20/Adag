@@ -4,7 +4,7 @@ import { ThemeControl } from "@/components/ThemeControl";
 import { PledgeStage } from "@/components/pledge/PledgeStage";
 
 export const metadata: Metadata = {
-  title: "The pledge · Adag lab",
+  title: "The pledge · Lab",
   robots: { index: false, follow: false, nocache: true, googleBot: { index: false, follow: false } },
 };
 
