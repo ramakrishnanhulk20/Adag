@@ -102,6 +102,20 @@ python3 -c 'import json, sys; json.load(open(sys.argv[1]))' "${STD_JSON}.tmp" ||
 mv "${STD_JSON}.tmp" "$STD_JSON"
 printf 'Wrote packages/contracts/%s\n' "$STD_JSON"
 
+# The published ABI beside the Standard JSON, which prove-it reads for this deployment when there is no local build.
+ABI_JSON="deployments/${deployed_day}/AdagBills.abi.json"
+python3 - "$ARTIFACT" "${ABI_JSON}.tmp" <<'PY' || die "could not export the ABI from ${ARTIFACT}."
+import json, sys
+abi = json.load(open(sys.argv[1]))["abi"]
+if not any(e.get("type") == "function" and e.get("name") == "enrol" for e in abi):
+    sys.exit("the local build has no enrol function, so it is not the AdagBillsEnrol source")
+with open(sys.argv[2], "w", newline="\n") as f:
+    json.dump(abi, f, indent=2)
+    f.write("\n")
+PY
+mv "${ABI_JSON}.tmp" "$ABI_JSON"
+printf 'Wrote packages/contracts/%s\n' "$ABI_JSON"
+
 failed=0
 
 printf '\nSourcify\n'

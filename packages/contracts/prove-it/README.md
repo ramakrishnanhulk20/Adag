@@ -34,15 +34,45 @@ refusing the other one.
 
 ## Commands
 
-Run from the repo root. Install once with `npm ci` inside `packages/contracts/prove-it`. No build is needed: without a
-local arc-forge build in `packages/contracts/out`, the scripts read AdagBills' ABI from `deployments/AdagBills.abi.json`.
+Run from the repo root. Install once with `npm ci` inside `packages/contracts/prove-it`. No build is needed for the
+first deployment: without a local arc-forge build in `packages/contracts/out`, the scripts read its ABI from
+`deployments/2026-09-25/AdagBills.abi.json`.
 
 ```
 node packages/contracts/prove-it/prove-it.mjs
 node packages/contracts/prove-it/prove-it.mjs --close
 node packages/contracts/prove-it/prove-it.mjs --broadcast
 node packages/contracts/prove-it/prove-it.mjs --broadcast --close
+node packages/contracts/prove-it/prove-it.mjs --target enrol
 ```
+
+## Which AdagBills: --target
+
+Every command above runs against the first deployment, key `AdagBills` in `deployments/arc-mainnet.json`, unless
+it is given `--target enrol`, which picks AdagBills with enrol, key `AdagBillsEnrol`. `attack.mjs` takes the same flag.
+
+- Until `AdagBillsEnrol` is in `arc-mainnet.json`, a dry run places the local build from `packages/contracts/out`
+  (it must include `enrol`) at the address the deploy dry run predicted, key `AdagBillsEnrol` in
+  `deployments/arc-mainnet.dry-run.json`, and says so. It stops if that address already holds code on chain,
+  because that means the prediction is out of date: run `bash packages/contracts/deploy.sh` again.
+- Once the key is recorded, the same commands run against the real address, with no injected code. Without a local
+  build they read that deployment's ABI from `deployments/<deploy day>/AdagBills.abi.json`, which `verify.sh` writes.
+- `--broadcast --target enrol` refuses to run until the key is recorded.
+
+With `--target enrol`, prove-it runs the same pay-from-bitcoin proof against the new contract, then an enrol proof:
+
+1. It reads a real Arc borrower above 40%, `0x87367570B77D92AAC699475d2894539C6092ef24` (found by the treasury
+   probe at about 70%), at the pinned block, and stops if that wallet has code, is no longer above 40%, or holds
+   under 0.1 USDC.
+2. Block N: the payee writes a 0.1 USDC bill; the borrower's cash payment is refused with `LtvAboveLimit`; the
+   borrower calls `enrol`.
+3. Block N+1: borrowing 1 USDC more in the paying batch is refused with `LtvAboveLimit`; the same bill paid from
+   cash goes through.
+4. Checks: `Enrolled` and `seenPosition` hold exactly Morpho's position in both markets and `enrolledAt` is block N,
+   `BillPaid` says `loanChecked` false, the payee received exactly 0.1 USDC, and the bill is Paid by the borrower.
+
+The enrol proof is always an eth_simulateV1 run, even with `--broadcast` after a deploy, because it acts as that
+borrower's wallet and only the borrower can sign for it. No state is overridden for it.
 
 The first two are dry runs. Every step runs inside `eth_simulateV1` on dRPC's Arc endpoint, starting from a
 real mainnet block, so the balances, the Morpho market and the price feed are all live. Nothing is signed or
@@ -85,6 +115,7 @@ All in, about 0.014 USDC of gas without `--close` and 0.018 USDC with it. On top
 
 ```
 node packages/contracts/prove-it/attack.mjs
+node packages/contracts/prove-it/attack.mjs --target enrol
 ```
 
 This runs every attack from the threat model against the live AdagBills and the demo wallet's real Morpho
@@ -98,10 +129,28 @@ Last, it runs prove-it with a stubbed RPC that reports the wrong chain and shows
 table of each attack, what should stop it and the decoded revert, appends the same table to
 `packages/contracts/deployments/attacks-<date>.md`, and exits 0 only if every row passes.
 
+With `--target enrol` it runs the same A1 to A10 against AdagBills with enrol, then five more rows for threat
+model C31 and C32:
+
+- E1: enrol and pay in one batch is refused with `EnrolledThisBlock`.
+- E2: borrow to about 60%, enrol and pay in one batch is refused with `EnrolledThisBlock`, and the recorded
+  position is unchanged.
+- E3: a stranger's enrol leaves the demo wallet's recorded position and enrol block unchanged, and the demo wallet
+  can still pay in that block.
+- E4: after enrolling, closing the loan outside Adag and re-borrowing the same shares against less collateral is
+  refused with `LtvAboveLimit`.
+- E5: the named residual, labelled "allowed by design": borrow to about 60% outside Adag and enrol in block N, and
+  a cash payment in block N+1 goes through unchecked.
+
+A fresh contract has no bills and no recorded loan, while A1 to A4, A7 and A9 assume the demo wallet has paid a
+bill and its loan is recorded. So when the target does not already show that, every simulation starts with one
+setup block: the payee writes a 0.1 USDC bill and the demo wallet pays it from cash, which runs the 40% check on
+its real loan and records it. The output says when this happens, and A1 and A7b then use that bill's id.
+
 The only state overrides are native USDC for a simulated stranger, fresh bills written by the payee in an
 earlier simulated block, and the mock oracle for the labelled price drop (`mock/MockOracle.sol`, compiled runtime code in
-`mock/MockOracle.json`). Adag and Morpho state are never
-changed.
+`mock/MockOracle.json`). Adag and Morpho state are never changed. Before the enrol deploy, the local build placed
+at the predicted address is the one other override, and the setup block is an ordinary simulated transaction.
 
 ## What it does not cover
 
@@ -112,5 +161,9 @@ changed.
   proves those.
 - The gas costs are dry-run measurements at one base fee. A real run pays the fee of its own block.
 - It does not check that the code at the deployed address matches the compiled AdagBills.
+- Before the enrol deploy, `--target enrol` proves the local build, not a deployed contract. The simulation
+  places that code at the predicted address with empty storage, which is what a fresh deploy starts with.
+- The enrol proof uses one borrower in the USDC market. Enrolling a Safe or any contract wallet, and the EURC
+  market, are not exercised.
 - The proof itself does not attack Adag. It shows the happy path works; `attack.mjs` above is what tries to break the
   40% cap, the price freshness check and the pay-once rule.

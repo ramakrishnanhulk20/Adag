@@ -4,8 +4,10 @@
 //   node packages/contracts/prove-it/prove-it.mjs              dry run on live mainnet state, sends nothing
 //   node packages/contracts/prove-it/prove-it.mjs --close      same, then closes the loan and takes the cirBTC back
 //   node packages/contracts/prove-it/prove-it.mjs --broadcast  the real thing, asks for a typed "yes" first
+//   add --target enrol to any of these to run against AdagBills with enrol instead of the first deployment; it
+//   also proves enrol with a real borrower above 40%, always by simulation
 import { createInterface } from 'node:readline/promises';
-import { createWalletClient, http, stringToHex, formatUnits } from 'viem';
+import { createWalletClient, http, stringToHex, formatUnits, getAddress } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import * as L from './lib.mjs';
 
@@ -19,15 +21,36 @@ const PAYEE_FEE_TOPUP = 50_000n;
 const PLEDGE_MARGIN_PCT = 105n;
 const STATUS_PAID = 2;
 
+// A real Arc borrower above 40% in the USDC market (reference/rnd/treasury/PROBE-RESULTS.md, S1, about 70%).
+// The enrol proof re-reads this loan at the pinned block and stops if it is no longer above 40%.
+const ENROL_BORROWER = getAddress('0x87367570B77D92AAC699475d2894539C6092ef24');
+const ENROL_BILL = 100_000n;
+const ENROL_EXTRA_BORROW = 1_000000n;
+const ENROL_REFERENCE = 'ADAG-ENROL-0001';
+const MAX_LTV_WAD = 400000000000000000n;
+
 class Stop extends Error {}
 
 function parseArgs(argv) {
+  let target = 'first';
+  const flags = [];
+  for (let i = 0; i < argv.length; i++) {
+    if (argv[i] === '--target') {
+      target = argv[++i];
+      if (!target) throw new Stop('--target needs a value: first or enrol.');
+    } else if (argv[i].startsWith('--target=')) {
+      target = argv[i].slice('--target='.length);
+    } else {
+      flags.push(argv[i]);
+    }
+  }
+  if (!L.TARGETS[target]) throw new Stop(`Unknown target ${target}. Use --target first or --target enrol.`);
   const known = new Set(['--broadcast', '--close', '--self-test']);
-  const unknown = argv.filter((a) => !known.has(a));
-  if (unknown.length) throw new Stop(`Unknown option ${unknown.join(' ')}. Use --broadcast and/or --close, or --self-test alone.`);
-  const selfTest = argv.includes('--self-test');
+  const unknown = flags.filter((a) => !known.has(a));
+  if (unknown.length) throw new Stop(`Unknown option ${unknown.join(' ')}. Use --broadcast and/or --close and/or --target enrol, or --self-test alone.`);
+  const selfTest = flags.includes('--self-test');
   if (selfTest && argv.length > 1) throw new Stop('--self-test runs on its own.');
-  return { broadcast: argv.includes('--broadcast'), close: argv.includes('--close'), selfTest };
+  return { broadcast: flags.includes('--broadcast'), close: flags.includes('--close'), selfTest, target };
 }
 
 // Reads both USDC/cirBTC markets from Morpho and shows the market check accepting MARKET_USDC's params and
@@ -218,14 +241,18 @@ async function main() {
   if (payer === payee) throw new Stop('DEPLOYER_ADDRESS and PAYEE_ADDRESS are the same wallet; Adag refuses a self-payment.');
   const roles = { payer, payee };
 
-  const artifact = L.loadAdagAbi();
+  const target = L.loadTarget(args.target);
+  const first = target.name === 'first';
+  const artifact = target.artifact;
   const adagAbi = artifact.abi;
   L.setAdagAbi(adagAbi);
-  const deployed = L.loadDeployment();
+  const deployed = target.deployed ? target.address : null;
   if (args.broadcast && !deployed) {
-    throw new Stop('--broadcast needs a deployed Adag, and packages/contracts/deployments/arc-mainnet.json does not exist yet. Deploy first, or run without --broadcast for the dry run.');
+    throw new Stop(first
+      ? '--broadcast needs a deployed Adag, and packages/contracts/deployments/arc-mainnet.json does not exist yet. Deploy first, or run without --broadcast for the dry run.'
+      : `--broadcast needs ${target.label} deployed, and packages/contracts/deployments/arc-mainnet.json has no ${target.key} entry yet. Deploy first, or run without --broadcast for the dry run.`);
   }
-  const adag = deployed ?? L.PLACEHOLDER_ADAG;
+  const adag = target.address;
 
   const chainId = await L.circle.getChainId();
   if (chainId !== L.CHAIN_ID) throw new Stop(`${L.WRITE_RPC} reports chain ${chainId}, not Arc mainnet ${L.CHAIN_ID}.`);
@@ -250,14 +277,27 @@ async function main() {
     if (!deployed && !artifact.deployedBytecode) {
       throw new Stop('Adag is not deployed and there is no local build to inject. Build it with run-tests.sh, or add deployments/arc-mainnet.json.');
     }
+    if (target.predicted) {
+      // Code already at the predicted address means the deployer's nonce has moved on, so the prediction is stale.
+      const code = await L.circle.getCode({ address: adag });
+      if (code && code !== '0x') {
+        throw new Stop(`${adag}, the predicted address for ${target.key}, already holds code on Arc mainnet, yet deployments/arc-mainnet.json has no ${target.key} entry. Run the deploy dry run again to refresh the prediction.`);
+      }
+    }
     const inject = deployed ? null : { address: adag, code: artifact.deployedBytecode.object };
     exec = new DryRun({ pin, inject, roles });
     now = pin.timestamp;
     line(`Adag prove-it: DRY RUN on live Arc mainnet state (chain ${chainId}, block ${pin.number}, ${new Date(Number(now) * 1000).toISOString()}).`);
     line('Every step runs in eth_simulateV1 on dRPC. Nothing is signed or sent.');
-    line(deployed
-      ? `Adag at ${adag} (from deployments/arc-mainnet.json).`
-      : `Adag is not deployed yet, so AdagBills' runtime code from out/AdagBills.sol is injected at the placeholder ${adag} inside the simulation.`);
+    if (first) {
+      line(deployed
+        ? `Adag at ${adag} (from deployments/arc-mainnet.json).`
+        : `Adag is not deployed yet, so AdagBills' runtime code from out/AdagBills.sol is injected at the placeholder ${adag} inside the simulation.`);
+    } else {
+      line(deployed
+        ? `${target.label} at ${adag} (key ${target.key} in deployments/arc-mainnet.json).`
+        : `${target.label} is not deployed yet, so its runtime code from out/AdagBills.sol is injected inside the simulation at ${adag}, the address the deploy dry run predicted (key ${target.key} in deployments/arc-mainnet.dry-run.json).`);
+    }
     if (demoNote) line(demoNote);
   }
 
@@ -457,6 +497,18 @@ async function main() {
     line(`  final position  debt ${L.usdc(endPos[1] === 0n ? 0n : L.toAssetsUp(endPos[1], live.market[2], live.market[3]))}, ${endPos[1]} borrow shares, ${L.btc(endPos[2])} pledged, loan-to-value ${L.pct(closeTx.after.ltv1)}`);
   }
 
+  let enrolled = null;
+  if (!first) {
+    let pin = exec.pin;
+    if (args.broadcast) {
+      const simChain = await L.simChainId();
+      if (simChain !== L.CHAIN_ID) throw new Stop(`${L.SIM_RPC} reports chain ${simChain}, not Arc mainnet ${L.CHAIN_ID}.`);
+      pin = await L.circle.getBlock({ blockNumber: (await L.circle.getBlockNumber()) - 3n });
+    }
+    enrolled = await enrolProof({ adag, adagAbi, inject: exec.inject ?? null, payee, params, pin });
+    checks.push(...enrolled.checks);
+  }
+
   const total = txs.reduce((s, t) => s + t.cost, 0n);
   const gasTotal = txs.reduce((s, t) => s + t.gas, 0n);
   line();
@@ -469,7 +521,115 @@ async function main() {
   line(allOk
     ? `PROVEN${args.broadcast ? '' : ' (dry run)'}: the payee was paid 1 USDC from a loan against the payer's bitcoin, in one signature, and no bitcoin was sold.`
     : 'NOT PROVEN: at least one check failed, see above.');
+  if (allOk && enrolled) {
+    line(`PROVEN (simulated): a real borrower at ${L.pct(enrolled.ltv)} was refused before enrolling, enrolled, and paid a bill from cash in the next block, while new debt after enrolling was still refused.`);
+  }
   return allOk ? 0 : 1;
+}
+
+const named = (s) => s.split(L.MARKET_USDC).join('MARKET_USDC');
+
+// Always a simulation, even after a live deploy: it acts as a real borrower's wallet, and only that borrower can
+// sign for it. Block N: a bill is written, the borrower's cash payment is refused, the borrower enrols. Block
+// N+1: borrowing more in the paying batch is refused, then the same bill paid from cash goes through.
+async function enrolProof({ adag, adagAbi, inject, payee, params, pin }) {
+  const borrower = ENROL_BORROWER;
+  const start = await circleRead([
+    L.read('usdcPos', L.MORPHO, L.morphoAbi, 'position', [L.MARKET_USDC, borrower]),
+    L.read('market', L.MORPHO, L.morphoAbi, 'market', [L.MARKET_USDC]),
+    L.read('price', params.oracle, L.oracleAbi, 'price'),
+    L.read('usdc', L.USDC, L.erc20Abi, 'balanceOf', [borrower]),
+  ], pin.number);
+  const code = await L.circle.getCode({ address: borrower, blockNumber: pin.number });
+  const shares = start.usdcPos[1];
+  const debt = shares === 0n ? 0n : L.toAssetsUp(shares, start.market[2], start.market[3]);
+  const value = (start.usdcPos[2] * start.price) / 10n ** 36n;
+  const ltv = value === 0n ? 2n ** 256n - 1n : (debt * 10n ** 18n + value - 1n) / value;
+
+  line();
+  line('Enrol proof (always an eth_simulateV1 run: it acts as a real borrower\'s wallet, which only that borrower can sign for)');
+  line(`  borrower ${borrower} at block ${pin.number}: loan ${L.usdc(debt)} against ${L.btc(start.usdcPos[2])} pledged, loan-to-value ${L.pct(ltv)}, wallet ${L.usdc(start.usdc)}`);
+  if (code && code !== '0x') throw new Stop(`The enrol borrower ${borrower} has contract code, so it cannot send its own batch through Multicall3From.`);
+  if (shares === 0n || ltv <= MAX_LTV_WAD) throw new Stop(`The enrol borrower ${borrower} is no longer above 40% (${L.pct(ltv)}), so the proof's premise does not hold. Pick another borrower above 40%.`);
+  if (start.usdc < ENROL_BILL) throw new Stop(`The enrol borrower holds ${L.usdc(start.usdc)}, under the ${L.usdc(ENROL_BILL)} bill.`);
+
+  const call = (from, c) => ({ from, to: c.to, data: c.data });
+  const adagCall = (fn, args = []) => ({ to: adag, data: L.enc(adagAbi, fn, args) });
+  const readAs = (fn, args) => call(borrower, adagCall(fn, args));
+  const morphoPos = (marketId) => call(borrower, { to: L.MORPHO, data: L.enc(L.morphoAbi, 'position', [marketId, borrower]) });
+  const payeeBalance = call(payee, { to: L.USDC, data: L.enc(L.erc20Abi, 'balanceOf', [payee]) });
+  const decode = (abi, fn, r) => L.decodeRead({ abi, fn }, r.returnData);
+  const need = (r, what) => {
+    if (!r.ok) throw new Stop(`${what} failed in the enrol simulation: ${L.decodeRevert(r.revertData)}`);
+    return r;
+  };
+
+  const count = decode(adagAbi, 'billCount', need((await L.simulate([
+    { time: pin.timestamp + 1n, calls: [readAs('billCount', [])] },
+  ], pin.number, inject))[0][0], 'billCount'));
+  const id = count + 1n;
+  const cashPay = [L.calls.approve(L.USDC, adag, ENROL_BILL), L.calls.memo(adagCall('pay', [id]), id, ENROL_REFERENCE)];
+  L.verifyMarketParams(params, L.MARKET_USDC);
+
+  const [n, n1] = await L.simulate([
+    { time: pin.timestamp + 1n, calls: [
+      call(payee, adagCall('createBill', [L.USDC, ENROL_BILL, pin.timestamp + DUE_IN, stringToHex(ENROL_REFERENCE)])),
+      call(borrower, L.calls.batch(cashPay)),
+      morphoPos(L.MARKET_USDC),
+      morphoPos(L.MARKET_EURC),
+      call(borrower, adagCall('enrol')),
+      readAs('seenPosition', [borrower, L.MARKET_USDC]),
+      readAs('seenPosition', [borrower, L.MARKET_EURC]),
+      readAs('enrolledAt', [borrower]),
+    ] },
+    { time: pin.timestamp + 2n, calls: [
+      payeeBalance,
+      call(borrower, L.calls.batch([L.calls.borrow(params, ENROL_EXTRA_BORROW, borrower, borrower), ...cashPay])),
+      call(borrower, L.calls.batch(cashPay)),
+      payeeBalance,
+      readAs('bill', [id]),
+      readAs('loanToValue', [borrower, L.MARKET_USDC]),
+    ] },
+  ], pin.number, inject);
+
+  const created = L.findEvent(need(n[0], 'createBill').logs, adag, adagAbi, 'BillCreated');
+  if (!created || created.id !== id) throw new Stop(`The enrol bill came back as #${created?.id}, expected #${id}.`);
+  const refusedBefore = n[1].ok ? 'success' : named(L.decodeRevert(n[1].revertData));
+  const usdcPos = decode(L.morphoAbi, 'position', need(n[2], 'position'));
+  const eurcPos = decode(L.morphoAbi, 'position', need(n[3], 'position'));
+  const ev = n[4].ok ? L.findEvent(n[4].logs, adag, adagAbi, 'Enrolled') : null;
+  const seenUsdc = decode(adagAbi, 'seenPosition', need(n[5], 'seenPosition'));
+  const seenEurc = decode(adagAbi, 'seenPosition', need(n[6], 'seenPosition'));
+  const enrolBlock = decode(adagAbi, 'enrolledAt', need(n[7], 'enrolledAt'));
+  const payeeBefore = decode(L.erc20Abi, 'balanceOf', need(n1[0], 'balanceOf'));
+  const borrowMore = n1[1].ok ? 'success' : named(L.decodeRevert(n1[1].revertData));
+  const paid = n1[2].ok ? L.findEvent(n1[2].logs, adag, adagAbi, 'BillPaid') : null;
+  const payeeAfter = decode(L.erc20Abi, 'balanceOf', need(n1[3], 'balanceOf'));
+  const bill = decode(adagAbi, 'bill', need(n1[4], 'bill'));
+  const ltvAtPay = decode(adagAbi, 'loanToValue', need(n1[5], 'loanToValue'));
+  const rise = payeeAfter - payeeBefore;
+
+  line(`  block ${pin.number + 1n}: payee writes bill #${id} for ${L.usdc(ENROL_BILL)}; the borrower pays it from cash: ${refusedBefore}`);
+  line(`  block ${pin.number + 1n}: the borrower enrols: ${n[4].ok ? `success, gas ${n[4].gas.toLocaleString('en-US')}` : named(L.decodeRevert(n[4].revertData))}`);
+  if (ev) line(`    Enrolled  USDC market ${ev.usdcShares} shares, ${L.btc(ev.usdcCollateral)}; EURC market ${ev.eurcShares} shares, ${L.btc(ev.eurcCollateral)}; enrol block ${enrolBlock}`);
+  line(`  block ${pin.number + 2n}: borrow ${L.usdc(ENROL_EXTRA_BORROW)} more and pay the bill in one batch: ${borrowMore}`);
+  line(`  block ${pin.number + 2n}: pay the bill from cash: ${n1[2].ok ? `success, loan checked ${paid?.loanChecked}, loan-to-value ${L.pct(ltvAtPay)}` : named(L.decodeRevert(n1[2].revertData))}`);
+  line(`  payee USDC ${L.usdc(payeeBefore)} before, ${L.usdc(payeeAfter)} after (${L.signedUsdc(rise)})`);
+
+  const checks = [
+    [`before enrolling, the borrower at ${L.pct(ltv)} is refused a cash payment with LtvAboveLimit`, !n[1].ok && refusedBefore.startsWith('MemoFailed(LtvAboveLimit(MARKET_USDC')],
+    ['enrol emits and records exactly Morpho\'s position in both markets, and stores its block',
+      n[4].ok && !!ev && ev.payer === borrower
+      && ev.usdcShares === usdcPos[1] && ev.usdcCollateral === usdcPos[2] && ev.eurcShares === eurcPos[1] && ev.eurcCollateral === eurcPos[2]
+      && seenUsdc[0] === usdcPos[1] && seenUsdc[1] === usdcPos[2] && seenEurc[0] === eurcPos[1] && seenEurc[1] === eurcPos[2]
+      && enrolBlock === pin.number + 1n],
+    ['next block, borrowing more in the paying batch is refused with LtvAboveLimit', !n1[1].ok && borrowMore.startsWith('MemoFailed(LtvAboveLimit(MARKET_USDC')],
+    ['next block, the same bill paid from cash goes through with loanChecked false',
+      n1[2].ok && !!paid && paid.id === id && paid.payer === borrower && paid.loanChecked === false],
+    [`payee received exactly ${L.usdc(ENROL_BILL)} from the enrolled borrower`, rise === ENROL_BILL],
+    ['bill is marked Paid by the enrolled borrower', bill.status === STATUS_PAID && bill.payer === borrower],
+  ];
+  return { checks, ltv };
 }
 
 main().then(

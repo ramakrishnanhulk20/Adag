@@ -2,16 +2,30 @@
 // eth_simulateV1 on dRPC, starting from one real mainnet block, against the deployed contract and the demo
 // wallet's real loan. Nothing is signed or sent, and no key is read.
 //
-//   node packages/contracts/prove-it/attack.mjs
+//   node packages/contracts/prove-it/attack.mjs                  the first deployment, as recorded
+//   node packages/contracts/prove-it/attack.mjs --target enrol   AdagBills with enrol: A1 to A10 plus E1 to E5
 //
 // State overrides are used for three things only: giving a simulated stranger some native USDC, the payee
 // writing fresh bills in an earlier simulated block, and in A9 alone a mock oracle labelled as a simulated
-// price drop. Adag and Morpho state are never overridden.
+// price drop. Adag and Morpho state are never overridden. With --target enrol before that deploy, the local build
+// is placed as code at its predicted address, and a fresh contract has no bills, so one setup block starts every
+// simulation: the payee writes a bill and the demo wallet pays it from cash, which records its real loan.
 import { spawnSync } from 'node:child_process';
 import { appendFileSync, existsSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { getAddress, keccak256, stringToHex } from 'viem';
 import * as L from './lib.mjs';
+
+function targetArg(argv) {
+  let target = 'first';
+  for (let i = 0; i < argv.length; i++) {
+    if (argv[i] === '--target') target = argv[++i];
+    else if (argv[i].startsWith('--target=')) target = argv[i].slice('--target='.length);
+    else throw new Error(`Unknown option ${argv[i]}. The only option is --target first or --target enrol.`);
+  }
+  if (!L.TARGETS[target]) throw new Error(`Unknown target ${target}. Use --target first or --target enrol.`);
+  return target;
+}
 
 const BILL = 100_000n;
 const STATUS = ['None', 'Open', 'Paid', 'Void'];
@@ -23,18 +37,30 @@ const STRANGER_FUNDS = L.nativeBalance(STRANGER, 100n * 10n ** 18n);
 const wallets = L.dryRunAddresses();
 const demo = wallets.payer;
 const payee = wallets.payee;
-const adag = L.loadDeployment();
-if (!adag) throw new Error('packages/contracts/deployments/arc-mainnet.json is missing: there is no live Adag to attack.');
-const adagAbi = L.loadAdagAbi().abi;
+const target = L.loadTarget(targetArg(process.argv.slice(2)));
+const first = target.name === 'first';
+if (first && !target.deployed) throw new Error('packages/contracts/deployments/arc-mainnet.json is missing: there is no live Adag to attack.');
+const adag = target.address;
+const adagAbi = target.artifact.abi;
 L.setAdagAbi(adagAbi);
+const inject = target.deployed ? null : { address: adag, code: target.artifact.deployedBytecode.object };
 
-const ctx = {};
+// setup holds the blocks every simulation starts with (none for the first deployment); offset shifts all later
+// block times past them; paidId is the bill the demo wallet has already paid.
+const ctx = { setup: [], offset: 0, paidId: 1n };
 const rows = [];
-const t = (k) => ctx.pin.timestamp + BigInt(k);
+const t = (k) => ctx.pin.timestamp + BigInt(ctx.offset + k);
 const tx = (from, c) => ({ from, to: c.to, data: c.data });
 const adagCall = (fn, args = []) => ({ to: adag, data: L.enc(adagAbi, fn, args) });
-const sim = (blocks) => L.simulate(blocks, ctx.pin.number, null);
 const outcome = (r) => (r.ok ? 'success' : L.decodeRevert(r.revertData));
+async function sim(blocks) {
+  const res = await L.simulate([...ctx.setup, ...blocks], ctx.pin.number, inject);
+  for (const blk of res.slice(0, ctx.setup.length)) {
+    const bad = blk.find((r) => !r.ok);
+    if (bad) throw new Error(`setup block failed: ${outcome(bad)}`);
+  }
+  return res.slice(ctx.setup.length);
+}
 const tidy = (s) => s.split(L.MARKET_USDC).join('MARKET_USDC').replace(/BillNotOpen\((\d+), (\d)\)/g, (_, id, st) => `BillNotOpen(${id}, ${STATUS[st]})`);
 const statusOf = (r) => STATUS[L.decodeRead({ abi: adagAbi, fn: 'bill' }, r.returnData).status];
 const billRead = (id) => tx(demo, adagCall('bill', [id]));
@@ -65,6 +91,13 @@ async function baseline() {
   ctx.params = { loanToken: p[0], collateralToken: p[1], oracle: p[2], irm: p[3], lltv: p[4] };
   L.verifyMarketParams(ctx.params, L.MARKET_USDC);
   L.assertUsdcMarketConstants(ctx.params);
+  if (!first) {
+    if (!target.deployed) {
+      const code = await L.circle.getCode({ address: adag });
+      if (code && code !== '0x') throw new Error(`${adag}, the predicted address for ${target.key}, already holds code. Run the deploy dry run again.`);
+    }
+    await setupPaidBill();
+  }
   const r = await readBlock([
     L.read('pos', L.MORPHO, L.morphoAbi, 'position', [L.MARKET_USDC, demo]),
     L.read('market', L.MORPHO, L.morphoAbi, 'market', [L.MARKET_USDC]),
@@ -72,7 +105,7 @@ async function baseline() {
     L.read('baseFeed', ctx.params.oracle, L.oracleAbi, 'BASE_FEED_1'),
     L.read('quoteFeed', ctx.params.oracle, L.oracleAbi, 'QUOTE_FEED_1'),
     L.read('seen', adag, adagAbi, 'seenPosition', [demo, L.MARKET_USDC]),
-    L.read('bill1', adag, adagAbi, 'bill', [1n]),
+    L.read('bill1', adag, adagAbi, 'bill', [ctx.paidId]),
     L.read('count', adag, adagAbi, 'billCount'),
     L.read('ltv', adag, adagAbi, 'loanToValue', [demo, L.MARKET_USDC]),
     L.read('status', adag, adagAbi, 'priceStatus', [L.MARKET_USDC]),
@@ -89,15 +122,37 @@ async function baseline() {
   const problems = [];
   if (ctx.shares === 0n) problems.push('the demo wallet has no open USDC-market loan');
   if (r.seen[0] !== ctx.shares || r.seen[1] !== ctx.collateral) problems.push('the demo loan has moved since Adag last recorded it');
-  if (r.bill1.status !== 2) problems.push('bill #1 is not Paid');
+  if (r.bill1.status !== 2) problems.push(`bill #${ctx.paidId} is not Paid`);
   if (!r.status[0]) problems.push('the BTC/USD price is stale, so every loan check would stop at StalePrice first');
   if (r.allow !== 0n) problems.push('the demo wallet still has a USDC allowance to Adag');
   if (r.usdc < 2_000000n) problems.push('the demo wallet holds under 2 USDC, too little to repay and re-borrow in A2');
   if (problems.length) throw new Error(`The live state is not the one these attacks were written for: ${problems.join('; ')}.`);
 }
 
+// The live state these attacks assume: a bill the demo wallet has paid, and its real loan recorded by Adag. A
+// deployment that already shows both needs no setup. Otherwise one block writes a bill and pays it from cash;
+// that first payment runs the 40% check on the demo loan and records it, exactly as the first live run did.
+async function setupPaidBill() {
+  const before = await readBlock([
+    L.read('count', adag, adagAbi, 'billCount'),
+    L.read('pos', L.MORPHO, L.morphoAbi, 'position', [L.MARKET_USDC, demo]),
+    L.read('seen', adag, adagAbi, 'seenPosition', [demo, L.MARKET_USDC]),
+    L.read('bill1', adag, adagAbi, 'bill', [1n]),
+  ]);
+  const recorded = before.seen[0] === before.pos[1] && before.seen[1] === before.pos[2];
+  if (before.bill1.status === 2 && before.bill1.payer === demo && recorded) return;
+  const id = before.count + 1n;
+  const time = ctx.pin.timestamp + 1n;
+  ctx.setup = [{ time, calls: [
+    tx(payee, adagCall('createBill', [L.USDC, BILL, time + 86_400n, stringToHex('ATTACK-SETUP')])),
+    tx(demo, L.calls.batch([L.calls.approve(L.USDC, adag, BILL), L.calls.memo(adagCall('pay', [id]), id, 'ATTACK-SETUP')])),
+  ] }];
+  ctx.offset = 1;
+  ctx.paidId = id;
+}
+
 async function readBlock(specs, overrides) {
-  const res = await L.simulate([{ time: t(1), overrides, calls: specs.map((s) => ({ from: demo, to: s.to, data: s.data })) }], ctx.pin.number, null);
+  const res = await sim([{ time: t(1), overrides, calls: specs.map((s) => ({ from: demo, to: s.to, data: s.data })) }]);
   const out = {};
   specs.forEach((s, i) => {
     const r = res[0][i];
@@ -110,11 +165,11 @@ async function readBlock(specs, overrides) {
 async function A1() {
   const res = await sim([{ time: t(1), overrides: STRANGER_FUNDS, calls: [
     tx(STRANGER, L.calls.approve(L.USDC, adag, 1_000000n)),
-    tx(STRANGER, adagCall('pay', [1n])),
+    tx(STRANGER, adagCall('pay', [ctx.paidId])),
   ] }]);
   const r = res[0][1];
-  row('A1', 'A funded stranger pays bill #1 a second time', 'pay-once: status must be Open',
-    outcome(r), res[0][0].ok && !r.ok && outcome(r) === 'BillNotOpen(1, 2)');
+  row('A1', `A funded stranger pays bill #${ctx.paidId} a second time`, 'pay-once: status must be Open',
+    outcome(r), res[0][0].ok && !r.ok && outcome(r) === `BillNotOpen(${ctx.paidId}, 2)`);
 }
 
 // Repay the whole loan outside Adag, pledge less, re-borrow the exact share count Adag remembers, then pay.
@@ -225,15 +280,15 @@ async function A7() {
   const id = firstNewId();
   const res = await sim([newBills(1), { time: t(2), overrides: STRANGER_FUNDS, calls: [
     tx(STRANGER, adagCall('voidBill', [id])),
-    tx(payee, adagCall('voidBill', [1n])),
+    tx(payee, adagCall('voidBill', [ctx.paidId])),
     billRead(id),
   ] }]);
   billsWritten(res[0]);
   const [stranger, paidVoid, read] = res[1];
   row('A7a', 'A stranger voids the payee\'s open bill', 'Adag: only the payee may void',
     `${outcome(stranger)}; bill ${statusOf(read)}`, !stranger.ok && outcome(stranger) === `NotPayee(${STRANGER})` && statusOf(read) === 'Open');
-  row('A7b', 'The payee voids bill #1 after it was paid', 'Adag: only an Open bill can be voided',
-    outcome(paidVoid), !paidVoid.ok && outcome(paidVoid) === 'BillNotOpen(1, 2)');
+  row('A7b', `The payee voids bill #${ctx.paidId} after it was paid`, 'Adag: only an Open bill can be voided',
+    outcome(paidVoid), !paidVoid.ok && outcome(paidVoid) === `BillNotOpen(${ctx.paidId}, 2)`);
 }
 
 async function A8() {
@@ -295,12 +350,132 @@ function A10() {
     ['A10a', `${L.WRITE_RPC} reports chain 1`, stub('0x1', '0x13b2'), `${L.WRITE_RPC} reports chain 1, not Arc mainnet 5042`],
     ['A10b', `${L.WRITE_RPC} reports 5042 but ${L.SIM_RPC} reports chain 1`, stub('0x13b2', '0x1'), `${L.SIM_RPC} reports chain 1, not Arc mainnet 5042`],
   ];
+  const targetFlag = first ? [] : ['--target', target.name];
   for (const [id, label, code, want] of cases) {
-    const p = spawnSync(process.execPath, ['--import', `data:text/javascript,${encodeURIComponent(code)}`, proveIt], { encoding: 'utf8', timeout: 60_000 });
+    const p = spawnSync(process.execPath, ['--import', `data:text/javascript,${encodeURIComponent(code)}`, proveIt, ...targetFlag], { encoding: 'utf8', timeout: 60_000 });
     const stopped = (p.stderr || '').split('\n').find((s) => s.startsWith('STOPPED:')) ?? `exit ${p.status}, no STOPPED line`;
     row(id, `prove-it dry run when ${label} (fetch stubbed, no network)`, 'prove-it: chain id must be 5042 before anything else',
       `exit ${p.status}; ${stopped}`, p.status === 1 && stopped.includes(want) && !(p.stdout || '').includes('Running'));
   }
+}
+
+const enrolStep = () => adagCall('enrol');
+const seenRead = (who) => tx(demo, adagCall('seenPosition', [who, L.MARKET_USDC]));
+const enrolledAtRead = (who) => tx(demo, adagCall('enrolledAt', [who]));
+const decodeAdag = (fn, r) => L.decodeRead({ abi: adagAbi, fn }, r.returnData);
+const sameSeen = (s) => s[0] === ctx.seen[0] && s[1] === ctx.seen[1];
+
+async function E1() {
+  const id = firstNewId();
+  const res = await sim([newBills(1), { time: t(2), calls: [
+    tx(demo, L.calls.batch([enrolStep(), ...cashPay(id)])),
+    billRead(id),
+    enrolledAtRead(demo),
+  ] }]);
+  billsWritten(res[0]);
+  const [r, bill, at] = res[1];
+  const status = statusOf(bill);
+  const block = decodeAdag('enrolledAt', at);
+  row('E1', 'Enrol and pay a new bill from cash in one batch', 'Adag: a payer whose enrol block is this block is refused (C32)',
+    `${outcome(r)}; bill ${status}; enrol block after ${block}`,
+    !r.ok && outcome(r) === 'MemoFailed(EnrolledThisBlock())' && status === 'Open' && block === 0n);
+}
+
+async function E2() {
+  const id = firstNewId();
+  const extra = (ctx.value * 6n) / 10n - ctx.debt;
+  const res = await sim([newBills(1), { time: t(2), calls: [
+    tx(demo, L.calls.batch([L.calls.borrow(ctx.params, extra, demo, demo), enrolStep(), ...cashPay(id)])),
+    billRead(id),
+    seenRead(demo),
+  ] }]);
+  billsWritten(res[0]);
+  const [r, bill, seen] = res[1];
+  const status = statusOf(bill);
+  const s = decodeAdag('seenPosition', seen);
+  row('E2', `Borrow ${L.usdc(extra)} more (to about 60%), enrol that debt, and pay a new bill, all in one batch`,
+    'Adag: same-block refusal (C32), so new debt cannot be enrolled and spent at once',
+    `${outcome(r)}; bill ${status}; recorded position ${s[0]} shares, ${L.btc(s[1])}`,
+    !r.ok && outcome(r) === 'MemoFailed(EnrolledThisBlock())' && status === 'Open' && sameSeen(s));
+}
+
+async function E3() {
+  const id = firstNewId();
+  const res = await sim([newBills(1), { time: t(2), overrides: STRANGER_FUNDS, calls: [
+    seenRead(demo),
+    tx(STRANGER, enrolStep()),
+    seenRead(demo),
+    enrolledAtRead(demo),
+    enrolledAtRead(STRANGER),
+    tx(demo, L.calls.batch(cashPay(id))),
+  ] }]);
+  billsWritten(res[0]);
+  const [before, enrol, after, demoAt, strangerAt, pay] = res[1];
+  const b = decodeAdag('seenPosition', before);
+  const a = decodeAdag('seenPosition', after);
+  const dAt = decodeAdag('enrolledAt', demoAt);
+  const sAt = decodeAdag('enrolledAt', strangerAt);
+  row('E3', 'A stranger calls enrol, then the demo wallet pays a bill from cash in the same block',
+    'Adag: enrol takes no arguments and writes only the caller\'s own record (C31)',
+    `stranger enrol ${outcome(enrol)} (its enrol block ${sAt}); demo recorded ${b[0]} shares, ${L.btc(b[1])} before and ${a[0]} shares, ${L.btc(a[1])} after; demo enrol block ${dAt}; demo payment ${outcome(pay)}`,
+    enrol.ok && sAt === ctx.pin.number + BigInt(ctx.offset + 2) && sameSeen(b) && sameSeen(a) && dAt === 0n && pay.ok);
+}
+
+// The backend-gate bypass against an enrolled position: enrol in block N, then in N+1 close the loan outside
+// Adag, re-pledge enough for about 60% and borrow back exactly the enrolled share count.
+async function E4() {
+  const id = firstNewId();
+  const repayApproval = ctx.debt + ctx.debt / 1000n + 1n;
+  const sixty = (ctx.debt * 10n ** 36n * 10n + ctx.price * 6n - 1n) / (ctx.price * 6n);
+  const res = await sim([
+    newBills(1),
+    { time: t(2), calls: [tx(demo, enrolStep())] },
+    { time: t(3), calls: [
+      tx(demo, L.calls.batch([
+        L.calls.approve(L.USDC, L.MORPHO, repayApproval),
+        L.calls.repayShares(ctx.params, ctx.shares, demo),
+        L.calls.withdrawCollateral(ctx.params, ctx.collateral, demo, demo),
+        L.calls.approve(L.CIRBTC, L.MORPHO, sixty),
+        L.calls.supplyCollateral(ctx.params, sixty, demo),
+        borrowShares(ctx.shares),
+        ...cashPay(id),
+      ])),
+      billRead(id),
+    ] },
+  ]);
+  billsWritten(res[0]);
+  const enrol = res[1][0];
+  const [r, bill] = res[2];
+  const status = statusOf(bill);
+  row('E4', `Enrol in block N; in N+1 close outside Adag and re-borrow the same ${ctx.shares} shares against ${L.btc(sixty)} (about 60%), then pay`,
+    'Adag: collateral fell below the enrolled position, so the 40% check runs (C32)',
+    `enrol ${outcome(enrol)}; then ${outcome(r)}; bill ${status}`,
+    enrol.ok && !r.ok && outcome(r).startsWith('MemoFailed(LtvAboveLimit(') && status === 'Open');
+}
+
+// The residual C32 names: debt taken outside Adag and enrolled in block N is not checked by a payment in N+1.
+async function E5() {
+  const id = firstNewId();
+  const extra = (ctx.value * 6n) / 10n - ctx.debt;
+  const res = await sim([
+    newBills(1),
+    { time: t(2), calls: [
+      tx(demo, L.calls.borrow(ctx.params, extra, demo, demo)),
+      tx(demo, enrolStep()),
+      tx(demo, adagCall('loanToValue', [demo, L.MARKET_USDC])),
+    ] },
+    { time: t(3), calls: [tx(demo, L.calls.batch(cashPay(id))), billRead(id)] },
+  ]);
+  billsWritten(res[0]);
+  const [borrow, enrol, ltvRead] = res[1];
+  const [pay, bill] = res[2];
+  const paid = pay.ok ? L.findEvent(pay.logs, adag, adagAbi, 'BillPaid') : null;
+  const ltv = ltvRead.ok ? pct(decodeAdag('loanToValue', ltvRead)) : '?';
+  const status = statusOf(bill);
+  row('E5', `Named residual: borrow ${L.usdc(extra)} outside Adag (to about 60%) and enrol in block N, then pay a new bill from cash in block N+1`,
+    'allowed by design (C32): enrol forgives debt taken before it, and only the payer\'s own position carries the risk',
+    `borrow ${outcome(borrow)}, loan-to-value ${ltv}; enrol ${outcome(enrol)}; next block: ${pay.ok ? `success, loanChecked ${paid?.loanChecked}` : outcome(pay)}; bill ${status}`,
+    borrow.ok && enrol.ok && pay.ok && paid?.loanChecked === false && status === 'Paid');
 }
 
 const cell = (s) => String(s).replace(/\|/g, '\\|');
@@ -313,15 +488,24 @@ function table() {
 async function main() {
   await baseline();
   const when = new Date(Number(ctx.pin.timestamp) * 1000).toISOString();
+  const targetNote = first ? [] : [target.deployed
+    ? `Target: ${target.label}, key ${target.key} in deployments/arc-mainnet.json.`
+    : `Target: ${target.label}, not deployed yet. The local build from out/AdagBills.sol is placed as code at ${adag}, the address the deploy dry run predicted (key ${target.key} in deployments/arc-mainnet.dry-run.json).`];
+  const setupNote = ctx.setup.length
+    ? [`Setup block before every simulation: the payee writes bill #${ctx.paidId} for ${L.usdc(BILL)} and the demo wallet pays it from cash, so Adag checks and records its real loan.`]
+    : [];
   const state = [
     ...(wallets.fromEnv ? [] : [L.demoWalletsNote()]),
+    ...targetNote,
     `Block ${ctx.pin.number} (${when}), dRPC eth_simulateV1, Adag ${adag}.`,
+    ...setupNote,
     `Demo wallet ${demo}: loan ${L.usdc(ctx.debt)} (${ctx.shares} shares) against ${L.btc(ctx.collateral)} pledged, loan-to-value ${pct(ctx.ltv)}; wallet ${L.usdc(ctx.usdc)}, ${L.btc(ctx.btc)}. Adag last recorded ${ctx.seen[0]} shares and ${L.btc(ctx.seen[1])}.`,
-    `Payee ${payee}. Simulated stranger ${STRANGER}. Bill #1 is ${STATUS[ctx.bill1.status]}; ${ctx.count} bills written so far. BTC price ${L.btcPrice(ctx.price)}.`,
+    `Payee ${payee}. Simulated stranger ${STRANGER}. Bill #${ctx.paidId} is ${STATUS[ctx.bill1.status]}; ${ctx.count} bills written so far. BTC price ${L.btcPrice(ctx.price)}.`,
   ];
   console.log(state.join('\n'));
 
-  for (const attack of [A1, A2, A3, A4, A5, A6, A7, A8, A9, A10]) {
+  const attacks = [A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, ...(first ? [] : [E1, E2, E3, E4, E5])];
+  for (const attack of attacks) {
     try {
       await attack();
     } catch (e) {
@@ -331,7 +515,9 @@ async function main() {
 
   const allOk = rows.every((r) => r.pass);
   const verdict = allOk
-    ? `All ${rows.length} checks behaved as the threat model says: every attack was refused, and the named residual (A4) behaved exactly as documented.`
+    ? (first
+      ? `All ${rows.length} checks behaved as the threat model says: every attack was refused, and the named residual (A4) behaved exactly as documented.`
+      : `All ${rows.length} checks behaved as the threat model says: every attack was refused, and the named residuals (A4, and E5 for enrol) behaved exactly as documented.`)
     : `${rows.filter((r) => !r.pass).length} of ${rows.length} checks did not behave as expected. See the FAIL rows.`;
   const t2 = table();
   console.log(`\n${t2}\n\n${verdict}`);
@@ -350,7 +536,8 @@ async function main() {
       '',
     ].join('\n'));
   }
-  appendFileSync(file, `\n## Run at block ${ctx.pin.number}\n\n${state.join('\n\n')}\n\n${t2}\n\n${verdict}\n`);
+  const heading = first ? `Run at block ${ctx.pin.number}` : `Run at block ${ctx.pin.number}, ${target.label}${target.deployed ? '' : ' (not deployed yet, local build simulated)'}`;
+  appendFileSync(file, `\n## ${heading}\n\n${state.join('\n\n')}\n\n${t2}\n\n${verdict}\n`);
   console.log(`\nSaved to ${fileURLToPath(file)}`);
   return allOk ? 0 : 1;
 }

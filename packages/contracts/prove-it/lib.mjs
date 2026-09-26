@@ -1,6 +1,7 @@
 // Shared pieces for prove-it.mjs: the env reader, the two RPC clients, ABIs, call builders, event decoders and
 // formatting. Nothing in this file signs a transaction; prove-it.mjs owns the one place that does.
 import { existsSync, readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import {
   createPublicClient, defineChain, http, parseAbi, encodeFunctionData, decodeFunctionResult, decodeEventLog,
   decodeErrorResult, formatUnits, hexToString, isAddress, getAddress, pad, stringToHex, toHex, parseGwei,
@@ -19,6 +20,7 @@ export const M3F = '0x522fAf9A91c41c443c66765030741e4AaCe147D0';
 export const USDC = '0x3600000000000000000000000000000000000000';
 export const CIRBTC = '0x171A4217b86A807A64eB94757Db6849fb4bDbAA0';
 export const MARKET_USDC = '0xc2db905f174e5defcce01d321b09f15f78856a36a21b90cc7e1abbc29225815d';
+export const MARKET_EURC = '0x6ea1ea96a1cc671615f3a3bdf51481c5b79e362a8b634396e680d1070137daf4';
 // MARKET_USDC's own oracle, rate model and liquidation line. A second USDC/cirBTC market exists with other
 // values, so the script checks every fetched field against these, not only the two tokens.
 export const USDC_MARKET_ORACLE = '0x2AA87fF48933Ce6aBA240BEE916Fc2e6Ec1e51Ab';
@@ -105,26 +107,72 @@ const artifactUrl = new URL('../out/AdagBills.sol/AdagBills.json', import.meta.u
 // The ABI of the deployment recorded under "AdagBills" in arc-mainnet.json, the first one, from 25 September.
 const publishedAbiUrl = new URL('../deployments/2026-09-25/AdagBills.abi.json', import.meta.url);
 const deploymentUrl = new URL('../deployments/arc-mainnet.json', import.meta.url);
+const dryRunUrl = new URL('../deployments/arc-mainnet.dry-run.json', import.meta.url);
+
+// The --target values both scripts accept. Each names one record key in deployments/arc-mainnet.json.
+export const TARGETS = {
+  first: { key: 'AdagBills', label: 'the first AdagBills (25 September, no enrol)' },
+  enrol: { key: 'AdagBillsEnrol', label: 'AdagBills with enrol' },
+};
 
 // A local arc-forge build when there is one; otherwise the ABI published beside the deployment, which is all a
 // run against the live contract needs. deployedBytecode is null in that case.
-export function loadAdagAbi() {
+export function loadAdagAbi(published = publishedAbiUrl) {
   if (existsSync(artifactUrl)) return JSON.parse(readFileSync(artifactUrl, 'utf8'));
-  if (!existsSync(publishedAbiUrl)) {
-    throw new Error('Neither a local build (packages/contracts/out) nor deployments/2026-09-25/AdagBills.abi.json was found.');
+  if (!existsSync(published)) {
+    throw new Error(`Neither a local build (packages/contracts/out) nor ${fileURLToPath(published)} was found.`);
   }
-  return { abi: JSON.parse(readFileSync(publishedAbiUrl, 'utf8')), deployedBytecode: null };
+  return { abi: JSON.parse(readFileSync(published, 'utf8')), deployedBytecode: null };
+}
+
+function readRecord(url, name) {
+  if (!existsSync(url)) return null;
+  const d = JSON.parse(readFileSync(url, 'utf8'));
+  if (d.chainId !== CHAIN_ID) throw new Error(`deployments/${name} names chain ${d.chainId}, not ${CHAIN_ID}.`);
+  return d;
 }
 
 // Returns the deployed address, or null when the file does not exist yet. A file that exists but names another
-// chain or holds a malformed address is an error, never a silent fallback to the injected code.
-export function loadDeployment() {
-  if (!existsSync(deploymentUrl)) return null;
-  const d = JSON.parse(readFileSync(deploymentUrl, 'utf8'));
-  if (d.chainId !== CHAIN_ID) throw new Error(`deployments/arc-mainnet.json names chain ${d.chainId}, not ${CHAIN_ID}.`);
-  const address = d?.AdagBills?.address;
-  if (!address || !isAddress(address, { strict: false })) throw new Error('deployments/arc-mainnet.json has no valid AdagBills.address.');
+// chain or holds a malformed address is an error, never a silent fallback to the injected code. The first
+// deployment's key must be present in an existing file; a later key may be absent, meaning not deployed yet.
+export function loadDeployment(key = TARGETS.first.key) {
+  const d = readRecord(deploymentUrl, 'arc-mainnet.json');
+  if (!d) return null;
+  if (!(key in d) && key !== TARGETS.first.key) return null;
+  const address = d?.[key]?.address;
+  if (!address || !isAddress(address, { strict: false })) throw new Error(`deployments/arc-mainnet.json has no valid ${key}.address.`);
   return getAddress(address);
+}
+
+const hasEnrol = (abi) => abi.some((e) => e.type === 'function' && e.name === 'enrol');
+
+// Where a run points and what code it uses. `first` behaves exactly as before targets existed: the recorded
+// address, or the placeholder with the local build injected when nothing is recorded. `enrol` uses its record
+// once it exists; until then it injects the local build, which must have enrol, at the address the deploy dry
+// run predicted, so the simulation runs the same code at the same address a real deploy would.
+export function loadTarget(name = 'first') {
+  const target = TARGETS[name];
+  if (!target) throw new Error(`Unknown target ${name}. Use --target first or --target enrol.`);
+  if (name === 'first') {
+    const deployed = loadDeployment(target.key);
+    return { ...target, name, address: deployed ?? PLACEHOLDER_ADAG, deployed: !!deployed, predicted: false, artifact: loadAdagAbi() };
+  }
+  const deployed = loadDeployment(target.key);
+  if (deployed) {
+    const day = String(readRecord(deploymentUrl, 'arc-mainnet.json')[target.key].deployedAt ?? '').slice(0, 10);
+    const artifact = loadAdagAbi(new URL(`../deployments/${day}/AdagBills.abi.json`, import.meta.url));
+    if (!hasEnrol(artifact.abi)) throw new Error(`The ABI loaded for ${target.key} has no enrol function.`);
+    return { ...target, name, address: deployed, deployed: true, predicted: false, artifact };
+  }
+  const predicted = readRecord(dryRunUrl, 'arc-mainnet.dry-run.json')?.[target.key]?.address;
+  if (!predicted || !isAddress(predicted, { strict: false })) {
+    throw new Error(`${target.key} is not in deployments/arc-mainnet.json and deployments/arc-mainnet.dry-run.json has no predicted address for it. Run bash packages/contracts/deploy.sh (a dry run) first.`);
+  }
+  const artifact = existsSync(artifactUrl) ? JSON.parse(readFileSync(artifactUrl, 'utf8')) : null;
+  if (!artifact?.deployedBytecode?.object || !hasEnrol(artifact.abi)) {
+    throw new Error(`${target.key} is not deployed, and there is no local build with enrol to inject. Build it with bash packages/contracts/run-tests.sh.`);
+  }
+  return { ...target, name, address: getAddress(predicted), deployed: false, predicted: true, artifact };
 }
 
 const mp = '(address loanToken, address collateralToken, address oracle, address irm, uint256 lltv)';
