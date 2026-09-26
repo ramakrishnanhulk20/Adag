@@ -184,7 +184,8 @@ node packages/contracts/prove-it/guard-attack.mjs    the attack suite
 bash packages/contracts/verify-guard.sh              source verification
 ```
 
-None of them signs or sends a transaction, and none reads a key. The two scripts read AdagGuard's address from
+As shown here none of them signs or sends a transaction, and none reads a key. Only `guard-prove.mjs --broadcast`
+and `--clear`, described below, send real transactions. The two scripts read AdagGuard's address from
 `deployments/adag-guard.arc-mainnet.json`, which `deploy-guard.sh --broadcast` wrote, or from an `"AdagGuard"` key
 in `deployments/arc-mainnet.json` (if both exist they must agree). They stop if there is no contract at that
 address. They read its ABI from `deployments/2026-09-26/AdagGuard.abi.json`, which `verify-guard.sh` wrote beside
@@ -221,6 +222,59 @@ Run against the live contract at block 22863666: the stranger's protect repaid 0
 from 37.89% to 29.9999659%. The second protect repaid 0. Gas: setRule 129,321, approve 55,438, protect 211,485,
 the repeat protect 112,339. The script stops, rather than proving nothing, if the payer has no loan or the loan
 is already under 35%.
+
+#### The real run: --broadcast
+
+```
+node packages/contracts/prove-it/guard-prove.mjs --broadcast
+node packages/contracts/prove-it/guard-prove.mjs --clear
+```
+
+`--broadcast` does the same four steps with real transactions on Arc mainnet, for the owner of the demo wallets
+only. The payer is `DEPLOYER_ADDRESS` and the stranger is `PAYEE_ADDRESS`, a second wallet with no link to the
+payer's loan. Both are read from the repo `.env`.
+
+1. The payer signs one Multicall3From batch, all or nothing: `setRule` (35% / 30%, no expiry) and an approval of
+   exactly 1 USDC to AdagGuard.
+2. The stranger sends `protect(payer, USDC market)`.
+3. The stranger sends `protect` again at the same price.
+
+What it moves:
+- About 0.21 USDC of the payer's own USDC repays part of the payer's own Morpho loan, taking it from about 38% to
+  30%. It never leaves for anyone else: Morpho records it against the payer's debt. The exact amount is printed
+  in the plan.
+- Gas from both wallets: about 505,000 gas in all, about 0.011 USDC at the current 20 gwei base fee plus a 1 gwei
+  tip. The payer pays for the batch and the stranger pays for the two protects.
+- No bitcoin moves. The rule and the unused approval, about 0.79 USDC, stay in place until `--clear`.
+
+Safety, the same as prove-it.mjs:
+- It checks chain id 5042 first.
+- It checks that AdagGuard is the recorded deployment with code on chain.
+- It proves the USDC market params by hashing them to the fixed market id.
+- It refuses to send anything if the payer already has a rule in the USDC market, so a second run cannot stack
+  another approval, or if the loan is under 35% at the latest block.
+- It rehearses the whole plan on dRPC as these two wallets, then prints the plan with the amount it will repay and
+  the gas.
+- It sends nothing until `yes` is typed at the terminal, read from `/dev/tty`, or from stdin where there is no
+  terminal. Closed input counts as no.
+- The private keys (`DEPLOYER_PRIVATE_KEY`, `PAYEE_PRIVATE_KEY`) are read only after that `yes`, only by name, and
+  checked against their addresses. They are never printed.
+- It checks the two refusals again at the latest block, because minutes may pass at the prompt.
+- Each transaction is estimated first, and its receipt must succeed, from the expected wallet to the expected
+  fixed address.
+- The targets are Multicall3From (inner calls to AdagGuard and USDC only) and AdagGuard. Fees are never under
+  20 gwei.
+
+It then makes the dry run's checks against the real receipts, plus two more: every transaction succeeded, and
+the approval was exactly 1 USDC. Quote is re-run on the parent block at the protect block's time, so "repaid
+exactly what quote said" compares the same moment. The receipt, the explorer links and the checks are written to
+`packages/contracts/deployments/guard-prove-<date>.md`. It exits 0 only if every check passes.
+
+`--clear` removes what the run left behind. The payer signs one Multicall3From batch: `clearRule` on the USDC
+market (only if a rule exists) and an approval of 0 to AdagGuard. It has the same chain, record and market checks,
+the same printed plan, typed `yes` and key handling, and the same receipt check. It then checks that no rule and
+no approval are left, and appends its receipt to the same `guard-prove-<date>.md`. With nothing to clear it says
+so and sends nothing.
 
 ### guard-attack.mjs
 

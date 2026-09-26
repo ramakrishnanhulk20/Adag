@@ -2,17 +2,26 @@
 // approves 1 USDC, then a stranger calls protect, which repays just enough of the payer's real Morpho loan from
 // the payer's own wallet to land at or under 30%, and a second call at the same price repays nothing.
 //
-//   node packages/contracts/prove-it/guard-prove.mjs
+//   node packages/contracts/prove-it/guard-prove.mjs              dry run on live mainnet state, sends nothing
+//   node packages/contracts/prove-it/guard-prove.mjs --broadcast  the real thing, asks for a typed "yes" first
+//   node packages/contracts/prove-it/guard-prove.mjs --clear      removes the payer's rule and sets the approval to 0
 //
-// Every step runs inside eth_simulateV1 on dRPC from one real mainnet block. Nothing is signed or sent and no
-// key is read. Before AdagGuard is deployed, its runtime code from the local build (out-guard) is injected at
-// the address a real deploy will give it; once deployments/adag-guard.arc-mainnet.json exists, the same run
-// uses the live contract and injects nothing. The only other state override gives the simulated stranger some
-// native USDC.
-import { existsSync, readFileSync } from 'node:fs';
+// The dry run: every step runs inside eth_simulateV1 on dRPC from one real mainnet block. Nothing is signed or
+// sent and no key is read. Before AdagGuard is deployed, its runtime code from the local build (out-guard) is
+// injected at the address a real deploy will give it; once deployments/adag-guard.arc-mainnet.json exists, the
+// same run uses the live contract and injects nothing. The only other state override gives the simulated
+// stranger some native USDC.
+//
+// --broadcast and --clear sign real transactions from the wallets in the repo .env: the payer is DEPLOYER_ADDRESS
+// and the stranger that calls protect is PAYEE_ADDRESS. Each prints its plan and sends nothing until "yes" is
+// typed; the keys are read only after that, only by name, and never printed. A real run writes its receipt to
+// deployments/guard-prove-<date>.md.
+import { appendFileSync, createReadStream, existsSync, openSync, readFileSync, writeFileSync } from 'node:fs';
+import { createInterface } from 'node:readline';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { getAddress, getContractAddress, isAddress, keccak256, stringToHex } from 'viem';
+import { createWalletClient, getAddress, getContractAddress, http, isAddress, keccak256, stringToHex } from 'viem';
+import { privateKeyToAccount } from 'viem/accounts';
 import * as L from './lib.mjs';
 
 export const DEPLOYER = getAddress('0x6e26Dd347b57ba591Ee34292A2d828CCC17A1fDE');
@@ -153,7 +162,7 @@ export const exactPct = (wad) => {
 };
 const gasOf = (r) => r.gas.toLocaleString('en-US').padStart(9);
 
-async function main() {
+async function dryRun() {
   const wallets = L.dryRunAddresses();
   const payer = wallets.payer;
   const guard = await loadGuard();
@@ -282,6 +291,380 @@ async function main() {
     ? `PROVEN (dry run): a stranger's protect repaid ${L.usdc(repaid)} of the payer's own loan from the payer's own wallet, taking it from ${L.pct(ltvBefore)} to ${L.pct(ltvAfter)}, and no bitcoin was sold.`
     : 'NOT PROVEN: at least one check failed, see above.');
   return allOk ? 0 : 1;
+}
+
+// The live runs from here on. Payer gas is kept apart from the repay so the loan can always be paid down.
+const MIN_PAYER_GAS = 50_000n;
+const MIN_STRANGER_GAS_WEI = 10n ** 16n;
+const reportUrl = (date) => new URL(`../deployments/guard-prove-${date}.md`, import.meta.url);
+
+function parseArgs(argv) {
+  const known = new Set(['--broadcast', '--clear']);
+  const unknown = argv.filter((a) => !known.has(a));
+  if (unknown.length) throw new Stop(`Unknown option ${unknown.join(' ')}. Run with no option for the dry run, --broadcast for the real run, or --clear to remove the rule and the approval.`);
+  if (argv.includes('--broadcast') && argv.includes('--clear')) throw new Stop('--broadcast and --clear run separately.');
+  return { broadcast: argv.includes('--broadcast'), clear: argv.includes('--clear') };
+}
+
+// Same fee rule as prove-it.mjs: twice the base fee plus the tip, never under Arc's 20 gwei floor.
+const feesFor = (baseFee) => {
+  const doubled = 2n * baseFee + L.PRIORITY_FEE;
+  return { maxFeePerGas: doubled > L.MIN_MAX_FEE ? doubled : L.MIN_MAX_FEE, maxPriorityFeePerGas: L.PRIORITY_FEE };
+};
+
+// Reads the answer from the terminal itself when there is one, so a piped stdin cannot answer for Ram, and from
+// stdin otherwise. Closed input counts as no.
+function askYes(question) {
+  let input = process.stdin;
+  let fd = null;
+  try {
+    fd = openSync('/dev/tty', 'r');
+    input = createReadStream(null, { fd });
+  } catch {
+    fd = null;
+  }
+  process.stdout.write(question);
+  return new Promise((done) => {
+    const rl = createInterface({ input, terminal: false });
+    let answered = false;
+    const finish = (answer) => {
+      if (answered) return;
+      answered = true;
+      rl.close();
+      if (fd !== null) input.destroy();
+      if (!answer) process.stdout.write('\n');
+      done(answer.trim() === 'yes');
+    };
+    rl.once('line', finish);
+    rl.once('close', () => finish(''));
+  });
+}
+
+// Keys are read only after the typed yes, only by name, and turned into signing accounts straight away. A key
+// that does not produce its address in .env stops the run before anything is sent.
+function loadSigners(roles) {
+  const env = L.readEnv(roles.map((r) => r.keyName));
+  const out = {};
+  for (const { role, keyName, addrName, address } of roles) {
+    const raw = env[keyName].startsWith('0x') ? env[keyName] : `0x${env[keyName]}`;
+    if (!/^0x[0-9a-fA-F]{64}$/.test(raw)) throw new Stop(`${keyName} in .env is not a 32-byte hex key.`);
+    let account;
+    try { account = privateKeyToAccount(raw); } catch { throw new Stop(`${keyName} in .env is not a usable key.`); }
+    if (account.address !== address) throw new Stop(`${keyName} does not belong to ${addrName}.`);
+    out[role] = createWalletClient({ account, chain: L.arc, transport: http(L.WRITE_RPC, { timeout: 60_000 }) });
+  }
+  return out;
+}
+
+async function readAt(specs, blockNumber) {
+  const out = {};
+  for (const s of specs) {
+    let data;
+    try {
+      ({ data } = await L.circle.call({ to: s.to, data: s.data, blockNumber }));
+    } catch (e) {
+      throw new Stop(`Reading ${s.fn} failed: ${L.decodeRevert(e?.cause?.data ?? e?.data)}`);
+    }
+    out[s.key] = L.decodeRead(s, data);
+  }
+  return out;
+}
+
+const liveSnap = (guard, payer) => [
+  L.read('usdc', L.USDC, L.erc20Abi, 'balanceOf', [payer]),
+  L.read('btc', L.CIRBTC, L.erc20Abi, 'balanceOf', [payer]),
+  L.read('pos', L.MORPHO, L.morphoAbi, 'position', [L.MARKET_USDC, payer]),
+  L.read('market', L.MORPHO, L.morphoAbi, 'market', [L.MARKET_USDC]),
+  L.read('price', L.USDC_MARKET_ORACLE, L.oracleAbi, 'price'),
+  L.read('guardUsdc', L.USDC, L.erc20Abi, 'balanceOf', [guard.address]),
+  L.read('guardToMorpho', L.USDC, L.erc20Abi, 'allowance', [guard.address, L.MORPHO]),
+  L.read('payerToGuard', L.USDC, L.erc20Abi, 'allowance', [payer, guard.address]),
+  L.read('rule', guard.address, guard.abi, 'ruleOf', [payer, L.MARKET_USDC]),
+];
+
+// Chain first, then the addresses from .env, then the recorded AdagGuard, then the market params proven against
+// the fixed market id. Nothing here signs.
+async function liveSetup(flag, needStranger) {
+  const chainId = await L.circle.getChainId();
+  if (chainId !== L.CHAIN_ID) throw new Stop(`${L.WRITE_RPC} reports chain ${chainId}, not Arc mainnet ${L.CHAIN_ID}. Nothing sent.`);
+  const names = needStranger ? ['DEPLOYER_ADDRESS', 'PAYEE_ADDRESS'] : ['DEPLOYER_ADDRESS'];
+  let env;
+  try {
+    env = L.readEnv(names);
+  } catch (e) {
+    throw new Stop(`${flag} signs real transactions on Arc mainnet, so it needs ${names.join(' and ')} and the matching private keys in .env at the repo root. ${e.message}`);
+  }
+  const payer = L.checkedAddress(env.DEPLOYER_ADDRESS, 'DEPLOYER_ADDRESS');
+  const stranger = needStranger ? L.checkedAddress(env.PAYEE_ADDRESS, 'PAYEE_ADDRESS') : null;
+  if (stranger === payer) throw new Stop('DEPLOYER_ADDRESS and PAYEE_ADDRESS are the same wallet; the protect must come from a second wallet.');
+  const guard = await loadGuard();
+  if (!guard.deployed) throw new Stop(`${flag} needs the deployed AdagGuard, and no deployment record names it yet. Nothing sent.`);
+  L.setAdagAbi(guard.abi);
+  const head = await L.circle.getBlock();
+  const p = (await readAt([L.read('p', L.MORPHO, L.morphoAbi, 'idToMarketParams', [L.MARKET_USDC])], head.number)).p;
+  const params = { loanToken: p[0], collateralToken: p[1], oracle: p[2], irm: p[3], lltv: p[4] };
+  L.verifyMarketParams(params, L.MARKET_USDC);
+  L.assertUsdcMarketConstants(params);
+  return { payer, stranger, guard, head, params };
+}
+
+async function sendChecked(wallet, label, call) {
+  let estimate;
+  try {
+    estimate = await L.circle.estimateGas({ account: wallet.account, to: call.to, data: call.data });
+  } catch (e) {
+    throw new Stop(`${label} would revert, so it was not sent: ${L.decodeRevert(e?.cause?.data ?? e?.data) || e.shortMessage}`);
+  }
+  const block = await L.circle.getBlock();
+  const fees = feesFor(block.baseFeePerGas ?? 0n);
+  const hash = await wallet.sendTransaction({ to: call.to, data: call.data, gas: (estimate * 125n) / 100n, ...fees });
+  console.log(`  sent ${label}: ${L.EXPLORER_TX}${hash}`);
+  const rc = await L.circle.waitForTransactionReceipt({ hash, timeout: 180_000 });
+  if (rc.status !== 'success') throw new Stop(`${label} reverted on chain: ${L.EXPLORER_TX}${hash}`);
+  if (getAddress(rc.from) !== wallet.account.address || getAddress(rc.to) !== getAddress(call.to)) {
+    throw new Stop(`${label}: the receipt names ${rc.from} to ${rc.to}, not the wallet and target this script sent.`);
+  }
+  const blk = await L.circle.getBlock({ blockNumber: rc.blockNumber });
+  return { label, hash, rc, block: rc.blockNumber, time: blk.timestamp, gas: rc.gasUsed, cost: rc.gasUsed * rc.effectiveGasPrice };
+}
+
+// quote at the protect's own moment: the parent block's state at the protect block's time, on dRPC.
+async function quoteAt(guard, stranger, payer, parent, time) {
+  for (let i = 0; i < 12 && (await L.simHead()).number < parent; i++) await new Promise((r) => setTimeout(r, 5_000));
+  const res = await L.simulate([{ time, calls: [{ from: stranger, to: guard.address, data: L.enc(guard.abi, 'quote', [payer, L.MARKET_USDC]) }] }], parent, null);
+  if (!res[0][0].ok) throw new Stop(`quote at block ${parent} failed: ${L.decodeRevert(res[0][0].revertData)}`);
+  return L.decodeRead({ abi: guard.abi, fn: 'quote' }, res[0][0].returnData);
+}
+
+function writeReport(date, title, lines) {
+  const file = reportUrl(date);
+  if (!existsSync(file)) {
+    writeFileSync(file, [
+      `# AdagGuard live runs, ${date}`,
+      '',
+      'Written by `node packages/contracts/prove-it/guard-prove.mjs --broadcast` and `--clear` after real transactions on',
+      'Arc mainnet. Every hash links to explorer.arc.io.',
+      '',
+    ].join('\n'));
+  }
+  appendFileSync(file, `\n## ${title}\n\n${lines.join('\n')}\n`);
+  return fileURLToPath(file);
+}
+
+const txRow = (i, t) => `  tx ${i} ${t.label.padEnd(30)} block ${t.block}, gas ${t.gas.toLocaleString('en-US')}, cost ${L.gasUsdc(t.cost)}   ${L.EXPLORER_TX}${t.hash}`;
+
+async function broadcastRun() {
+  const { payer, stranger, guard, head, params } = await liveSetup('--broadcast', true);
+  const s0 = await readAt(liveSnap(guard, payer), head.number);
+  const strangerGas = await L.circle.getBalance({ address: stranger, blockNumber: head.number });
+  const debt = debtUp(s0.pos[1], s0.market);
+  const ltv = ltvOf(debt, s0.pos[2], s0.price);
+
+  line(`AdagGuard prove-it: LIVE on Arc mainnet (chain ${L.CHAIN_ID}, block ${head.number}). AdagGuard at ${guard.address}.`);
+  line();
+  line('Starting state');
+  line(`  payer ${payer}: loan ${L.usdc(debt)} against ${L.btc(s0.pos[2])} pledged, loan-to-value ${L.pct(ltv)}; wallet ${L.usdc(s0.usdc)}`);
+  line(`  stranger ${stranger}: ${L.gasUsdc(strangerGas)} for gas`);
+  line(`  BTC price ${L.btcPrice(s0.price)}; Morpho liquidates this market at ${L.pct(params.lltv)}`);
+  line(`  payer's current approval to AdagGuard: ${L.usdc(s0.payerToGuard)}`);
+
+  if (s0.rule.triggerWad !== 0n) {
+    throw new Stop(`The payer already has a guard rule in the USDC market (${L.pct(s0.rule.triggerWad)} / ${L.pct(s0.rule.targetWad)}), so a second run would stack another approval on it. Run with --clear first. Nothing sent.`);
+  }
+  if (s0.pos[1] === 0n) throw new Stop('The payer has no USDC-market loan, so there is nothing to protect. Nothing sent.');
+  if (ltv < TRIGGER) throw new Stop(`The payer's loan is at ${L.pct(ltv)} at block ${head.number}, under the 35% trigger, so the guard would rightly do nothing. Nothing sent.`);
+
+  // Rehearse the exact plan on dRPC first, as these two wallets, so the plan shows the amount it will repay.
+  const pin = await L.simHead();
+  const batch = L.calls.batch([
+    { to: guard.address, data: L.enc(guard.abi, 'setRule', [L.MARKET_USDC, TRIGGER, TARGET, 0n]) },
+    L.calls.approve(L.USDC, guard.address, APPROVAL),
+  ]);
+  const protectCall = { to: guard.address, data: L.enc(guard.abi, 'protect', [payer, L.MARKET_USDC]) };
+  const rehearsal = await L.simulate([
+    { time: pin.timestamp + 1n, calls: [{ from: payer, ...batch }] },
+    { time: pin.timestamp + 2n, calls: [
+      { from: stranger, to: guard.address, data: L.enc(guard.abi, 'quote', [payer, L.MARKET_USDC]) },
+      { from: stranger, ...protectCall },
+    ] },
+    { time: pin.timestamp + 3n, calls: [{ from: stranger, ...protectCall }] },
+  ], pin.number, null);
+  const failed = [rehearsal[0][0], rehearsal[1][1], rehearsal[2][0]].find((r) => !r.ok);
+  if (failed) throw new Stop(`The rehearsal on dRPC reverted: ${L.decodeRevert(failed.revertData)}. Nothing sent.`);
+  const [wouldAct, expected] = L.decodeRead({ abi: guard.abi, fn: 'quote' }, rehearsal[1][0].returnData);
+  if (!wouldAct) throw new Stop('In the rehearsal the guard would not act. Nothing sent.');
+  if (s0.usdc < expected + MIN_PAYER_GAS) throw new Stop(`The payer holds ${L.usdc(s0.usdc)}; this run needs about ${L.usdc(expected + MIN_PAYER_GAS)} (the repay plus gas). Nothing sent.`);
+  if (strangerGas < MIN_STRANGER_GAS_WEI) throw new Stop(`The stranger holds ${L.gasUsdc(strangerGas)}, under 0.01 USDC for gas. Nothing sent.`);
+  const gasEstimate = rehearsal[0][0].gas + rehearsal[1][1].gas + rehearsal[2][0].gas;
+
+  line();
+  line('Plan (LIVE, real money)');
+  line(`  1. payer signs ONE Multicall3From batch, both steps all-or-nothing:`);
+  line(`       setRule on the USDC market: act at ${L.pct(TRIGGER)}, bring the loan back to ${L.pct(TARGET)}, no expiry`);
+  line(`       approve AdagGuard for exactly ${L.usdc(APPROVAL)}, the most it can ever take`);
+  line(`  2. stranger calls protect(payer, USDC market): about ${L.usdc(expected)} of the payer's loan is repaid from the payer's wallet`);
+  line('  3. stranger calls protect again at the same price, which should repay 0');
+  const likelyFee = (head.baseFeePerGas ?? 0n) + L.PRIORITY_FEE;
+  line(`  Gas about ${gasEstimate.toLocaleString('en-US')} in all, split between the two wallets: about ${L.gasUsdc(gasEstimate * likelyFee)} at the current base fee plus the tip, at most ${L.gasUsdc(gasEstimate * feesFor(head.baseFeePerGas ?? 0n).maxFeePerGas)}.`);
+  line('  Afterwards the rule and the unused approval stay; remove them with --clear.');
+
+  if (!(await askYes('\nType yes to send these transactions on Arc mainnet: '))) {
+    line('Cancelled. Nothing was sent, and no key was read.');
+    return 1;
+  }
+  const w = loadSigners([
+    { role: 'payer', keyName: 'DEPLOYER_PRIVATE_KEY', addrName: 'DEPLOYER_ADDRESS', address: payer },
+    { role: 'stranger', keyName: 'PAYEE_PRIVATE_KEY', addrName: 'PAYEE_ADDRESS', address: stranger },
+  ]);
+
+  // Minutes may have passed at the prompt, so the two refusals are checked again at the latest block.
+  const now = await L.circle.getBlockNumber();
+  const s1 = await readAt(liveSnap(guard, payer), now);
+  const ltvNow = ltvOf(debtUp(s1.pos[1], s1.market), s1.pos[2], s1.price);
+  if (s1.rule.triggerWad !== 0n) throw new Stop('A rule appeared for the payer while waiting. Nothing sent.');
+  if (ltvNow < TRIGGER) throw new Stop(`The loan fell to ${L.pct(ltvNow)} at block ${now}, under the trigger. Nothing sent.`);
+
+  line();
+  line('Running');
+  L.verifyMarketParams(params, L.MARKET_USDC);
+  const t1 = await sendChecked(w.payer, 'setRule and approve (payer)', batch);
+  const ruleSet = L.findEvent(t1.rc.logs, guard.address, guard.abi, 'RuleSet');
+  const afterRule = await readAt(liveSnap(guard, payer), t1.block);
+  const t2 = await sendChecked(w.stranger, 'protect (stranger)', protectCall);
+  const before = await readAt(liveSnap(guard, payer), t2.block - 1n);
+  const after = await readAt(liveSnap(guard, payer), t2.block);
+  const [qAct, quoted] = await quoteAt(guard, stranger, payer, t2.block - 1n, t2.time);
+  const t3 = await sendChecked(w.stranger, 'protect again (stranger)', protectCall);
+  const beforeAgain = await readAt([L.read('usdc', L.USDC, L.erc20Abi, 'balanceOf', [payer])], t3.block - 1n);
+  const afterAgain = await readAt([L.read('usdc', L.USDC, L.erc20Abi, 'balanceOf', [payer])], t3.block);
+
+  const event = L.findEvent(t2.rc.logs, guard.address, guard.abi, 'Protected');
+  const morphoRepay = L.findEvent(t2.rc.logs, L.MORPHO, L.morphoAbi, 'Repay');
+  const eventAgain = L.findEvent(t3.rc.logs, guard.address, guard.abi, 'Protected');
+  const repayAgain = L.findEvent(t3.rc.logs, L.MORPHO, L.morphoAbi, 'Repay');
+  const repaid = event?.repaid ?? 0n;
+  const debtBefore = debtUp(before.pos[1], before.market);
+  const debtAfter = debtUp(after.pos[1], after.market);
+  const ltvBefore = ltvOf(debtBefore, before.pos[2], before.price);
+  const ltvAfter = ltvOf(debtAfter, after.pos[2], after.price);
+  const pulled = before.usdc - after.usdc;
+  const btcBefore = before.btc + before.pos[2];
+  const btcAfter = after.btc + after.pos[2];
+  const txs = [t1, t2, t3];
+
+  const receipt = [
+    ...txs.map((t, i) => txRow(i + 1, t)),
+    event ? `  Protected  borrower ${event.borrower}, repaid ${L.usdc(event.repaid)}, loan-to-value ${L.pct(event.ltvBeforeWad)} to ${L.pct(event.ltvAfterWad)}` : '  Protected  no event',
+    morphoRepay ? `  Morpho Repay  caller ${morphoRepay.caller} (AdagGuard), on behalf of ${morphoRepay.onBehalf}, ${L.usdc(morphoRepay.assets)}, ${morphoRepay.shares} shares` : '  Morpho Repay  no event',
+    `  quote for the protect block: would act ${qAct}, ${L.usdc(quoted)}`,
+    `  payer USDC        ${L.usdc(before.usdc)} before, ${L.usdc(after.usdc)} after (${L.signedUsdc(-pulled)})`,
+    `  payer loan        ${L.usdc(debtBefore)} before, ${L.usdc(debtAfter)} after; loan-to-value ${L.pct(ltvBefore)} to ${L.pct(ltvAfter)} (exactly ${exactPct(ltvAfter)}, target ${exactPct(TARGET)})`,
+    `  payer bitcoin     ${L.btc(btcBefore)} before, ${L.btc(btcAfter)} after (wallet plus pledged), sold ${L.btc(btcBefore - btcAfter)}`,
+    `  payer approval    ${L.usdc(before.payerToGuard)} to AdagGuard before, ${L.usdc(after.payerToGuard)} after`,
+    `  AdagGuard         holds ${L.usdc(before.guardUsdc)} before and ${L.usdc(after.guardUsdc)} after; its approval to Morpho ${L.usdc(before.guardToMorpho)} before and ${L.usdc(after.guardToMorpho)} after`,
+    `  gas               ${L.gasUsdc(txs.reduce((a, t) => a + t.cost, 0n))} paid in all`,
+  ];
+  const checks = [
+    ['each transaction succeeded, from the expected wallet to the expected fixed address', true],
+    ['the rule is stored as set, and RuleSet names the payer',
+      afterRule.rule.triggerWad === TRIGGER && afterRule.rule.targetWad === TARGET && afterRule.rule.expiry === 0n && ruleSet?.borrower === payer],
+    ['the approval to AdagGuard is exactly 1 USDC', afterRule.payerToGuard === APPROVAL],
+    [`quote for the protect block says it would act, and by how much (${L.usdc(quoted)})`, qAct === true && quoted > 0n],
+    ['protect by the stranger repaid exactly what quote said', repaid === quoted && repaid > 0n],
+    [`the loan-to-value landed at or under 30% (${L.pct(ltvAfter)}), and Protected reports the same`,
+      ltvAfter <= TARGET && event?.ltvAfterWad === ltvAfter && event?.ltvBeforeWad === ltvBefore],
+    ['the pull equals the repay: payer USDC fell by the repay, Morpho took exactly that for the payer',
+      pulled === repaid && morphoRepay?.assets === repaid && getAddress(morphoRepay?.onBehalf ?? '0x0000000000000000000000000000000000000000') === payer
+        && getAddress(morphoRepay?.caller ?? '0x0000000000000000000000000000000000000000') === guard.address],
+    ['the payer\'s approval fell by exactly the repay', before.payerToGuard - after.payerToGuard === repaid],
+    ['AdagGuard\'s USDC balance and its approval to Morpho are unchanged',
+      after.guardUsdc === before.guardUsdc && after.guardToMorpho === before.guardToMorpho],
+    ['bitcoin sold: 0 (wallet plus pledged is unchanged)', btcAfter === btcBefore],
+    ['a second protect at the same price repays 0, emits nothing and moves no USDC',
+      !eventAgain && !repayAgain && beforeAgain.usdc === afterAgain.usdc],
+  ];
+  const allOk = checks.every(([, ok]) => ok);
+  const verdict = allOk
+    ? `PROVEN on Arc mainnet: a second wallet's protect repaid ${L.usdc(repaid)} of the payer's own loan from the payer's own wallet, taking it from ${L.pct(ltvBefore)} to ${L.pct(ltvAfter)}, and no bitcoin was sold.`
+    : 'NOT PROVEN: at least one check failed, see above.';
+  const checkLines = checks.map(([label, ok]) => `  ${ok ? 'PASS' : 'FAIL'}  ${label}`);
+
+  line();
+  line('Receipt');
+  receipt.forEach((r) => line(r));
+  line();
+  line('Checks');
+  checkLines.forEach((c) => line(c));
+  line();
+  line(verdict);
+  const date = new Date(Number(t2.time) * 1000).toISOString().slice(0, 10);
+  const file = writeReport(date, `Protect at block ${t2.block}`, [
+    `AdagGuard ${guard.address}. Payer ${payer}, stranger ${stranger}. Rule 35% / 30%, approval ${L.usdc(APPROVAL)}.`,
+    '', '```', ...receipt, '', ...checkLines, '```', '', verdict,
+  ]);
+  line(`Saved to ${file}`);
+  line('Remove the rule and the unused approval with: node packages/contracts/prove-it/guard-prove.mjs --clear');
+  return allOk ? 0 : 1;
+}
+
+async function clearRun() {
+  const { payer, guard, head } = await liveSetup('--clear', false);
+  const s0 = await readAt(liveSnap(guard, payer), head.number);
+  const hasRule = s0.rule.triggerWad !== 0n;
+
+  line(`AdagGuard prove-it --clear: LIVE on Arc mainnet (chain ${L.CHAIN_ID}, block ${head.number}). AdagGuard at ${guard.address}.`);
+  line(`  payer ${payer}: rule ${hasRule ? `${L.pct(s0.rule.triggerWad)} / ${L.pct(s0.rule.targetWad)}` : 'none'} in the USDC market; approval to AdagGuard ${L.usdc(s0.payerToGuard)}`);
+  if (!hasRule && s0.payerToGuard === 0n) {
+    line('Nothing to clear: no rule and no approval. Nothing sent.');
+    return 0;
+  }
+  const steps = [
+    ...(hasRule ? [{ to: guard.address, data: L.enc(guard.abi, 'clearRule', [L.MARKET_USDC]) }] : []),
+    L.calls.approve(L.USDC, guard.address, 0n),
+  ];
+  line();
+  line('Plan (LIVE)');
+  line('  payer signs ONE Multicall3From batch, every step all-or-nothing:');
+  if (hasRule) line('       clearRule on the USDC market');
+  line('       approve AdagGuard for 0 USDC');
+  line('  No USDC moves apart from gas.');
+
+  if (!(await askYes('\nType yes to send this transaction on Arc mainnet: '))) {
+    line('Cancelled. Nothing was sent, and no key was read.');
+    return 1;
+  }
+  const w = loadSigners([{ role: 'payer', keyName: 'DEPLOYER_PRIVATE_KEY', addrName: 'DEPLOYER_ADDRESS', address: payer }]);
+  const s1 = await readAt(liveSnap(guard, payer), await L.circle.getBlockNumber());
+  if ((s1.rule.triggerWad !== 0n) !== hasRule) throw new Stop('The rule changed while waiting. Nothing sent; run --clear again.');
+
+  line();
+  line('Running');
+  const t = await sendChecked(w.payer, 'clearRule and approve 0 (payer)', L.calls.batch(steps));
+  const after = await readAt(liveSnap(guard, payer), t.block);
+  const cleared = L.findEvent(t.rc.logs, guard.address, guard.abi, 'RuleCleared');
+  const checks = [
+    ['the transaction succeeded, from the payer to Multicall3From', true],
+    ['no rule is left for the payer in the USDC market', after.rule.triggerWad === 0n && after.rule.targetWad === 0n],
+    ['RuleCleared names the payer (when there was a rule)', !hasRule || cleared?.borrower === payer],
+    ['the payer\'s approval to AdagGuard is 0', after.payerToGuard === 0n],
+  ];
+  const checkLines = checks.map(([label, ok]) => `  ${ok ? 'PASS' : 'FAIL'}  ${label}`);
+  const allOk = checks.every(([, ok]) => ok);
+  line();
+  line(txRow(1, t));
+  checkLines.forEach((c) => line(c));
+  line();
+  line(allOk ? 'CLEARED: the payer has no guard rule and no approval to AdagGuard.' : 'NOT CLEARED: at least one check failed, see above.');
+  const date = new Date(Number(t.time) * 1000).toISOString().slice(0, 10);
+  line(`Saved to ${writeReport(date, `Clear at block ${t.block}`, ['```', txRow(1, t), '', ...checkLines, '```'])}`);
+  return allOk ? 0 : 1;
+}
+
+async function main() {
+  const args = parseArgs(process.argv.slice(2));
+  if (args.broadcast) return broadcastRun();
+  if (args.clear) return clearRun();
+  return dryRun();
 }
 
 const runDirectly = process.argv[1] && fileURLToPath(import.meta.url).toLowerCase() === resolve(process.argv[1]).toLowerCase();
