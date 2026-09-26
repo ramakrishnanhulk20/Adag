@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { AppShell } from "@/components/app/AppShell";
+import { BillLive } from "@/components/app/BillLive";
 import { BillMissing } from "@/components/app/BillMissing";
 import { BillSheet } from "@/components/app/BillSheet";
 import { BillWallet } from "@/components/app/BillWallet";
@@ -49,7 +50,8 @@ export default async function BillPage({ params }: Params) {
   return (
     <AppShell>
       <BillSheet bill={read.bill} paidTx={paidTx} />
-      <BillWallet bill={billToJson(read.bill)} />
+      <BillWallet bill={billToJson(read.bill)} paidTxUrl={paidTx.kind === "found" ? paidTx.url : null} />
+      <BillLive id={read.bill.id.toString()} status={read.bill.status} />
     </AppShell>
   );
 }

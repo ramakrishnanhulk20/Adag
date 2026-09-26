@@ -75,7 +75,7 @@ export function PayForm() {
           inputMode="text"
           autoComplete="off"
           spellCheck={false}
-          placeholder="12, 13, 14"
+          placeholder="For example 1, or paste a bill link"
           value={value}
           onChange={(e) => {
             setValue(e.target.value);
@@ -83,7 +83,7 @@ export function PayForm() {
           }}
           aria-invalid={note ? true : undefined}
           aria-describedby={noteId}
-          className="app-input"
+          className="app-input app-input-hint"
         />
         <Button type="submit" variant="primary" disabled={busy} className="w-full shrink-0 md:w-auto">
           {busy ? "Checking Arc" : "Open the bill"}

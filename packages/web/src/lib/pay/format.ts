@@ -45,6 +45,15 @@ const DATE_TIME = new Intl.DateTimeFormat("en-GB", {
 export const formatDate = (seconds: bigint) => DATE.format(new Date(Number(seconds) * 1000));
 export const formatDateTime = (seconds: bigint) => DATE_TIME.format(new Date(Number(seconds) * 1000));
 
+// A dollar estimate for an amount of cirBTC, from the USDC market oracle's price (USDC base units per satoshi, times
+// 1e36). USDC stands in for dollars, so it is labelled an estimate wherever it is shown. Cents, rounded down.
+export function usdOfSats(sats: bigint, usdcOraclePrice: bigint): string {
+  const usdcUnits = (sats * usdcOraclePrice) / 10n ** 36n;
+  if (sats > 0n && usdcUnits < 10_000n) return "under $0.01";
+  const cents = usdcUnits / 10_000n;
+  return `$${formatUnitsExact(cents * 10_000n, 6, 2)}`;
+}
+
 // Loan-to-value arrives WAD scaled, so 0.4e18 is 40%. Two decimals, cut rather than rounded.
 export function formatPercentWad(wad: bigint): string {
   if (wad === MAX_UINT256) return "no collateral";

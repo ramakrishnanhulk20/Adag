@@ -1,7 +1,15 @@
-import { formatUnitsExact } from "@/lib/pay/format";
+import { usdc4, type FeeFigures } from "@/lib/wallet/send";
 
-// Rounded up to four decimals: it is an estimate, and it should never read cheaper than it is.
+// The same words on every screen that quotes a fee. Both numbers come from one estimate (feeFigures): "about" is
+// what it should cost, "keep up to" is what Arc sets aside first, the figure the pre-send check enforces.
 export function feeText(wei: bigint): string {
-  const step = 10n ** 14n;
-  return `about ${formatUnitsExact(((wei + step - 1n) / step) * step, 18)} USDC`;
+  return `about ${usdc4(wei, "up")} USDC`;
+}
+
+export function keepText(wei: bigint): string {
+  return `keep up to ${usdc4(wei, "up")} USDC available`;
+}
+
+export function feeSentence(f: FeeFigures): string {
+  return `Network fee ${feeText(f.about)}; ${keepText(f.keepUpTo)}. Arc sets aside the most it could cost and refunds the rest.`;
 }

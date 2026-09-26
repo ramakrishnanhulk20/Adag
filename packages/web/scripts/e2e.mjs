@@ -104,9 +104,12 @@ function stopApp(child) {
 
 // The wallet: every request goes to the fork as the impersonated account. The fork signs for it, so
 // eth_sendTransaction really executes. chainOverride makes it claim another chain, to test the Arc gate.
-function walletScript({ account, fork, chainOverride }) {
+function walletScript({ account, fork, chainOverride, addArcFlow }) {
   window.__walletLog = [];
+  window.__addChainParams = [];
   let id = 0;
+  let chain = chainOverride;
+  let arcAdded = false;
   const forward = async (method, params) => {
     const res = await fetch(fork, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: ++id, method, params: params ?? [] }) });
     const json = await res.json();
@@ -118,10 +121,24 @@ function walletScript({ account, fork, chainOverride }) {
     isMetaMask: true,
     async request({ method, params }) {
       window.__walletLog.push(method);
-      if (method === 'eth_chainId' && chainOverride) return chainOverride;
-      if (method === 'net_version' && chainOverride) return String(parseInt(chainOverride, 16));
+      if (method === 'eth_chainId' && chain) return chain;
+      if (method === 'net_version' && chain) return String(parseInt(chain, 16));
       if (method === 'eth_accounts' || method === 'eth_requestAccounts') return [account];
       if (method === 'wallet_requestPermissions' || method === 'wallet_getPermissions') return [{ parentCapability: 'eth_accounts' }];
+      // A wallet that has never seen Arc: switching fails with 4902 until Arc is added, as MetaMask does.
+      if (addArcFlow && method === 'wallet_switchEthereumChain') {
+        if (!arcAdded) throw Object.assign(new Error('Unrecognized chain ID "0x13b2".'), { code: 4902 });
+        chain = null;
+        (listeners.chainChanged || []).forEach((fn) => fn('0x13b2'));
+        return null;
+      }
+      if (addArcFlow && method === 'wallet_addEthereumChain') {
+        window.__addChainParams.push(params[0]);
+        arcAdded = true;
+        chain = null;
+        (listeners.chainChanged || []).forEach((fn) => fn('0x13b2'));
+        return null;
+      }
       if (method === 'wallet_switchEthereumChain' || method === 'wallet_addEthereumChain') throw Object.assign(new Error('User rejected the request.'), { code: 4001 });
       if (method === 'eth_sendTransaction') return forward(method, [{ ...params[0], from: account }]);
       return forward(method, params);
@@ -132,10 +149,10 @@ function walletScript({ account, fork, chainOverride }) {
 }
 
 let browser;
-async function openPage({ account, chainOverride = null, width = 1440, theme = 'dark' }) {
-  const context = await browser.newContext({ viewport: { width, height: width < 600 ? 812 : 900 }, colorScheme: theme });
+async function openPage({ account, chainOverride = null, width = 1440, theme = 'dark', noWallet = false, addArcFlow = false }) {
+  const context = await browser.newContext({ viewport: { width, height: width < 600 ? 812 : 900 }, colorScheme: theme, hasTouch: width < 600 });
   await context.addCookies([{ name: 'adag-theme', value: theme, url: APP }]);
-  await context.addInitScript(walletScript, { account, fork: FORK, chainOverride });
+  if (!noWallet) await context.addInitScript(walletScript, { account, fork: FORK, chainOverride, addArcFlow });
   const page = await context.newPage();
   page.on('console', (m) => m.type() === 'error' && consoleErrors.push(`${page.url()}: ${m.text()}`));
   page.on('pageerror', (e) => consoleErrors.push(`${page.url()}: pageerror ${e.message}`));
@@ -146,13 +163,13 @@ async function connect(page, path) {
   await page.goto(APP + path, { waitUntil: 'networkidle', timeout: 120_000 });
   await page.getByRole('button', { name: 'Connect wallet' }).first().click();
   await page.locator('#wallet-title').waitFor({ timeout: 60_000 });
-  await page.waitForFunction(() => !document.querySelector('.live-shimmer'), null, { timeout: 60_000 }).catch(() => {});
+  await page.waitForFunction(() => !document.querySelector('.live-shimmer, [data-reading]'), null, { timeout: 60_000 }).catch(() => {});
 }
 
 // Reveals only fire in view, so walk the page before a full-page capture; then shoot 1440 dark and 375 light.
 // By default only the screens named with NEWEST_SHOTS are captured, which keeps a run short.
 // --all-shots captures every screen the run passes through, the older ones included.
-const NEWEST_SHOTS = 'f10-';
+const NEWEST_SHOTS = 'p1-';
 async function shoot(page, name) {
   const all = process.argv.includes('--all-shots');
   const file = name.startsWith(NEWEST_SHOTS) ? name : !all ? null : /^f\d/.test(name) ? name : `e2e-${name}`;
@@ -202,6 +219,7 @@ async function main() {
       const { context, page } = await openPage({ account: PAYER });
       await connect(page, `/bill/${A}`);
       await shoot(page, 'a-open');
+      await shoot(page, 'p1-pay-panel');
       await page.locator('[data-action="pay-balance"]').click();
       await page.locator('[data-tx-result="paid"]').waitFor({ timeout: 120_000 });
       await page.getByRole('img', { name: 'Status: Paid' }).first().waitFor({ timeout: 60_000 });
@@ -292,6 +310,7 @@ async function main() {
       await page.locator('[data-blocked="true"]').waitFor({ timeout: 30_000 });
       const buttons = await page.locator('[data-action^="pay-"]').count();
       await shoot(page, 'e-wrong-chain');
+      await shoot(page, 'p1-wrong-network');
       const sent = await sends(page);
       record(`(e) a wallet on chain 1: Switch to Arc shows, no pay buttons, no transaction requested`, buttons === 0 && sent === 0 && (await statusOf(E)) === 1,
         `pay buttons ${buttons}, eth_sendTransaction requests ${sent}`);
@@ -340,6 +359,7 @@ async function main() {
       const link = await page.locator('[data-share-link]').innerText();
       await page.waitForTimeout(1600);
       await shoot(page, 'f7-g-written');
+      await shoot(page, 'p1-write-share');
       const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dueInput);
       const wantDue = m ? BigInt(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12) / 1000) : -1n;
       const onFork = await fork.readContract({ address: ADAG, abi: adagAbi, functionName: 'bill', args: [G] });
@@ -363,6 +383,7 @@ async function main() {
       const ltvBefore = Number(await ticket.getAttribute('data-ltv'));
       const before = await positionOf(PAYER);
       await shoot(page, 'f7-h-app');
+      await shoot(page, 'p1-loan-ticket');
       await ticket.locator('[data-field="add-collateral"]').fill('0.00001');
       await ticket.locator('[data-action="add-collateral"]').click();
       const dialog = page.getByRole('dialog', { name: /Borrowing through Morpho/ });
@@ -405,6 +426,7 @@ async function main() {
       await page.locator('[data-list="wrote"] [data-bill-row]').first().waitFor({ timeout: 60_000 });
       const rows = await page.locator('[data-list="wrote"] [data-bill-row]').evaluateAll((els) => els.map((e) => [e.getAttribute('data-bill-row'), e.getAttribute('data-status')]));
       await shoot(page, 'f7-j-payee-lists');
+      await shoot(page, 'p1-lists-copy');
       await context.close();
       const wroteOk = want.every(([id, status]) => rows.some(([r, s]) => r === String(id) && s === status));
       const newestFirst = rows.map(([r]) => Number(r)).every((v, i, arr) => i === 0 || arr[i - 1] > v);
@@ -582,7 +604,7 @@ async function main() {
       await page.goto(`${APP}/pay/basket?bills=${ids.join(',')}`, { waitUntil: 'networkidle', timeout: 120_000 });
       await page.getByRole('button', { name: 'Connect wallet' }).first().click();
       await page.locator('[data-group]').first().waitFor({ timeout: 60_000 });
-      await page.waitForFunction(() => !document.querySelector('.live-shimmer'), null, { timeout: 60_000 }).catch(() => {});
+      await page.waitForFunction(() => !document.querySelector('.live-shimmer, [data-reading]'), null, { timeout: 60_000 }).catch(() => {});
     };
     const payBasket = async (page) => {
       await page.locator('[data-action="pay-basket"]:not([disabled])').waitFor({ timeout: 60_000 });
@@ -602,7 +624,7 @@ async function main() {
       await page.waitForURL(`**/pay/basket?bills=${ids.join(',')}`, { timeout: 60_000 });
       await page.getByRole('button', { name: 'Connect wallet' }).first().click();
       await page.locator('[data-group="EURC"]').waitFor({ timeout: 60_000 });
-      await page.waitForFunction(() => !document.querySelector('.live-shimmer'), null, { timeout: 60_000 }).catch(() => {});
+      await page.waitForFunction(() => !document.querySelector('.live-shimmer, [data-reading]'), null, { timeout: 60_000 }).catch(() => {});
       const bitcoinChosen = (await page.locator('[data-choice$="-bitcoin"][aria-checked="true"]').count()) === 2;
       await shoot(page, 'f9-o-basket');
       await payBasket(page);
@@ -649,7 +671,7 @@ async function main() {
       await openBasket(page, [A, C, Q]);
       const reasons = await page.locator('[data-aside-bill]').evaluateAll((els) => els.map((e) => [e.getAttribute('data-aside-bill'), e.querySelector('[data-reason]')?.textContent ?? '']));
       const inBasket = await page.locator('[data-basket-bill]').evaluateAll((els) => els.map((e) => e.getAttribute('data-basket-bill')));
-      await page.locator('[data-fee] span').waitFor({ timeout: 60_000 }).catch(() => {});
+      await page.waitForFunction(() => /about [0-9.]+ USDC/.test(document.querySelector('[data-fee]')?.textContent ?? ''), null, { timeout: 60_000 }).catch(() => {});
       const fee = await page.locator('[data-fee]').innerText();
       const label = await page.getByText(/Basket · 3 bills · 1 payable/).count();
       await shoot(page, 'f9b-q-aside');
@@ -681,9 +703,18 @@ async function main() {
       await shoot(page, 'f9-r-refused');
       await page.goto(`${APP}/pay/basket?bills=${Array.from({ length: 11 }, (_, i) => i + 1).join(',')}`, { waitUntil: 'networkidle', timeout: 120_000 });
       const direct = await page.getByText('Too many').first().isVisible();
+      // L3: a link stuffed with words shows at most three short samples and a count, and an all-closed basket offers next steps.
+      const junk = 'URGENT:%20Adag%20support%20says%20send%20your%20seed%20phrase%20to%20this%20address%20now';
+      await page.goto(`${APP}/pay/basket?bills=${A},${C},${junk},aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`, { waitUntil: 'networkidle', timeout: 120_000 });
+      const droppedText = await page.locator('[data-dropped]').innerText();
+      const nextSteps = await page.locator('[data-next-steps] a').allInnerTexts();
+      await shoot(page, 'p1-basket-empty');
       const sent = await sends(page);
-      record('(r) duplicate numbers collapse to one, and 11 numbers are refused on /pay and in a basket link, with no wallet request',
-        collapsed === `${A},${B}` && stayed && direct && sent === 0, `"${A}, ${A} #${A}, ${B}" opened bills=${collapsed}; 11 numbers stayed on /pay: ${stayed}; basket link refused: ${direct}; sends ${sent}`);
+      const samples = droppedText.replace(/^[^:]*:\s*/, '').replace(/ and \d+ more\.?$/, '').replace(/\.$/, '').split(', ');
+      const l3 = samples.length <= 3 && samples.every((t) => t.replace(/…$/, '').length <= 24) && /and \d+ more/.test(droppedText) && !droppedText.includes('seed phrase');
+      record('(r) duplicates collapse, 11 numbers are refused, a word-stuffed link shows only 3 short samples, and an all-closed basket offers next steps',
+        collapsed === `${A},${B}` && stayed && direct && sent === 0 && l3 && nextSteps.includes('Pay a bill') && nextSteps.includes('Write a bill'),
+        `"${A}, ${A} #${A}, ${B}" opened bills=${collapsed}; 11 numbers stayed on /pay: ${stayed}; basket link refused: ${direct}; dropped shown: "${droppedText}"; next steps: ${nextSteps.join(', ')}; sends ${sent}`);
       await context.close();
     }
 
@@ -746,13 +777,13 @@ async function main() {
       try {
         const { context, page } = await openPage({ account: PAYER });
         await connect(page, `/bill/${U}`);
-        await page.getByText('plus 0.01 USDC for the network fee').waitFor({ timeout: 60_000 });
+        await page.getByText('a little USDC for the network fee').waitFor({ timeout: 60_000 });
         const offered = await page.locator('[data-action="pay-balance"]').count();
         await shoot(page, 'f10-u-no-fee-room');
         // The same bill in a basket: the balance option is there but cannot be chosen. The wallet is already connected here.
         await page.goto(`${APP}/pay/basket?bills=${U}`, { waitUntil: 'networkidle', timeout: 120_000 });
         await page.locator('[data-group="USDC"]').waitFor({ timeout: 60_000 });
-        await page.waitForFunction(() => !document.querySelector('.live-shimmer'), null, { timeout: 60_000 }).catch(() => {});
+        await page.waitForFunction(() => !document.querySelector('.live-shimmer, [data-reading]'), null, { timeout: 60_000 }).catch(() => {});
         const basketBalance = await page.locator('[data-choice="USDC-balance"]').isDisabled();
         const sent = await sends(page);
         record(`(u) holding exactly 0.10 USDC for 0.10 USDC bill #${U}: pay from balance is not offered, on the bill page or in a basket, and nothing is sent`,
@@ -762,6 +793,73 @@ async function main() {
       } finally {
         await rpc('anvil_setBalance', [PAYER, `0x${original.toString(16)}`]);
       }
+    }
+
+    // (v) Getting set up: the helper for a wallet with no cirBTC, the wallet-browser links on a phone with no wallet,
+    // and Switch to Arc adding Arc to a wallet that has never seen it.
+    {
+      const V = newBill('USDC', 100_000, 'E2E-V');
+      const FRESH = '0x00000000000000000000000000000000000a11ce';
+      await rpc('anvil_setBalance', [FRESH, `0x${(5n * 10n ** 18n).toString(16)}`]);
+      const one = await openPage({ account: FRESH });
+      await connect(one.page, `/bill/${V}`);
+      const need = one.page.locator('[data-setup-need="cirbtc"]');
+      await need.waitFor({ timeout: 60_000 });
+      const cirbtcLinks = await need.locator('a').evaluateAll((els) => els.map((e) => e.getAttribute('href')));
+      const blockedReason = await one.page.locator('[data-blocked-reason]').first().innerText().catch(() => '');
+      await shoot(one.page, 'p1-v-setup');
+      await one.context.close();
+
+      const two = await openPage({ account: PAYER, noWallet: true, width: 375, theme: 'light' });
+      await two.page.goto(`${APP}/bill/${V}`, { waitUntil: 'networkidle', timeout: 120_000 });
+      await two.page.getByRole('button', { name: 'Connect wallet' }).first().click();
+      const panel = two.page.locator('[data-no-wallet]').first();
+      await panel.waitFor({ timeout: 10_000 });
+      const deeplink = await panel.locator('[data-deeplink="metamask"]').getAttribute('href');
+      const panelText = await panel.innerText();
+      await two.page.waitForTimeout(600);
+      await two.page.screenshot({ path: `${SHOTS}/p1-v-no-wallet-375-light.png`, fullPage: false });
+      await two.context.close();
+
+      const three = await openPage({ account: PAYER, chainOverride: '0x1', addArcFlow: true });
+      await three.page.goto(`${APP}/bill/${V}`, { waitUntil: 'networkidle', timeout: 120_000 });
+      await three.page.getByRole('button', { name: 'Connect wallet' }).first().click();
+      await three.page.locator('[data-blocked="true"]').waitFor({ timeout: 60_000 });
+      await three.page.getByRole('button', { name: 'Switch to Arc' }).first().click();
+      await three.page.locator('[data-action="pay-bitcoin"], [data-action="pay-balance"]').first().waitFor({ timeout: 60_000 });
+      const added = await three.page.evaluate(() => window.__addChainParams);
+      const log = await three.page.evaluate(() => window.__walletLog);
+      await three.context.close();
+
+      const wantDeeplink = `https://metamask.app.link/dapp/localhost:3400/bill/${V}`;
+      record('(v) setup: the cirBTC helper for a wallet with none, wallet-browser links on a phone with no wallet, and Switch to Arc adds Arc',
+        cirbtcLinks.includes('https://portal.arc.io/swap') && blockedReason.includes('less cirBTC') && deeplink === wantDeeplink && /built-in browser/.test(panelText)
+          && added.length === 1 && added[0].chainId === '0x13b2' && log.indexOf('wallet_addEthereumChain') > log.indexOf('wallet_switchEthereumChain'),
+        `cirBTC links ${cirbtcLinks.join(' ')}; button says "${blockedReason}"; MetaMask link ${deeplink}; add-chain ${JSON.stringify(added[0] ?? null).slice(0, 160)}`);
+    }
+
+    // (w) Live status: the supplier's open bill page stamps PAID on its own when the payer pays elsewhere.
+    {
+      const W = newBill('USDC', 100_000, 'E2E-W');
+      const payee = await openPage({ account: PAYEE });
+      await connect(payee.page, `/bill/${W}`);
+      await payee.page.getByRole('img', { name: 'Status: Open' }).first().waitFor({ timeout: 30_000 });
+      const payer = await openPage({ account: PAYER });
+      await connect(payer.page, `/bill/${W}`);
+      await payer.page.locator('[data-action="pay-balance"]').click();
+      await payer.page.locator('[data-tx-result="paid"]').waitFor({ timeout: 120_000 });
+      const paidAt = Date.now();
+      await payee.page.getByRole('img', { name: 'Status: Paid' }).first().waitFor({ timeout: 10_000 });
+      const seconds = ((Date.now() - paidAt) / 1000).toFixed(1);
+      await payee.page.locator('[data-paid-just-now]').waitFor({ timeout: 10_000 });
+      const justNow = await payee.page.locator('[data-paid-just-now]').innerText();
+      await payee.page.waitForTimeout(700);
+      await shoot(payee.page, 'p1-w-paid-live');
+      await payer.context.close();
+      await payee.context.close();
+      record(`(w) the supplier's open page for bill #${W} turns PAID on its own within 10 seconds of the payment, with "Paid just now"`,
+        // innerText follows the CSS, which uppercases the label.
+        /paid just now/i.test(justNow) && (await statusOf(W)) === 2, `stamp turned in ${seconds} s with no reload; card: ${justNow.replace(/\s*\n\s*/g, ' | ')}`);
     }
 
     // The mobile menu open, and the wallet page before connecting.
@@ -795,7 +893,7 @@ try {
   await main();
   const passed = results.filter((r) => r.ok).length;
   console.log(`\nconsole errors: ${consoleErrors.length}${consoleErrors.length ? `\n  ${consoleErrors.join('\n  ')}` : ''}`);
-  const allOk = passed === results.length && results.length === 21 && consoleErrors.length === 0;
+  const allOk = passed === results.length && results.length === 23 && consoleErrors.length === 0;
   console.log(allOk ? `ALL ${passed} SCENARIOS PASSED` : `${results.length - passed} of ${results.length} scenarios failed`);
   code = allOk ? 0 : 1;
 } catch (error) {

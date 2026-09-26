@@ -180,6 +180,11 @@
   color: var(--muted);
   opacity: 0.55;
 }
+/* A sentence-long hint would overflow at display size, so the lookup's hint is set smaller than what gets typed. */
+.app-input-hint::placeholder {
+  font-size: clamp(1.125rem, 2.4vw, 1.875rem);
+  letter-spacing: 0;
+}
 .app-input:hover {
   border-bottom-color: var(--gold);
 }

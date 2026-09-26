@@ -8,6 +8,7 @@ import { Button } from "@/components/Button";
 import { switchToArc } from "@/lib/wallet/switchToArc";
 import { useWallet } from "@/lib/wallet/useWallet";
 import { shortAddress } from "@/lib/pay/format";
+import { networkName } from "@/lib/wallet/networks";
 
 function firstLine(error: unknown) {
   const e = error as { shortMessage?: string; message?: string } | undefined;
@@ -35,6 +36,7 @@ export function ConnectButton() {
   const { mutate: disconnect } = useDisconnect();
   const [open, setOpen] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  const [noWallet, setNoWallet] = useState(false);
   const [switching, setSwitching] = useState(false);
   const [copied, setCopied] = useState(false);
   const menuId = useId();
@@ -71,7 +73,8 @@ export function ConnectButton() {
 
   const onConnectClick = () => {
     if (typeof window !== "undefined" && !("ethereum" in window) && choices.every((c) => c.type === "injected")) {
-      setNote("No browser wallet found. Install MetaMask or Rabby, then reload this page.");
+      setNote(null);
+      setNoWallet(true);
       return;
     }
     if (choices.length === 1) connectWith(choices[0]!);
@@ -136,7 +139,7 @@ export function ConnectButton() {
       <AnimatePresence>
         {open && wallet.status === "connected" && (
           <motion.div key="account" id={menuId} {...pop} className="absolute right-0 top-full z-50 mt-2 w-[min(88vw,22rem)] rounded-[8px] border border-rule bg-raised p-4 shadow-[0_24px_60px_-20px_rgb(0_0_0/0.5)]">
-            <p className="type-micro text-muted">Connected on {wallet.onArc ? "Arc mainnet" : `chain ${wallet.chainId}`}</p>
+            <p className="type-micro text-muted">Connected on {wallet.onArc ? "Arc mainnet" : networkName(wallet.chainId)}</p>
             <p className="type-address mt-2 break-all text-text">{wallet.address}</p>
             <div className="mt-4 flex gap-2">
               <button type="button" onClick={() => copy(wallet.address)} className="type-micro rounded-[6px] border border-rule-strong px-3 py-2 text-text transition-colors duration-200 hover:border-gold hover:text-gold">
@@ -168,11 +171,78 @@ export function ConnectButton() {
           </motion.ul>
         )}
         {note && (
-          <motion.p key="note" role="status" {...pop} className="type-body absolute right-0 top-full z-40 mt-2 w-[min(88vw,20rem)] rounded-[8px] border border-rule bg-raised px-3.5 py-3 text-text">
+          <motion.p
+            key="note"
+            role="status"
+            {...pop}
+            className="type-body fixed inset-x-4 bottom-4 z-[70] rounded-[8px] border border-rule bg-raised px-3.5 py-3 text-text md:absolute md:inset-x-auto md:right-0 md:bottom-auto md:top-full md:mt-2 md:w-[20rem]"
+          >
             {note}
           </motion.p>
         )}
+        {noWallet && (
+          // On a phone this is a sheet fixed to the bottom of the screen, so it never hangs off the edge of a narrow button.
+          <motion.div
+            key="no-wallet"
+            {...pop}
+            className="fixed inset-x-4 bottom-4 z-[70] rounded-[8px] border border-rule bg-raised p-4 shadow-[0_24px_60px_-20px_rgb(0_0_0/0.5)] md:absolute md:inset-x-auto md:right-0 md:bottom-auto md:top-full md:mt-2 md:w-[22rem]"
+          >
+            <NoWalletHelp onClose={() => setNoWallet(false)} />
+          </motion.div>
+        )}
       </AnimatePresence>
+    </div>
+  );
+}
+
+// No wallet in this browser. On a phone, installing an app does not add a wallet to Safari or Chrome, so the useful
+// move is to open this same page inside a wallet's own browser. It stays until dismissed.
+function NoWalletHelp({ onClose }: { onClose: () => void }) {
+  // Read on first render, not in an effect: this panel only mounts after a click in the browser, and an effect would
+  // leave the MetaMask link without its host for the first moment, when a quick tap would open a broken link.
+  const [here] = useState(() => ({ host: window.location.host, path: `${window.location.pathname}${window.location.search}`, href: window.location.href }));
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(here.href);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    } catch {
+      setCopied(false);
+    }
+  };
+  return (
+    <div role="dialog" aria-label="Open in your wallet's browser" data-no-wallet>
+      <div className="flex items-start justify-between gap-3">
+        <p className="type-label text-text">Open in your wallet&apos;s browser</p>
+        <button type="button" onClick={onClose} aria-label="Close" className="type-micro text-muted transition-colors duration-200 hover:text-text">
+          Close
+        </button>
+      </div>
+      <p className="type-body mt-2 text-muted">No wallet in this browser. Adag works inside the built-in browser of MetaMask and Rabby.</p>
+      <div className="mt-4 flex flex-col gap-2">
+        <a
+          href={`https://metamask.app.link/dapp/${here.host}${here.path}`}
+          className="btn btn-primary btn-sm w-full"
+          data-deeplink="metamask"
+        >
+          Open in MetaMask
+        </a>
+        <button type="button" onClick={() => void copy()} className="btn btn-secondary btn-sm w-full" data-deeplink="rabby">
+          {copied ? "Link copied. Paste it in Rabby" : "Copy link for Rabby"}
+        </button>
+      </div>
+      <p className="type-micro mt-3 normal-case tracking-[0.04em] text-muted">
+        Rabby: open the app, tap Dapps and paste the link. On a computer, add{" "}
+        <a href="https://metamask.io/download" target="_blank" rel="noopener noreferrer" className="link-draw text-gold">
+          MetaMask
+        </a>{" "}
+        or{" "}
+        <a href="https://rabby.io" target="_blank" rel="noopener noreferrer" className="link-draw text-gold">
+          Rabby
+        </a>{" "}
+        to your browser.
+      </p>
     </div>
   );
 }

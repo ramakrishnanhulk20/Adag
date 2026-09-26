@@ -13,7 +13,7 @@ import { formatDate, formatUnitsExact, referenceText, shortAddress } from "@/lib
 import { LIST_PAGE, readBillList } from "@/lib/pay/lists";
 import { currencyOf } from "@/lib/pay/market";
 import { publicArc } from "@/lib/wallet/send";
-import { rise } from "./cells";
+import { Reading, rise } from "./cells";
 
 const statusOf = (s: number): BillStatus => (s === BILL_STATUS.Paid ? "paid" : s === BILL_STATUS.Void ? "void" : "open");
 const money = (b: Bill) => {
@@ -27,7 +27,34 @@ export function useBillList(kind: "wrote" | "paid", address: Address) {
     queryFn: () => readBillList(publicArc(), kind, address),
     staleTime: 15_000,
     retry: 1,
+    // A supplier learns a bill was paid by the list changing on its own: every 20 seconds, and on coming back to the tab.
+    refetchInterval: 20_000,
+    refetchOnWindowFocus: true,
   });
+}
+
+function CopyLink({ id }: { id: bigint }) {
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(`${window.location.origin}/bill/${id}`);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1400);
+    } catch {
+      setCopied(false);
+    }
+  };
+  return (
+    <button
+      type="button"
+      onClick={() => void copy()}
+      aria-label={`Copy the link to bill ${id}`}
+      className="type-micro shrink-0 rounded-[6px] border border-rule px-2.5 py-1.5 text-muted transition-colors duration-200 hover:border-gold hover:text-gold"
+      data-action="copy-bill-link"
+    >
+      {copied ? "Copied" : "Copy link"}
+    </button>
+  );
 }
 
 function Pager({ page, pages, onPage }: { page: number; pages: number; onPage: (p: number) => void }) {
@@ -50,14 +77,20 @@ function Pager({ page, pages, onPage }: { page: number; pages: number; onPage: (
 function ListState({ query, children }: { query: ReturnType<typeof useBillList>; children: React.ReactNode }) {
   if (query.isPending)
     return (
-      <div className="space-y-3 py-4" aria-label="Loading">
-        {[0, 1, 2].map((i) => (
-          <span key={i} className="live-shimmer block h-[2px] w-full" />
-        ))}
+      <div className="py-6">
+        <Reading />
       </div>
     );
   // C19: a failed list says so; it never shows as "no bills".
-  if (query.isError) return <p className="type-body py-6 text-muted">This list is unavailable right now: Arc did not answer. Reload to try again.</p>;
+  if (query.isError)
+    return (
+      <p className="type-body flex flex-wrap items-baseline gap-x-3 py-6 text-muted">
+        This list is unavailable right now: Arc did not answer.
+        <button type="button" onClick={() => void query.refetch()} className="type-micro text-gold underline-offset-4 hover:underline" data-retry>
+          Try again
+        </button>
+      </p>
+    );
   return <>{children}</>;
 }
 
@@ -94,8 +127,8 @@ export function BillsWritten({ address }: { address: Address }) {
           <>
             <ul>
               {rows.map((b) => (
-                <li key={b.id.toString()} className="border-b border-rule" data-bill-row={b.id.toString()} data-status={statusOf(b.status)}>
-                  <Link href={`/bill/${b.id}`} className="group grid grid-cols-[4.5rem_1fr_auto] items-center gap-x-4 gap-y-1 py-4 transition-colors duration-200 hover:bg-surface/60 md:grid-cols-[5rem_10rem_7rem_1fr_12rem] md:px-2">
+                <li key={b.id.toString()} className="flex items-center gap-3 border-b border-rule" data-bill-row={b.id.toString()} data-status={statusOf(b.status)}>
+                  <Link href={`/bill/${b.id}`} className="group grid min-w-0 flex-1 grid-cols-[4.5rem_1fr_auto] items-center gap-x-4 gap-y-1 py-4 transition-colors duration-200 hover:bg-surface/60 md:grid-cols-[5rem_10rem_7rem_1fr_12rem] md:px-2">
                     <span className="font-display text-[1.5rem] leading-none text-text transition-colors duration-200 group-hover:text-gold">No. {b.id.toString()}</span>
                     <span className="type-ui tabular-nums text-text">{money(b)}</span>
                     <span className="app-stamp-sm justify-self-end md:justify-self-start">
@@ -108,6 +141,7 @@ export function BillsWritten({ address }: { address: Address }) {
                       {b.status === BILL_STATUS.Paid ? `Paid ${formatDate(b.paidAt)} by ${shortAddress(b.payer)}` : b.due === 0n ? "No due date" : `Due ${formatDate(b.due)}`}
                     </span>
                   </Link>
+                  <CopyLink id={b.id} />
                 </li>
               ))}
             </ul>

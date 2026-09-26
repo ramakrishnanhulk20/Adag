@@ -83,9 +83,11 @@ const kept = [];
 const nextTime = (extra = 0) => pin.timestamp + BigInt(kept.length + 1 + extra);
 
 // Replays every kept transaction from the pinned block, then the new block, so each step sees the state before it.
-async function simulate(calls, time = nextTime()) {
-  const blocks = [...kept, { time, calls }].map((b) => ({
+// `overrides` applies state overrides to the new block only (for example a balance, so a check tests one thing).
+async function simulate(calls, time = nextTime(), overrides = null) {
+  const blocks = [...kept, { time, calls, overrides }].map((b) => ({
     blockOverrides: { time: toHex(b.time) },
+    ...(b.overrides ? { stateOverrides: b.overrides } : {}),
     calls: b.calls.map((c) => ({ from: c.from, to: c.to, data: c.data })),
   }));
   const result = await rpc('eth_simulateV1', [{ blockStateCalls: blocks, validation: false, traceTransfers: false }, toHex(pin.number)]);
@@ -439,8 +441,11 @@ async function main() {
   const accruedApproval = closeApproval(nShares, accruedTotal, nMarket[3]);
   const nOld = buildCloseLoan(PAYER, usdcCurrency, { shares: nShares, collateral: nCollateral }, storedApproval, usdcParams);
   const nNew = buildCloseLoan(PAYER, usdcCurrency, { shares: nShares, collateral: nCollateral }, accruedApproval, usdcParams);
-  const oldRes = (await simulate([{ from: PAYER, to: nOld.to, data: nOld.data }], jumpedTime))[0];
-  const newOut = await simulate([{ from: PAYER, to: nNew.to, data: nNew.data }, { from: PAYER, ...pos() }, { from: PAYER, ...allowance(C.USDC) }], jumpedTime);
+  // Months of interest at whatever rate the market then runs can outgrow the demo wallet, so the payer gets 1,000 USDC
+  // (Arc's native balance is its USDC) in both runs. What differs between them is only the approval.
+  const funded = { [PAYER]: { balance: toHex(1_000n * 10n ** 18n) } };
+  const oldRes = (await simulate([{ from: PAYER, to: nOld.to, data: nOld.data }], jumpedTime, funded))[0];
+  const newOut = await simulate([{ from: PAYER, to: nNew.to, data: nNew.data }, { from: PAYER, ...pos() }, { from: PAYER, ...allowance(C.USDC) }], jumpedTime, funded);
   const newPos = newOut[0].ok ? decode(pos(), newOut[1].returnData) : null;
   const newAllowance = newOut[0].ok ? decode(allowance(C.USDC), newOut[2].returnData) : null;
   const nRepay = newOut[0].ok ? morphoEventsIn(newOut[0].logs.map((l) => ({ ...l, removed: false }))).find((e) => e.name === 'Repay') : null;

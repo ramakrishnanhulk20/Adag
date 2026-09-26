@@ -22,20 +22,29 @@ export const MAX_BASKET = 10;
 // A basket link carries only ids (C3). Pasting one back in is read the same way as typed numbers.
 const BASKET_LINK = /\S*\/pay\/basket\?\S*?\bbills=((?:[0-9]+(?:,|%2C)?)+)\S*/gi;
 
-// Numbers or bill links, separated by commas, spaces or new lines. Duplicates collapse to the first one. Anything
-// that is not a bill number comes back in `dropped` so the page can say so. More than MAX_BASKET ids throws.
-export function parseBillList(input: string): { ids: bigint[]; dropped: string[] } {
+// A basket link is attacker-writable text shown on a genuine Adag page, so only a sample of what was rejected is
+// kept, short enough that it cannot carry a sentence: at most 3 entries of 24 characters, plus a count.
+export const MAX_DROPPED_SHOWN = 3;
+export const MAX_DROPPED_CHARS = 24;
+
+// Numbers or bill links, separated by commas, spaces or new lines. Duplicates collapse to the first one. A sample of
+// anything that is not a bill number comes back in `dropped`, and `droppedCount` counts them all. More than
+// MAX_BASKET ids throws.
+export function parseBillList(input: string): { ids: bigint[]; dropped: string[]; droppedCount: number } {
   const expanded = input.replace(BASKET_LINK, (_match, ids: string) => ` ${ids.replace(/%2C/gi, ",")} `);
   const ids: bigint[] = [];
   const dropped: string[] = [];
+  let droppedCount = 0;
   for (const token of expanded.split(/[\s,]+/)) {
     if (!token) continue;
     const id = parseBillInput(token);
-    if (id === null) dropped.push(token.slice(0, 80));
-    else if (!ids.includes(id)) ids.push(id);
+    if (id === null) {
+      droppedCount++;
+      if (dropped.length < MAX_DROPPED_SHOWN) dropped.push(token.length > MAX_DROPPED_CHARS ? `${token.slice(0, MAX_DROPPED_CHARS)}…` : token);
+    } else if (!ids.includes(id)) ids.push(id);
   }
   if (ids.length > MAX_BASKET) {
     throw new Error(`That is ${ids.length} bills. One signature pays at most ${MAX_BASKET}; split them into two baskets.`);
   }
-  return { ids, dropped };
+  return { ids, dropped, droppedCount };
 }

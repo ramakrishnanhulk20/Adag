@@ -23,9 +23,10 @@ export default async function BasketPage({ searchParams }: Props) {
   const text = Array.isArray(raw) ? raw.join(",") : (raw ?? "");
   let ids: bigint[] = [];
   let dropped: string[] = [];
+  let droppedCount = 0;
   let refusal: string | null = null;
   try {
-    ({ ids, dropped } = parseBillList(text));
+    ({ ids, dropped, droppedCount } = parseBillList(text));
   } catch (error) {
     refusal = (error as Error).message;
   }
@@ -45,7 +46,7 @@ export default async function BasketPage({ searchParams }: Props) {
 
   return (
     <AppShell>
-      <Basket items={items} dropped={dropped} />
+      <Basket items={items} dropped={dropped} droppedCount={droppedCount} />
     </AppShell>
   );
 }

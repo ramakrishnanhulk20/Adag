@@ -1,6 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
+import { networkName } from "@/lib/wallet/networks";
 import { useWallet } from "@/lib/wallet/useWallet";
 
 export const SMART_ACCOUNT_SENTENCE =
@@ -11,7 +12,11 @@ export function WalletNotice() {
   const wallet = useWallet();
   let message: { tone: "danger" | "pending"; text: string } | null = null;
   if (wallet.status === "connected") {
-    if (!wallet.onArc) message = { tone: "pending", text: `Your wallet is on chain ${wallet.chainId}. Adag only works on Arc mainnet: use Switch to Arc.` };
+    if (!wallet.onArc)
+      message = {
+        tone: "pending",
+        text: `Your wallet is on ${networkName(wallet.chainId)}. Adag works on Arc mainnet only: Switch to Arc adds Arc to your wallet if it is not there yet.`,
+      };
     else if (wallet.kind === "smart") message = { tone: "danger", text: SMART_ACCOUNT_SENTENCE };
     else if (wallet.kind === "delegated")
       message = {

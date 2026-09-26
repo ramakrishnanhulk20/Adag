@@ -13,11 +13,13 @@ import { buildCreateBill, referenceBytes } from "@/lib/pay/build";
 import { ADAG_BILLS, BILL_STATUS, CURRENCIES, EXPLORER, MAX_REFERENCE_BYTES, type Currency } from "@/lib/pay/constants";
 import { formatDate, formatUnitsExact, referenceText, shortAddress } from "@/lib/pay/format";
 import { billCreatedIn } from "@/lib/pay/receipt";
-import { feesNow, publicArc, simulateAndSend, type TxStep } from "@/lib/wallet/send";
+import { estimateFee, publicArc, simulateAndSend, type TxStep } from "@/lib/wallet/send";
 import { readyToSign, useWallet } from "@/lib/wallet/useWallet";
 import { ConnectButton } from "./ConnectButton";
+import { FeeLine } from "./FeeLine";
+import { GetSetUp } from "./GetSetUp";
+import { ShareActions } from "./ShareActions";
 import { BusyLabel, TxMessage, type TxState } from "./TxProgress";
-import { feeText } from "./fee";
 
 const DEFAULT_DUE_DAYS = 14;
 
@@ -38,7 +40,6 @@ export function WriteBill() {
   const [touched, setTouched] = useState(false);
   const [tx, setTx] = useState<TxState>({ kind: "idle" });
   const [written, setWritten] = useState<Written | null>(null);
-  const [copied, setCopied] = useState(false);
 
   // Dates depend on the visitor's clock, so they are set after mount; the server never guesses a time zone.
   useEffect(() => {
@@ -71,8 +72,7 @@ export function WriteBill() {
     retry: false,
     queryFn: async () => {
       if (!built.ok || !address) throw new Error("not ready");
-      const [gas, fees] = await Promise.all([publicArc().estimateGas({ account: address, to: built.call.to, data: built.call.data }), feesNow()]);
-      return gas * fees.expected;
+      return estimateFee({ account: address, to: built.call.to, data: built.call.data });
     },
   });
 
@@ -112,15 +112,6 @@ export function WriteBill() {
   };
 
   const shareLink = written ? `${typeof window === "undefined" ? "" : window.location.origin}/bill/${written.id}` : "";
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(shareLink);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1500);
-    } catch {
-      setCopied(false);
-    }
-  };
 
   const showErrors = touched || amountText !== "";
   const locked = Boolean(busy) || Boolean(written);
@@ -259,25 +250,26 @@ export function WriteBill() {
           <div className="mt-10 border-t border-rule pt-8">
             {!written &&
               (ready ? (
-                <div className="flex flex-col gap-4 md:flex-row md:items-center md:gap-6">
-                  <Button type="submit" variant="primary" disabled={!built.ok || Boolean(busy)} className="w-full md:w-auto" data-action="write-bill">
+                <div className="flex flex-col gap-4">
+                  <Button type="submit" variant="primary" disabled={!built.ok || Boolean(busy)} className="w-full md:w-auto md:self-start" data-action="write-bill">
                     {busy ? <BusyLabel step={busy.step} since={busy.since} /> : "Write the bill"}
                   </Button>
-                  <p className="type-body text-muted">
-                    Network fee{" "}
-                    {feeQuery.isSuccess ? feeText(feeQuery.data) : feeQuery.isError ? "unavailable" : built.ok ? "being estimated" : "shown once the bill is valid"}
-                  </p>
+                  {!built.ok && showErrors && <p className="type-body text-muted" data-blocked-reason>Fix the field marked above to write the bill.</p>}
+                  <FeeLine query={feeQuery} idle="The network fee shows once the bill is valid." />
                 </div>
               ) : (
-                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between" data-blocked="true">
-                  <p className="type-body max-w-[26rem] text-text">
-                    {wallet.status !== "connected"
-                      ? "Connect the wallet the bill should pay. Nothing is built until then."
-                      : !wallet.onArc
-                        ? "Your wallet is on another network. Switch it to Arc to write the bill."
-                        : "This wallet cannot sign here yet. See the note under the menu bar."}
-                  </p>
-                  <ConnectButton />
+                <div data-blocked="true">
+                  <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                    <p className="type-body max-w-[26rem] text-text">
+                      {wallet.status !== "connected"
+                        ? "Connect the wallet the bill should pay. Nothing is built until then."
+                        : !wallet.onArc
+                          ? "Your wallet is on another network. Switch it to Arc to write the bill."
+                          : "This wallet cannot sign here yet. See the note under the menu bar."}
+                    </p>
+                    <ConnectButton />
+                  </div>
+                  {(wallet.status !== "connected" || !wallet.onArc) && <GetSetUp needs={["arc", "usdc"]} className="mt-5" />}
                 </div>
               ))}
             {showErrors && !built.ok && amount.ok && refLength <= MAX_REFERENCE_BYTES && !dueError && (
@@ -302,10 +294,12 @@ export function WriteBill() {
                   <p className="type-address mt-5 break-all rounded-[6px] border border-rule bg-bg/40 p-3 text-text" data-share-link>
                     {shareLink}
                   </p>
-                  <div className="mt-5 flex flex-col gap-3 md:flex-row">
-                    <Button variant="primary" onClick={() => void copy()} className="w-full md:w-auto">
-                      {copied ? "Copied" : "Copy link"}
-                    </Button>
+                  <div className="mt-5 flex flex-col gap-3 md:flex-row md:flex-wrap">
+                    <ShareActions
+                      url={shareLink}
+                      title={`Bill #${written.id}`}
+                      text={`Bill #${written.id} for ${amount.ok ? formatUnitsExact(amount.value, currency.decimals) : ""} ${currency.symbol}, payable on Arc.`}
+                    />
                     <Button href={`/bill/${written.id}`} variant="secondary" className="w-full md:w-auto">
                       Open the bill page
                     </Button>

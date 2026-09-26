@@ -29,13 +29,15 @@ import { debtFromShares, liquidationDropWad, ltvWad } from "@/lib/pay/loan";
 import { currencyOf, paramsFromTuple } from "@/lib/pay/market";
 import { billsPaidIn } from "@/lib/pay/receipt";
 import { hasAcceptedMorphoDisclaimer, rememberMorphoDisclaimer } from "@/lib/wallet/consent";
-import { feesNow, publicArc, simulateAndSend, type TxStep } from "@/lib/wallet/send";
+import { estimateFee, publicArc, simulateAndSend, watchBills, type TxStep } from "@/lib/wallet/send";
 import { readyToSign, useWallet } from "@/lib/wallet/useWallet";
-import { Value, type Cell } from "./cells";
+import { RetryContext, Value, type Cell } from "./cells";
 import { ConnectButton } from "./ConnectButton";
+import { FeeLine } from "./FeeLine";
+import { GetSetUp, type SetupNeed } from "./GetSetUp";
 import { MorphoDisclaimer } from "./MorphoDisclaimer";
-import { feeText } from "./fee";
 import { BusyLabel, TxMessage, type TxState } from "./TxProgress";
+import { usdHint, useUsdPrice } from "./usdPrice";
 
 export type BasketItem = { id: string; kind: "found"; bill: BillJson } | { id: string; kind: "none" | "unavailable" };
 
@@ -65,7 +67,7 @@ function asideReason(item: BasketItem, bill: Bill | null, me: Address | null): s
 
 const statusOf = (s: number): BillStatus => (s === BILL_STATUS.Paid ? "paid" : s === BILL_STATUS.Void ? "void" : "open");
 
-export function Basket({ items, dropped }: { items: BasketItem[]; dropped: string[] }) {
+export function Basket({ items, dropped, droppedCount = dropped.length }: { items: BasketItem[]; dropped: string[]; droppedCount?: number }) {
   const wallet = useWallet();
   const me = wallet.status === "connected" ? wallet.address : null;
   const ready = readyToSign(wallet);
@@ -175,6 +177,29 @@ export function Basket({ items, dropped }: { items: BasketItem[]; dropped: strin
   const shortOfBtc = cirBtc.state === "ok" && pledgeTotal > cirBtc.value;
   const allChosen = groups.length > 0 && groups.every((g) => choices[g.currency.symbol]);
   const canPay = ready && allChosen && !shortOfBtc && !busy && payable.length > 0;
+  const usd = useUsdPrice();
+  const refetchReads = data.refetch;
+  const retryReads = useCallback(() => void refetchReads(), [refetchReads]);
+
+  // Why the one button cannot be pressed yet, in words.
+  const unchosen = groups.find((g) => !choices[g.currency.symbol]);
+  const payBlocked: string | null = busy
+    ? null
+    : !me
+      ? "Connect a wallet first."
+      : !ready
+        ? "Switch your wallet to Arc, or use an ordinary wallet, to pay."
+        : data.isPending
+          ? "Reading your balances and the prices on Arc."
+          : unchosen
+            ? `Choose how to pay the ${unchosen.currency.symbol} bills.`
+            : shortOfBtc
+              ? "This basket pledges more cirBTC than your wallet holds. Pay a group from balance instead."
+              : null;
+  const setupNeeds: SetupNeed[] = [];
+  if (shortOfBtc || groups.some((g, gi) => !balanceEnough(g, groupData[gi]!) && groupData[gi]!.balance.state === "ok" && pledgeOf(groupData[gi]!) !== null && cirBtc.state === "ok" && cirBtc.value < (pledgeOf(groupData[gi]!) ?? 0n)))
+    setupNeeds.push("cirbtc");
+  if (groups.some((g, gi) => isAddressEqual(g.currency.address, USDC) && groupData[gi]!.balance.state === "ok" && !balanceEnough(g, groupData[gi]!))) setupNeeds.push("usdc");
 
   // The fee for exactly the batch the button would build, recomputed whenever a group's choice or pledge changes.
   // The fixed params stand in here; the real payment re-reads Morpho's and proves them by hash.
@@ -192,8 +217,7 @@ export function Basket({ items, dropped }: { items: BasketItem[]; dropped: strin
         else if (choice === "bitcoin") plan[g.currency.symbol] = { from: "bitcoin", pledge: pledgeOf(groupData[gi]!) ?? 0n, marketParams: g.currency.params };
       });
       const built = buildPayMany(payable, me!, plan);
-      const [gas, fees] = await Promise.all([publicArc().estimateGas({ account: me!, to: built.to, data: built.data }), feesNow()]);
-      return gas * fees.expected;
+      return estimateFee({ account: me!, to: built.to, data: built.data });
     },
   });
 
@@ -267,21 +291,35 @@ export function Basket({ items, dropped }: { items: BasketItem[]; dropped: strin
 
     const usdcOut = groups.reduce((s, g) => (choices[g.currency.symbol] === "balance" && isAddressEqual(g.currency.address, USDC) ? s + g.total : s), 0n);
     const out = await simulateAndSend({ account: me, to: built.to, data: built.data, onStep: step, usdcOut });
-    if (!out.ok) {
+    let logs: Parameters<typeof billsPaidIn>[0] | null;
+    let hash: Hex;
+    if (out.ok) {
+      logs = out.receipt.logs;
+      hash = out.hash;
+    } else if (out.stage === "unconfirmed") {
+      // No receipt in time: the bills' own records say what happened, so nobody pays twice.
+      step("watching");
+      if (!(await watchBills(ids, BILL_STATUS.Paid, me))) {
+        return fail("Arc has not confirmed it after two minutes. Do not pay again: check the transaction first.", out.hash);
+      }
+      logs = null;
+      hash = out.hash;
+    } else {
       return setTx(out.stage === "refused" ? { kind: "refused", error: out.error } : { kind: "failed", message: out.message, href: out.hash && `${EXPLORER}/tx/${out.hash}` });
     }
 
-    // C16: every bill is proven by its own BillPaid from Adag, and by its record read again.
-    const proofs = billsPaidIn(out.receipt.logs, ids);
+    // C16: every bill is proven by its own BillPaid from Adag and its record read again; without a receipt, by the
+    // record alone, which must name this payer.
+    const proofs = logs ? billsPaidIn(logs, ids) : null;
     const after = await Promise.all(ids.map((id) => client.readContract({ address: ADAG_BILLS, abi: adagAbi, functionName: "bill", args: [id] }))).catch(() => null);
-    const missing = ids.filter((id, i) => !proofs.get(id) || !after || after[i]!.status !== BILL_STATUS.Paid || !isAddressEqual(after[i]!.payer, me));
-    if (missing.length) return fail(`Arc confirmed the transaction, but bill #${missing.join(", #")} does not read as paid by you. Check the transaction.`, out.hash);
+    const missing = ids.filter((id, i) => (proofs !== null && !proofs.get(id)) || !after || after[i]!.status !== BILL_STATUS.Paid || !isAddressEqual(after[i]!.payer, me));
+    if (missing.length) return fail(`Arc confirmed the transaction, but bill #${missing.join(", #")} does not read as paid by you. Check the transaction.`, hash);
 
     const btcAfter = await pledgedNow().catch(() => null);
     const ltv = await Promise.all(
       CURRENCIES.map(async (c) => ({ symbol: c.symbol, value: await client.readContract({ address: ADAG_BILLS, abi: adagAbi, functionName: "loanToValue", args: [me, c.marketId] }) })),
     ).catch(() => []);
-    setPaid({ hash: out.hash, count: ids.length, sold: btcBefore !== null && btcAfter !== null ? btcBefore - btcAfter : null, ltv: ltv.filter((l) => l.value > 0n) });
+    setPaid({ hash, count: ids.length, sold: btcBefore !== null && btcAfter !== null ? btcBefore - btcAfter : null, ltv: ltv.filter((l) => l.value > 0n) });
     setTx({ kind: "idle" });
     // The signature moment: every stamp lands, staggered inside half a second.
     const gap = ids.length > 1 ? Math.min(150, STAMP_WINDOW_MS / (ids.length - 1)) : 0;
@@ -313,9 +351,11 @@ export function Basket({ items, dropped }: { items: BasketItem[]; dropped: strin
           </>
         )}
       </h1>
-      {dropped.length > 0 && (
-        <p className="type-body app-rise mt-6 text-muted" style={{ "--d": 2 } as React.CSSProperties}>
-          Left out because they are not bill numbers: {dropped.join(", ")}.
+      {droppedCount > 0 && (
+        // L3: a link's text reaches this page only as a short sample and a count, never as sentences.
+        <p className="type-body app-rise mt-6 text-muted" style={{ "--d": 2 } as React.CSSProperties} data-dropped>
+          Left out because {droppedCount === 1 ? "it is not a bill number" : "they are not bill numbers"}: {dropped.join(", ")}
+          {droppedCount > dropped.length ? ` and ${droppedCount - dropped.length} more` : ""}.
         </p>
       )}
 
@@ -349,15 +389,30 @@ export function Basket({ items, dropped }: { items: BasketItem[]; dropped: strin
         </div>
       )}
 
+      {n === 0 && !paid && (
+        <div className="mt-10 flex flex-col gap-3 md:flex-row" data-next-steps>
+          <Button href="/pay" variant="primary" className="w-full md:w-auto">
+            Pay a bill
+          </Button>
+          <Button href="/bill/new" variant="secondary" className="w-full md:w-auto">
+            Write a bill
+          </Button>
+        </div>
+      )}
+
       {n > 0 && !paid && (
         <div className="mt-14 grid gap-8 lg:grid-cols-12">
           <div className="lg:col-span-8">
             {!me ? (
-              <div className="app-panel flex flex-col gap-5 p-6 md:flex-row md:items-center md:justify-between md:p-8" data-blocked="true">
-                <p className="type-lead max-w-[30rem] text-text">Connect a wallet to see how each currency can be paid.</p>
-                <ConnectButton />
+              <div className="app-panel p-6 md:p-8" data-blocked="true">
+                <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+                  <p className="type-lead max-w-[30rem] text-text">Connect a wallet to see how each currency can be paid.</p>
+                  <ConnectButton />
+                </div>
+                <GetSetUp needs={["arc", "cirbtc", "usdc"]} className="mt-6" />
               </div>
             ) : (
+              <RetryContext.Provider value={retryReads}>
               <div className="grid gap-5">
                 {groups.map((g, gi) => (
                   <GroupPanel
@@ -377,9 +432,12 @@ export function Basket({ items, dropped }: { items: BasketItem[]; dropped: strin
                         return next;
                       });
                     }}
+                    usd={usd}
                   />
                 ))}
+                {setupNeeds.length > 0 && <GetSetUp needs={setupNeeds} />}
               </div>
+              </RetryContext.Provider>
             )}
           </div>
           <div className="lg:col-span-4">
@@ -389,24 +447,15 @@ export function Basket({ items, dropped }: { items: BasketItem[]; dropped: strin
                 {groups.map((g) => `${formatUnitsExact(g.total, g.currency.decimals)} ${g.currency.symbol}`).join(" and ")} across {n} bill{n === 1 ? "" : "s"}. Every
                 step succeeds together or nothing moves.
               </p>
-              <p className="type-body mt-3 text-muted" data-fee>
-                Network fee{" "}
-                {feeQuery.isSuccess ? (
-                  <span className="text-text">{feeText(feeQuery.data)}</span>
-                ) : feeQuery.isError ? (
-                  "unavailable"
-                ) : allChosen && me ? (
-                  "being estimated"
-                ) : (
-                  "shown once each group has a choice"
-                )}
-                , estimated, paid in USDC.
-              </p>
-              {shortOfBtc && <p className="type-body mt-3 text-danger">This basket pledges more cirBTC than your wallet holds. Pay a group from balance instead.</p>}
-              {me && !ready && <p className="type-body mt-3 text-muted">Switch your wallet to Arc, or use an ordinary wallet, to pay.</p>}
+              <FeeLine query={feeQuery} idle="The network fee shows once each currency has a choice." className="mt-3" />
               <Button variant="primary" disabled={!canPay} onClick={onPay} className="mt-6 w-full" data-action="pay-basket">
                 {busy ? <BusyLabel step={busy.step} since={busy.since} /> : `Pay ${n} bill${n === 1 ? "" : "s"} with one signature`}
               </Button>
+              {payBlocked && (
+                <p className={`type-body mt-3 ${shortOfBtc ? "text-danger" : "text-muted"}`} data-blocked-reason>
+                  {payBlocked}
+                </p>
+              )}
               <div className="mt-4">
                 <TxMessage state={tx} />
               </div>
@@ -518,9 +567,10 @@ type GroupPanelProps = {
   disabled: boolean;
   notice: string | null;
   onChoose: (c: Choice) => void;
+  usd: bigint | null;
 };
 
-function GroupPanel({ group, data, cirBtc, choice, balanceOk, disabled, notice, onChoose }: GroupPanelProps) {
+function GroupPanel({ group, data, cirBtc, choice, balanceOk, disabled, notice, onChoose, usd }: GroupPanelProps) {
   const { currency, total, bills } = group;
   const fresh = data.fresh.state === "ok" ? data.fresh.value : null;
   const pledge: Cell<bigint> = data.needed.state === "ok" ? { state: "ok", value: suggestPledge(data.needed.value) } : data.needed;
@@ -550,7 +600,10 @@ function GroupPanel({ group, data, cirBtc, choice, balanceOk, disabled, notice, 
         <span className="type-ui text-text">{title}</span>
         <span aria-hidden="true" className={`h-3 w-3 rounded-full border ${choice === c ? "border-gold bg-gold" : "border-rule-strong"}`} />
       </span>
-      <span className="type-body mt-3 block text-muted">{body}</span>
+      {/* No "Try again" button inside this button: a button may not hold another. The panel's own retry sits below. */}
+      <RetryContext.Provider value={null}>
+        <span className="type-body mt-3 block text-muted">{body}</span>
+      </RetryContext.Provider>
     </button>
   );
 
@@ -579,10 +632,9 @@ function GroupPanel({ group, data, cirBtc, choice, balanceOk, disabled, notice, 
             "New loans are paused until the bitcoin price updates."
           ) : (
             <>
-              Pledge <Value cell={pledge} render={(v) => (v === 0n ? "nothing more" : `${formatUnitsExact(v, CIRBTC_DECIMALS)} cirBTC`)} className="text-text" /> of{" "}
-              <Value cell={cirBtc} render={(v) => formatUnitsExact(v, CIRBTC_DECIMALS)} /> held. Loan-to-value after{" "}
-              <Value cell={after} render={(v) => formatPercentWad(v.ltv)} className="text-text" />; BTC can then fall{" "}
-              <Value cell={after} render={(v) => formatPercentWad(v.drop)} className="text-text" />.
+              You pledge{" "}
+              <Value cell={pledge} render={(v) => (v === 0n ? "no more cirBTC" : `${formatUnitsExact(v, CIRBTC_DECIMALS)} cirBTC${usdHint(v, usd)}`)} className="text-text" /> and keep
+              it. Bitcoin can fall <Value cell={after} render={(v) => formatPercentWad(v.drop)} className="text-text" /> before Morpho may liquidate.
             </>
           ),
         )}
@@ -592,10 +644,19 @@ function GroupPanel({ group, data, cirBtc, choice, balanceOk, disabled, notice, 
           balanceOk,
           <>
             You hold <Value cell={data.balance} render={(v) => `${formatUnitsExact(v, currency.decimals)} ${currency.symbol}`} className="text-text" />.{" "}
-            {balanceOk ? "One exact approval, then each bill is paid." : isUsdc ? "Not enough for these bills plus 0.01 USDC for the fee." : "Not enough for these bills."}
+            {balanceOk ? "One exact approval, then each bill is paid." : isUsdc ? "Not enough for these bills and the network fee." : "Not enough for these bills."}
           </>,
         )}
       </div>
+      {fresh !== false && (
+        <details className="group mt-4">
+          <summary className="type-micro cursor-pointer list-none text-muted transition-colors duration-200 hover:text-text">Details</summary>
+          <p className="type-body mt-2 text-muted">
+            Loan-to-value after: <Value cell={after} render={(v) => formatPercentWad(v.ltv)} className="text-text" /> (Adag refuses anything over 40%). cirBTC in your wallet:{" "}
+            <Value cell={cirBtc} render={(v) => `${formatUnitsExact(v, CIRBTC_DECIMALS)}${usdHint(v, usd)}`} className="text-text" />. The pledge includes 5% for price moves.
+          </p>
+        </details>
+      )}
     </div>
   );
 }

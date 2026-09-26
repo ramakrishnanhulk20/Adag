@@ -15,6 +15,7 @@ const LABEL: Record<TxStep, string> = {
   checking: "Checking with Arc",
   signing: "Confirm in your wallet",
   confirming: "Waiting for Arc to confirm",
+  watching: "No receipt yet. Checking the bill on Arc",
   rereading: "Reading the bill again",
 };
 

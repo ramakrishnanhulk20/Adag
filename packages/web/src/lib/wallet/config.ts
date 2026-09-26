@@ -3,6 +3,7 @@ import { createConfig, fallback, http, injected, type CreateConnectorFn } from "
 import { walletConnect } from "wagmi/connectors/walletConnect";
 import { arc } from "viem/chains";
 import { RPC_MAX_RESPONSE_BYTES, RPC_TIMEOUT_MS } from "@/lib/arc/constants";
+import { siteUrl } from "./site";
 
 // The override exists for the end-to-end tests, which point a separate build at a local Arc fork. When it is set,
 // it is the only endpoint, so a test can never fall through to mainnet.
@@ -29,7 +30,7 @@ if (wcProjectId) {
       metadata: {
         name: "Adag",
         description: "Pay the bill. Keep the bitcoin.",
-        url: "https://adag.app",
+        url: siteUrl(),
         icons: [],
       },
     }),

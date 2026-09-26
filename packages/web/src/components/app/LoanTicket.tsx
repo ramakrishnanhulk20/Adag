@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { motion } from "motion/react";
+import { useQuery } from "@tanstack/react-query";
 import type { Address, Hex } from "viem";
 import { arc } from "viem/chains";
 import { useBlock, useReadContract, useReadContracts } from "wagmi";
@@ -10,15 +11,18 @@ import { adagAbi, erc20Abi, irmAbi, morphoAbi, oracleAbi } from "@/lib/pay/abi";
 import { parseAmountInput } from "@/lib/pay/amount";
 import { buildAddCollateral, buildCloseLoan } from "@/lib/pay/build";
 import { ADAG_BILLS, CIRBTC, CIRBTC_DECIMALS, EXPLORER, MAX_LTV_WAD, MORPHO, USDC, WAD, type Currency } from "@/lib/pay/constants";
-import { formatPercentWad, formatUnitsExact, shortAddress } from "@/lib/pay/format";
+import { formatPercentWad, formatUnitsExact, shortAddress, usdOfSats } from "@/lib/pay/format";
 import { accrueBorrowAssets, closeApproval, debtFromShares, liquidationDropWad, ltvWad } from "@/lib/pay/loan";
 import { paramsFromTuple } from "@/lib/pay/market";
 import { morphoEventsIn } from "@/lib/pay/receipt";
 import { hasAcceptedMorphoDisclaimer, rememberMorphoDisclaimer } from "@/lib/wallet/consent";
-import { publicArc, simulateAndSend, type TxStep } from "@/lib/wallet/send";
-import { Value, type Cell } from "./cells";
+import { estimateFee, publicArc, simulateAndSend, type TxStep } from "@/lib/wallet/send";
+import { RetryContext, Value, type Cell } from "./cells";
+import { FeeLine } from "./FeeLine";
+import { GetSetUp, type SetupNeed } from "./GetSetUp";
 import { MorphoDisclaimer } from "./MorphoDisclaimer";
 import { BusyLabel, TxMessage, type TxState } from "./TxProgress";
+import { usdHint, useUsdPrice } from "./usdPrice";
 
 type Position = readonly [bigint, bigint, bigint];
 type MarketState = readonly [bigint, bigint, bigint, bigint, bigint, bigint];
@@ -113,6 +117,23 @@ export function LoanTicket(props: LoanTicketProps) {
   const short =
     shares > 0n && loanTokenBalance.state === "ok" && accruedBorrow !== null ? (loanTokenBalance.value < need ? need - loanTokenBalance.value : 0n) : null;
   const gasShort = !isUsdc && usdcBalance.state === "ok" && usdcBalance.value < USDC_FEE_RESERVE;
+  const usd = useUsdPrice();
+  const setupNeeds: SetupNeed[] = [];
+  if (mode === "add" && addText && addError && cirBtc.state === "ok" && add.ok && add.value > cirBtc.value) setupNeeds.push("cirbtc");
+  if (mode === "close" && ((isUsdc && short !== null && short > 0n) || gasShort)) setupNeeds.push("usdc");
+
+  // The close's fee, from the same helper every screen uses. The fixed params stand in; the real close re-reads Morpho's.
+  const closeFee = useQuery({
+    queryKey: ["adag-fee", "close", m, address, shares.toString(), collateral.toString(), approval.toString()],
+    enabled: mode === "close" && canSign && !done && (shares === 0n ? collateral > 0n : approval > 0n && short === 0n),
+    staleTime: 30_000,
+    retry: false,
+    queryFn: () => {
+      const built = buildCloseLoan(address, currency, { shares, collateral }, approval, currency.params);
+      return estimateFee({ account: address, to: built.to, data: built.data });
+    },
+  });
+  const retryReads = useCallback(() => void reads.refetch(), [reads]);
 
   const fail = (message: string, hash?: Hex) => setTx({ kind: "failed", message, href: hash && `${EXPLORER}/tx/${hash}` });
 
@@ -234,6 +255,7 @@ export function LoanTicket(props: LoanTicketProps) {
   const fresh = priceStatus.state === "ok" ? priceStatus.value[0] : null;
 
   return (
+    <RetryContext.Provider value={retryReads}>
     <article className="app-panel p-6 md:p-8" data-loan={currency.symbol} data-ltv={ltvPct ?? ""}>
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <p className="type-label text-text">
@@ -252,9 +274,14 @@ export function LoanTicket(props: LoanTicketProps) {
       ) : (
         <>
           <dl className="mt-6 grid grid-cols-2 gap-x-6 gap-y-6">
-            <Stat label="Pledged" cell={{ state: "ok", value: collateral }} render={(v) => `${formatUnitsExact(v, CIRBTC_DECIMALS)} cirBTC`} />
+            <Stat
+              label="Pledged"
+              cell={{ state: "ok", value: collateral }}
+              render={(v) => `${formatUnitsExact(v, CIRBTC_DECIMALS)} cirBTC`}
+              note={usd !== null ? `about ${usdOfSats(collateral, usd)}, estimated` : undefined}
+            />
             <Stat label="You owe" cell={debt} render={(v) => `${formatUnitsExact(v, currency.decimals)} ${currency.symbol}`} note="exact, rounded up" />
-            <Stat label="BTC can fall" cell={drop} render={(v) => (shares === 0n ? "no loan" : formatPercentWad(v))} note={`before Morpho may liquidate`} />
+            <Stat label="Bitcoin can fall" cell={drop} render={(v) => (shares === 0n ? "no loan" : formatPercentWad(v))} note={`before Morpho may liquidate`} />
             <Stat label="Borrow rate" cell={apyCell} render={(v) => `${(v * 100).toFixed(2)}% a year`} note="live, variable" />
           </dl>
 
@@ -288,11 +315,13 @@ export function LoanTicket(props: LoanTicketProps) {
               <div className="mt-5">
                 <div className="flex flex-col gap-4 md:flex-row md:items-end">
                   <label className="flex-1">
-                    <span className="type-micro text-muted">cirBTC to add · you hold <Value cell={cirBtc} render={(v) => formatUnitsExact(v, CIRBTC_DECIMALS)} /></span>
+                    <span className="type-micro text-muted">
+                      cirBTC to add · you hold <Value cell={cirBtc} render={(v) => `${formatUnitsExact(v, CIRBTC_DECIMALS)}${usdHint(v, usd)}`} />
+                    </span>
                     <input
                       inputMode="decimal"
                       autoComplete="off"
-                      placeholder="0.00001"
+                      placeholder="Amount in cirBTC"
                       value={addText}
                       onChange={(e) => setAddText(e.target.value)}
                       className="app-input mt-1 !text-[2rem]"
@@ -329,14 +358,19 @@ export function LoanTicket(props: LoanTicketProps) {
                     {isUsdc ? " including a little for the fee" : ""}. Add {formatUnitsExact(short, currency.decimals)} {currency.symbol} first.
                   </p>
                 ) : gasShort ? (
-                  <p className="type-body mt-3 text-danger">Keep at least 0.01 USDC in this wallet for the network fee.</p>
+                  <p className="type-body mt-3 text-danger">Keep a little USDC in this wallet for the network fee.</p>
                 ) : (
-                  <Button variant="primary" disabled={Boolean(busy) || (shares > 0n && short === null)} onClick={() => start("close")} data-action="close-loan" className="mt-5 w-full md:w-auto">
-                    {busy ? <BusyLabel step={busy.step} since={busy.since} /> : shares > 0n ? "Close loan" : "Take your bitcoin back"}
-                  </Button>
+                  <>
+                    <Button variant="primary" disabled={Boolean(busy) || (shares > 0n && short === null)} onClick={() => start("close")} data-action="close-loan" className="mt-5 w-full md:w-auto">
+                      {busy ? <BusyLabel step={busy.step} since={busy.since} /> : shares > 0n ? "Close loan" : "Take your bitcoin back"}
+                    </Button>
+                    {shares > 0n && short === null && !busy && <p className="type-body mt-2 text-muted" data-blocked-reason>Reading your loan and balance on Arc.</p>}
+                    <FeeLine query={closeFee} className="mt-3" />
+                  </>
                 )}
               </div>
             )}
+            {setupNeeds.length > 0 && <GetSetUp needs={setupNeeds} className="mt-5" />}
             {done?.kind === "added" && (
               <p className="type-body mt-4 text-success" data-tx-result="added">
                 {done.text}{" "}
@@ -363,6 +397,7 @@ export function LoanTicket(props: LoanTicketProps) {
         }}
       />
     </article>
+    </RetryContext.Provider>
   );
 }
 

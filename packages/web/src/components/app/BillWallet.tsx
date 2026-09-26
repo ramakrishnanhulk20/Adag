@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { motion } from "motion/react";
 import { isAddressEqual, type Address } from "viem";
 import { arc } from "viem/chains";
@@ -28,8 +28,9 @@ import { formatPercentWad, formatUnitsExact } from "@/lib/pay/format";
 import { debtFromShares, liquidationDropWad } from "@/lib/pay/loan";
 import { currencyOf } from "@/lib/pay/market";
 import { readyToSign, useWallet, type WalletState } from "@/lib/wallet/useWallet";
-import { Value, rise, type Cell } from "./cells";
+import { RetryContext, Value, rise, type Cell } from "./cells";
 import { ConnectButton } from "./ConnectButton";
+import { GetSetUp } from "./GetSetUp";
 import { PayActions } from "./PayActions";
 import { VoidAction } from "./VoidAction";
 import { SMART_ACCOUNT_SENTENCE } from "./WalletNotice";
@@ -50,29 +51,36 @@ function blockedReason(wallet: WalletState): string | null {
   return "Checking your wallet on Arc.";
 }
 
-export function BillWallet({ bill: json }: { bill: BillJson }) {
+export function BillWallet({ bill: json, paidTxUrl = null }: { bill: BillJson; paidTxUrl?: string | null }) {
   const bill = useMemo(() => billFromJson(json), [json]);
   const wallet = useWallet();
   const open = bill.status === BILL_STATUS.Open;
+  // Whether this page opened on an open bill, so a payment that lands while it is on screen reads as "just now".
+  const openAtLoad = useRef(open);
 
   if (wallet.status !== "connected") {
     if (!open) return null;
     return (
       <section className="px-5 pb-20 md:px-[6vw] md:pb-28" aria-label="Pay this bill">
-        <motion.div {...rise(0)} className="app-panel flex flex-col gap-6 p-6 md:flex-row md:items-center md:justify-between md:p-8">
-          <p className="type-lead max-w-[36rem] text-text">
-            Connect a wallet to pay this bill from your balance, or from a loan against your cirBTC, in one signature.
-          </p>
-          <ConnectButton />
+        <motion.div {...rise(0)} className="app-panel p-6 md:p-8">
+          <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+            <p className="type-lead max-w-[36rem] text-text">
+              Connect a wallet to pay this bill from your balance, or from a loan against your cirBTC, in one signature.
+            </p>
+            <ConnectButton />
+          </div>
+          <GetSetUp needs={["arc", "cirbtc", "usdc"]} className="mt-6" />
         </motion.div>
       </section>
     );
   }
 
-  return <ConnectedWallet address={wallet.address} bill={bill} wallet={wallet} />;
+  return <ConnectedWallet address={wallet.address} bill={bill} wallet={wallet} justPaid={openAtLoad.current && bill.status === BILL_STATUS.Paid} paidTxUrl={paidTxUrl} />;
 }
 
-function ConnectedWallet({ address, bill, wallet }: { address: Address; bill: Bill; wallet: WalletState }) {
+type ConnectedProps = { address: Address; bill: Bill; wallet: WalletState; justPaid: boolean; paidTxUrl: string | null };
+
+function ConnectedWallet({ address, bill, wallet, justPaid, paidTxUrl }: ConnectedProps) {
   const currency = currencyOf(bill.currency);
   const isPayee = isAddressEqual(address, bill.payee);
   const open = bill.status === BILL_STATUS.Open;
@@ -154,12 +162,16 @@ function ConnectedWallet({ address, bill, wallet }: { address: Address; bill: Bi
   // Once this wallet pays here, its receipt card stays on screen after the page refresh reports the bill as paid.
   const [actedHere, setActedHere] = useState(false);
   const refetch = reads.refetch;
+  const retry = useCallback(() => void refetch(), [refetch]);
   const onSettled = useCallback(() => {
     setActedHere(true);
     void refetch();
   }, [refetch]);
 
+  const noPositions = markets.every((x) => x.position.state === "ok" && x.position.value[1] === 0n && x.position.value[2] === 0n);
+
   return (
+    <RetryContext.Provider value={retry}>
     <section className="px-5 pb-20 md:px-[6vw] md:pb-28" aria-labelledby="wallet-title">
       <motion.div {...rise(0)} className="flex flex-wrap items-center gap-4 border-t border-rule pt-10">
         <Hallmark tone="quiet">Your wallet</Hallmark>
@@ -171,7 +183,9 @@ function ConnectedWallet({ address, bill, wallet }: { address: Address; bill: Bi
 
       <div className="mt-10 grid gap-5 md:grid-cols-12 md:gap-6">
         <motion.div {...rise(1)} className="md:col-span-6">
-          {isPayee ? (
+          {isPayee && justPaid ? (
+            <PaidJustNow bill={bill} currencySymbol={currency?.symbol ?? ""} decimals={currency?.decimals ?? 6} txUrl={paidTxUrl} />
+          ) : isPayee ? (
             <VoidAction bill={bill} address={address} canSign={reason === null} blockedReason={reason} />
           ) : (open || actedHere) && currency ? (
             reason === null || actedHere ? (
@@ -194,9 +208,12 @@ function ConnectedWallet({ address, bill, wallet }: { address: Address; bill: Bi
                 <p className="type-label text-muted">Pay this bill</p>
                 <p className="type-lead mt-4 text-text">{reason}</p>
                 {wallet.status === "connected" && !wallet.onArc && (
-                  <div className="mt-6">
-                    <ConnectButton />
-                  </div>
+                  <>
+                    <div className="mt-6">
+                      <ConnectButton />
+                    </div>
+                    <GetSetUp needs={["arc"]} className="mt-6" />
+                  </>
                 )}
               </div>
             )
@@ -225,14 +242,17 @@ function ConnectedWallet({ address, bill, wallet }: { address: Address; bill: Bi
             </dl>
           </motion.div>
 
-          <motion.div {...rise(3)} className="app-panel p-6 md:p-8">
-            <p className="type-label text-muted">Morpho positions</p>
-            <div className="mt-5 grid gap-6 sm:grid-cols-2">
-              {markets.map((x) => (
-                <MarketCard key={x.currency.symbol} {...x} />
-              ))}
-            </div>
-          </motion.div>
+          {/* Nothing to show when this wallet has no loan in either market. */}
+          {!noPositions && (
+            <motion.div {...rise(3)} className="app-panel p-6 md:p-8" data-positions>
+              <p className="type-label text-muted">Morpho positions</p>
+              <div className="mt-5 grid gap-6 sm:grid-cols-2">
+                {markets.map((x) => (
+                  <MarketCard key={x.currency.symbol} {...x} />
+                ))}
+              </div>
+            </motion.div>
+          )}
         </div>
       </div>
 
@@ -240,6 +260,29 @@ function ConnectedWallet({ address, bill, wallet }: { address: Address; bill: Bi
         <PriceLine priceStatus={priceStatus} symbol={currency?.symbol ?? "USDC"} chainNow={head.data?.timestamp ?? null} />
       </motion.div>
     </section>
+    </RetryContext.Provider>
+  );
+}
+
+// The supplier had this page open when someone paid: the stamp above has just landed, and this says so in words.
+function PaidJustNow({ bill, currencySymbol, decimals, txUrl }: { bill: Bill; currencySymbol: string; decimals: number; txUrl: string | null }) {
+  return (
+    <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }} className="app-panel p-6 md:p-8" data-paid-just-now>
+      <p className="type-label text-success">Paid just now</p>
+      <p className="type-h3 mt-3 text-text">
+        You received {formatUnitsExact(bill.amount, decimals)} {currencySymbol}.
+      </p>
+      <p className="type-body mt-3 text-muted">
+        Paid by <span className="type-address break-all text-text">{bill.payer}</span>
+      </p>
+      {txUrl ? (
+        <a href={txUrl} target="_blank" rel="noopener noreferrer" className="link-draw type-address mt-4 inline-block text-text hover:text-gold">
+          The transaction on the explorer
+        </a>
+      ) : (
+        <p className="type-body mt-4 text-muted">The transaction link appears once Adag&apos;s payment log is read.</p>
+      )}
+    </motion.div>
   );
 }
 

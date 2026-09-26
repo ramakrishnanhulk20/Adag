@@ -13,8 +13,9 @@ import { CIRBTC, CIRBTC_DECIMALS, CURRENCIES, EURC, MORPHO, USDC } from "@/lib/p
 import { formatUnitsExact } from "@/lib/pay/format";
 import { readyToSign, useWallet, type WalletState } from "@/lib/wallet/useWallet";
 import { BillsPaid, BillsWritten } from "./BillLists";
-import { Value, rise, type Cell } from "./cells";
+import { Reading, RetryContext, Value, rise, type Cell } from "./cells";
 import { ConnectButton } from "./ConnectButton";
+import { GetSetUp } from "./GetSetUp";
 import { LoanTicket } from "./LoanTicket";
 import { SMART_ACCOUNT_SENTENCE } from "./WalletNotice";
 
@@ -55,6 +56,9 @@ function ConnectPoster() {
       <div className="app-rise mt-10" style={{ "--d": 3 } as React.CSSProperties}>
         <ConnectButton />
       </div>
+      <div className="app-rise mt-10 max-w-[40rem]" style={{ "--d": 4 } as React.CSSProperties}>
+        <GetSetUp needs={["arc", "cirbtc", "usdc"]} />
+      </div>
     </section>
   );
 }
@@ -83,6 +87,7 @@ function Connected({ address, wallet }: { address: Address; wallet: WalletState 
   // A ticket whose loan was just closed stays up so its receipt can be read.
   const [kept, setKept] = useState<string[]>([]);
   const refetch = reads.refetch;
+  const retry = useCallback(() => void refetch(), [refetch]);
   const onChanged = useCallback(
     (marketId: string) => {
       setKept((k) => (k.includes(marketId) ? k : [...k, marketId]));
@@ -98,6 +103,7 @@ function Connected({ address, wallet }: { address: Address; wallet: WalletState 
   const anyPositionUnavailable = positions.some((p) => p.position.state === "unavailable");
 
   return (
+    <RetryContext.Provider value={retry}>
     <div className="px-5 pt-12 pb-24 md:px-[6vw] md:pt-[9vh]">
       <div className="app-rise" style={{ "--d": 0 } as React.CSSProperties}>
         <Hallmark>Your wallet · Arc mainnet</Hallmark>
@@ -151,7 +157,9 @@ function Connected({ address, wallet }: { address: Address; wallet: WalletState 
           )}
         </div>
         {reads.isPending ? (
-          <span className="live-shimmer mt-6 block h-[2px] w-full" aria-label="Loading" />
+          <div className="mt-6">
+            <Reading />
+          </div>
         ) : anyPositionUnavailable ? (
           <p className="type-body mt-6 text-muted">Some loan positions are unavailable right now: Arc did not answer. Reload to try again.</p>
         ) : tickets.length === 0 ? (
@@ -173,6 +181,7 @@ function Connected({ address, wallet }: { address: Address; wallet: WalletState 
         </div>
       </div>
     </div>
+    </RetryContext.Provider>
   );
 }
 
