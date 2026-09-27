@@ -39,10 +39,13 @@ async function need<T>(p: Promise<Settled<T>>): Promise<T> {
   return r.value;
 }
 
+// C62: only a sentence this code wrote reaches the page. viem wraps every RPC failure in its own error type, whose
+// text can hold a node's words, so those become a fixed sentence and their short message goes to the log instead.
 function reasonOf(error: unknown): string {
-  const e = error as { shortMessage?: string; message?: string } | undefined;
-  const text = e?.shortMessage || e?.message || "The read failed.";
-  return text.split("\n")[0]!.slice(0, 160);
+  if (error instanceof Error && error.constructor === Error && !("shortMessage" in error)) return error.message.split("\n")[0]!.slice(0, 160);
+  const e = error as { shortMessage?: string; name?: string } | undefined;
+  console.warn(`Arc read failed: ${e?.shortMessage ?? e?.name ?? "unknown"}`);
+  return "Arc did not answer. Try again in a moment.";
 }
 
 // A cell's source note may depend on what the read found (the paid figures say how far they counted).
