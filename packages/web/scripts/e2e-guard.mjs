@@ -290,6 +290,8 @@ async function main() {
     NEXT_PUBLIC_ADAG_E2E: '1',
     NEXT_PUBLIC_ADAG_GUARD_E2E: guard,
     NEXT_PUBLIC_ARC_RPC_URL: FORK,
+    // The fake wallet is a browser wallet; WalletConnect would add a chooser and a relay the fork cannot reach.
+    NEXT_PUBLIC_WC_PROJECT_ID: '',
     NEXT_PUBLIC_SITE_URL: APP,
     ARC_RPC_URL: FORK,
     ARC_RPC_FALLBACK_URL: FORK,
