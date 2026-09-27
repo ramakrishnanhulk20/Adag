@@ -1,5 +1,5 @@
 // Tries to break AdagGuard on live Arc mainnet state and shows every attempt behaving as the threat model says
-// (C34 to C41, with Ram's amendments: a rule is trigger, target and expiry; the approval is the lifetime ceiling).
+// (C34 to C41 as amended: a rule is trigger, target and expiry; the approval is the lifetime ceiling).
 // Every attack runs inside eth_simulateV1 on dRPC from one real mainnet block, against the demo payer's real
 // Morpho loan. Nothing is signed or sent, and no key is read.
 //

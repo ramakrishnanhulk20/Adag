@@ -265,7 +265,7 @@ Two dry runs on 26 September, both with no `.env`:
 - With `--block 22867200` the live loan was at 39.07%, so there was no premise. The protect repaid 0.464348 USDC
   to 29.9999843715080089%, and all 9 checks passed.
 
-The second run matches, digit for digit, Ram's real `--broadcast` a few blocks later at block 22867226
+The second run matches, digit for digit, the real `--broadcast` a few blocks later at block 22867226
 (`deployments/guard-prove-2026-09-26.md`).
 
 The script stops only if the payer has no loan at all.
@@ -328,7 +328,7 @@ so and sends nothing.
 
 Each attack is its own simulation from the same block. It prints the attack, what should stop it, the decoded
 result and PASS or FAIL, and appends the table to `packages/contracts/deployments/attacks-<date>-guard.md`. It exits 0
-only if every row passes. The C numbers are the threat model's invariants, with Ram's amendments: a rule is a
+only if every row passes. The C numbers are the threat model's invariants, as amended: a rule is a
 trigger, a target and an expiry, and the approval is the lifetime ceiling.
 
 | # | Attack | Threat model |

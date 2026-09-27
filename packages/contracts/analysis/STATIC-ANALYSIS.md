@@ -165,7 +165,7 @@ The contract keeps almost no comments, by choice: only where needed, short and p
 
 The next AdagBills deployment adds `enrol()`, the `enrolledAt` view, the `Enrolled` event and the `EnrolledThisBlock` error, and `pay` now refuses a payer whose enrol block is the current block. Re-run of `run-analysis.sh`: all three tools exit 0.
 
-`src/` now also holds `AdagGuard.sol` and two new interfaces (`IIrmMinimal.sol`, `IMorphoRepay.sol`), built by another work order in the same project. The output files therefore include their findings too: slither 37 results in total, solhint 195 warnings, lint 12. Only the AdagBills rows are judged here. The AdagGuard rows belong to that work order's own analysis.
+`src/` now also holds `AdagGuard.sol` and two new interfaces (`IIrmMinimal.sol`, `IMorphoRepay.sol`), added in the same round of work. The output files therefore include their findings too: slither 37 results in total, solhint 195 warnings, lint 12. Only the AdagBills rows are judged here. The AdagGuard rows are judged in their own section below.
 
 | Tool, AdagBills and its original interfaces only | Before | After |
 | --- | --- | --- |

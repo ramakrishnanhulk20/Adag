@@ -421,7 +421,7 @@ const feesFor = (baseFee) => {
   return { maxFeePerGas: doubled > L.MIN_MAX_FEE ? doubled : L.MIN_MAX_FEE, maxPriorityFeePerGas: L.PRIORITY_FEE };
 };
 
-// Reads the answer from the terminal itself when there is one, so a piped stdin cannot answer for Ram, and from
+// Reads the answer from the terminal itself when there is one, so a piped stdin cannot answer for the person, and from
 // stdin otherwise. Closed input counts as no.
 function askYes(question) {
   let input = process.stdin;
