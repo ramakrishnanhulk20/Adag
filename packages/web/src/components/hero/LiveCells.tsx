@@ -1,9 +1,14 @@
 "use client";
 
+import Link from "next/link";
 import { motion } from "motion/react";
 import { formatApy, formatMoney, formatWadPercent } from "@/lib/arc/present";
 import type { LiveSnapshot } from "@/lib/arc/types";
+import { billHref } from "@/lib/pay/billId";
+import { ADAG_BILLS } from "@/lib/pay/constants";
 import { useLive } from "./LiveData";
+
+const BILL_ONE = billHref(ADAG_BILLS, 1n);
 
 type Shown =
   | { kind: "loading"; slow: boolean }
@@ -57,24 +62,15 @@ const CELLS: CellSpec[] = [
       const v = paid.value;
       const eurc = v.eurcBaseUnits !== "0" ? `+ ${formatMoney(v.eurcBaseUnits, "EUR")} · ` : "";
       const count = plural(v.billsPaid, "bill");
-      let tail: React.ReactNode = null;
-      if (v.latestPayment) {
-        tail = (
-          <>
-            {" · "}
-            <a
-              href={v.latestPayment.explorerUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="link-draw text-gold"
-              aria-label={`View the latest Adag payment, bill ${v.latestPayment.billId}, on the Arc explorer`}
-            >
-              View on explorer
-            </a>
-          </>
-        );
-      } else if (v.latestPaymentNote === "unavailable") tail = " · link unavailable";
-      else if (v.latestPaymentNote === "not-found") tail = " · transaction outside the search window";
+      // The shortest path from the headline number to a real payment: bill #1, the live proof on the current contract.
+      const tail = (
+        <>
+          {" · "}
+          <Link href={BILL_ONE} className="link-draw text-gold" aria-label="See bill 1, the live proof payment">
+            see bill #1
+          </Link>
+        </>
+      );
       return {
         kind: "ready",
         number: formatMoney(v.usdcBaseUnits, "USD"),

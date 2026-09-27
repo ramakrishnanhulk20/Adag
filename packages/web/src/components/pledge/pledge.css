@@ -8,6 +8,16 @@
   position: relative;
   background-color: var(--bg);
 }
+/*
+  The pin's spacer is the stage's height plus 2.4 screens of scroll (PIN_SCREENS in usePledgeMotion). Reserving that
+  from the first paint means nothing below the stage moves when the pin is created after the page loads, so an
+  in-page link clicked early still lands on its section.
+*/
+@media (width >= 48rem) and (prefers-reduced-motion: no-preference) {
+  .pl-section {
+    min-height: calc(max(100svh, 620px) + 240vh);
+  }
+}
 
 .pl-stage {
   --p: 0;

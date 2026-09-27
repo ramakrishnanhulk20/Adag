@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Hero } from "@/components/hero/Hero";
 import { LiveData } from "@/components/hero/LiveData";
+import { AfterYouPay } from "@/components/landing/AfterYouPay";
+import { AnchorKeeper } from "@/components/landing/AnchorKeeper";
 import { CheckIt } from "@/components/landing/CheckIt";
 import { CloseAndFooter } from "@/components/landing/CloseAndFooter";
 import { FortyLine } from "@/components/landing/FortyLine";
@@ -20,6 +22,7 @@ export const metadata: Metadata = {
 export default function Home() {
   return (
     <main>
+      <AnchorKeeper />
       <Hero />
       {/* The hero keeps its own live-data reader; this second one is answered from the route's 15-second cache. */}
       <LiveData>
@@ -28,6 +31,7 @@ export default function Home() {
         <OneSignature />
         <FortyLine />
         <CheckIt />
+        <AfterYouPay />
         <ForSuppliers />
         <Ledger />
         <CloseAndFooter />

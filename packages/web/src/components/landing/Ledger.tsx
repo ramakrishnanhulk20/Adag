@@ -100,7 +100,7 @@ export function Ledger() {
   return (
     <section aria-labelledby="ledger-title" className="landing-section border-t border-rule bg-bg px-5 py-24 md:px-[6vw] md:py-36">
       <Reveal>
-        <Hallmark>07 · The ledger</Hallmark>
+        <Hallmark>08 · The ledger</Hallmark>
       </Reveal>
       <Reveal delay={0.08}>
         <h2 id="ledger-title" className="type-h2 mt-8 max-w-[14ch]">

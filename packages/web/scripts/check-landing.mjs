@@ -98,6 +98,10 @@ const references = [
       .filter((r) => r.length >= 3),
   ),
 ];
+// The numbered sections, in the order the page promises: the 40% line, then After you pay, For suppliers, the ledger.
+const order = ['05 · The 40% line', '06 · After you pay', '07 · For suppliers', '08 · The ledger'].map((label) => homeHtml.indexOf(label));
+check(order.every((at) => at >= 0) && order.every((at, i) => i === 0 || at > order[i - 1]), `the home page carries 05, 06, 07 and 08 in order (${order.join(', ')})`);
+
 console.log(`Paid bill references to look for: ${references.length ? references.map((r) => JSON.stringify(r)).join(', ') : 'none'}`);
 for (const ref of references) {
   check(!homeHtml.includes(ref), `the home page HTML does not contain ${JSON.stringify(ref)}`);

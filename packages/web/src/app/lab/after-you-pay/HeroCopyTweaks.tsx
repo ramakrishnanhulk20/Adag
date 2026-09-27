@@ -19,11 +19,11 @@ function PaidCell() {
   );
 }
 
-// Two hero copy changes Ram approved in principle, shown as text only. The hero itself is not changed by this page.
+// The two hero copy changes as Ram approved them, kept beside the section for reference; the hero now carries both.
 export function HeroCopyTweaks() {
   return (
     <section aria-labelledby="tweaks-title" className="border-t border-rule bg-surface px-5 py-20 md:px-[6vw] md:py-28">
-      <Hallmark tone="quiet">For Ram · hero copy, not live yet</Hallmark>
+      <Hallmark tone="quiet">Hero copy · approved, now live on /</Hallmark>
       <h2 id="tweaks-title" className="type-h3 mt-8">
         Two hero tweaks, as they would read
       </h2>

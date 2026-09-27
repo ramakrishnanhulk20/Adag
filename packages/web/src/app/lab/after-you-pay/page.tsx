@@ -9,7 +9,7 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false, nocache: true, googleBot: { index: false, follow: false } },
 };
 
-// For Ram's review on the dev server before the section reaches the home page, after 05 · The 40% line.
+// The section as Ram reviewed and approved it; it is live on the home page, and this page stays for further design work.
 export default function AfterYouPayLab() {
   return (
     <main>
@@ -19,8 +19,7 @@ export default function AfterYouPayLab() {
           <ThemeControl />
         </div>
         <p className="type-micro max-w-[60ch] text-muted">
-          The proposed section 06, shown on its own. It goes on the home page after 05 · The 40% line once approved; For suppliers and The
-          ledger then become 07 and 08.
+          Approved and now live on the home page as 06, after Check it yourself; For suppliers and The ledger are 07 and 08.
         </p>
       </section>
       <AfterYouPay />

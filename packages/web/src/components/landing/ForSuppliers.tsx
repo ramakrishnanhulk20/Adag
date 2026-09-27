@@ -13,7 +13,7 @@ export function ForSuppliers() {
       <div className="grid gap-14 md:grid-cols-12 md:items-center md:gap-8">
         <div className="md:col-span-5">
           <Reveal>
-            <Hallmark>06 · For suppliers</Hallmark>
+            <Hallmark>07 · For suppliers</Hallmark>
           </Reveal>
           <Reveal delay={0.08}>
             <h2 id="suppliers-title" className="type-h2 mt-8 max-w-[11ch]">
