@@ -16,10 +16,12 @@ function firstLine(error: unknown) {
   return (e?.shortMessage || e?.message || "The wallet did not answer.").split("\n")[0]!.slice(0, 120);
 }
 
-// The generic "Injected" entry duplicates whichever wallet announced itself by name, so it only shows alone.
+// The generic "Injected" entry duplicates whichever browser wallet announced itself by name, so it hides only when
+// such a wallet exists. WalletConnect is not a browser wallet: with it present, an extension that did not announce
+// itself by name still shows, instead of every click going to WalletConnect.
 function visibleConnectors(all: readonly Connector[]) {
-  const named = all.filter((c) => c.id !== "injected");
-  return named.length ? named : all;
+  const namedInjected = all.some((c) => c.type === "injected" && c.id !== "injected");
+  return namedInjected ? all.filter((c) => c.id !== "injected") : all;
 }
 
 const pop = {
@@ -62,6 +64,8 @@ export function ConnectButton() {
   }, [note]);
 
   const choices = visibleConnectors(connectors);
+  // Present only when a WalletConnect project id is configured (lib/wallet/config.ts).
+  const walletConnector = connectors.find((c) => c.type === "walletConnect") ?? null;
 
   const connectWith = (c: Connector) => {
     setOpen(false);
@@ -73,7 +77,8 @@ export function ConnectButton() {
   };
 
   const onConnectClick = () => {
-    if (typeof window !== "undefined" && !("ethereum" in window) && choices.every((c) => c.type === "injected")) {
+    // No wallet in this browser: the sheet with the wallet-browser links, and WalletConnect beside them when it exists.
+    if (typeof window !== "undefined" && !("ethereum" in window) && choices.every((c) => c.type === "injected" || c.type === "walletConnect")) {
       setNote(null);
       setNoWallet(true);
       return;
@@ -191,7 +196,17 @@ export function ConnectButton() {
             {...pop}
             className="fixed inset-x-4 bottom-4 z-[70] rounded-[8px] border border-rule bg-raised p-4 shadow-[0_24px_60px_-20px_rgb(0_0_0/0.5)] md:absolute md:inset-x-auto md:right-0 md:bottom-auto md:top-full md:mt-2 md:w-[22rem]"
           >
-            <NoWalletHelp onClose={() => setNoWallet(false)} />
+            <NoWalletHelp
+              onClose={() => setNoWallet(false)}
+              onWalletConnect={
+                walletConnector
+                  ? () => {
+                      setNoWallet(false);
+                      connectWith(walletConnector);
+                    }
+                  : null
+              }
+            />
           </motion.div>
         )}
       </AnimatePresence>
@@ -217,7 +232,7 @@ function PhoneSheet({ children }: { children: React.ReactNode }) {
 
 // No wallet in this browser. On a phone, installing an app does not add a wallet to Safari or Chrome, so the useful
 // move is to open this same page inside a wallet's own browser. It stays until dismissed.
-function NoWalletHelp({ onClose }: { onClose: () => void }) {
+function NoWalletHelp({ onClose, onWalletConnect }: { onClose: () => void; onWalletConnect: (() => void) | null }) {
   // Read on first render, not in an effect: this panel only mounts after a click in the browser, and an effect would
   // leave the MetaMask link without its host for the first moment, when a quick tap would open a broken link.
   const [here] = useState(() => ({ host: window.location.host, path: `${window.location.pathname}${window.location.search}`, href: window.location.href }));
@@ -239,8 +254,16 @@ function NoWalletHelp({ onClose }: { onClose: () => void }) {
           Close
         </button>
       </div>
-      <p className="type-body mt-2 text-muted">No wallet in this browser. Adag works inside the built-in browser of MetaMask and Rabby.</p>
+      <p className="type-body mt-2 text-muted">
+        No wallet in this browser. Adag works inside the built-in browser of MetaMask and Rabby{onWalletConnect ? ", or with any wallet app through WalletConnect" : ""}.
+      </p>
       <div className="mt-4 flex flex-col gap-2">
+        {onWalletConnect && (
+          // The same checks follow as for any wallet: Arc mainnet only, and the account shown is the one that signs.
+          <button type="button" onClick={onWalletConnect} className="btn btn-secondary btn-sm w-full" data-deeplink="walletconnect">
+            Connect with WalletConnect
+          </button>
+        )}
         <a
           href={`https://metamask.app.link/dapp/${here.host}${here.path}`}
           className="btn btn-primary btn-sm w-full"

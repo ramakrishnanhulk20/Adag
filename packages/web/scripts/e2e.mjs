@@ -138,6 +138,9 @@ const appEnv = {
   // The Safe routes talk to the harness's stand-in Transaction Service, never Safe's real one, and with a dummy key.
   SAFE_API_KEY: 'e2e-mock-key',
   SAFE_TX_SERVICE_URL: `http://127.0.0.1:${MOCK_PORT}/api`,
+  // The fake wallet is a browser wallet; WalletConnect would add a chooser and a relay the fork cannot reach. It is
+  // checked on its own against a real build (the WalletConnect sheet and QR modal).
+  NEXT_PUBLIC_WC_PROJECT_ID: '',
   // The Safe routes need a store for their rate limits; main() points these at a local stand-in before the build.
   UPSTASH_REDIS_REST_URL: '',
   UPSTASH_REDIS_REST_TOKEN: '',

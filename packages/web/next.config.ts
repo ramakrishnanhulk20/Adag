@@ -17,6 +17,38 @@ function rpcOverrideOrigin(): string {
 // Next writes a fresh inline script into every page for its streamed data, so a fixed hash cannot cover it.
 // Per-request nonces would need a proxy file; until then scripts fall back to 'self' plus inline, and every
 // other directive stays strict. A hash must not be added here: browsers ignore 'unsafe-inline' once one is present.
+// WalletConnect's own hosts, from Reown's CSP guidance (docs.reown.com/advanced/security/content-security-policy,
+// read 27 September 2026) for the AppKit modal that @walletconnect/ethereum-provider 2.25.0 opens. Only the
+// WalletConnect and Reown entries are taken: the Coinbase, 1inch, Zerion and IPFS ones serve other AppKit features, and
+// their "img-src *" is left out. Added only when a project id is set at build time; without one the policy is unchanged.
+const WALLETCONNECT = process.env.NEXT_PUBLIC_WC_PROJECT_ID
+  ? {
+      connect: [
+        "https://rpc.walletconnect.com",
+        "https://rpc.walletconnect.org",
+        "https://relay.walletconnect.com",
+        "https://relay.walletconnect.org",
+        "wss://relay.walletconnect.com",
+        "wss://relay.walletconnect.org",
+        "https://pulse.walletconnect.com",
+        "https://pulse.walletconnect.org",
+        "https://api.web3modal.com",
+        "https://api.web3modal.org",
+        "https://keys.walletconnect.com",
+        "https://keys.walletconnect.org",
+        "https://notify.walletconnect.com",
+        "https://notify.walletconnect.org",
+        "https://echo.walletconnect.com",
+        "https://echo.walletconnect.org",
+        "https://push.walletconnect.com",
+        "https://push.walletconnect.org",
+      ],
+      img: ["https://walletconnect.org", "https://walletconnect.com", "https://secure.walletconnect.com", "https://secure.walletconnect.org"],
+      font: ["https://fonts.reown.com"],
+      frame: ["https://verify.walletconnect.com", "https://verify.walletconnect.org", "https://secure.walletconnect.com", "https://secure.walletconnect.org"],
+    }
+  : null;
+
 function contentSecurityPolicy(): string {
   const connect = ["'self'", "https://rpc.mainnet.arc.io", "https://rpc.drpc.mainnet.arc.io", rpcOverrideOrigin()];
   const script = ["'self'", "'unsafe-inline'"];
@@ -25,15 +57,16 @@ function contentSecurityPolicy(): string {
     script.push("'unsafe-eval'");
     connect.push("ws:");
   }
+  if (WALLETCONNECT) connect.push(...WALLETCONNECT.connect);
   const directives = [
     "default-src 'self'",
     `script-src ${script.join(" ")}`,
     // React style attributes and the Mermaid diagrams both write inline styles.
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob:",
-    "font-src 'self'",
+    WALLETCONNECT ? `img-src 'self' data: blob: ${WALLETCONNECT.img.join(" ")}` : "img-src 'self' data: blob:",
+    WALLETCONNECT ? `font-src 'self' ${WALLETCONNECT.font.join(" ")}` : "font-src 'self'",
     `connect-src ${connect.filter(Boolean).join(" ")}`,
-    "frame-src 'none'",
+    WALLETCONNECT ? `frame-src ${WALLETCONNECT.frame.join(" ")}` : "frame-src 'none'",
     "frame-ancestors 'none'",
     "object-src 'none'",
     "base-uri 'none'",
