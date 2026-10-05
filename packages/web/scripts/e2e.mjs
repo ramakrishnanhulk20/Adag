@@ -1787,6 +1787,74 @@ async function main() {
         `sentence before the click ${shownBefore}; stopped with "${failText}"; note: "${note}"; wallet sends ${sent}`);
     }
 
+    // (tt) Ready to lend: a bill bigger than the cash Morpho has free right now switches From bitcoin off, on the bill
+    // page and in a basket, with the plain message. A bill that cash covers still says "ready to lend now."
+    {
+      const market = await fork.readContract({ address: MORPHO, abi: marketAbi, functionName: 'market', args: [MARKET_USDC] });
+      const free = market[0] > market[2] ? market[0] - market[2] : 0n;
+      // The same figure the page prints: thousands grouped, at least two decimals, no trailing zeros beyond that.
+      const [wholePart, fracPart = ''] = formatUnits(free, 6).split('.');
+      const readyShown = `${wholePart.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}.${fracPart.replace(/0+$/, '').padEnd(2, '0')} USDC`;
+      const appears = (locator, timeout = 45_000) => locator.waitFor({ timeout }).then(() => true, () => false);
+      const bigAmount = free + 1_000_000n;
+      const BIG = newBill('USDC', bigAmount, 'E2E-TT-BIG');
+      const bigShown = formatUnits(bigAmount, 6);
+
+      const one = await openPage({ account: PAYER });
+      await connect(one.page, `/bill/${BIG}`);
+      const note = one.page.locator('[data-lend="short"]');
+      const noteShown = await appears(note, 60_000);
+      const noteText = noteShown ? (await note.innerText()).replace(/\s+/g, ' ') : '';
+      // On the bill page the whole From bitcoin block is replaced by the message, so the button is absent, not just disabled.
+      const bitcoinButtons = await one.page.locator('[data-action="pay-bitcoin"]').count();
+      const bitcoinUsable = await one.page.locator('[data-action="pay-bitcoin"]:not([disabled])').count();
+      await shoot(one.page, 'a2f-tt-lend-short');
+      const sentOne = await sends(one.page);
+      await one.context.close();
+
+      const two = await openPage({ account: PAYER });
+      await openBasket(two.page, [BIG]);
+      const choice = two.page.locator('[data-choice="USDC-bitcoin"]');
+      const choiceShown = await appears(choice.filter({ hasText: 'ready to lend right now' }), 60_000);
+      const choiceText = choiceShown ? (await choice.innerText()).replace(/\s+/g, ' ') : '';
+      const choiceDisabled = choiceShown && (await choice.isDisabled());
+      const choiceChecked = choiceShown ? await choice.getAttribute('aria-checked') : null;
+      await shoot(two.page, 'a2f-tt-lend-short-basket');
+      const sentTwo = await sends(two.page);
+      await two.context.close();
+
+      // 0.10 USDC is the smallest cash worth testing a covered bill against; under that the check is skipped, and says so.
+      let coveredNote = `skipped: free cash ${readyShown} is under 0.10 USDC`;
+      let coveredOk = true;
+      if (free >= 100_000n) {
+        const SMALL = newBill('USDC', 100_000, 'E2E-TT-SMALL');
+        const three = await openPage({ account: PAYER });
+        await connect(three.page, `/bill/${SMALL}`);
+        const line = three.page.getByText(`Morpho has ${readyShown} ready to lend now.`).first();
+        const lineShown = await appears(line);
+        const usable = await appears(three.page.locator('[data-action="pay-bitcoin"]:not([disabled])'));
+        const shortShown = await three.page.locator('[data-lend="short"]').count();
+        await three.context.close();
+
+        const four = await openPage({ account: PAYER });
+        await openBasket(four.page, [SMALL]);
+        const usableChoice = four.page.locator('[data-choice="USDC-bitcoin"]:not([disabled])');
+        const choiceUsable = await appears(usableChoice);
+        const coveredText = choiceUsable ? (await usableChoice.innerText()).replace(/\s+/g, ' ') : '';
+        await four.context.close();
+
+        coveredOk = lineShown && usable && shortShown === 0 && choiceUsable && coveredText.includes('ready to lend now.') && !coveredText.includes('right now');
+        coveredNote = `0.10 USDC bill #${SMALL}: "ready to lend now." line ${lineShown}, From bitcoin usable ${usable}, short message ${shortShown}; basket option usable ${choiceUsable}, text "${coveredText}"`;
+      }
+
+      record(`(tt) bill #${BIG} (${bigShown} USDC) above Morpho's ${readyShown} free cash: From bitcoin is off with the plain message on the bill page and in a basket, and a covered bill says "ready to lend now."`,
+        noteShown && noteText === `Morpho has ${readyShown} ready to lend right now, less than this bill. Paying from your balance still works, or check back later.`
+          && bitcoinUsable === 0 && choiceShown && choiceDisabled && choiceChecked !== 'true'
+          && choiceText.includes(`Morpho has ${readyShown} ready to lend right now, less than these bills.`)
+          && sentOne === 0 && sentTwo === 0 && (await statusOf(BIG)) === 1 && coveredOk,
+        `fork free cash ${free} base units (${readyShown}); bill ${bigAmount} base units; bill page: "${noteText}", pay-from-bitcoin buttons ${bitcoinButtons} (usable ${bitcoinUsable}); basket option disabled ${choiceDisabled}, checked ${choiceChecked}, text "${choiceText}"; wallet sends ${sentOne + sentTwo}; covered: ${coveredNote}`);
+    }
+
     // The mobile menu open, and the wallet page before connecting.
     {
       const { context, page } = await openPage({ account: PAYER, width: 375, theme: 'light' });
@@ -1820,7 +1888,7 @@ try {
   await main();
   const passed = results.filter((r) => r.ok).length;
   console.log(`\nconsole errors: ${consoleErrors.length}${consoleErrors.length ? `\n  ${consoleErrors.join('\n  ')}` : ''}`);
-  const allOk = passed === results.length && results.length === 45 && consoleErrors.length === 0;
+  const allOk = passed === results.length && results.length === 46 && consoleErrors.length === 0;
   console.log(allOk ? `ALL ${passed} SCENARIOS PASSED` : `${results.length - passed} of ${results.length} scenarios failed`);
   code = allOk ? 0 : 1;
 } catch (error) {
