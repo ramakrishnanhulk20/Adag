@@ -9,6 +9,7 @@ import { adagAbi, erc20Abi, morphoAbi, oracleAbi } from "@/lib/pay/abi";
 import { buildPayFromBalance, buildPayFromBitcoin, suggestPledge, type Bill } from "@/lib/pay/build";
 import { BILL_STATUS, CIRBTC, CIRBTC_DECIMALS, EXPLORER, MAX_LTV_WAD, MORPHO, USDC, type Currency } from "@/lib/pay/constants";
 import { formatPercentWad, formatUnitsExact } from "@/lib/pay/format";
+import { lendCovers, readyToLend } from "@/lib/pay/lend";
 import { debtFromShares, liquidationDropWad, ltvWad } from "@/lib/pay/loan";
 import { paramsFromTuple } from "@/lib/pay/market";
 import { billPaidIn } from "@/lib/pay/receipt";
@@ -110,6 +111,10 @@ export function PayActions(props: PayActionsProps) {
   const isUsdc = isAddressEqual(currency.address, USDC);
   const shortOfBtc = pledge.state === "ok" && cirBtc.state === "ok" && cirBtc.value < pledge.value;
   const amountText = `${formatUnitsExact(bill.amount, currency.decimals)} ${currency.symbol}`;
+  // An unreadable market never counts as short: the dry run before signing still refuses a market without the cash.
+  const ready: Cell<bigint> = market.state === "ok" ? { state: "ok", value: readyToLend(market.value) } : market;
+  const lendShort = ready.state === "ok" && !lendCovers(ready.value, bill.amount);
+  const readyText = (v: bigint) => `${formatUnitsExact(v, currency.decimals)} ${currency.symbol}`;
 
   let after: Cell<{ ltv: bigint; drop: bigint }> = { state: "loading" };
   if (pledge.state === "ok" && position.state === "ok" && market.state === "ok" && price.state === "ok") {
@@ -124,7 +129,7 @@ export function PayActions(props: PayActionsProps) {
   const pledgeValue = pledge.state === "ok" ? pledge.value : null;
   const bitcoinFee = useQuery({
     queryKey: ["adag-fee", "bitcoin", bill.contract, bill.id.toString(), address, pledgeValue?.toString()],
-    enabled: fresh === true && pledgeValue !== null && !shortOfBtc && !paid,
+    enabled: fresh === true && pledgeValue !== null && !shortOfBtc && !lendShort && !paid,
     staleTime: 30_000,
     retry: false,
     // The fixed params go in here; the real payment re-reads Morpho's and proves them by hash before building.
@@ -487,6 +492,11 @@ export function PayActions(props: PayActionsProps) {
           <p className="type-body mt-2 text-text" data-price="stale">
             New loans are paused until the bitcoin price updates. Paying from your balance still works.
           </p>
+        ) : lendShort ? (
+          <p className="type-body mt-2 text-text" data-lend="short">
+            Morpho has <Value cell={ready} render={readyText} className="font-semibold" /> ready to lend right now, less than this bill. Paying from your balance still works, or check
+            back later.
+          </p>
         ) : (
           <>
             <ul className="mt-4 space-y-3" data-plain-lead>
@@ -510,6 +520,9 @@ export function PayActions(props: PayActionsProps) {
                 Bitcoin can fall <Value cell={after} render={(v) => formatPercentWad(v.drop)} className="font-semibold" /> before Morpho may liquidate.
               </li>
             </ul>
+            <p className="type-body mt-3 text-muted">
+              Morpho has <Value cell={ready} render={readyText} className="text-text" /> ready to lend now.
+            </p>
 
             <details className="group mt-5 rounded-[8px] border border-rule">
               <summary className="type-label flex cursor-pointer list-none items-center justify-between px-4 py-3 text-muted transition-colors duration-200 hover:text-text">
@@ -544,7 +557,7 @@ export function PayActions(props: PayActionsProps) {
             )}
             <Button
               variant="primary"
-              disabled={busy || enrolling || fresh !== true || shortOfBtc || pledge.state !== "ok" || bitcoinBlockers.length > 0 || enrol.sameBlock || guardBlocked || guardView.state !== "ok"}
+              disabled={busy || enrolling || fresh !== true || shortOfBtc || lendShort || pledge.state !== "ok" || bitcoinBlockers.length > 0 || enrol.sameBlock || guardBlocked || guardView.state !== "ok"}
               onClick={onBitcoin}
               className="mt-6 w-full md:w-auto"
               data-action="pay-bitcoin"

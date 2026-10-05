@@ -27,6 +27,7 @@ import {
   type Currency,
 } from "@/lib/pay/constants";
 import { formatPercentWad, formatUnitsExact, fullAddress, referenceText, shortAddress } from "@/lib/pay/format";
+import { lendCovers, readyToLend } from "@/lib/pay/lend";
 import { debtFromShares, liquidationDropWad, ltvWad } from "@/lib/pay/loan";
 import { currencyOf, paramsFromTuple } from "@/lib/pay/market";
 import { billsPaidIn } from "@/lib/pay/receipt";
@@ -254,6 +255,8 @@ export function Basket({
   const balanceEnough = (g: Group, d: GroupData) =>
     d.balance.state === "ok" && d.balance.value >= g.total + (isAddressEqual(g.currency.address, USDC) ? USDC_FEE_RESERVE : 0n) + guardPullOf(g);
   const pledgeOf = (d: GroupData) => (d.needed.state === "ok" ? suggestPledge(d.needed.value) : null);
+  // An unreadable market never counts as short: the dry run before signing still refuses a market without the cash.
+  const lendShortOf = (g: Group, d: GroupData) => d.market.state === "ok" && !lendCovers(readyToLend(d.market.value), g.total);
 
   // The payer's choice is theirs. The app picks a default only for a group that has never had one; a choice that
   // stops being valid is cleared, never swapped for the other path, and the group says why and asks again.
@@ -266,6 +269,8 @@ export function Basket({
       const current = choices[g.currency.symbol];
       if (current === "bitcoin" && d.fresh.state === "ok" && !d.fresh.value) {
         invalid[g.currency.symbol] = `New loans in ${g.currency.symbol} are paused until the bitcoin price updates, so paying these bills from bitcoin is off. Choose again.`;
+      } else if (current === "bitcoin" && lendShortOf(g, d)) {
+        invalid[g.currency.symbol] = `Morpho's ${g.currency.symbol} market no longer has enough cash to lend for these bills, so paying from bitcoin is off. Choose again.`;
       }
       if (current === "balance" && d.balance.state === "ok" && !balanceEnough(g, d)) {
         invalid[g.currency.symbol] = `Your ${g.currency.symbol} balance no longer covers these bills${isAddressEqual(g.currency.address, USDC) ? " plus 0.01 USDC for the fee" : ""}, so paying from balance is off. Choose again.`;
@@ -282,7 +287,7 @@ export function Basket({
         }
         if (next[sym] || cleared[sym] || invalid[sym]) return;
         const d = groupData[gi]!;
-        if (d.fresh.state === "ok" && d.fresh.value) next[sym] = "bitcoin";
+        if (d.fresh.state === "ok" && d.fresh.value && !lendShortOf(g, d)) next[sym] = "bitcoin";
         else if (balanceEnough(g, d)) next[sym] = "balance";
       });
       return next;
@@ -862,6 +867,9 @@ function GroupPanel({ group, data, cirBtc, choice, balanceOk, disabled, notice, 
     after = { state: "unavailable" };
   }
   const isUsdc = isAddressEqual(currency.address, USDC);
+  const ready: Cell<bigint> = data.market.state === "ok" ? { state: "ok", value: readyToLend(data.market.value) } : data.market;
+  const lendShort = ready.state === "ok" && !lendCovers(ready.value, total);
+  const readyText = (v: bigint) => `${formatUnitsExact(v, currency.decimals)} ${currency.symbol}`;
 
   const option = (c: Choice, title: string, enabled: boolean, body: React.ReactNode) => (
     <button
@@ -906,9 +914,13 @@ function GroupPanel({ group, data, cirBtc, choice, balanceOk, disabled, notice, 
         {option(
           "bitcoin",
           "From bitcoin",
-          fresh === true,
+          fresh === true && !lendShort,
           fresh === false ? (
             "New loans are paused until the bitcoin price updates."
+          ) : lendShort ? (
+            <>
+              Morpho has <Value cell={ready} render={readyText} className="text-text" /> ready to lend right now, less than these bills. Pay from your balance, or check back later.
+            </>
           ) : (
             <>
               {pledge.state === "ok" && pledge.value === 0n ? (
@@ -918,7 +930,8 @@ function GroupPanel({ group, data, cirBtc, choice, balanceOk, disabled, notice, 
                   You pledge <Value cell={pledge} render={(v) => `${formatUnitsExact(v, CIRBTC_DECIMALS)} cirBTC${usdHint(v, usd)}`} className="text-text" /> and keep it.
                 </>
               )}{" "}
-              Bitcoin can fall <Value cell={after} render={(v) => formatPercentWad(v.drop)} className="text-text" /> before Morpho may liquidate.
+              Bitcoin can fall <Value cell={after} render={(v) => formatPercentWad(v.drop)} className="text-text" /> before Morpho may liquidate.{" "}
+              Morpho has <Value cell={ready} render={readyText} className="text-text" /> ready to lend now.
             </>
           ),
         )}
