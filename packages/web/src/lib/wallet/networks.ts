@@ -11,6 +11,8 @@ const NAMES: Record<number, string> = {
   5042002: "the Arc testnet",
 };
 
+// An unnamed chain still shows its number, so a wallet that reports something unexpected can be told apart from Arc (5042).
 export function networkName(chainId: number): string {
-  return NAMES[chainId] ?? "another network";
+  if (!chainId) return "a network it has not named yet";
+  return NAMES[chainId] ?? `network ${chainId}`;
 }
