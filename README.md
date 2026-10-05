@@ -27,10 +27,11 @@ Three contracts are live on Arc mainnet (chain `5042`). Each is an exact source 
 
 The first deployment has no way to record an existing loan. It stays live and immutable, and its bills still open at `/bill/first/N`; the app writes every new bill to the current AdagBills.
 
-| Live proof, 26 September 2026 | Transactions | Record |
+| Live proof | Transactions | Record |
 | --- | --- | --- |
-| Bill #1 on the current AdagBills, 1.00 USDC, paid from a cirBTC-backed Morpho loan in one signature, 40% check run | [`0x7dba...3ad0`](https://explorer.arc.io/tx/0x7dba4d03f85fd5c323c2172252e55a8d9ed00f0903a2a0ccf1313a84687e3ad0) | [prove-it-2026-09-26.md](packages/contracts/deployments/prove-it-2026-09-26.md) |
-| The guard's first repayment: a second wallet called `protect` and repaid 0.464348 USDC of the payer's own loan from the payer's own wallet, 39.07% down to 30.00%; a repeat at the same price repaid 0 | [`0xb54f...9880`](https://explorer.arc.io/tx/0xb54f4242b994d30f62022ceb395122bc3a1a83ca63220a970c5448085b5c9880), repeat [`0x60f9...8a37`](https://explorer.arc.io/tx/0x60f9ad40a0b4ad6caacd71d81aed447b4e58c8f86a600f9f3e9271625b538a37) | [guard-prove-2026-09-26.md](packages/contracts/deployments/guard-prove-2026-09-26.md) |
+| 26 September 2026: bill #1 on the current AdagBills, 1.00 USDC, paid from a cirBTC-backed Morpho loan in one signature, 40% check run | [`0x7dba...3ad0`](https://explorer.arc.io/tx/0x7dba4d03f85fd5c323c2172252e55a8d9ed00f0903a2a0ccf1313a84687e3ad0) | [prove-it-2026-09-26.md](packages/contracts/deployments/prove-it-2026-09-26.md) |
+| 26 September 2026: the guard's first repayment. A second wallet called `protect` and repaid 0.464348 USDC of the payer's own loan from the payer's own wallet, 39.07% down to 30.00%; a repeat at the same price repaid 0 | [`0xb54f...9880`](https://explorer.arc.io/tx/0xb54f4242b994d30f62022ceb395122bc3a1a83ca63220a970c5448085b5c9880), repeat [`0x60f9...8a37`](https://explorer.arc.io/tx/0x60f9ad40a0b4ad6caacd71d81aed447b4e58c8f86a600f9f3e9271625b538a37) | [guard-prove-2026-09-26.md](packages/contracts/deployments/guard-prove-2026-09-26.md) |
+| 5 October 2026, on the live site: the team paying itself. Three bills in one signature, #3 for 0.30 USDC, #4 for 0.20 USDC and #5 for 0.10 EURC, each currency from its own cirBTC-backed Morpho loan | [`0xfb8f...62e6`](https://explorer.arc.io/tx/0xfb8fac03fd03c31758743003775555a93f2520da6ef8c11c3e5c1ebb0d8362e6), block 24,370,697 | [/bill/3](https://adag-btc.vercel.app/bill/3), [/bill/4](https://adag-btc.vercel.app/bill/4), [/bill/5](https://adag-btc.vercel.app/bill/5) |
 
 The web app is at [https://adag-btc.vercel.app](https://adag-btc.vercel.app), with the docs at [/docs](https://adag-btc.vercel.app/docs).
 
