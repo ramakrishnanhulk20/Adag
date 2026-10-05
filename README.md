@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/adag-mark.svg" width="88" height="88" alt="Adag's hallmark: a chamfered frame around a gold coin">
+  <img src="docs/assets/adag-mark.svg" width="88" height="88" alt="Adag's hallmark: a chamfered frame around a gold coin stamped with the bitcoin sign">
 </p>
 
 <h1 align="center">Adag</h1>
