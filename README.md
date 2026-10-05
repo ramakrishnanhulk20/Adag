@@ -273,7 +273,7 @@ Solid arrows are code dependencies. Dotted arrows are calls to deployed contract
 5. **Run the proof yourself** (Node 20 or later, no keys, no `.env`):
 
 ```bash
-git clone {{REPO_URL}} adag && cd adag
+git clone https://github.com/ramakrishnanhulk20/Adag.git adag && cd adag
 (cd packages/contracts/prove-it && npm ci)
 node packages/contracts/prove-it/prove-it.mjs
 ```
