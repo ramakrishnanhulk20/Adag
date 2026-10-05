@@ -43,9 +43,9 @@ export async function POST(request: Request) {
     nowMs: Date.now(),
   });
   if (!valid) return json({ error: "Not allowed." }, 401);
-  // Keyed on the hash of the same nonce string verifyQuickNode just checked.
-  if (!(await store.set(keys.hookNonce(nonce ?? ""), "1", { nx: true, px: 600_000 }))) return json({ state: "duplicate" });
 
+  // A delivery without a price update is answered before the store is touched: a filter that sends every block must
+  // never spend the store's quota, which the keeper and the alerts depend on.
   let body: unknown;
   try {
     body = JSON.parse(payload);
@@ -53,6 +53,9 @@ export async function POST(request: Request) {
     return json({ state: "ignored" });
   }
   if (parseAnswerUpdated(body).feeds.length === 0) return json({ state: "ignored" });
+
+  // Keyed on the hash of the same nonce string verifyQuickNode just checked.
+  if (!(await store.set(keys.hookNonce(nonce ?? ""), "1", { nx: true, px: 600_000 }))) return json({ state: "duplicate" });
 
   const outcome = await runOnce("quicknode");
   return json(outcome.body, outcome.status === 503 ? 503 : 200);
