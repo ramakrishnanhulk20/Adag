@@ -58,6 +58,28 @@ export const EURC_MARKET_LLTV = 860000000000000000n;
 // The other USDC/cirBTC market on Morpho, with a different oracle. It must never pass the market check.
 export const OTHER_USDC_CIRBTC_MARKET: Hex = "0xabd1763943714b96b6590238d484a240019b4b842eb67fbcff7d96c081b7b566";
 
+// Paying a bill from a loan in the other currency (cross-currency threat model C65 to C75). The adapter is Circle's
+// upgradeable swap contract. It is reached by one rule in build.ts's assertCalls and is never added to the target or
+// spender lists.
+export const CIRCLE_SWAP_ADAPTER: Address = "0x7FB8c7260b63934d8da38aF902f87ae6e284a845";
+export const CIRCLE_SWAP_URL = "https://api.circle.com/v1/stablecoinKits/swap";
+
+// The most the amount converted may exceed the bill's worth at the euro price AdagBills reads (C70), in basis points.
+export const MAX_BUFFER_BPS = 150n;
+export const BPS = 10_000n;
+
+// AdagBills.EUR_USD_MAX_AGE: past this the contract treats the euro price as stale, so nothing is offered either.
+export const EUR_USD_MAX_AGE_SECONDS = 96n * 3600n;
+
+// check-fx measured 1.14M gas for a 100 USDC bill and 0.77M for a close; 2.5M leaves room for a ten-bill basket, and more is refused.
+export const FX_GAS_CAP = 2_500_000n;
+
+// A plan from Circle has 2 instructions and 3 to 7 KB of calldata at every size seen; these leave room, not freedom.
+export const PLAN_MAX_INSTRUCTIONS = 6;
+export const PLAN_MAX_CALLDATA_BYTES = 24_576;
+// Circle's plans last 10 minutes; one with less than this left is not worth asking a wallet to sign.
+export const PLAN_MIN_SECONDS_LEFT = 120n;
+
 export const MAX_LTV_WAD = 400000000000000000n;
 export const MAX_REFERENCE_BYTES = 140;
 export const CIRBTC_DECIMALS = 8;

@@ -2,10 +2,16 @@ import { parseGwei, type Address, type Hex, type TransactionReceipt } from "viem
 import { arc } from "viem/chains";
 import { getConnection, getPublicClient, sendTransaction, waitForTransactionReceipt } from "wagmi/actions";
 import { adagAbi } from "@/lib/pay/abi";
-import { requireDeployment } from "@/lib/pay/constants";
+import { assertConversionBatch, reachesSwapAdapter } from "@/lib/pay/build";
+import { FX_GAS_CAP, PLAN_MIN_SECONDS_LEFT, requireDeployment } from "@/lib/pay/constants";
 import { decodeAdagError, type PlainError } from "@/lib/pay/errors";
 import { formatUnitsExact } from "@/lib/pay/format";
+import { PlanError, checkEffects, claimPlan, conversionUsdcOut, type Conversion } from "@/lib/fx/plan";
 import { wagmiConfig } from "./config";
+
+// The gas slack on a USDC balance check is worked out in lib/fx/plan.ts from FX_GAS_CAP and the fee ceiling the batch
+// carries. The builder and this file both use it, so what the floor allows and what is signed cannot drift (C68, C71).
+export { floorSlack } from "@/lib/fx/plan";
 
 // Arc drops transactions priced under 20 gwei without an error, so this is a floor, never a target.
 const MIN_MAX_FEE = parseGwei("20");
@@ -17,7 +23,9 @@ const WATCH_EVERY_MS = 3_000;
 export type TxStep = "checking" | "signing" | "confirming" | "watching" | "rereading";
 
 export type TxOutcome =
-  | { ok: true; hash: Hex; receipt: TransactionReceipt }
+  // `effects` is "checked" when the simulation's transfers were held to the conversion's rules, and "unavailable" when the
+  // connection could not run that simulation, so only the batch's own balance check protected the payment (C71).
+  | { ok: true; hash: Hex; receipt: TransactionReceipt; effects?: "checked" | "unavailable" }
   | { ok: false; stage: "refused"; error: PlainError }
   | { ok: false; stage: "declined" | "failed"; message: string; hash?: Hex }
   // Sent, but Arc gave no receipt in time. The caller checks the bill itself before saying anything, so nobody pays twice.
@@ -87,20 +95,142 @@ type SendArgs = {
   data: Hex;
   onStep: (step: TxStep) => void;
   // The 6-decimal USDC this batch moves out of the wallet. On Arc it comes from the same balance that prepays gas.
+  // For a conversion batch, pass only what the rest of the batch moves: the conversion's own USDC is counted here (C25).
   usdcOut?: bigint;
+  // Present when the batch runs a swap through Circle's adapter: the Batch's own `conversion`, passed through untouched.
+  conversion?: Conversion;
 };
 
 const USDC_TO_NATIVE = 10n ** 12n;
 
+const refusal = (name: string, message: string, next: string): TxOutcome => ({ ok: false, stage: "refused", error: { name, message, next, text: `${message} ${next}` } });
+
+// No answer to the simulation at all: a node without eth_simulateV1 (Arc's own endpoint answers "method not supported"; dRPC
+// has it), or one that could not be reached in time. Different from a node that ran it and found the batch failing, which
+// is a refusal. Without the simulation only the batch's own balance check and one-amount allowance protect the payment, and
+// the outcome says so.
+function simulationUnavailable(error: unknown): boolean {
+  for (let e = error as { code?: number; name?: string; message?: string; cause?: unknown } | undefined, i = 0; e && i < 6; e = e.cause as typeof e, i++) {
+    if (e.code === -32601 || e.code === -32004 || e.name === "HttpRequestError" || e.name === "TimeoutError") return true;
+    if (/method.{0,40}(not found|not supported|does not exist|not available|unsupported)|unsupported method/i.test(e.message ?? "")) return true;
+  }
+  return false;
+}
+
+// Our own sentences reach the page; anything else a library says does not.
+const ownSentence = (error: unknown): string =>
+  error instanceof PlanError || (error instanceof Error && error.constructor === Error && /^Refusing /.test(error.message))
+    ? error.message
+    : "Adag's own check of this payment's calls refused it.";
+
+type SimCall = { status: "success" | "failure"; gasUsed: bigint; logs?: readonly { address: Address; topics: readonly Hex[]; data: Hex }[]; error?: unknown; data?: Hex };
+
+// C65 to C71, the sending side of a conversion. The bytes about to be signed are checked again against what the builder
+// decided; the plan must still have time on Arc's clock; the batch is simulated at the latest block with its fixed gas
+// ceiling and the fee ceiling its floor was worked out from; every transfer out of the wallet must be one the batch is
+// allowed to make; each bill must show a payment from this wallet on its own contract. Only then is a signature asked for,
+// and a plan is spent the moment it is (C74). The RPC is not trusted: the batch's own balance check (C68) and the
+// one-amount allowance (C67) are the guards, and this is the early warning.
+async function sendConversion({ client, account, to, data, onStep, usdcOut, conversion }: { client: ReturnType<typeof publicArc>; account: Address; to: Address; data: Hex; onStep: (step: TxStep) => void; usdcOut: bigint; conversion: Conversion }): Promise<TxOutcome> {
+  try {
+    assertConversionBatch(to, data, conversion, account);
+  } catch (error) {
+    return refusal("conversion bytes", ownSentence(error), "Nothing was sent. Start the payment again.");
+  }
+
+  let head;
+  try {
+    head = await client.getBlock();
+  } catch {
+    return { ok: false, stage: "failed", message: "Arc did not answer with the latest block. Nothing was sent. Try again." };
+  }
+  if (conversion.deadline < head.timestamp + PLAN_MIN_SECONDS_LEFT) {
+    return refusal("plan expired", "Circle's swap quote for this payment has expired or is about to.", "Nothing was sent. Start the payment again to get a fresh one.");
+  }
+  const base = head.baseFeePerGas ?? 0n;
+  if (conversion.maxFeePerGas < MIN_MAX_FEE || conversion.maxFeePerGas < base + PRIORITY_FEE) {
+    return refusal("fee moved", "Arc's fee has risen past the ceiling this payment was built with.", "Nothing was sent. Start the payment again so the balance check is worked out from the current fee.");
+  }
+  const fees: Fees = { maxFeePerGas: conversion.maxFeePerGas, maxPriorityFeePerGas: PRIORITY_FEE, expected: base + PRIORITY_FEE < conversion.maxFeePerGas ? base + PRIORITY_FEE : conversion.maxFeePerGas };
+
+  // C25: the wallet must cover the most the fee can be plus the USDC this batch moves out, counting USDC approved to the
+  // adapter as leaving and crediting only USDC borrowed for it.
+  const keepUpTo = FX_GAS_CAP * fees.maxFeePerGas;
+  const principal = (usdcOut + conversionUsdcOut(conversion)) * USDC_TO_NATIVE;
+  let native: bigint;
+  try {
+    native = await client.getBalance({ address: account });
+  } catch {
+    return { ok: false, stage: "failed", message: "Arc did not answer with your balance. Nothing was sent. Try again." };
+  }
+  if (native < keepUpTo + principal) {
+    const need = keepUpTo + principal;
+    const message =
+      principal === 0n
+        ? `Your wallet needs about ${usdc4(keepUpTo, "up")} USDC for the network fee and holds ${usdc4(native, "down")}. Nothing was sent.`
+        : `Your wallet needs about ${usdc4(need, "up")} USDC, ${usdc4(principal, "up")} for this payment plus about ${usdc4(keepUpTo, "up")} for the network fee, and holds ${usdc4(native, "down")}. Nothing was sent.`;
+    return { ok: false, stage: "failed", message };
+  }
+
+  let effects: "checked" | "unavailable" = "checked";
+  let gasUsed: bigint;
+  try {
+    const sim = await client.simulateBlocks({
+      blockNumber: head.number,
+      blocks: [{ blockOverrides: head.baseFeePerGas == null ? undefined : { baseFeePerGas: head.baseFeePerGas }, calls: [{ account, to, data, gas: FX_GAS_CAP, maxFeePerGas: fees.maxFeePerGas, maxPriorityFeePerGas: fees.maxPriorityFeePerGas }] }],
+      traceTransfers: true,
+      validation: true,
+    });
+    const result = sim[0]?.calls[0] as unknown as SimCall | undefined;
+    if (!result) return refusal("simulation", "Arc's simulation of this payment came back empty.", "Nothing was sent. Try again.");
+    if (result.status !== "success") return { ok: false, stage: "refused", error: decodeAdagError(result.error ?? result.data) };
+    gasUsed = result.gasUsed;
+    try {
+      checkEffects(result.logs ?? [], conversion);
+    } catch (error) {
+      return refusal("effects", ownSentence(error), "Nothing was sent.");
+    }
+  } catch (error) {
+    if (!simulationUnavailable(error)) return { ok: false, stage: "refused", error: decodeAdagError(error) };
+    effects = "unavailable";
+    try {
+      await client.call({ account, to, data, gas: FX_GAS_CAP });
+      gasUsed = await client.estimateGas({ account, to, data });
+    } catch (fallbackError) {
+      return { ok: false, stage: "refused", error: decodeAdagError(fallbackError) };
+    }
+  }
+  if ((gasUsed * 125n) / 100n > FX_GAS_CAP) {
+    return refusal("gas", "This conversion would use more gas than Adag allows for one signature.", "Nothing was sent. Pay a smaller amount, or pay in the bill's own currency.");
+  }
+  if (!claimPlan(conversion.execId)) {
+    return refusal("plan used", "This Circle quote was already used for a signature request.", "Nothing was sent. Start the payment again to get a fresh one.");
+  }
+  return signAndConfirm({ account, to, data, gas: FX_GAS_CAP, fees, onStep, effects });
+}
+
 // One path for every money action: check the wallet is on Arc (C4), simulate with eth_call and stop on any revert
 // with plain words, then ask the wallet, then wait for Arc. Nothing reaches the wallet unless the simulation passed.
-export async function simulateAndSend({ account, to, data, onStep, usdcOut = 0n }: SendArgs): Promise<TxOutcome> {
+export async function simulateAndSend({ account, to, data, onStep, usdcOut = 0n, conversion }: SendArgs): Promise<TxOutcome> {
   const client = publicArc();
   onStep("checking");
 
   const connection = getConnection(wagmiConfig);
   if (connection.status !== "connected" || connection.chainId !== arc.id || connection.address?.toLowerCase() !== account.toLowerCase()) {
     return { ok: false, stage: "failed", message: "Your wallet is not on Arc mainnet with this address any more. Nothing was sent." };
+  }
+
+  // Anything that reaches Circle's adapter goes through the conversion path, and a batch that does so without carrying its
+  // Conversion is refused: the rules below cannot be skipped by leaving the description out.
+  let reaches: boolean;
+  try {
+    reaches = reachesSwapAdapter(to, data);
+  } catch {
+    reaches = true;
+  }
+  if (conversion || reaches) {
+    if (!conversion) return refusal("conversion", "This payment reaches Circle's swap adapter without saying what it converts, so Adag will not send it.", "Nothing was sent. Reload the page and try again.");
+    return sendConversion({ client, account, to, data, onStep, usdcOut, conversion });
   }
 
   let estimate: bigint;
@@ -137,6 +267,10 @@ export async function simulateAndSend({ account, to, data, onStep, usdcOut = 0n 
     return { ok: false, stage: "failed", message };
   }
 
+  return signAndConfirm({ account, to, data, gas: figures.gasLimit, fees, onStep });
+}
+
+async function signAndConfirm({ account, to, data, gas, fees, onStep, effects }: { account: Address; to: Address; data: Hex; gas: bigint; fees: Fees; onStep: (step: TxStep) => void; effects?: "checked" | "unavailable" }): Promise<TxOutcome> {
   onStep("signing");
   let hash: Hex;
   try {
@@ -146,7 +280,7 @@ export async function simulateAndSend({ account, to, data, onStep, usdcOut = 0n 
       chainId: arc.id,
       to,
       data,
-      gas: figures.gasLimit,
+      gas,
       maxFeePerGas: fees.maxFeePerGas,
       maxPriorityFeePerGas: fees.maxPriorityFeePerGas,
     });
@@ -166,7 +300,7 @@ export async function simulateAndSend({ account, to, data, onStep, usdcOut = 0n 
     return { ok: false, stage: "failed", hash, message: "The transaction reverted on Arc, so nothing moved apart from the fee." };
   }
   onStep("rereading");
-  return { ok: true, hash, receipt };
+  return effects ? { ok: true, hash, receipt, effects } : { ok: true, hash, receipt };
 }
 
 // After a receipt timeout: read bill(id) on the bills' own contract every few seconds for up to two minutes until

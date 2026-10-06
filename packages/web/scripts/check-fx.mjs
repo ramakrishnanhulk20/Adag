@@ -7,9 +7,12 @@
 //   node packages/web/scripts/check-fx.mjs
 //
 // Checks F1 and F2 prove the floor transfer (the built-in balance check); F3 and F4 attack Multicall3From and Memo from
-// inside a batch; F5 to F8 run real Circle plans. The payer's own state is real. State overrides are used only to plant
-// the test-only contracts in scripts/fx-fixtures (never deployed) and to add balances where a check needs them; each
-// check says where. F8 may SKIP, only when the USDC market has too little free cash. Exits 0 only if nothing fails.
+// inside a batch; F5 to F8 run real Circle plans with batches this script writes itself. F9 and F10 do the same job with
+// the app's own code: src/lib/fx/circle.ts asks Circle, src/lib/fx/estimate.ts sizes the amount from the euro price,
+// src/lib/fx/plan.ts checks the plan and the simulation's transfers, and src/lib/pay/build.ts writes the batch. The
+// payer's own state is real. State overrides are used only to plant the test-only contracts in scripts/fx-fixtures
+// (never deployed) and to add balances where a check needs them; each check says where. F8 may SKIP, only when the USDC
+// market has too little free cash. Exits 0 only if nothing fails.
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { registerHooks } from 'node:module';
@@ -39,9 +42,15 @@ process.emitWarning = (warning, ...rest) => {
 };
 
 const pay = (file) => import(new URL(`../src/lib/pay/${file}`, import.meta.url).href);
+const fxLib = (file) => import(new URL(`../src/lib/fx/${file}`, import.meta.url).href);
 const C = await pay('constants.ts');
 const { adagAbi, erc20Abi, memoAbi, morphoAbi, multicall3FromAbi } = await pay('abi.ts');
 const { closeApproval } = await pay('loan.ts');
+const { paramsFromTuple } = await pay('market.ts');
+const { buildPayConverted, buildCloseWithOtherCurrency, suggestPledge } = await pay('build.ts');
+const { requestPlan } = await fxLib('circle.ts');
+const { checkEffects } = await fxLib('plan.ts');
+const { amountToSell, readEurUsd } = await fxLib('estimate.ts');
 
 const SIM_RPC = 'https://rpc.drpc.mainnet.arc.io';
 const CIRCLE_SWAP_URL = 'https://api.circle.com/v1/stablecoinKits/swap';
@@ -176,7 +185,7 @@ const withEurc = (who, amount) => ({
 // blocks: [{ calls: [{ from, to, data, gas?, maxFeePerGas? }], overrides? }], each a block one second after the last.
 // The base fee is pinned to the latest real header: dRPC's simulated blocks work it out with the plain Ethereum formula,
 // which lands under Arc's 20 gwei floor.
-async function simulate(pin, blocks) {
+async function simulate(pin, blocks, traceTransfers = false) {
   const body = blocks.map((b, i) => ({
     blockOverrides: { time: toHex(pin.timestamp + BigInt(i + 1)), baseFeePerGas: toHex(pin.baseFee) },
     ...(b.overrides ? { stateOverrides: b.overrides } : {}),
@@ -184,7 +193,7 @@ async function simulate(pin, blocks) {
       from: c.from, to: c.to, data: c.data, gas: toHex(c.gas ?? READ_GAS), maxFeePerGas: toHex(c.maxFeePerGas ?? pin.maxFee), maxPriorityFeePerGas: toHex(0n),
     })),
   }));
-  const result = await rpc('eth_simulateV1', [{ blockStateCalls: body, validation: true, traceTransfers: false }, toHex(pin.number)]);
+  const result = await rpc('eth_simulateV1', [{ blockStateCalls: body, validation: true, traceTransfers }, toHex(pin.number)]);
   if (!Array.isArray(result) || result.length !== blocks.length) throw new Error('eth_simulateV1 returned an unexpected shape.');
   return result.map((blk) => ({
     baseFee: BigInt(blk.baseFeePerGas),
@@ -196,14 +205,14 @@ async function simulate(pin, blocks) {
 }
 
 // The standard shape of every check: block 1 setup, block 2 reads before, block 3 the payer's transaction, block 4 reads after.
-async function scenario(pin, { setup = [], ov, pre = [], tx, post = [] }) {
+async function scenario(pin, { setup = [], ov, pre = [], tx, post = [], trace = false }) {
   const asRead = (s) => ({ from: READER, to: s.to, data: s.data });
   const out = await simulate(pin, [
     { calls: setup, overrides: overrides(withBalance(READER, 5_000_000n), ov) },
     { calls: pre.map(asRead) },
     { calls: [tx] },
     { calls: post.map(asRead) },
-  ]);
+  ], trace);
   const unread = (specs, results) => specs.map((s, i) => {
     if (!results[i].ok) throw new Error(`Reading ${s.functionName} failed inside the simulation.`);
     return decode(s, results[i].returnData);
@@ -570,6 +579,138 @@ async function reverseCheck() {
     ]);
 }
 
+// What the app's code works from, read the way the app reads it: the euro price AdagBills uses, through the same viem-shaped
+// reads, here served by this script's own RPC helper so the 1.5 second spacing against dRPC still applies.
+const appClient = {
+  async getBlock() {
+    const b = await rpc('eth_getBlockByNumber', ['latest', false]);
+    return { number: BigInt(b.number), timestamp: BigInt(b.timestamp), baseFeePerGas: BigInt(b.baseFeePerGas) };
+  },
+  async readContract({ address, abi, functionName, args = [], blockNumber }) {
+    const out = await rpc('eth_call', [{ to: address, data: enc(abi, functionName, args) }, blockNumber === undefined ? 'latest' : toHex(blockNumber)]);
+    return decodeFunctionResult({ abi, functionName, data: out });
+  },
+};
+
+// Transfers out of the payer in a batch's logs, for the report line: what the app's rule had to account for.
+function outOfPayer(logs) {
+  const topic = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
+  return logs.filter((l) => l.topics?.[0] === topic && l.topics.length >= 3 && isAddressEqual(`0x${l.topics[1].slice(26)}`, PAYER));
+}
+
+// ---- F9: the 100 USDC bill from a EURC loan, built by the app ----
+async function appBillCheck() {
+  const pin = await getPin();
+  const eur = await readEurUsd(appClient);
+  const eurc = currency('EURC');
+  const usdcCur = currency('USDC');
+  const id = (await ethCall(pin, read(C.ADAG_BILLS, adagAbi, 'billCount'))) + 1n;
+  const ref = stringToHex('ADAG-FX-APP');
+  const createBill = { from: PAYEE, to: C.ADAG_BILLS, data: enc(adagAbi, 'createBill', [usdcCur.address, AMOUNT, pin.timestamp + 7n * 86_400n, ref]), gas: 500_000n };
+  const X = amountToSell(AMOUNT, 'USDC', eur.reading, 40n);
+  const asked = await requestPlan({ tokenIn: C.EURC, amountIn: X, tokenOut: C.USDC, minOut: AMOUNT, account: PAYER });
+  if (!asked.ok) throw new Error(`circle.ts returned its fixed sentence: ${asked.error}`);
+  const tuple = await ethCall(pin, read(C.MORPHO, morphoAbi, 'idToMarketParams', [eurc.marketId]));
+  const needed = await ethCall(pin, read(C.ADAG_BILLS, adagAbi, 'collateralNeeded', [PAYER, eurc.marketId, X]));
+  const outputBalance = await ethCall(pin, balanceOf(C.USDC, PAYER));
+  const bill = { contract: C.ADAG_BILLS, id, payee: PAYEE, status: C.BILL_STATUS.Open, due: pin.timestamp + 7n * 86_400n, currency: C.USDC, createdAt: pin.timestamp, amount: AMOUNT, payer: getAddress('0x0000000000000000000000000000000000000000'), paidAt: 0n, ref };
+  const built = buildPayConverted(bill, PAYER, {
+    from: 'convert', loan: 'EURC', amountIn: X, pledge: suggestPledge(needed), marketParams: paramsFromTuple(tuple), plan: asked.plan.calldata,
+    outputBalance, maxFeePerGas: pin.maxFee, chainTime: pin.timestamp, rate: eur.reading,
+  });
+  const ctx = { pin, loanCur: eurc, billCur: usdcCur, createBill };
+  const tx = { from: PAYER, to: built.to, data: built.data, gas: built.conversion.gas, maxFeePerGas: built.conversion.maxFeePerGas };
+  const run = await scenario(pin, { setup: [createBill], pre: billReads(ctx), tx, post: billReads(ctx), trace: true });
+  if (!run.tx.ok) {
+    record('F9', 'FAIL', `the app's batch reverted: ${explain(run.tx.revertData)}`, [`bill #${id}; borrow ${tok('EURC', X)}; ${built.calls.length} calls`]);
+    return;
+  }
+  const r = readBill(run);
+  let effectsLine;
+  let effectsOk = true;
+  try {
+    checkEffects(run.tx.logs, built.conversion);
+    effectsLine = `the app's effects rule accepted the simulation's logs: ${outOfPayer(run.tx.logs).length} transfers out of the payer, each one the pledge, the amount sold, the bill or the floor`;
+  } catch (error) {
+    effectsOk = false;
+    effectsLine = `the app's effects rule REFUSED the simulation's logs: ${error.message}`;
+  }
+  const paid = paidEvent(run.tx.logs, id);
+  const rise = r.after.payee - r.before.payee;
+  const allowances = [r.after.aUsdc, r.after.aEurc, r.after.aBtc];
+  const gasFits = (run.tx.gas * 125n) / 100n <= C.FX_GAS_CAP;
+  const ok = rise === AMOUNT && !!paid && r.after.ltv <= C.MAX_LTV_WAD && allowances.every((a) => a === 0n) && effectsOk && gasFits;
+  record('F9', ok ? 'PASS' : 'FAIL',
+    `100 USDC bill paid from a EURC loan with the app's own build.ts, circle.ts, estimate.ts and plan.ts: payee +${usdc(rise)}, BillPaid #${paid?.id ?? 'none'} by the payer, EURC loan-to-value ${(Number(r.after.ltv) / 1e16).toFixed(2)}%, adapter allowances ${allowances.join('/')}, gas ${run.tx.gas} of the ${C.FX_GAS_CAP} cap`,
+    [
+      `bill #${id}; euro price ${Number(eur.reading.answer) / 10 ** eur.reading.decimals} (updated ${eur.chainTime - eur.reading.updatedAt} s before the block); sells ${tok('EURC', X)} (0.40% buffer), pledge ${btc(suggestPledge(needed))}; plan deadline ${asked.plan.deadline}`,
+      `${built.calls.length} calls in one aggregate3 from build.ts; floor ${usdc(built.conversion.floor)} = balance ${usdc(outputBalance)} + bill ${usdc(AMOUNT)} - gas slack ${usdc(outputBalance + AMOUNT - built.conversion.floor)}`,
+      effectsLine,
+    ]);
+}
+
+// ---- F10: a EURC loan closed with USDC, built by the app ----
+async function appCloseCheck() {
+  const pin = await getPin();
+  const eur = await readEurUsd(appClient);
+  const eurc = currency('EURC');
+  const borrowed = 100_000_000n;
+  const needed = await ethCall(pin, read(C.ADAG_BILLS, adagAbi, 'collateralNeeded', [PAYER, eurc.marketId, borrowed]));
+  const pledge = suggestPledge(needed);
+  const eurcAtPin = await ethCall(pin, balanceOf(C.EURC, PAYER));
+  const tuple = await ethCall(pin, read(C.MORPHO, morphoAbi, 'idToMarketParams', [eurc.marketId]));
+  const setup = [{
+    ...payerTx([approve(C.CIRBTC, C.MORPHO, pledge), supplyCollateral(eurc, pledge), borrow(eurc, borrowed), transfer(C.EURC, PAYEE, eurcAtPin + borrowed)]),
+  }];
+  const stateReads = [
+    read(C.MORPHO, morphoAbi, 'position', [eurc.marketId, PAYER]), read(C.MORPHO, morphoAbi, 'market', [eurc.marketId]),
+    balanceOf(C.EURC, PAYER), balanceOf(C.CIRBTC, PAYER),
+  ];
+  const probe = await scenario(pin, { setup, pre: stateReads, tx: { from: READER, to: C.USDC, data: balanceOf(C.USDC, READER).data }, post: [] });
+  const [position, market, eurcHeld] = probe.before;
+  const shares = position[1];
+  const collateral = position[2];
+  const approval = closeApproval(shares, market[2], market[3]);
+  const Y = amountToSell(approval, 'EURC', eur.reading, 40n);
+  const asked = await requestPlan({ tokenIn: C.USDC, amountIn: Y, tokenOut: C.EURC, minOut: approval, account: PAYER });
+  if (!asked.ok) throw new Error(`circle.ts returned its fixed sentence: ${asked.error}`);
+  const built = buildCloseWithOtherCurrency(PAYER, eurc, { shares, collateral }, approval, paramsFromTuple(tuple), {
+    amountIn: Y, plan: asked.plan.calldata, outputBalance: eurcHeld, maxFeePerGas: pin.maxFee, chainTime: pin.timestamp, rate: eur.reading,
+  });
+  const reads = [
+    read(C.MORPHO, morphoAbi, 'position', [eurc.marketId, PAYER]), balanceOf(C.CIRBTC, PAYER), balanceOf(C.EURC, PAYER), balanceOf(C.USDC, PAYER),
+    allowanceOf(C.USDC, PAYER, CIRCLE_ADAPTER), allowanceOf(C.EURC, PAYER, CIRCLE_ADAPTER), allowanceOf(C.CIRBTC, PAYER, CIRCLE_ADAPTER),
+    allowanceOf(C.EURC, PAYER, C.MORPHO),
+  ];
+  const tx = { from: PAYER, to: built.to, data: built.data, gas: built.conversion.gas, maxFeePerGas: built.conversion.maxFeePerGas };
+  const run = await scenario(pin, { setup, pre: reads, tx, post: reads, trace: true });
+  if (!run.tx.ok) {
+    record('F10', 'FAIL', `the app's close batch reverted: ${explain(run.tx.revertData)}`, [`loan ${tok('EURC', borrowed)}, ${btc(collateral)} pledged, close approval ${tok('EURC', approval)}, input ${usdc(Y)}`]);
+    return;
+  }
+  let effectsLine;
+  let effectsOk = true;
+  try {
+    checkEffects(run.tx.logs, built.conversion);
+    effectsLine = `the app's effects rule accepted the simulation's logs: ${outOfPayer(run.tx.logs).length} transfers out of the payer, each one the amount sold, the repayment or the floor`;
+  } catch (error) {
+    effectsOk = false;
+    effectsLine = `the app's effects rule REFUSED the simulation's logs: ${error.message}`;
+  }
+  const [posAfter, btcAfter, eurcAfter, usdcAfter, aUsdc, aEurc, aBtc, aMorpho] = run.after;
+  const back = btcAfter - run.before[1];
+  const gasFits = (run.tx.gas * 125n) / 100n <= C.FX_GAS_CAP;
+  const ok = posAfter[1] === 0n && posAfter[2] === 0n && back === collateral && [aUsdc, aEurc, aBtc, aMorpho].every((a) => a === 0n) && effectsOk && gasFits;
+  record('F10', ok ? 'PASS' : 'FAIL',
+    `EURC loan closed with USDC with the app's own build.ts, circle.ts, estimate.ts and plan.ts: debt ${posAfter[1]} shares, collateral ${posAfter[2]}, ${btc(back)} back to the payer, allowances adapter USDC/EURC/cirBTC and Morpho EURC ${aUsdc}/${aEurc}/${aBtc}/${aMorpho}, gas ${run.tx.gas} of the ${C.FX_GAS_CAP} cap`,
+    [
+      `loan ${tok('EURC', borrowed)} (${shares} shares), ${btc(collateral)} pledged, close approval ${tok('EURC', approval)}; sells ${usdc(Y)} (0.40% buffer over the euro price) for at least ${tok('EURC', approval)}; plan deadline ${asked.plan.deadline}`,
+      `${built.calls.length} calls from build.ts; floor ${tok('EURC', built.conversion.floor)} = held ${tok('EURC', eurcHeld)} + approval ${tok('EURC', approval)}`,
+      effectsLine,
+      `payer EURC after ${tok('EURC', eurcAfter)} (the spare from the buffer); payer USDC ${usdc(run.before[3])} -> ${usdc(usdcAfter)}`,
+    ]);
+}
+
 async function main() {
   const chainId = Number(await rpc('eth_chainId', []));
   if (chainId !== C.CHAIN_ID) throw new Error(`${SIM_RPC} reports chain ${chainId}, not Arc mainnet ${C.CHAIN_ID}.`);
@@ -578,7 +719,7 @@ async function main() {
   const head = await rpc('eth_getBlockByNumber', ['latest', false]);
   console.log(`check-fx: cross-currency guards on live Arc mainnet state (chain ${chainId}, latest block ${BigInt(head.number)}, base fee ${Number(BigInt(head.baseFeePerGas)) / 1e9} gwei).`);
   console.log(`Every step runs in eth_simulateV1 on dRPC with validation on. Nothing is signed or sent. Payer ${PAYER}, payee ${PAYEE}, adapter ${CIRCLE_ADAPTER}.`);
-  console.log(`Gas for every batch: limit ${GAS_LIMIT}, max fee ${FEE_HEADROOM_PCT}% of the base fee. Test-only contracts built with solc ${fixtures.compiler.split('+')[0]}. Code addresses ${wrong.length ? `DIFFER from the list pinned in this script for ${wrong.map(([n]) => n).join(', ')} (the code's value is used)` : 'match the list pinned in this script'}.`);
+  console.log(`Gas for F1 to F8: limit ${GAS_LIMIT}, max fee ${FEE_HEADROOM_PCT}% of the base fee; F9 and F10 use the app's cap of ${C.FX_GAS_CAP} and the same fee. Test-only contracts built with solc ${fixtures.compiler.split('+')[0]}. Code addresses ${wrong.length ? `DIFFER from the list pinned in this script for ${wrong.map(([n]) => n).join(', ')} (the code's value is used)` : 'match the list pinned in this script'}.`);
   console.log();
 
   const qualifyPin = await getPin();
@@ -586,12 +727,12 @@ async function main() {
   const btcBal = await ethCall(qualifyPin, balanceOf(C.CIRBTC, PAYER));
   if (usdcBal < 2n * AMOUNT || btcBal < 1_000_000n) throw new Error(`Payer ${PAYER} holds ${usdc(usdcBal)} and ${btc(btcBal)}: too little for these checks. Set FX_PAYER to a wallet with cirBTC and over 200 USDC and no open loans.`);
 
-  const steps = [floorChecks, attackChecks, billFromLoanChecks, closeLoanCheck, reverseCheck];
+  const steps = [floorChecks, attackChecks, billFromLoanChecks, closeLoanCheck, reverseCheck, appBillCheck, appCloseCheck];
   for (const step of steps) {
     try {
       await step();
     } catch (error) {
-      const ids = { floorChecks: 'F1/F2', attackChecks: 'F3/F4', billFromLoanChecks: 'F5/F6', closeLoanCheck: 'F7', reverseCheck: 'F8' };
+      const ids = { floorChecks: 'F1/F2', attackChecks: 'F3/F4', billFromLoanChecks: 'F5/F6', closeLoanCheck: 'F7', reverseCheck: 'F8', appBillCheck: 'F9', appCloseCheck: 'F10' };
       record(ids[step.name], 'FAIL', `could not run: ${error?.shortMessage ?? error?.message ?? String(error)}`);
     }
   }
