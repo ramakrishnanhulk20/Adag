@@ -46,6 +46,7 @@ const FORK = `http://127.0.0.1:${FORK_PORT}`;
 const APP_PORT = 3600;
 const APP = `http://localhost:${APP_PORT}`;
 const DIST = '.next-e2e-guard';
+const DUMMY_PROJECT_ID = 'e2e0000000000000000000000000000e';
 
 const MORPHO = '0x34CD04070dD72b14E241112F6d83812Df5Af7fCD';
 const USDC = '0x3600000000000000000000000000000000000000';
@@ -68,6 +69,7 @@ const morphoAbi = parseAbi([
   `function repay(${mp} marketParams, uint256 assets, uint256 shares, address onBehalf, bytes data) returns (uint256, uint256)`,
   `function withdrawCollateral(${mp} marketParams, uint256 assets, address onBehalf, address receiver)`,
   'function position(bytes32 id, address user) view returns (uint256 supplyShares, uint128 borrowShares, uint128 collateral)',
+  'function market(bytes32 id) view returns (uint128 totalSupplyAssets, uint128 totalSupplyShares, uint128 totalBorrowAssets, uint128 totalBorrowShares, uint128 lastUpdate, uint128 fee)',
 ]);
 const erc20Abi = parseAbi([
   'function approve(address, uint256) returns (bool)',
@@ -128,7 +130,8 @@ async function waitForFork() {
 }
 
 async function sendAs(wallet, request) {
-  const hash = await wallet.sendTransaction({ ...request, ...fees, chain: forkChain });
+  // A fixed limit: an estimate with no margin can run out when the next block accrues Morpho interest.
+  const hash = await wallet.sendTransaction({ gas: 700_000n, ...request, ...fees, chain: forkChain });
   const receipt = await fork.waitForTransactionReceipt({ hash });
   if (receipt.status !== 'success') throw new Error(`transaction reverted: ${request.to} ${request.data?.slice(0, 10)}`);
   return receipt;
@@ -164,10 +167,24 @@ const consoleErrors = [];
 let browser = null;
 
 // The page's wallet: every request goes to the fork, which signs transactions for the impersonated borrower. A
-// personal_sign goes back to this script, which holds the borrower's test key.
+// personal_sign goes back to this script, which holds the borrower's test key. Like a real wallet it shows no accounts
+// to a site until approved, and it announces itself over EIP-6963 as "E2E Wallet", which is how the Reown modal lists it.
 function walletScript({ account, fork }) {
   window.__walletLog = [];
   let id = 0;
+  const approvedKey = '__e2eApproved';
+  const approved = () => {
+    try {
+      return Boolean(localStorage.getItem(approvedKey));
+    } catch {
+      return false;
+    }
+  };
+  const approve = () => {
+    try {
+      localStorage.setItem(approvedKey, '1');
+    } catch {}
+  };
   const forward = async (method, params) => {
     const res = await fetch(fork, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: ++id, method, params: params ?? [] }) });
     const json = await res.json();
@@ -175,12 +192,20 @@ function walletScript({ account, fork }) {
     return json.result;
   };
   const listeners = {};
-  window.ethereum = {
+  const provider = {
     isMetaMask: true,
     async request({ method, params }) {
       window.__walletLog.push(method);
-      if (method === 'eth_accounts' || method === 'eth_requestAccounts') return [account];
-      if (method === 'wallet_requestPermissions' || method === 'wallet_getPermissions') return [{ parentCapability: 'eth_accounts' }];
+      if (method === 'eth_accounts') return approved() ? [account] : [];
+      if (method === 'eth_requestAccounts') {
+        approve();
+        return [account];
+      }
+      if (method === 'wallet_requestPermissions') {
+        approve();
+        return [{ parentCapability: 'eth_accounts' }];
+      }
+      if (method === 'wallet_getPermissions') return approved() ? [{ parentCapability: 'eth_accounts' }] : [];
       if (method === 'wallet_switchEthereumChain' || method === 'wallet_addEthereumChain') return null;
       if (method === 'eth_sendTransaction') return forward(method, [{ ...params[0], from: account }]);
       if (method === 'personal_sign') return window.__e2ePersonalSign(params[0]);
@@ -189,12 +214,65 @@ function walletScript({ account, fork }) {
     on(event, fn) { (listeners[event] ||= []).push(fn); },
     removeListener(event, fn) { listeners[event] = (listeners[event] || []).filter((f) => f !== fn); },
   };
+  window.ethereum = provider;
+  const icon = `data:image/svg+xml;base64,${btoa('<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" rx="14" fill="#D9A94A"/></svg>')}`;
+  const info = { uuid: 'e2e00000-0000-4000-8000-000000000002', name: 'E2E Wallet', icon, rdns: 'dev.adag.e2e' };
+  const announce = () => window.dispatchEvent(new CustomEvent('eip6963:announceProvider', { detail: Object.freeze({ info, provider }) }));
+  window.addEventListener('eip6963:requestProvider', announce);
+  announce();
+}
+
+// Reown's modal calls its own servers for its settings, wallet list, logos, wallet names and usage numbers. Every one
+// of those requests is answered here, so a run never reaches Reown or WalletConnect and the console stays clean.
+// Answers are plain JSON with a 200, because a 404 would itself be logged by the browser as a console error.
+const REOWN_HOSTS = /^(https?|wss?):\/\/([a-z0-9-]+\.)*(web3modal\.(org|com)|walletconnect\.(org|com)|reown\.com)(:\d+)?\//i;
+async function stubReown(context) {
+  await context.route(REOWN_HOSTS, (route) => {
+    const url = new URL(route.request().url());
+    const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' };
+    const json = (body) => route.fulfill({ status: 200, contentType: 'application/json', headers: cors, body: JSON.stringify(body) });
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
+    if (url.pathname.endsWith('/appkit/v1/config')) return json({ features: null });
+    if (url.pathname.endsWith('/project-limits')) return json({ planLimits: { tier: 'starter', isAboveMauLimit: false, isAboveRpcLimit: false } });
+    if (url.pathname.endsWith('/getWallets')) return json({ count: 0, data: [] });
+    if (url.host.startsWith('pulse.')) return route.fulfill({ status: 204, headers: cors });
+    return json({});
+  });
+  await context.routeWebSocket(REOWN_HOSTS, (socket) => socket.close());
+}
+
+// Playwright's CSS locators pierce the modal's open shadow roots. The sheet slides in, so the row is clicked as an
+// element and not at a screen position that is still moving.
+async function pickWallet(page) {
+  const row = page.locator('wui-list-wallet[name="E2E Wallet"]');
+  await row.waitFor({ timeout: 30_000 });
+  await row.evaluate((el) => el.click());
+}
+
+// Pressing Connect wallet opens the Reown modal, where the fake wallet is the only browser wallet listed.
+async function clickConnect(page) {
+  await page.getByRole('button', { name: 'Connect wallet' }).first().click();
+  await pickWallet(page);
+}
+
+// After a reload the approved wallet reconnects by itself, so the button may never appear. The button can also flash
+// before that reconnect lands, so it is looked at once more after a moment.
+async function connectIfShown(page) {
+  const button = page.getByRole('button', { name: 'Connect wallet' }).first();
+  const pill = page.locator('[data-wallet-pill]').first();
+  await Promise.race([button.waitFor({ timeout: 15_000 }), pill.waitFor({ timeout: 15_000 })]).catch(() => {});
+  await page.waitForTimeout(500);
+  if (await button.isVisible()) {
+    await button.click();
+    await pickWallet(page).catch(() => {});
+  }
 }
 
 async function openPage(borrower) {
   browser ??= await chromium.launch();
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: 'dark' });
   await context.addCookies([{ name: 'adag-theme', value: 'dark', url: APP }]);
+  await stubReown(context);
   await context.addInitScript(walletScript, { account: borrower.address, fork: FORK });
   // The Morpho disclaimer was accepted by this wallet before; its own flow is covered by scripts/e2e.mjs.
   await context.addInitScript((a) => localStorage.setItem(`adag-morpho-disclaimer:${a.toLowerCase()}`, 'accepted'), borrower.address);
@@ -263,7 +341,13 @@ async function main() {
   const wallet = createWalletClient({ account: borrower, chain: forkChain, transport: http(FORK) });
   await rpc('anvil_impersonateAccount', [MORPHO]);
   const morphoWallet = createWalletClient({ account: MORPHO, chain: forkChain, transport: http(FORK) });
-  const pledge = 1_000_000n;
+  // 0.01 cirBTC, unless Morpho's USDC market holds less free cash than half that loan needs. The fork copies the live
+  // market, which other borrowers can drain, so the loan shrinks to fit and stays at 50% of its pledge.
+  const priceNow = await fork.readContract({ address: ORACLE_USDC, abi: oracleAbi, functionName: 'price' });
+  const [supplyAssets, , borrowAssets] = await fork.readContract({ address: MORPHO, abi: morphoAbi, functionName: 'market', args: [MARKET_USDC] });
+  const wantedBorrow = (1_000_000n * priceNow) / 10n ** 36n / 2n;
+  const affordable = (supplyAssets - borrowAssets) / 2n;
+  const pledge = wantedBorrow > affordable ? (1_000_000n * affordable) / wantedBorrow : 1_000_000n;
   await sendAs(morphoWallet, { to: CIRBTC, data: encodeFunctionData({ abi: erc20Abi, functionName: 'transfer', args: [borrower.address, pledge] }) });
   const params = await fork.readContract({ address: MORPHO, abi: morphoAbi, functionName: 'idToMarketParams', args: [MARKET_USDC] });
   const tuple = { loanToken: params[0], collateralToken: params[1], oracle: params[2], irm: params[3], lltv: params[4] };
@@ -290,8 +374,9 @@ async function main() {
     NEXT_PUBLIC_ADAG_E2E: '1',
     NEXT_PUBLIC_ADAG_GUARD_E2E: guard,
     NEXT_PUBLIC_ARC_RPC_URL: FORK,
-    // The fake wallet is a browser wallet; WalletConnect would add a chooser and a relay the fork cannot reach.
-    NEXT_PUBLIC_WC_PROJECT_ID: '',
+    // A fixed dummy id, so the Reown wallet modal loads. Every request it makes to Reown is answered by a stub (see
+    // stubReown), so nothing leaves the machine.
+    NEXT_PUBLIC_WC_PROJECT_ID: DUMMY_PROJECT_ID,
     NEXT_PUBLIC_SITE_URL: APP,
     ARC_RPC_URL: FORK,
     ARC_RPC_FALLBACK_URL: FORK,
@@ -334,7 +419,7 @@ async function main() {
   // UI: the borrower protects the loan from their wallet page, in one signature.
   const page = await openPage(borrower);
   await page.goto(`${APP}/app`, { waitUntil: 'networkidle', timeout: 120_000 });
-  await page.getByRole('button', { name: 'Connect wallet' }).first().click();
+  await clickConnect(page);
   const usdcGuard = page.locator('[data-guard="USDC"]');
   await usdcGuard.locator('[data-action="protect-open"]').click({ timeout: 90_000 });
   await usdcGuard.locator('[data-field="guard-trigger"]').fill('55');
@@ -402,8 +487,7 @@ async function main() {
   const levelsSaved = (await page.locator('[data-alerts-note]').count()) === 1;
   sentEarlier += await sentOnPage();
   await page.reload({ waitUntil: 'networkidle' });
-  const connectLevels = page.getByRole('button', { name: 'Connect wallet' });
-  if (await connectLevels.count()) await connectLevels.first().click().catch(() => {});
+  await connectIfShown(page);
   const savedLine = page.locator('[data-alerts-saved]');
   await savedLine.waitFor({ timeout: 60_000 });
   const savedText = (await savedLine.innerText()).trim();
@@ -571,8 +655,7 @@ async function main() {
   // UI: stop protecting is one signature that clears the rule and sets the approval to 0 (C60).
   const sentBeforeReload = sentEarlier + (await sentOnPage());
   await page.reload({ waitUntil: 'networkidle' });
-  const connectAgain = page.getByRole('button', { name: 'Connect wallet' });
-  if (await connectAgain.count()) await connectAgain.first().click().catch(() => {});
+  await connectIfShown(page);
   const stopButton = page.locator('[data-guard="USDC"] [data-action="protect-stop"]');
   await stopButton.waitFor({ timeout: 90_000 });
   const stopFrom = await fork.getBlockNumber();
@@ -620,8 +703,7 @@ async function main() {
   await rpc('anvil_impersonateAccount', [closer.address]);
   const closedPage = await openPage(closer);
   await closedPage.goto(`${APP}/app/protect`, { waitUntil: 'networkidle', timeout: 120_000 });
-  const connectClosed = closedPage.getByRole('button', { name: 'Connect wallet' });
-  if (await connectClosed.count()) await connectClosed.first().click().catch(() => {});
+  await connectIfShown(closedPage);
   const closedItem = closedPage.locator('[data-guard-list-item="USDC"]');
   await closedItem.waitFor({ timeout: 90_000 });
   const closedNote = await closedItem.locator('[data-guard-list-closed]').count();

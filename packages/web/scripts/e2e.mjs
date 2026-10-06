@@ -23,6 +23,7 @@ mkdirSync(SHOTS, { recursive: true });
 const FORK = 'http://127.0.0.1:8545';
 const APP = 'http://localhost:3400';
 const DIST = '.next-e2e';
+const DUMMY_PROJECT_ID = 'e2e0000000000000000000000000000e';
 
 const PAYER = '0x6e26Dd347b57ba591Ee34292A2d828CCC17A1fDE';
 const PAYEE = '0xc95DE79125A9D7fCfE17f35C7Dbe0e88725Ad93B';
@@ -58,6 +59,7 @@ const cirBtcOf = (who) => fork.readContract({ address: CIRBTC, abi: tokenAbi, fu
 
 const results = [];
 const consoleErrors = [];
+const cspMessages = [];
 const record = (label, ok, detail = '') => {
   results.push({ label, ok });
   console.log(`  ${ok ? 'PASS' : 'FAIL'}  ${label}${detail ? `\n        ${detail}` : ''}`);
@@ -138,9 +140,9 @@ const appEnv = {
   // The Safe routes talk to the harness's stand-in Transaction Service, never Safe's real one, and with a dummy key.
   SAFE_API_KEY: 'e2e-mock-key',
   SAFE_TX_SERVICE_URL: `http://127.0.0.1:${MOCK_PORT}/api`,
-  // The fake wallet is a browser wallet; WalletConnect would add a chooser and a relay the fork cannot reach. It is
-  // checked on its own against a real build (the WalletConnect sheet and QR modal).
-  NEXT_PUBLIC_WC_PROJECT_ID: '',
+  // A fixed dummy id, so the Reown wallet modal loads. Every request it makes to Reown is answered by a stub (see
+  // stubReown), so nothing leaves the machine and phone wallets over WalletConnect are not covered here.
+  NEXT_PUBLIC_WC_PROJECT_ID: DUMMY_PROJECT_ID,
   // The Safe routes need a store for their rate limits; main() points these at a local stand-in before the build.
   UPSTASH_REDIS_REST_URL: '',
   UPSTASH_REDIS_REST_TOKEN: '',
@@ -173,13 +175,28 @@ function stopApp(child) {
 }
 
 // The wallet: every request goes to the fork as the impersonated account. The fork signs for it, so
-// eth_sendTransaction really executes. chainOverride makes it claim another chain, to test the Arc gate.
-function walletScript({ account, fork, chainOverride, addArcFlow }) {
+// eth_sendTransaction really executes. window.__e2eMoveTo(chain) has the wallet leave Arc after it connected, to test
+// the Arc gate. Like a real wallet it shows no accounts to a site until approved, and it also announces itself over
+// EIP-6963 as "E2E Wallet", which is how the Reown modal lists it.
+function walletScript({ account, fork, addArcFlow }) {
   window.__walletLog = [];
   window.__addChainParams = [];
   let id = 0;
-  let chain = chainOverride;
+  let chain = null;
   let arcAdded = false;
+  const approvedKey = '__e2eApproved';
+  const approved = () => {
+    try {
+      return Boolean(localStorage.getItem(approvedKey));
+    } catch {
+      return false;
+    }
+  };
+  const approve = () => {
+    try {
+      localStorage.setItem(approvedKey, '1');
+    } catch {}
+  };
   const forward = async (method, params) => {
     const res = await fetch(fork, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: ++id, method, params: params ?? [] }) });
     const json = await res.json();
@@ -187,14 +204,22 @@ function walletScript({ account, fork, chainOverride, addArcFlow }) {
     return json.result;
   };
   const listeners = {};
-  window.ethereum = {
+  const provider = {
     isMetaMask: true,
     async request({ method, params }) {
       window.__walletLog.push(method);
       if (method === 'eth_chainId' && chain) return chain;
       if (method === 'net_version' && chain) return String(parseInt(chain, 16));
-      if (method === 'eth_accounts' || method === 'eth_requestAccounts') return [account];
-      if (method === 'wallet_requestPermissions' || method === 'wallet_getPermissions') return [{ parentCapability: 'eth_accounts' }];
+      if (method === 'eth_accounts') return approved() ? [account] : [];
+      if (method === 'eth_requestAccounts') {
+        approve();
+        return [account];
+      }
+      if (method === 'wallet_requestPermissions') {
+        approve();
+        return [{ parentCapability: 'eth_accounts' }];
+      }
+      if (method === 'wallet_getPermissions') return approved() ? [{ parentCapability: 'eth_accounts' }] : [];
       // A wallet that has never seen Arc: switching fails with 4902 until Arc is added, as MetaMask does.
       if (addArcFlow && method === 'wallet_switchEthereumChain') {
         if (!arcAdded) throw Object.assign(new Error('Unrecognized chain ID "0x13b2".'), { code: 4902 });
@@ -218,23 +243,112 @@ function walletScript({ account, fork, chainOverride, addArcFlow }) {
     on(event, fn) { (listeners[event] ||= []).push(fn); },
     removeListener(event, fn) { listeners[event] = (listeners[event] || []).filter((f) => f !== fn); },
   };
+  window.ethereum = provider;
+  window.__e2eMoveTo = (next) => {
+    chain = next;
+    arcAdded = false;
+    (listeners.chainChanged || []).forEach((fn) => fn(next));
+  };
+  const icon = `data:image/svg+xml;base64,${btoa('<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" rx="14" fill="#D9A94A"/></svg>')}`;
+  const info = { uuid: 'e2e00000-0000-4000-8000-000000000001', name: 'E2E Wallet', icon, rdns: 'dev.adag.e2e' };
+  const announce = () => window.dispatchEvent(new CustomEvent('eip6963:announceProvider', { detail: Object.freeze({ info, provider }) }));
+  window.addEventListener('eip6963:requestProvider', announce);
+  announce();
+}
+
+// Reown's modal calls its own servers for its settings, wallet list, logos, wallet names and usage numbers. Every one
+// of those requests is answered here, so a run never reaches Reown or WalletConnect and the console stays clean.
+// Answers are plain JSON with a 200, because a 404 would itself be logged by the browser as a console error.
+const REOWN_HOSTS = /^(https?|wss?):\/\/([a-z0-9-]+\.)*(web3modal\.(org|com)|walletconnect\.(org|com)|reown\.com)(:\d+)?\//i;
+const reownRequests = [];
+async function stubReown(context) {
+  await context.route(REOWN_HOSTS, (route) => {
+    const url = new URL(route.request().url());
+    reownRequests.push(`${route.request().method()} ${url.host}${url.pathname}`);
+    const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' };
+    const json = (body) => route.fulfill({ status: 200, contentType: 'application/json', headers: cors, body: JSON.stringify(body) });
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
+    if (url.pathname.endsWith('/appkit/v1/config')) return json({ features: null });
+    if (url.pathname.endsWith('/project-limits')) return json({ planLimits: { tier: 'starter', isAboveMauLimit: false, isAboveRpcLimit: false } });
+    if (url.pathname.endsWith('/getWallets')) return json({ count: 0, data: [] });
+    if (url.host.startsWith('pulse.')) return route.fulfill({ status: 204, headers: cors });
+    return json({});
+  });
+  await context.routeWebSocket(REOWN_HOSTS, (socket) => socket.close());
+}
+
+// Playwright's CSS locators pierce the modal's open shadow roots. The sheet slides in, so the row is clicked as an
+// element and not at a screen position that is still moving.
+async function pickWallet(page) {
+  const row = page.locator('wui-list-wallet[name="E2E Wallet"]');
+  await row.waitFor({ timeout: 30_000 });
+  await row.evaluate((el) => el.click());
+}
+
+// Pressing Connect wallet opens the Reown modal, where the fake wallet is the only browser wallet listed.
+async function clickConnect(page, which = 'first') {
+  await page.getByRole('button', { name: 'Connect wallet' })[which]().click();
+  await pickWallet(page);
+}
+
+// After a reload the approved wallet reconnects by itself, so the button may never appear. The button can also flash
+// before that reconnect lands, so it is looked at once more after a moment.
+async function connectIfShown(page) {
+  const button = page.getByRole('button', { name: 'Connect wallet' }).first();
+  const pill = page.locator('[data-wallet-pill]').first();
+  await Promise.race([button.waitFor({ timeout: 15_000 }), pill.waitFor({ timeout: 15_000 })]).catch(() => {});
+  await page.waitForTimeout(500);
+  if (await button.isVisible()) {
+    await button.click();
+    await pickWallet(page).catch(() => {});
+  }
+}
+
+// With no wallet in the browser, Connect wallet still opens the modal. Reports whether it is open and where its card sits.
+async function openWalletModal(page, which = 'first') {
+  await page.getByRole('button', { name: 'Connect wallet' })[which]().click();
+  await page.locator('w3m-modal wui-card').first().waitFor({ state: 'visible', timeout: 20_000 });
+  // The sheet slides in, so measure after it has settled.
+  await page.waitForTimeout(700);
+  return page.evaluate(() => {
+    const modal = document.querySelector('w3m-modal');
+    const card = modal?.shadowRoot?.querySelector('wui-card')?.getBoundingClientRect();
+    return {
+      open: Boolean(modal?.classList.contains('open')),
+      card: card ? { left: card.left, right: card.right, top: card.top, bottom: card.bottom } : null,
+      width: window.innerWidth,
+      height: window.innerHeight,
+      scrollWidth: document.documentElement.scrollWidth,
+    };
+  });
+}
+const modalFits = (m) => m.open && m.card !== null && m.card.left >= 0 && m.card.right <= m.width && m.card.top >= 0 && m.card.bottom <= m.height && m.scrollWidth <= m.width;
+
+// Once connected, the wallet leaves Arc, as a user switching networks inside the wallet would.
+async function moveWalletTo(page, chainHex) {
+  await page.locator('[data-wallet-pill]').first().waitFor({ timeout: 60_000 });
+  await page.evaluate((c) => window.__e2eMoveTo(c), chainHex);
 }
 
 let browser;
-async function openPage({ account, chainOverride = null, width = 1440, theme = 'dark', noWallet = false, addArcFlow = false, signer = null }) {
+async function openPage({ account, width = 1440, theme = 'dark', noWallet = false, addArcFlow = false, signer = null }) {
   const context = await browser.newContext({ viewport: { width, height: width < 600 ? 812 : 900 }, colorScheme: theme, hasTouch: width < 600 });
   await context.addCookies([{ name: 'adag-theme', value: theme, url: APP }]);
-  if (!noWallet) await context.addInitScript(walletScript, { account, fork: FORK, chainOverride, addArcFlow });
+  await stubReown(context);
+  if (!noWallet) await context.addInitScript(walletScript, { account, fork: FORK, addArcFlow });
   if (signer) await context.exposeFunction('__e2eSign', (json) => signTypedJson(signer, json));
   const page = await context.newPage();
-  page.on('console', (m) => m.type() === 'error' && consoleErrors.push(`${page.url()}: ${m.text()}`));
+  page.on('console', (m) => {
+    if (m.type() === 'error') consoleErrors.push(`${page.url()}: ${m.text()}`);
+    if (/content security policy/i.test(m.text())) cspMessages.push(`${page.url()}: ${m.text().slice(0, 200)}`);
+  });
   page.on('pageerror', (e) => consoleErrors.push(`${page.url()}: pageerror ${e.message}`));
   return { context, page };
 }
 
 async function connect(page, path) {
   await page.goto(APP + path, { waitUntil: 'networkidle', timeout: 120_000 });
-  await page.getByRole('button', { name: 'Connect wallet' }).first().click();
+  await clickConnect(page);
   await page.locator('#wallet-title').waitFor({ timeout: 60_000 });
   await page.waitForFunction(() => !document.querySelector('.live-shimmer, [data-reading]'), null, { timeout: 60_000 }).catch(() => {});
 }
@@ -431,9 +545,10 @@ async function main() {
     // (e) The wallet says it is on Ethereum: Switch to Arc, and no transaction is requested.
     const E = newBill('USDC', 100_000, 'E2E-E');
     {
-      const { context, page } = await openPage({ account: PAYER, chainOverride: '0x1' });
+      const { context, page } = await openPage({ account: PAYER });
       await page.goto(`${APP}/bill/${E}`, { waitUntil: 'networkidle', timeout: 120_000 });
-      await page.getByRole('button', { name: 'Connect wallet' }).first().click();
+      await clickConnect(page);
+      await moveWalletTo(page, '0x1');
       await page.getByRole('button', { name: 'Switch to Arc' }).first().waitFor({ timeout: 60_000 });
       await page.locator('[data-blocked="true"]').waitFor({ timeout: 30_000 });
       const buttons = await page.locator('[data-action^="pay-"]').count();
@@ -751,7 +866,7 @@ async function main() {
     };
     const openBasket = async (page, ids) => {
       await page.goto(`${APP}/pay/basket?bills=${ids.join(',')}`, { waitUntil: 'networkidle', timeout: 120_000 });
-      await page.getByRole('button', { name: 'Connect wallet' }).first().click();
+      await clickConnect(page);
       await page.locator('[data-group]').first().waitFor({ timeout: 60_000 });
       await page.waitForFunction(() => !document.querySelector('.live-shimmer, [data-reading]'), null, { timeout: 60_000 }).catch(() => {});
     };
@@ -771,7 +886,7 @@ async function main() {
       await page.getByLabel('Bill numbers or links').fill(`${ids[0]}, ${ids[1]} ${ids[2]}`);
       await page.getByRole('button', { name: 'Open the bill' }).click();
       await page.waitForURL(`**/pay/basket?bills=${ids.join(',')}`, { timeout: 60_000 });
-      await page.getByRole('button', { name: 'Connect wallet' }).first().click();
+      await clickConnect(page);
       await page.locator('[data-group="EURC"]').waitFor({ timeout: 60_000 });
       await page.waitForFunction(() => !document.querySelector('.live-shimmer, [data-reading]'), null, { timeout: 60_000 }).catch(() => {});
       const bitcoinChosen = (await page.locator('[data-choice$="-bitcoin"][aria-checked="true"]').count()) === 2;
@@ -944,8 +1059,8 @@ async function main() {
       }
     }
 
-    // (v) Getting set up: the helper for a wallet with no cirBTC, the wallet-browser links on a phone with no wallet,
-    // and Switch to Arc adding Arc to a wallet that has never seen it.
+    // (v) Getting set up: the helper for a wallet with no cirBTC, the Reown wallet modal opening on a phone and on a
+    // desktop with no wallet in the browser, and Switch to Arc adding Arc to a wallet that has never seen it.
     {
       const V = newBill('USDC', 100_000, 'E2E-V');
       const FRESH = '0x00000000000000000000000000000000000a11ce';
@@ -961,18 +1076,20 @@ async function main() {
 
       const two = await openPage({ account: PAYER, noWallet: true, width: 375, theme: 'light' });
       await two.page.goto(`${APP}/bill/${V}`, { waitUntil: 'networkidle', timeout: 120_000 });
-      await two.page.getByRole('button', { name: 'Connect wallet' }).first().click();
-      const panel = two.page.locator('[data-no-wallet]').first();
-      await panel.waitFor({ timeout: 10_000 });
-      const deeplink = await panel.locator('[data-deeplink="metamask"]').getAttribute('href');
-      const panelText = await panel.innerText();
-      await two.page.waitForTimeout(600);
+      const phoneModal = await openWalletModal(two.page);
       await two.page.screenshot({ path: `${SHOTS}/p1-v-no-wallet-375-light.png`, fullPage: false });
       await two.context.close();
 
-      const three = await openPage({ account: PAYER, chainOverride: '0x1', addArcFlow: true });
+      const desk = await openPage({ account: PAYER, noWallet: true });
+      await desk.page.goto(`${APP}/bill/${V}`, { waitUntil: 'networkidle', timeout: 120_000 });
+      const deskModal = await openWalletModal(desk.page);
+      await desk.page.screenshot({ path: `${SHOTS}/p1-v-no-wallet-1440-dark.png`, fullPage: false });
+      await desk.context.close();
+
+      const three = await openPage({ account: PAYER, addArcFlow: true });
       await three.page.goto(`${APP}/bill/${V}`, { waitUntil: 'networkidle', timeout: 120_000 });
-      await three.page.getByRole('button', { name: 'Connect wallet' }).first().click();
+      await clickConnect(three.page);
+      await moveWalletTo(three.page, '0x1');
       await three.page.locator('[data-blocked="true"]').waitFor({ timeout: 60_000 });
       await three.page.getByRole('button', { name: 'Switch to Arc' }).first().click();
       await three.page.locator('[data-action="pay-bitcoin"], [data-action="pay-balance"]').first().waitFor({ timeout: 60_000 });
@@ -980,11 +1097,10 @@ async function main() {
       const log = await three.page.evaluate(() => window.__walletLog);
       await three.context.close();
 
-      const wantDeeplink = `https://metamask.app.link/dapp/localhost:3400/bill/${V}`;
-      record('(v) setup: the cirBTC helper for a wallet with none, wallet-browser links on a phone with no wallet, and Switch to Arc adds Arc',
-        cirbtcLinks.includes('https://portal.arc.io/swap') && blockedReason.includes('less cirBTC') && deeplink === wantDeeplink && /built-in browser/.test(panelText)
+      record('(v) setup: the cirBTC helper for a wallet with none, the Reown wallet modal on a phone and on a desktop with no wallet, and Switch to Arc adds Arc',
+        cirbtcLinks.includes('https://portal.arc.io/swap') && blockedReason.includes('less cirBTC') && modalFits(phoneModal) && deskModal.open && deskModal.card !== null
           && added.length === 1 && added[0].chainId === '0x13b2' && log.indexOf('wallet_addEthereumChain') > log.indexOf('wallet_switchEthereumChain'),
-        `cirBTC links ${cirbtcLinks.join(' ')}; button says "${blockedReason}"; MetaMask link ${deeplink}; add-chain ${JSON.stringify(added[0] ?? null).slice(0, 160)}`);
+        `cirBTC links ${cirbtcLinks.join(' ')}; button says "${blockedReason}"; phone modal open ${phoneModal.open}, card ${JSON.stringify(phoneModal.card)}; desktop modal open ${deskModal.open}; add-chain ${JSON.stringify(added[0] ?? null).slice(0, 160)}`);
     }
 
     // (w) Live status: the supplier's open bill page stamps PAID on its own when the payer pays elsewhere.
@@ -1214,7 +1330,7 @@ async function main() {
       const bills2 = [newBill('USDC', 100_000, 'E2E-AA-1'), newBill('USDC', 100_000, 'E2E-AA-2')];
       const { context, page } = await openPage({ account: OWNER1.address, signer: OWNER1 });
       await page.goto(`${APP}/pay/basket?bills=${bills2.join(',')}`, { waitUntil: 'networkidle', timeout: 120_000 });
-      await page.getByRole('button', { name: 'Connect wallet' }).first().click();
+      await clickConnect(page);
       await page.locator('[data-action="safe-open"]').waitFor({ timeout: 60_000 });
       await page.locator('[data-action="safe-open"]').click();
       const listedButton = page.getByRole('button', { name: `${SAFE.slice(0, 6)}…${SAFE.slice(-4)}` });
@@ -1350,7 +1466,7 @@ async function main() {
       await page.locator('[data-safe-status]').waitFor({ timeout: 120_000 });
       const proposal = lastProposal();
       await page.reload({ waitUntil: 'networkidle', timeout: 120_000 });
-      await page.getByRole('button', { name: 'Connect wallet' }).first().click().catch(() => {});
+      await connectIfShown(page);
       const restored = page.locator('[data-safe-status]');
       await restored.waitFor({ timeout: 60_000 });
       const restoredText = await restored.innerText();
@@ -1628,22 +1744,16 @@ async function main() {
         `Safe loan-to-value ${(Number(safeLtv) / 1e16).toFixed(2)}%; payment button disabled: ${proposeDisabled}; proposal to ${proposal.to}, operation ${proposal.operation}, gas fields zero ${zero}; inner ${inner.operation} ${inner.to} value ${inner.value} data ${inner.data}; signature from ${signer}`);
     }
 
-    // (jj) At 375 the no-wallet sheet is placed against the screen, not the panel it was opened from, and the phone
-    // menu and the desktop nav both carry Loan guard.
+    // (jj) At 375 the wallet modal fits inside the screen with no sideways scroll, and the phone menu and the desktop
+    // nav both carry Loan guard.
     {
       const JJ = newBill('USDC', 100_000, 'E2E-JJ');
       const phone = await openPage({ account: PAYER, noWallet: true, width: 375, theme: 'light' });
       await phone.page.goto(`${APP}/bill/${JJ}`, { waitUntil: 'networkidle', timeout: 120_000 });
-      await phone.page.getByRole('button', { name: 'Connect wallet' }).last().click();
-      await phone.page.locator('[data-no-wallet]').first().waitFor({ timeout: 10_000 });
-      await phone.page.waitForTimeout(600);
-      const box = await phone.page.evaluate(() => {
-        const sheet = document.querySelector('[data-no-wallet]').parentElement;
-        const r = sheet.getBoundingClientRect();
-        return { left: r.left, right: r.right, width: window.innerWidth, inBody: sheet.parentElement === document.body };
-      });
+      const box = await openWalletModal(phone.page, 'last');
       await phone.page.screenshot({ path: `${SHOTS}/a2b-jj-sheet-375-light.png`, fullPage: false });
-      await phone.page.locator('[data-no-wallet] button[aria-label="Close"]').click();
+      await phone.page.keyboard.press('Escape');
+      await phone.page.locator('w3m-modal wui-card').first().waitFor({ state: 'hidden', timeout: 10_000 });
       await phone.page.locator('[data-action="menu"]').click();
       const phoneLink = await phone.page.getByRole('dialog', { name: 'Menu' }).getByRole('link', { name: 'Loan guard' }).getAttribute('href');
       await phone.page.screenshot({ path: `${SHOTS}/a2b-jj-menu-375-light.png`, fullPage: false });
@@ -1655,9 +1765,9 @@ async function main() {
       const deskCurrent = await deskLink.getAttribute('aria-current');
       await desk.page.screenshot({ path: `${SHOTS}/a2b-jj-nav-1440-dark.png`, fullPage: false });
       await desk.context.close();
-      record('(jj) at 375 the no-wallet sheet spans the screen (16px each side, out of the panel), and Loan guard is in the phone menu and the desktop nav',
-        box.inBody && Math.round(box.left) === 16 && Math.round(box.right) === box.width - 16 && phoneLink === '/app/protect' && deskHref === '/app/protect' && deskCurrent === 'page',
-        `sheet ${Math.round(box.left)} to ${Math.round(box.right)} of ${box.width}, in body ${box.inBody}; phone menu link ${phoneLink}; desktop link ${deskHref}, current ${deskCurrent}`);
+      record('(jj) at 375 the wallet modal fits inside the screen with no sideways scroll, and Loan guard is in the phone menu and the desktop nav',
+        modalFits(box) && phoneLink === '/app/protect' && deskHref === '/app/protect' && deskCurrent === 'page',
+        `modal open ${box.open}, card ${JSON.stringify(box.card)} in ${box.width} by ${box.height}, page scroll width ${box.scrollWidth}; phone menu link ${phoneLink}; desktop link ${deskHref}, current ${deskCurrent}`);
     }
 
     // (kk) The basket learns the enrol card. The 70.26% borrower recorded its loan in (ee), so it first borrows 1 USDC
@@ -1670,7 +1780,7 @@ async function main() {
       const K2 = newBill('USDC', 150_000, 'E2E-KK-2');
       const { context, page } = await openPage({ account: BORROWER });
       await page.goto(`${APP}/pay/basket?bills=${K1},${K2}`, { waitUntil: 'networkidle', timeout: 120_000 });
-      await page.getByRole('button', { name: 'Connect wallet' }).first().click();
+      await clickConnect(page);
       const balance = page.locator('[data-choice="USDC-balance"]:not([disabled])');
       await balance.waitFor({ timeout: 60_000 });
       await balance.click();
@@ -1888,6 +1998,15 @@ try {
   await main();
   const passed = results.filter((r) => r.ok).length;
   console.log(`\nconsole errors: ${consoleErrors.length}${consoleErrors.length ? `\n  ${consoleErrors.join('\n  ')}` : ''}`);
+  console.log(`CSP violation messages: ${cspMessages.length}${cspMessages.length ? `\n  ${cspMessages.slice(0, 10).join('\n  ')}` : ''}`);
+  const reownByKind = new Map();
+  for (const r of reownRequests) {
+    const [method, where] = r.split(' ');
+    const kind = `${method} ${where.split('/').slice(0, 3).join('/')}`;
+    reownByKind.set(kind, (reownByKind.get(kind) ?? 0) + 1);
+  }
+  console.log(`requests to Reown and WalletConnect, every one answered by a stub: ${reownRequests.length}`);
+  for (const [kind, n] of reownByKind) console.log(`  ${n} x ${kind}`);
   const allOk = passed === results.length && results.length === 46 && consoleErrors.length === 0;
   console.log(allOk ? `ALL ${passed} SCENARIOS PASSED` : `${results.length - passed} of ${results.length} scenarios failed`);
   code = allOk ? 0 : 1;
