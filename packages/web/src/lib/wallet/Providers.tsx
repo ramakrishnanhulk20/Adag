@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { WagmiProvider } from "wagmi";
+import { useTheme } from "@/components/ThemeProvider";
+import { followSiteTheme } from "./appkit";
 import { wagmiConfig } from "./config";
 
 export function Providers({ children }: { children: React.ReactNode }) {
@@ -15,6 +17,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
         },
       }),
   );
+  const { resolved } = useTheme();
+
+  useEffect(() => {
+    if (resolved) followSiteTheme(resolved);
+  }, [resolved]);
 
   return (
     <WagmiProvider config={wagmiConfig}>

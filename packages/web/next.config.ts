@@ -18,7 +18,7 @@ function rpcOverrideOrigin(): string {
 // Per-request nonces would need a proxy file; until then scripts fall back to 'self' plus inline, and every
 // other directive stays strict. A hash must not be added here: browsers ignore 'unsafe-inline' once one is present.
 // WalletConnect's own hosts, from Reown's CSP guidance (docs.reown.com/advanced/security/content-security-policy,
-// read 27 September 2026) for the AppKit modal that @walletconnect/ethereum-provider 2.25.0 opens. Only the
+// read 27 September 2026, re-measured 6 October 2026 with the AppKit 2.0.0-wagmi-3.0 modal and its extras off). Only the
 // WalletConnect and Reown entries are taken: the Coinbase, 1inch, Zerion and IPFS ones serve other AppKit features, and
 // their "img-src *" is left out. Added only when a project id is set at build time; without one the policy is unchanged.
 const WALLETCONNECT = process.env.NEXT_PUBLIC_WC_PROJECT_ID

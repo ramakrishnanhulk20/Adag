@@ -1,9 +1,7 @@
-import { createConfig, fallback, http, injected, type CreateConnectorFn } from "wagmi";
-// The deep path, never "wagmi/connectors": the barrel drags in every optional wallet SDK and breaks the build.
-import { walletConnect } from "wagmi/connectors/walletConnect";
+import { createConfig, fallback, http, injected } from "wagmi";
+import { WagmiAdapter } from "@reown/appkit-adapter-wagmi";
 import { arc } from "viem/chains";
 import { RPC_MAX_RESPONSE_BYTES, RPC_TIMEOUT_MS } from "@/lib/arc/constants";
-import { siteUrl } from "./site";
 
 // The override exists for the end-to-end tests, which point a separate build at a local Arc fork. When it is set,
 // it is the only endpoint, so a test can never fall through to mainnet.
@@ -18,38 +16,38 @@ const transportOptions = {
   retryDelay: 150,
 } as const;
 
-// WalletConnect only exists when a project id is configured; without one the app offers browser wallets alone.
-const wcProjectId = process.env.NEXT_PUBLIC_WC_PROJECT_ID;
+const arcTransport = RPC_OVERRIDE
+  ? // A fresh fork fetches mainnet state on first touch, which can take longer than the production timeout.
+    http(RPC_OVERRIDE, { ...transportOptions, timeout: 30_000 })
+  : fallback([http(ARC_RPC, transportOptions), http(ARC_RPC_FALLBACK, transportOptions)], { rank: false, retryCount: 0 });
 
-const connectors: CreateConnectorFn[] = [injected({ shimDisconnect: true })];
-if (wcProjectId) {
-  connectors.push(
-    walletConnect({
-      projectId: wcProjectId,
-      showQrModal: true,
-      metadata: {
-        name: "Adag",
-        description: "Pay the bill. Keep the bitcoin.",
-        url: siteUrl(),
-        icons: [],
-      },
-    }),
-  );
-}
+// Reown's wallet modal needs a project id. Without one the app offers browser wallets alone, through a plain config.
+export const projectId = process.env.NEXT_PUBLIC_WC_PROJECT_ID || undefined;
+
+// Handed to the wallet modal as well, so a wallet that adds Arc through it is told Adag's endpoints and not Reown's.
+export const customRpcUrls = { "eip155:5042": [{ url: ARC_RPC }, { url: ARC_RPC_FALLBACK }] };
+
+// No cookie storage and no headers() here: either would turn every page dynamic.
+export const wagmiAdapter = projectId
+  ? new WagmiAdapter({
+      ssr: true,
+      projectId,
+      networks: [arc],
+      customRpcUrls,
+      transports: { [arc.id]: arcTransport },
+    })
+  : null;
 
 // Arc mainnet is the only chain the app knows, so every read and every future signature is scoped to 5042 (C4).
-export const wagmiConfig = createConfig({
-  chains: [arc],
-  connectors,
-  ssr: true,
-  multiInjectedProviderDiscovery: true,
-  transports: {
-    [arc.id]: RPC_OVERRIDE
-      ? // A fresh fork fetches mainnet state on first touch, which can take longer than the production timeout.
-        http(RPC_OVERRIDE, { ...transportOptions, timeout: 30_000 })
-      : fallback([http(ARC_RPC, transportOptions), http(ARC_RPC_FALLBACK, transportOptions)], { rank: false, retryCount: 0 }),
-  },
-});
+export const wagmiConfig =
+  wagmiAdapter?.wagmiConfig ??
+  createConfig({
+    chains: [arc],
+    connectors: [injected({ shimDisconnect: true })],
+    ssr: true,
+    multiInjectedProviderDiscovery: true,
+    transports: { [arc.id]: arcTransport },
+  });
 
 declare module "wagmi" {
   interface Register {

@@ -158,7 +158,7 @@ export function AppNav() {
             ))}
           </nav>
           <div className="mt-auto pt-10 sm:hidden">
-            <ConnectButton />
+            <ConnectButton beforeOpen={() => setOpen(false)} />
           </div>
         </motion.div>
       )}

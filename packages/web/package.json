@@ -10,10 +10,11 @@
     "postinstall": "fumadocs-mdx"
   },
   "dependencies": {
+    "@reown/appkit": "2.0.0-wagmi-3.0",
+    "@reown/appkit-adapter-wagmi": "2.0.0-wagmi-3.0",
     "@safe-global/api-kit": "5.0.3",
     "@safe-global/protocol-kit": "8.0.7",
     "@tanstack/react-query": "5.103.2",
-    "@walletconnect/ethereum-provider": "2.25.0",
     "fumadocs-core": "16.15.14",
     "fumadocs-mdx": "15.4.5",
     "fumadocs-ui": "16.15.14",
@@ -36,6 +37,10 @@
     "typescript": "5.9.3"
   },
   "overrides": {
-    "lodash-es": "4.18.1"
+    "lodash-es": "4.18.1",
+    "source-map-js": "1.2.2",
+    "permissionless": {
+      "ox": "0.14.45"
+    }
   }
 }

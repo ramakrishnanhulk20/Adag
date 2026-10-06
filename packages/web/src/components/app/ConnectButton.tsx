@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
-import { createPortal } from "react-dom";
+import { useEffect, useId, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import type { EIP1193Provider } from "viem";
-import { useConnect, useConnection, useConnectors, useDisconnect, type Connector } from "wagmi";
+import { useConnect, useConnection, useConnectors, useDisconnect } from "wagmi";
 import { Button } from "@/components/Button";
+import { appKit } from "@/lib/wallet/appkit";
+import { projectId } from "@/lib/wallet/config";
 import { switchToArc } from "@/lib/wallet/switchToArc";
 import { useWallet } from "@/lib/wallet/useWallet";
 import { shortAddress } from "@/lib/pay/format";
@@ -16,14 +17,6 @@ function firstLine(error: unknown) {
   return (e?.shortMessage || e?.message || "The wallet did not answer.").split("\n")[0]!.slice(0, 120);
 }
 
-// The generic "Injected" entry duplicates whichever browser wallet announced itself by name, so it hides only when
-// such a wallet exists. WalletConnect is not a browser wallet: with it present, an extension that did not announce
-// itself by name still shows, instead of every click going to WalletConnect.
-function visibleConnectors(all: readonly Connector[]) {
-  const namedInjected = all.some((c) => c.type === "injected" && c.id !== "injected");
-  return namedInjected ? all.filter((c) => c.id !== "injected") : all;
-}
-
 const pop = {
   initial: { opacity: 0, y: -6 },
   animate: { opacity: 1, y: 0 },
@@ -31,7 +24,19 @@ const pop = {
   transition: { duration: 0.22, ease: [0.16, 1, 0.3, 1] as const },
 };
 
-export function ConnectButton() {
+type ModalView = "Connect" | "Account";
+
+type Props = {
+  // Runs just before the wallet modal opens. The phone menu uses it to close itself, so the modal never opens on top of it.
+  beforeOpen?: () => void;
+};
+
+// With a Reown project id the wallet modal does the connecting. Without one there is no modal, and the button talks to
+// the browser's own wallet directly. The id is fixed when the app is built, so server and browser always agree. The
+// modal is only created in the browser (lib/wallet/appkit.ts), which is why this calls the instance and not a hook.
+const openModal = projectId ? (view: ModalView) => void appKit?.open({ view }) : null;
+
+export function ConnectButton({ beforeOpen }: Props) {
   const wallet = useWallet();
   const { connector } = useConnection();
   const connectors = useConnectors();
@@ -39,7 +44,6 @@ export function ConnectButton() {
   const { mutate: disconnect } = useDisconnect();
   const [open, setOpen] = useState(false);
   const [note, setNote] = useState<string | null>(null);
-  const [noWallet, setNoWallet] = useState(false);
   const [switching, setSwitching] = useState(false);
   const [copied, setCopied] = useState(false);
   const menuId = useId();
@@ -63,28 +67,24 @@ export function ConnectButton() {
     return () => window.clearTimeout(t);
   }, [note]);
 
-  const choices = visibleConnectors(connectors);
-  // Present only when a WalletConnect project id is configured (lib/wallet/config.ts).
-  const walletConnector = connectors.find((c) => c.type === "walletConnect") ?? null;
-
-  const connectWith = (c: Connector) => {
-    setOpen(false);
+  const showModal = (view: ModalView) => {
     setNote(null);
-    connect.mutate(
-      { connector: c },
-      { onError: (error) => setNote(/reject|denied|cancel/i.test(firstLine(error)) ? "You closed the wallet request. Nothing was connected." : firstLine(error)) },
-    );
+    beforeOpen?.();
+    openModal?.(view);
   };
 
-  const onConnectClick = () => {
-    // No wallet in this browser: the sheet with the wallet-browser links, and WalletConnect beside them when it exists.
-    if (typeof window !== "undefined" && !("ethereum" in window) && choices.every((c) => c.type === "injected" || c.type === "walletConnect")) {
-      setNote(null);
-      setNoWallet(true);
+  // No project id: the one injected connector, as before. A browser with no wallet at all gets told where to find one.
+  const connectInjected = () => {
+    const injected = connectors.find((c) => c.type === "injected");
+    if (!injected || (typeof window !== "undefined" && !("ethereum" in window))) {
+      setNote("No wallet found in this browser. Open Adag in the browser inside MetaMask or Rabby, or add one to this browser.");
       return;
     }
-    if (choices.length === 1) connectWith(choices[0]!);
-    else setOpen((o) => !o);
+    setNote(null);
+    connect.mutate(
+      { connector: injected },
+      { onError: (error) => setNote(/reject|denied|cancel/i.test(firstLine(error)) ? "You closed the wallet request. Nothing was connected." : firstLine(error)) },
+    );
   };
 
   const onSwitch = async () => {
@@ -111,6 +111,8 @@ export function ConnectButton() {
     }
   };
 
+  const connecting = wallet.status === "connecting" || connect.isPending;
+
   let trigger: React.ReactNode;
   if (wallet.status === "connected" && !wallet.onArc) {
     trigger = (
@@ -122,9 +124,11 @@ export function ConnectButton() {
     trigger = (
       <button
         type="button"
-        aria-expanded={open}
-        aria-controls={menuId}
-        onClick={() => setOpen((o) => !o)}
+        data-wallet-pill
+        aria-haspopup={openModal ? "dialog" : undefined}
+        aria-expanded={openModal ? undefined : open}
+        aria-controls={openModal ? undefined : menuId}
+        onClick={() => (openModal ? showModal("Account") : setOpen((o) => !o))}
         className="group inline-flex h-10 items-center gap-2.5 rounded-[8px] border border-rule-strong px-3.5 text-text transition-colors duration-200 hover:border-gold"
       >
         <span aria-hidden="true" className={`diamond ${wallet.kind === "smart" ? "!bg-danger" : ""}`} />
@@ -133,8 +137,8 @@ export function ConnectButton() {
     );
   } else {
     trigger = (
-      <Button variant="secondary" size="sm" onClick={onConnectClick} disabled={wallet.status === "connecting" || connect.isPending} aria-expanded={choices.length > 1 ? open : undefined} aria-controls={choices.length > 1 ? menuId : undefined}>
-        {wallet.status === "connecting" || connect.isPending ? "Check your wallet" : "Connect wallet"}
+      <Button variant="secondary" size="sm" onClick={() => (openModal ? showModal("Connect") : connectInjected())} disabled={connecting} aria-haspopup={openModal ? "dialog" : undefined}>
+        {connecting ? "Check your wallet" : "Connect wallet"}
       </Button>
     );
   }
@@ -143,7 +147,7 @@ export function ConnectButton() {
     <div ref={root} className="relative">
       {trigger}
       <AnimatePresence>
-        {open && wallet.status === "connected" && (
+        {!openModal && open && wallet.status === "connected" && (
           <motion.div key="account" id={menuId} {...pop} className="absolute right-0 top-full z-50 mt-2 w-[min(88vw,22rem)] rounded-[8px] border border-rule bg-raised p-4 shadow-[0_24px_60px_-20px_rgb(0_0_0/0.5)]">
             <p className="type-micro text-muted">Connected on {wallet.onArc ? "Arc mainnet" : networkName(wallet.chainId)}</p>
             <p className="type-address mt-2 break-all text-text">{wallet.address}</p>
@@ -164,128 +168,19 @@ export function ConnectButton() {
             </div>
           </motion.div>
         )}
-        {open && wallet.status !== "connected" && (
-          <motion.ul key="choices" id={menuId} {...pop} className="absolute right-0 top-full z-50 mt-2 w-[min(88vw,16rem)] rounded-[8px] border border-rule bg-raised p-1.5 shadow-[0_24px_60px_-20px_rgb(0_0_0/0.5)]">
-            {choices.map((c) => (
-              <li key={c.uid}>
-                <button type="button" onClick={() => connectWith(c)} className="type-ui flex w-full items-center justify-between rounded-[6px] px-3 py-2.5 text-left text-text transition-colors duration-200 hover:bg-surface hover:text-gold">
-                  {c.type === "walletConnect" ? "WalletConnect" : c.name === "Injected" ? "Browser wallet" : c.name}
-                  <span aria-hidden="true" className="diamond opacity-60" />
-                </button>
-              </li>
-            ))}
-          </motion.ul>
-        )}
-      </AnimatePresence>
-      <PhoneSheet>
-      <AnimatePresence>
         {note && (
+          // Under 640px the only button is the one in the phone menu, so the note sits in the flow under it. From 640px
+          // up it hangs from the button. It is never fixed: the nav and the rising panels would both trap a fixed box.
           <motion.p
             key="note"
             role="status"
             {...pop}
-            className="type-body fixed inset-x-4 bottom-4 z-[70] rounded-[8px] border border-rule bg-raised px-3.5 py-3 text-text md:absolute md:inset-x-auto md:right-0 md:bottom-auto md:top-full md:mt-2 md:w-[20rem]"
+            className="type-body z-50 mt-3 rounded-[8px] border border-rule bg-raised px-3.5 py-3 text-text sm:absolute sm:right-0 sm:top-full sm:mt-2 sm:w-[20rem]"
           >
             {note}
           </motion.p>
         )}
-        {noWallet && (
-          // On a phone this is a sheet fixed to the bottom of the screen, so it never hangs off the edge of a narrow button.
-          <motion.div
-            key="no-wallet"
-            {...pop}
-            className="fixed inset-x-4 bottom-4 z-[70] rounded-[8px] border border-rule bg-raised p-4 shadow-[0_24px_60px_-20px_rgb(0_0_0/0.5)] md:absolute md:inset-x-auto md:right-0 md:bottom-auto md:top-full md:mt-2 md:w-[22rem]"
-          >
-            <NoWalletHelp
-              onClose={() => setNoWallet(false)}
-              onWalletConnect={
-                walletConnector
-                  ? () => {
-                      setNoWallet(false);
-                      connectWith(walletConnector);
-                    }
-                  : null
-              }
-            />
-          </motion.div>
-        )}
       </AnimatePresence>
-      </PhoneSheet>
-    </div>
-  );
-}
-
-const DESKTOP = "(min-width: 768px)";
-const subscribeDesktop = (onChange: () => void) => {
-  const query = window.matchMedia(DESKTOP);
-  query.addEventListener("change", onChange);
-  return () => query.removeEventListener("change", onChange);
-};
-
-// On a phone the note and the no-wallet help are sheets fixed to the bottom of the screen. A fixed box inside a
-// transformed ancestor (every panel that rises into view) is placed against that panel instead of the screen, so on a
-// phone they render at the end of <body>. On a wider screen they stay next to the button.
-function PhoneSheet({ children }: { children: React.ReactNode }) {
-  const desktop = useSyncExternalStore(subscribeDesktop, () => window.matchMedia(DESKTOP).matches, () => true);
-  return desktop ? <>{children}</> : createPortal(children, document.body);
-}
-
-// No wallet in this browser. On a phone, installing an app does not add a wallet to Safari or Chrome, so the useful
-// move is to open this same page inside a wallet's own browser. It stays until dismissed.
-function NoWalletHelp({ onClose, onWalletConnect }: { onClose: () => void; onWalletConnect: (() => void) | null }) {
-  // Read on first render, not in an effect: this panel only mounts after a click in the browser, and an effect would
-  // leave the MetaMask link without its host for the first moment, when a quick tap would open a broken link.
-  const [here] = useState(() => ({ host: window.location.host, path: `${window.location.pathname}${window.location.search}`, href: window.location.href }));
-  const [copied, setCopied] = useState(false);
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(here.href);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1500);
-    } catch {
-      setCopied(false);
-    }
-  };
-  return (
-    <div role="dialog" aria-label="Open in your wallet's browser" data-no-wallet>
-      <div className="flex items-start justify-between gap-3">
-        <p className="type-label text-text">Open in your wallet&apos;s browser</p>
-        <button type="button" onClick={onClose} aria-label="Close" className="type-micro text-muted transition-colors duration-200 hover:text-text">
-          Close
-        </button>
-      </div>
-      <p className="type-body mt-2 text-muted">
-        No wallet in this browser. Adag works inside the built-in browser of MetaMask and Rabby{onWalletConnect ? ", or with any wallet app through WalletConnect" : ""}.
-      </p>
-      <div className="mt-4 flex flex-col gap-2">
-        {onWalletConnect && (
-          // The same checks follow as for any wallet: Arc mainnet only, and the account shown is the one that signs.
-          <button type="button" onClick={onWalletConnect} className="btn btn-secondary btn-sm w-full" data-deeplink="walletconnect">
-            Connect with WalletConnect
-          </button>
-        )}
-        <a
-          href={`https://metamask.app.link/dapp/${here.host}${here.path}`}
-          className="btn btn-primary btn-sm w-full"
-          data-deeplink="metamask"
-        >
-          Open in MetaMask
-        </a>
-        <button type="button" onClick={() => void copy()} className="btn btn-secondary btn-sm w-full" data-deeplink="rabby">
-          {copied ? "Link copied. Paste it in Rabby" : "Copy link for Rabby"}
-        </button>
-      </div>
-      <p className="type-micro mt-3 normal-case tracking-[0.04em] text-muted">
-        Rabby: open the app, tap Dapps and paste the link. On a computer, add{" "}
-        <a href="https://metamask.io/download" target="_blank" rel="noopener noreferrer" className="link-draw text-gold">
-          MetaMask
-        </a>{" "}
-        or{" "}
-        <a href="https://rabby.io" target="_blank" rel="noopener noreferrer" className="link-draw text-gold">
-          Rabby
-        </a>{" "}
-        to your browser.
-      </p>
     </div>
   );
 }
