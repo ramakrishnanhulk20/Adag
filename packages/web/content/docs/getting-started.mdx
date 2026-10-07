@@ -17,7 +17,7 @@ The usual shape: a company holds bitcoin, owes several suppliers this week, and 
 1. **Set up the paying account.** An ordinary wallet the finance team controls, or the company's Safe, holding the cirBTC you are willing to pledge and a little USDC for fees. A Safe payment is proposed to the Safe's queue and executed once its owners approve it; the steps are on [Safe payments](/docs/safe).
 2. **Collect the bills.** Each supplier writes a bill on Adag with their own invoice number as the reference, and sends you its link. Suppliers need nothing but a wallet.
 3. **Fill the basket.** On [Pay a bill](/pay), paste up to 10 bill numbers or links. Adag reads every bill from Arc and shows who it pays, how much and in which currency. Bills that are already paid, cancelled, unknown or written by your own wallet are set apart and not paid.
-4. **Choose how each currency is paid.** The bills are grouped by currency. For each group, pay from the wallet's USDC or EURC balance, or from a loan against its cirBTC. The loan shows the pledge and where the loan will sit against Adag's 40% line and Morpho's 86%.
+4. **Choose how each currency is paid.** The bills are grouped by currency. For each group, pay from the wallet's USDC or EURC balance, from a loan against its cirBTC, or from a loan in the other currency (see below). The loan shows the pledge and where the loan will sit against Adag's 40% line and Morpho's 86%.
 5. **Sign once.** One transaction pays every bill in the basket, each with its own invoice number in its own Memo. If any step fails, nothing moves. From a Safe, this is the proposal your owners approve.
 6. **Check the result.** Each bill turns Paid with a link to the payment on explorer.arc.io, and a supplier with the bill's page open sees it turn Paid within seconds. [Your wallet](/app) lists the loan and the bills, and its export gives your accountant a CSV of every bill with its transaction link.
 7. **Protect the loan and turn on alerts**, if you want the loan watched from here on: see below.
@@ -34,6 +34,7 @@ For one bill, from a personal wallet or a company one:
 4. Choose how to pay.
    - **From your balance** if you hold enough USDC or EURC. Two calls, approve and pay, in one signature.
    - **From bitcoin** if you want to keep your stablecoins. The app shows the cirBTC it will pledge (what the contract asks for, plus a 5% margin), the loan it will take, and where your loan will sit against the 40% line and Morpho's 86%.
+   - **From a loan in the other currency** if the bill's own market has little cash to lend. A USDC bill is paid from a EURC loan that Circle converts in the same signature, and a EURC bill from a USDC loan. You then owe the other currency, so its price against the dollar matters to you: read [Paying from a loan in the other currency](/docs/how-it-works#paying-from-a-loan-in-the-other-currency) first.
 5. The first time you borrow through Adag, read and accept Morpho's disclaimer.
 6. Sign once. The app shows each step as Arc confirms it.
 7. When the bill turns Paid, you get a link to the payment on the explorer. If the supplier has the bill's page open, it turns Paid on its own within seconds.
@@ -58,7 +59,7 @@ The bill page and the basket both say so, in a card headed "Record your existing
 
 ### Your loan afterwards
 
-The loan is an ordinary Morpho loan in your own name. Interest accrues slowly, and if bitcoin falls far enough, Morpho can liquidate at 86%. Adag checks the 40% line at payment; after that, the loan guard watches it if you set one.
+The loan is an ordinary Morpho loan in your own name. Interest accrues slowly, and if bitcoin falls far enough, Morpho can liquidate at 86%. Adag checks the 40% line at payment; after that, the loan guard watches it if you set one. The guard repays only from the loan's own currency, so a loan taken in the other currency to pay a bill needs that currency in your wallet, not the bill's.
 
 [Your wallet](/app) shows each loan with its loan-to-value against Adag's 40% line and Morpho's 86% line, how far bitcoin can fall, and the live borrow rate. From there, each in one signature:
 

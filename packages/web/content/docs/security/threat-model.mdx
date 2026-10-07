@@ -154,6 +154,8 @@ Choice: on-chain bills make the link a single id, the smallest surface. Signed l
 
 Scope (added at the backend review): C3 and C4 bind every script that signs, including `prove-it.mjs` and `deploy.sh`, not only the web app. Market params placed in a signed call are proven by hashing them to the fixed market id, never trusted from an RPC answer.
 
+Amended 6 October (C65 to C68): one scoped exception. A batch that carries a conversion may contain exactly one call to Circle's swap adapter, with an approval to it of exactly the amount sold. The adapter is on neither the target list nor the spender list. A separate rule holds that one call to C65 to C68, and without a conversion any call or approval to the adapter is refused, even one wrapped in Memo or a batch inside the batch.
+
 **C4.** The app builds no transaction and requests no signature unless the wallet reports chain id 5042. Every typed-data domain names chain 5042 and the deployed Adag address. A bill signed for another chain or another Adag deployment cannot be paid here.
 
 ### Bill identity and replay
@@ -190,6 +192,8 @@ Choice: with on-chain bills, a state flag. With signed links, an on-chain set of
 - The comparison is done in integers with no intermediate overflow.
 - The check reads live Morpho and oracle state. Nothing the caller passes in can substitute for it.
 
+Amended 6 October (C69): when a bill is paid from a loan in the other currency, the market that gained debt is the other currency's, and the contract checks that one. The contract is unchanged: it checks whichever market gained debt.
+
 Choice: with no admin, the 40% and the market ids are constants, which is easiest. With an owner, they are storage, and every change must emit an event and take effect only after a delay.
 Decided at the gate (25 September): **the new-debt rule.** On every payment, for both Adag markets, Adag compares the payer's live position with the last one it recorded for that payer and market.
 
@@ -215,16 +219,20 @@ Residual, named: the check runs at the moment Adag's step executes. A payer who 
 A third review, made once the app was built, read its money paths, its API routes and the proof script. It proposed six invariants for the app layer that the standard above did not yet state. Each names the flow it guards and where it is upheld.
 
 **C25. Fee and principal from one balance.** Before a signature is requested, the payer's USDC covers every USDC the batch moves out plus the worst-case fee, because Arc pays gas from that same balance. It guards every payment from a USDC balance, one bill or a basket of them. Upheld by `simulateAndSend` in `packages/web/src/lib/wallet/send.ts`: its usdcOut check requires the native balance to be at least gas times maxFeePerGas plus the USDC the batch moves out. Prompted by a finding: paying from balance was offered with no fee reserve, so a payer holding exactly the bill amount was offered a payment Arc could not carry out. Fixed before release.
+Amended 6 October (C68, C71): for a conversion, USDC approved to the swap adapter counts as leaving the wallet, and the only credit is USDC borrowed earlier in the same batch for that swap (`conversionUsdcOut` in `packages/web/src/lib/fx/plan.ts`). USDC the swap returns is credited at its minimum and spent on the bills or the loan repayment, so it nets to zero. The fee reserve is the fixed gas ceiling times the fee ceiling the batch was built with.
 
 **C26. Consent to the funding source.** Whether a payment draws on a balance or opens a loan is the payer's choice and is never substituted by the app. A choice that becomes invalid is cleared, not replaced. It guards the basket of several bills, where the source is chosen per currency and the numbers refresh while the payer decides. Upheld by the funding-choice effect in `packages/web/src/components/app/Basket.tsx`. Prompted by a finding: the basket's 30-second refresh could switch a payer's chosen source from balance to bitcoin without a click. Fixed before release.
 
 **C27. Signer identity.** No signature is requested unless the connected account equals the account every onBehalf, receiver and balance check used. It guards every batch the app asks a wallet to sign, including after the wallet switches accounts between reading and signing. Upheld by the connected-account check in `simulateAndSend` in `packages/web/src/lib/wallet/send.ts`.
+Amended 6 October (C66): the plan's beneficiaries are on this list too. Every beneficiary in a swap plan is the connected account, and a conversion built for another wallet is refused before it is sent (`assertConversionBatch` in `packages/web/src/lib/pay/build.ts`).
 
 **C28. Interest accrual on repay.** Any debt figure shown or approved is accrued to the current block from the market's rate and lastUpdate, with a margin only for the seconds before the block. It guards closing a loan and every debt figure on the wallet page. Upheld by `accrueBorrowAssets` and `closeApproval` in `packages/web/src/lib/pay/loan.ts`. Prompted by a finding: the loan close sized its approval from Morpho's stored totals, which leave out the interest since the market's last update, so a close could revert for want of a few units of approval. Fixed before release.
 
 **C29. The displayed amount bounds the approval.** Every approval the app builds is at most what the payer was shown, so a wrong upstream answer can only make a payment revert. It guards every payment and loan batch. Upheld by the builders in `packages/web/src/lib/pay/build.ts`, which take each approval exactly from the bill record the payer was shown.
+Amended 6 October (C66, C67): the approval to the swap adapter is exactly the amount the payer was shown being borrowed and converted. Before a conversion is offered, the payer's standing allowances to the adapter for all three tokens, and any Morpho authorisation of it, must read zero.
 
 **C30. Over-approval reset.** An approval above the amount used is reset to zero in the same batch, and no approval outlives a batch. It guards closing a loan, the one batch that approves more than it uses: the live debt plus a margin for accrual. Upheld by `buildCloseLoan` in `packages/web/src/lib/pay/build.ts`, whose last call approves 0.
+Amended 6 October (C67): the approval to the swap adapter is set back to 0 by the last call of a conversion batch, and `assertSwapCalls` refuses any batch that ends with it open. After the batch, the allowances to the adapter for USDC, EURC and cirBTC and its Morpho authorisation are read back and must all be zero.
 
 ### Added before the second build (26 September), written before any of its code
 
@@ -351,7 +359,7 @@ AdagGuard
 
 **C44. Webhook authenticity.** Provider signature, Telegram secret token and cron secret verified over the exact bytes; body caps, timeouts, rate limits; unverified requests dropped without logging bodies; handlers idempotent.
 
-**C45. A pending protection is an outflow.** The pre-signature balance check counts a rule that would act now.
+**C45. A pending protection is an outflow.** The pre-signature balance check counts a rule that would act now. Amended 6 October (C69): it is read for the loan market of the payment, which for a converted bill is the other currency's market, not the bill's.
 
 Alerts
 
@@ -385,7 +393,7 @@ Server and secrets
 
 Added at the code review of the second build
 
-**C58. A payment never trips the payer's own guard unseen.** Before a payment that borrows is signed, the app compares the loan-to-value it lands at with the payer's guard trigger for that market; at or above the trigger, it says in plain words that the guard will repay about how much of the wallet's USDC or EURC within minutes, before the signature. When the rule or the approval cannot be read, the payment is blocked with a plain sentence, and both are read again at the moment of signing.
+**C58. A payment never trips the payer's own guard unseen.** Before a payment that borrows is signed, the app compares the loan-to-value it lands at with the payer's guard trigger for that market; at or above the trigger, it says in plain words that the guard will repay about how much of the wallet's USDC or EURC within minutes, before the signature. When the rule or the approval cannot be read, the payment is blocked with a plain sentence, and both are read again at the moment of signing. Amended 6 October (C69, C70): the loan-to-value, the rule and the approval are those of the loan market, so a dollar bill paid from a euro loan is compared with the euro market's guard rule, and the warning says that the guard repays only from the loan's own currency already in the wallet.
 
 **C59. Keeper paging and filtering.** Each run reads a fixed number of holder pages from a stored cursor that wraps around; holders with no debt or no allowance are dropped with cheap reads before any quote; a fixed number are simulated and acted on per run; no holder can make the cursor skip another holder or loop.
 
@@ -405,6 +413,116 @@ Added at the final review
 
 **Named non-goals.** Liquidation itself (no balance, no allowance, nobody calling, or a single jump past 86% defeats the guard; interest can cross the trigger between price updates); a borrower's own choice to sit above 40% through enrol across two blocks, or to fund a rule with gas money; the oracle being right; a malicious Safe owner; the availability or honesty of Safe's service, Telegram or the RPC provider; a compromised Telegram account or phone; a compromised server beyond what it holds; privacy of on-chain facts.
 
+### Added before cross-currency payments (6 October), written before any of its code
+
+A reviewer wrote this part before any code for the feature existed, working from a plain functional description: pay a bill from a loan in the other currency. A dollar bill is paid by borrowing euros on Morpho and converting them to dollars through Circle's swap inside the same signature, and a euro bill is paid the other way round. A loan taken this way can also be closed with the other currency. C65 to C75 are the definition of done for it. The feature was built against them, and each invariant below says where it is upheld and which tests attack it. The unit tests are in `packages/web/src/lib/fx/test`. `packages/web/scripts/check-fx.mjs` proves the guards on live Arc mainnet state, as checks F1 to F10. Where what shipped differs from the first wording, the invariant says so.
+
+**Decided at the gate.**
+- The conversion is Circle App Kit's Swap, run through Circle's swap adapter at `0x7FB8c7260b63934d8da38aF902f87ae6e284a845`. Adag asks Circle for a signed plan, checks the plan as bytes, and puts it in the payer's batch.
+- It is always offered as a choice next to a loan in the bill's own currency, and only where the loan market has the cash to lend. The app shows both markets' free cash.
+- A short conversion must never be paid from the payer's own money (C68). The mechanism is a built-in balance check, with no new contract. Right after the swap, the batch makes the payer send a floor amount of the swap's output currency to themselves, and that transfer reverts the whole batch unless the payer's balance really rose by what the swap was meant to deliver. The floor is the payer's balance read at build time, plus what the swap funds, minus, for a USDC output only, the most gas the transaction can charge up front.
+- The measured residual of that check. On a USDC output, a swap that comes up short by up to gasLimit x (maxFeePerGas minus the effective gas price) still passes, because Arc takes gas from the same balance. With today's settings (a gas limit of 2,500,000 and a fee ceiling of twice the base fee plus 1 gwei) that is about 0.05 USDC, so in the worst case the payer's own money fills a gap of about five cents. Short by one unit more reverts, which check-fx F2 shows. On a EURC output the slack is zero. Any balance the payer receives from elsewhere between the read and the block also counts toward the floor.
+- At most one conversion per batch, and never two groups converting in opposite directions. A basket has one swap or none, and nothing else in the batch adds to the swap's output currency before the balance check.
+- Not offered to a Safe. Circle's plans last 10 minutes and a Safe's signatures take longer (C74).
+
+#### A) App-class risk profile, extended
+
+New classes, numbered on from the nine above:
+
+10. **A client that runs calldata written by an upstream service.** The app puts a plan written by Circle into the payer's batch, where it runs with the payer's authority to spend. It runs through contracts that change without notice: an upgradeable adapter proxy, a Li.Fi Diamond that changes about weekly, and DEX pools. C3 and C18 forbade this. They now allow exactly one call, defined by C65 to C68.
+11. **A sender of payer data to a third-party API.** The payer's address, the amounts and the timing go to Circle.
+12. **The front end of a loan in a currency other than the bill's.** A payer who owes a dollar bill ends up owing euros, or the reverse.
+
+Categories that bite, tied to flows:
+
+1. **Running upstream calldata.** C3 and C18 forbid it for everything else.
+2. **Allowance scope.** The spender rule checks who is approved, not what the spender then does.
+3. **The payer's own balance silently filling a short conversion.** `AdagBills.pay` takes the bill from the payer's whole balance, so a short swap still pays the bill if the payer holds the difference.
+4. **Slippage and front-running inside the borrowed buffer.**
+5. **Ambient authority.** Third-party code runs inside a transaction whose origin is the payer.
+6. **Shown and executed values parsed differently.** Circle's JSON summary against its calldata, decimal strings against base units, 18-decimal native USDC against the 6-decimal token, chain time against the browser's clock, the bill's market against the loan's.
+7. **Consent drift.** A buffer raised after a refusal, or a rate that moves on refresh.
+8. **Spoofed receipts.** Logs from third-party contracts, even a genuine BillPaid for a different bill, paid by code inside the swap path.
+9. **Time of check to time of use.** Inside Circle's 10-minute plan, and between a simulation and the block.
+10. **Availability and griefing.** Circle's shared keyless rate limit, and thin free cash in the loan market.
+11. **Data exposure to Circle.**
+
+Does not apply: oracle manipulation through the swap's pools (the 40% check reads Chainlink-based market oracles, not pool prices); SSRF or injection into the Circle request (a fixed URL, typed fields, no free text); server-side risk (nothing is stored, the request is made from the browser without a key, and the keeper never swaps); reentrancy into AdagBills (`pay` is nonReentrant and the swap runs before it); Safe payments (excluded, C74).
+
+#### B) Threat model, extended
+
+Trust boundaries, numbered on from the twenty-one above:
+
+22. The page to Circle's API.
+23. Circle's API back to the page: the first upstream answer that becomes executed calldata.
+24. The payer's batch to the adapter, the Li.Fi Diamond and the pools.
+25. The swap to `AdagBills.pay`: one balance, mixed.
+26. Swap-path contracts to the receipt.
+27. The chain's clock to the browser's clock.
+28. An RPC simulation to the decision to ask for a signature.
+
+Attacker-controlled inputs, direct: the funding choice per group and the basket mix; the bill's amount and currency, written by a stranger; and every byte of Circle's answer, meaning its status, headers, size and JSON, and inside the calldata the selector, each instruction's target, data, value, input and output tokens, approval amount and minimum out, the beneficiaries, the execution id, the deadline, the metadata, each token input's permit type, token, amount and permit data, the signature, and Circle's error text.
+
+Indirect: the adapter's implementation, the Diamond's facets and pool state at the landing block; Morpho's free cash and feed freshness; allowances and Morpho authorisations the payer granted elsewhere; logs from any swap-path contract; the RPC's simulation answer and block timestamp; timing and shared rate limits; and a plan kept in page memory after a failed attempt.
+
+Privileged positions: the page gives a third-party contract an allowance and runs its code in the payer's transaction, choosing the amount, the minimum out and the plan. The payer's wallet holds the borrowed currency and the bill currency. The payer's Morpho position in the loan market. The payer's privacy toward Circle.
+
+Attacker goals, highest value first:
+1. Take the borrowed amount and leave the bill paid from the payer's own balance.
+2. Reach beyond it: another token, more than the amount, a permit type reaching other allowances, native value, a foreign beneficiary, or a leftover allowance.
+3. Take the buffer, or inflate the amount borrowed.
+4. Get the payer to sign something other than what they saw.
+5. Fake success, or credit it to the wrong bill.
+
+#### C) Invariants C65 to C75, the definition of done for cross-currency payments
+
+**C65. One fixed call per plan, checked as bytes.** Each conversion is exactly one call to the adapter address fixed at build time, with execute's selector from a fixed ABI. The app decodes Circle's calldata with that ABI, checks the decoded values (C66), re-encodes them and refuses unless the bytes equal Circle's. Nothing from Circle's JSON summary is shown or used. The app writes the call itself from typed fields, and the token input in it is the app's own: one token, the exact amount, no permit. Upheld by `checkPlan` in `packages/web/src/lib/fx/plan.ts`, applied to every batch by `assertSwapCalls` in `packages/web/src/lib/pay/build.ts`. The adapter is not on the target or spender lists. A rule in `assertCalls` reaches it only for a batch that carries its conversion description. Tests: trailing bytes (even zeros), another selector, another target, a changed padding byte, the same plan twice, a call or approval hidden inside Memo or a nested batch, each refused.
+
+**C66. The plan names this payer, this bill and this amount.** Exactly one token input, permit type 0, no permit data, the loan currency's fixed address, amount X, where X is the same number the batch borrows and approves. Every beneficiary is the connected account. The bill currency comes back with a minimum of at least the group's bill total. Every instruction's native value is 0. The deadline is at least 120 seconds after the latest block's timestamp, on Arc's clock and never the browser's. Instruction count and calldata size are under fixed caps (6 steps, 24 KB). Inner targets are not checked against a list, because Circle's route changes about weekly. C67 and C68 bound them instead. Upheld by `checkPlan` and by `prepareConvert` in `build.ts`. Tests: two token inputs, a permit, another token or amount, a foreign beneficiary, a nonzero value, a deadline under 120 seconds (and exactly 120 passing), a minimum below the bill, too many steps, each refused.
+
+**C67. The swap reaches X of the loan currency and nothing else.** The adapter's only power over the payer during the batch is an allowance of exactly X of the loan currency, set by the call just before execute and set back to 0 by the last call of the batch. Before a conversion is offered, the payer's allowances to the adapter for USDC, EURC and cirBTC read 0 apart from that one, and the payer has not authorised the adapter on Morpho. Anything else blocks the conversion with a plain sentence and a one-signature reset. After the batch the same reads must show nothing open, and a failed read is not "clear". Every execute comes before every pay, and the batch holds no token call except approvals and the balance check. Upheld by `assertSwapCalls`, and by `adapterPreflight` and `exposureIsClear` in `packages/web/src/lib/fx/preflight.ts`. Proven on Arc by check-fx F3 and F4: a contract called from inside the batch tries every route it has to make Multicall3From or Memo act as the payer and move the payer's cirBTC, and the payer's cirBTC does not move, while a control from the payer's own batch moves one satoshi. The reason is named under the non-goals.
+
+**C68. A short conversion fails the whole batch.** The batch succeeds only if the swap raised the payer's balance of its output currency by at least what it funds: the group's bill total, or the close amount in C75. The payer's own money never makes a short conversion succeed, apart from the gas slack on a USDC output named above. Upheld by `floorOf` in `build.ts` and `floorSlack` in `fx/plan.ts`. `assertSwapCalls` refuses a batch whose check is not a transfer to the payer, on the output currency, right after the swap, for exactly the starting balance plus the funded amount less the slack. An amount so small that the floor would be zero is not offered. Proven on Arc: F1 (the check passes when met, on EURC and on native USDC), F2 (short by one unit on EURC reverts, and so does short by the slack plus one unit on USDC), and F6 (a contract that keeps the borrowed euros in place of the adapter: with the check the batch reverts and the payee gets nothing, and without it the same batch pays the whole bill from the payer's own USDC).
+
+**C69. One loan market per group, decided once.** The loan currency for a conversion is the other of the two fixed currencies. Every figure tied to a market reads that one decision: `collateralNeeded` and the pledge, the supplyCollateral and borrow parameters (proven by hash against the loan market's id), free cash, the price status before the option is offered, the loan-to-value afterwards, the guard-trigger warning (C58) and the pending-protection outflow (C45), and the debt on the wallet page. Where groups share a market, pledge, X and free cash use that market's total. Upheld by `loanCurrencyFor` and `readLoanPriceFresh` in `packages/web/src/lib/fx/estimate.ts` and by `prepareConvert`. The weekend pause of the EUR/USD feed now blocks a dollar bill paid from a euro loan, and it fails closed.
+
+**C70. Shown equals signed, and X has a ceiling.** The batch carries exactly the figures on screen when the payer pressed pay: X, the pledge, the worst-case rate (the bill total divided by X), the debt currency and the loan market. Any change after the press needs a new press: a larger buffer after Circle refuses, a fresh pledge, a new plan after expiry. X never exceeds the bill total converted at the EUR/USD price AdagBills reads, times 1.015, and nothing is offered while that feed is past its 96-hour window. The estimate shows the worst case, exactly the bill and no surplus, and states three things: the debt's dollar cost moves with EUR/USD; the 40% line is checked only at payment; AdagGuard repays only from the loan's currency already in the wallet. Upheld by `maxAmountToSell`, `assertEurUsdFresh` and `worstCaseRate` in `estimate.ts`, by `prepareConvert`, and by `sendConversion` in `packages/web/src/lib/wallet/send.ts`, which checks the exact bytes about to be signed against what the builder decided. Tests: X over the ceiling, a feed one second past 96 hours, a buffer that is not a whole number of basis points from 0 to 150, each refused.
+
+**C71. The simulation checks effects, not just success.** Before a signature, the sender simulates at the latest block with the batch's fixed gas and fee ceiling and refuses unless every Transfer log out of the payer is one of these: the cirBTC pledge to Morpho, at most X of the loan currency to the adapter, a bill amount to its own payee, a loan repayment to Morpho in a close, or the balance check's self-transfer. Each bill must show its BillPaid from its own AdagBills with the payer as payer. A native-value move must mirror a USDC token transfer. Upheld by `checkEffects` in `fx/plan.ts`, called by `sendConversion`. The RPC is not trusted: C67 and C68 are the guards, and this is the early warning. It does not see tokens that move without a Transfer log. Some nodes, Arc's own endpoint included, do not run the simulation. When none answers, the outcome is reported as "unavailable" and the payment rests on C67 and C68 alone.
+
+**C72. A conversion's logs are not evidence.** Paid status comes only from a BillPaid emitted by the bill's own AdagBills, with that bill's id and the connected account as payer. Any other BillPaid in the receipt is not this payment, even one from AdagBills. Converted amount, surplus and fee come from balance reads at the receipt's block, or from Transfer logs whose emitter is the fixed token and whose recipient is the payer. Upheld for paid status by `matchBillPaid` and `billPaidIn` in `packages/web/src/lib/pay/receipt.ts`, which the simulation check and the receipt share. Tests: a forged BillPaid from another address, a real BillPaid for another bill id, and one for this id with another payer, none counts.
+
+**C73. Circle is one origin, bounded, parsed once and never quoted.** The only new fetch is a POST to `https://api.circle.com/v1/stablecoinKits/swap`, and the only change to the content security policy adds exactly that origin to `connect-src`. The request has a 20-second timeout, a response cap of 120,000 bytes, no credentials, no redirects and no referrer. It is built from typed values only: the two fixed token addresses, whole numbers, the connected account and a fixed chain name, never a bill reference or free text. The answer is parsed once into typed values, and an error, a non-2xx status, an unreadable body or "no route" becomes one of five fixed sentences, never Circle's words. Only Circle's numeric code for "no route" is read, to choose between two of those sentences. There is no retry, no second route and no silent fallback. One request per press, none on load or refresh. Keyless in the client. Upheld by `requestPlan` in `packages/web/src/lib/fx/circle.ts`. Tests: a non-2xx answer, an oversized body whether declared or found while reading, a redirect, a timeout, a body with a missing or mistyped field, each refused whole.
+
+**C74. A plan only where it can land, each in its own window.** `buildSafeBatch` refuses any plan that asks for a conversion, however it is spelled, and any inner call to the adapter. Each plan is used for one signature request and never again, whatever happens next: a failed, declined or abandoned attempt needs a new plan. Upheld by `buildSafeBatch` in `build.ts`, `claimPlan` in `fx/plan.ts`, and the one-swap rules in `buildPayMany` and `assertSwapCalls`, which refuse a second converting group and a batch with more than one swap call. Tests: a Safe handed a conversion however it is spelled, the same plan claimed twice, two converting groups, each refused.
+
+**C75. Closing a loan with the other currency follows the same rules, roles swapped.** The payer sells Y of the other currency, and C25 counts it when it is USDC. The swap's minimum out is at least the close approval (C28), and C65 to C68 hold with the loan currency as the output. The batch repays by shares as `buildCloseLoan` does, and the collateral leaves only after that full repay, in the same batch. Y never exceeds the close approval at the euro price times 1.015. Upheld by `buildCloseWithOtherCurrency` in `build.ts`. Proven on Arc by check-fx F7 (a real Circle plan) and F10 (the app's own code): the debt reads zero shares, the collateral is back with the payer, and every allowance reads 0.
+
+**What check-fx covers and does not.** F1 and F2 prove the balance check and its measured residual. F3 and F4 attack Multicall3From and Memo from inside a batch. F5 and F6 run a real Circle plan for a 100 USDC bill paid from a EURC loan, then the same batch with a sink in place of the adapter. F7 closes a EURC loan with USDC. F8 pays a 3 EURC bill from a USDC loan, and reports SKIP when the USDC market has too little cash to lend. F9 and F10 repeat the bill and the close with the app's own code. Every step runs in `eth_simulateV1` on Arc mainnet state, and nothing is signed or sent. It does not cover a real transaction, MEV, a Safe, or what a wallet shows the payer.
+
+**What this changes in C1 to C64.**
+- C3 and C18: one scoped exception for the adapter call, defined by C65 to C68 (amended in place above).
+- C10: the market that gained debt can be the other currency's (C69).
+- C16: a paid event must match the bill's id and the payer, not only the emitting contract (C72).
+- C20: the gas ceiling includes the swap, and a batch holds one conversion (C71, C74).
+- C25: USDC approved to the adapter counts as outflow, and only certain inflows are credited (C68, C71).
+- C27: the plan's beneficiaries are the connected account (C66).
+- C29 and C30: the adapter, and all three tokens, are covered by the approval rules and the read-back (C66, C67).
+- C45 and C58: both are keyed on the loan market (C69).
+- The non-goal about front-running and MEV is corrected: a conversion's buffer can be extracted, bounded by the buffer (C70).
+
+**Named non-goals for cross-currency payments.**
+- **Circle's price inside the buffer, and MEV on Arc.** Unmeasured, and bounded by the buffer (at most 1.5%), the plan's minimum and the balance check.
+- **The gas slack of the balance check.** On a USDC output a swap short by up to about 0.05 USDC can pass, and the payer's own USDC fills the gap.
+- **Availability** of Circle's keyless API, Li.Fi and the pools. A failure means no payment through a conversion, never a loss.
+- **A stolen Circle signing key, the adapter's upgrade admin or the Diamond's owner.** In one Adag batch they can reach at most X of the loan currency, less what the balance check forces back. Allowances the payer gave them in other places are out of scope.
+- **Code inside the swap acting as the payer.** C67's protection rests on Arc's CallFrom rule: it accepts only a call whose sender is the transaction's origin, and only Memo and Multicall3From may call it. Code reached from inside the swap therefore cannot make either of them act as the payer. check-fx F3 and F4 prove it on Arc today. A change to that rule on Arc would reopen it, and Adag has no control over that.
+- **Currency risk after payment.** The debt is in the loan's currency, and its dollar cost moves with EUR/USD. A 5% move is about $5 on a $100 bill, in either direction.
+- **AdagGuard never converts.** It repays only from the loan's own currency already in the wallet.
+- **Privacy toward Circle.** Circle sees the wallet address, the amounts and the timing of each request.
+- **Weekend EUR/USD pauses.** They block euro-loan payments. The app fails closed.
+- **A compromised page.** The same non-goal as before: a page that builds a harmful batch is not stopped by these invariants.
+
 ### Rendering and outputs
 
 **C14.** The reference is stored, emitted and rendered as opaque bytes shown as plain text.
@@ -420,12 +538,14 @@ This holds on the bill page, both dashboards, the Memo data the app writes, and 
 - Addresses are shown in full and checksummed.
 
 **C16.** Payment status, and "paid by which transaction", come only from Adag's own storage or Adag's own event. The event is filtered by Adag's address and event signature, and tied to a transaction hash and log index. Memo events, GraphQL figures, and indexer rows that cannot be traced to an Adag event are decoration, never proof.
+Amended 6 October (C72): the event must also carry the bill's own id and the connected account as payer. Other code runs in a conversion's transaction, so a genuine BillPaid for a different bill is not this payment.
 
 **C17.** Every value Adag emits in an event (id, payee, currency, amount, payer) has already passed C7, C8 and C10. A downstream consumer acting on the event cannot be fed a value the contract did not accept.
 
 ### Upstream data
 
 **C18.** Values from the public RPC, Morpho's GraphQL, an indexer or a swap quote are used only to display and to propose a pledge size. None is ever placed into a transaction as an address, selector, chain id or receiver. A wrong upstream value can cause a revert (C10, C1), never a loss.
+Amended 6 October (C65 to C68): one scoped exception. Circle's swap plan is upstream calldata that does reach a batch. It is written into the batch only by the app's own encoder from typed fields, after the decoded plan has passed C66 and the re-encoded bytes have matched. What bounds the parts of it that Adag cannot read is C67 and C68, not trust in Circle.
 
 **C19.** Every upstream fetch has an explicit timeout and a response size cap. Log queries are paged within the RPC's 10,000-block window, with a bounded page count. A failed or malformed response renders as "unavailable", never as zero, unpaid or paid.
 
@@ -433,6 +553,7 @@ This holds on the bill page, both dashboards, the Memo data the app writes, and 
 
 **C20.** Any single failure inside a batch reverts the whole batch, so no bill in a batch can end up paid while another in the same batch is not.
 Decided at the gate (25 September): there is no on-chain batch function. A multi-bill payment is several Memo-wrapped `pay` calls in one Multicall3From batch, every call with allowFailure false. Each bill keeps its own memo, and the batch is all or nothing. The app caps the bill count per batch, sized against the 30M block gas limit.
+Amended 6 October (C71): a batch that converts has a fixed gas ceiling of 2,500,000 that includes the swap. A conversion that would need more, with 25% headroom over the simulated gas, is refused with a plain sentence. A batch holds at most one conversion.
 
 ### Fee sponsor (only if built)
 
@@ -467,7 +588,7 @@ Choice: with no admin this holds by having nothing to set. An owner makes C10, C
    - Unreadable state reverts (C11).
    - A chain mismatch means no transaction (C4).
    - Batches have a cap and revert whole (C20).
-   - Approvals are exact, and go to two spenders only (C3).
+   - Approvals are exact, and go to two spenders only (C3). A conversion adds one more, Circle's swap adapter, for the exact amount sold and set back to 0 in the same batch (C67).
    - allowFailure is always false (C3).
    - An upstream failure renders "unavailable" (C19).
    - A void beats a pay (C9).
@@ -480,7 +601,7 @@ Choice: with no admin this holds by having nothing to set. An owner makes C10, C
    - **Watching the position after payment.** Interest accrues, prices move, and Morpho liquidates at 86%. Adag checks the line once, at payment, and never again.
    - **A payer who goes above 40% by using Morpho directly.** Adag's line applies to payments made through Adag.
    - **Privacy.** Every bill, amount, reference and payer is public on chain and in every link.
-   - **Front-running or MEV.** Adag's flows have no slippage to extract. The swap flow inherits Uniswap's or App Kit's own behaviour.
+   - **Front-running or MEV on a conversion.** Adag's payments in the bill's own currency have no slippage to extract. A conversion does: the buffer borrowed on top of the bill can be taken by someone who moves the swap's price before it lands. Adag bounds the loss and does not prevent it. The buffer is at most 1.5% above the bill's worth (`MAX_BUFFER_BPS` is 150, C70), the swap must still return at least the bill (C66), and the balance check fails the whole batch if it does not (C68). MEV rules on Arc were not measured.
    - **Availability** of the public RPC or Vercel.
    - **How third-party explorers render Memo data.**
    - **Enforcing due dates.** The due date is information unless a later decision makes it a rule.

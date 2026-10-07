@@ -15,7 +15,7 @@ On each loan in [Your wallet](/app), open **Protect this loan** and choose:
 
 - **Trigger**: the loan-to-value at which the guard steps in, below Morpho's 86% line.
 - **Target**: where it repays down to, below the trigger.
-- **How much it may use**: an amount of the loan's own currency, USDC for a USDC loan and EURC for a EURC loan.
+- **How much it may use**: an amount of the loan's own currency, USDC for a USDC loan and EURC for a EURC loan. A EURC loan taken to pay a dollar bill is still a EURC loan, so the guard needs EURC in your wallet.
 - **An end date**, if you want one. With none, it stays on until you stop it.
 
 One signature approves exactly the amount you typed to AdagGuard and saves the rule. Before you sign, the page shows what the rule would do at today's price: either that it would not act, or that it will repay about a given amount within minutes because the loan is already past the trigger.
@@ -54,7 +54,7 @@ The keeper's wallet holds gas only and can send exactly one kind of transaction:
 
 The guard lowers the chance of liquidation. It does not remove it.
 
-- It cannot act if your wallet holds none of the loan's currency, if the approval is used up, or if nobody calls `protect`.
+- It cannot act if your wallet holds none of the loan's currency, if the approval is used up, or if nobody calls `protect`. It never converts: after a payment [converted by Circle](/docs/how-it-works#paying-from-a-loan-in-the-other-currency) you owe the other currency than the bill's, and the guard repays only from that one.
 - A single price jump from below the trigger to past 86% outruns it.
 - Interest can carry a loan across the trigger between two price updates, and the keeper wakes on price updates and the daily run.
 - It acts on the oracle's price, the one Morpho liquidates on. If that price is wrong, so is the guard's reaction.

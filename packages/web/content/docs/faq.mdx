@@ -47,7 +47,7 @@ The one thing to be aware of is the page itself. Your wallet signs a batch built
 
 ## Why a 40% cap when Morpho allows 86%?
 
-Because paying a bill should not be a leveraged bet. At 86% a small price move can liquidate you. At 40%, bitcoin has to fall by more than half before Morpho's line is reached. The cap is a constant in the contract, not a setting, and it applies to every payment that adds debt, however the transaction was built.
+Because paying a bill should not be a bet with borrowed money. At 86% a small price move can liquidate you. At 40%, bitcoin has to fall by more than half before Morpho's line is reached. The cap is a constant in the contract, not a setting, and it applies to every payment that adds debt, however the transaction was built.
 
 ## Which wallets work?
 
@@ -57,7 +57,7 @@ A Safe pays through its own path, as one Safe transaction its owners approve (se
 
 ## What does it cost?
 
-Adag charges no fee: the contract has no way to take one. You pay Arc's network fee, in USDC, and Morpho's interest on the loan.
+Adag charges no fee: the contract has no way to take one. You pay Arc's network fee, in USDC, and Morpho's interest on the loan. A payment converted by Circle also pays Circle's 0.02% fee and the price of the swap, and uses about 0.02 USDC of gas (see [What does the conversion cost and risk?](#what-does-the-conversion-cost-and-risk)).
 
 | Action | Network fee at Arc's 20 gwei floor |
 | --- | ---: |
@@ -95,7 +95,19 @@ Adag cannot know that. A bill from someone pretending to be your landlord is a v
 
 ## Can I pay in euros?
 
-Yes. A supplier can bill in EURC, and you can pay from an EURC balance or from bitcoin through Morpho's EURC market. The same 40% line applies, measured in that market.
+Yes. A supplier can bill in EURC, and you can pay from an EURC balance or from bitcoin through Morpho's EURC market. The same 40% line applies, measured in that market. A bill in either currency can also be paid from a loan in the other one: see the next two answers.
+
+## Can I pay a dollar bill from a euro loan?
+
+Yes. Adag pledges your cirBTC in Morpho's EURC market, borrows euros, has Circle convert them to USDC, checks right after the swap that your balance really rose, and pays the bill, all in one signature. If any step fails, nothing happens. It matters when the dollar market is fully lent: on 6 October 2026 it had about 5 USDC free while the euro market had about 89,750 EURC. The same works the other way, for a euro bill from a dollar loan.
+
+The limits: one conversion per payment, not for a Safe, and a very large conversion is refused when it would need more gas than the fixed ceiling allows. The euro price must also be fresh, so it pauses over weekends. Paying in the bill's own currency always stays available. Details on [How it works](/docs/how-it-works#paying-from-a-loan-in-the-other-currency).
+
+## What does the conversion cost and risk?
+
+The cost is Circle's 0.02% fee plus the price the pools pay, which came to about 6 to 9 cents per 100 USDC in measurements on 6 October, plus about 0.02 USDC of gas. Adag adds nothing.
+
+The risk is that you now owe euros. Your debt is fixed in euros, and its dollar cost moves with EUR/USD: a 5% move in the euro changes what a $100 bill costs you by about $5, in either direction. The 40% line is checked only when you borrow, so a rising euro does not block anything, but it leaves the loan closer to Morpho's 86% liquidation line. The loan guard repays only from the loan's own currency already in your wallet. Circle also sees your wallet address and the amounts when you press pay. The rules and their limits are C65 to C75 in the [threat model](/docs/security/threat-model).
 
 ## Is anything private?
 

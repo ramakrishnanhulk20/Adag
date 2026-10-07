@@ -19,12 +19,12 @@ These are the five calls, in the order the app builds them. `P` is the pledge, `
 
 A few rules hold for every batch the app builds:
 
-- Every call targets an address fixed when the app was built: AdagBills, AdagGuard, Morpho, Memo, Multicall3From or one of the three tokens. Nothing in a link or an RPC answer can change a target, a receiver or an amount.
+- Every call targets an address fixed when the app was built: AdagBills, AdagGuard, Morpho, Memo, Multicall3From or one of the three tokens. Nothing in a link or an RPC answer can change a target, a receiver or an amount. The one exception is a payment from a loan in the other currency, which adds a single call to Circle's swap adapter, held to its own rules: see [Paying from a loan in the other currency](#paying-from-a-loan-in-the-other-currency).
 - Approvals go only to the contract that uses them, for exactly the amount that batch uses.
 - Every call is marked "must succeed". There is no partial success.
 - Market details fetched from the chain must hash to the fixed market id before they go into a call, so a lying RPC cannot swap in a different market.
 
-If your existing pledge already covers the loan, steps 1 and 2 are left out. Paying from a USDC or EURC balance is just steps 4 and 5. Several bills can go in one signature, grouped by currency, up to 10 bills per batch.
+If your existing pledge already covers the loan, steps 1 and 2 are left out. Paying from a USDC or EURC balance is just steps 4 and 5. Several bills can go in one signature, grouped by currency, up to 10 bills per batch. A bill can also be paid from a loan in the other currency, converted by Circle in the same signature: see [Paying from a loan in the other currency](#paying-from-a-loan-in-the-other-currency).
 
 The pledge the app proposes is what the contract's own `collateralNeeded` view asks for, plus a 5% margin to absorb a price move before the block lands. If the margin is not enough, the transaction reverts with `LtvAboveLimit`. It never over-borrows.
 
@@ -77,6 +77,85 @@ Recording and paying in the same block is refused (`EnrolledThisBlock`), so new 
 </Callout>
 
 This was proven on 26 September 2026 on a real borrower's wallet at 70.26%, simulated on live state because only that borrower could sign: a cash payment was refused before recording; after recording, borrowing more in the paying batch was refused, and the same bill paid from cash went through. A Safe records its loan in a Safe transaction of its own: see [Safe payments](/docs/safe#an-existing-loan).
+
+## Paying from a loan in the other currency
+
+A bill in USDC can be paid from a EURC loan, and a bill in EURC from a USDC loan. Adag offers it as a choice next to the loan in the bill's own currency. It is one signature: you pledge cirBTC, borrow the other currency, Circle converts it to the bill's currency, and the bill is paid.
+
+### Why it exists
+
+Morpho's dollar market is often fully lent while its euro market has cash. On 6 October 2026 the USDC market had about 5 USDC free to borrow, and the EURC market about 89,750 EURC. A dollar bill of more than a few dollars could not be paid from a dollar loan that day, while the euro market could have lent the equivalent of about $100,000. Adag shows both figures live on the pay screens, read from Morpho, so you can see which loan can carry the bill.
+
+### What happens in the one signature
+
+These are the calls for a USDC bill paid from a EURC loan, in the order the app builds them. `X` is the amount of EURC borrowed and sold, `P` the pledge in the EURC market, `A` the bill amount and `N` the bill number.
+
+1. `cirBTC.approve(Morpho, P)` and `Morpho.supplyCollateral(...)`: pledge cirBTC in the EURC market. Bitcoin already pledged in the USDC market cannot back a euro loan, so this comes from your wallet.
+2. `Morpho.borrow(params, X, 0, payer, payer)`: borrow `X` of EURC to your own wallet.
+3. `EURC.approve(adapter, X)`: let Circle's swap adapter take exactly `X`, and nothing more.
+4. `adapter.execute(plan)`: Circle's signed plan sells `X` of EURC for USDC and sends the USDC to your wallet.
+5. `USDC.transfer(payer, floor)`: the balance check, right after the swap.
+6. `USDC.approve(AdagBills, A)` and `Memo.memo(AdagBills, pay(N), ...)`: pay the bill, as in a normal payment.
+7. `EURC.approve(adapter, 0)`: take the approval back.
+
+If any call fails, the whole transaction is undone and nothing happened.
+
+The conversion is Circle's App Kit Swap, run through Circle's own swap adapter on Arc at `0x7FB8c7260b63934d8da38aF902f87ae6e284a845`. Circle writes the plan and signs it, and the plan is good for 10 minutes. Adag does not run it on trust. The app decodes the plan, checks that it pulls exactly `X` of the loan currency from your wallet, sends everything it buys to your wallet and promises at least the bill amount, then writes the call again itself and refuses unless the bytes are identical. Nothing Circle writes in words reaches the screen.
+
+The balance check in step 5 is what keeps a bad swap from costing you more than gas. It is a transfer of the floor amount from your wallet to your own wallet, which reverts unless you really hold that much. The floor is your balance of the bill's currency before the batch, plus the bill amount. If the swap did not deliver, the transfer fails and the whole batch is undone: nothing borrowed, nothing paid. Without it, Adag's `pay` would take the missing dollars from your own balance, because it takes a bill's amount from your whole balance. In the test on Arc, a stand-in for Circle's adapter kept the borrowed euros and returned nothing. With the check, the batch reverted and the supplier got nothing. Without it, the same batch paid the bill from the payer's own USDC.
+
+<Callout type="warn" title="The named slack of the balance check">
+  When the bill is in USDC, Arc takes the network fee from the same balance that the check reads. The floor is lowered by the most the fee can be, so a swap that comes up short by up to that much still passes. With today's settings that is about 0.05 USDC, and your own money fills it. For a EURC bill the slack is zero.
+</Callout>
+
+### What it costs
+
+- **Circle's fee** is 0.02%, already inside its quote.
+- **The price the pools pay** adds the rest. Fee and price together lost 0.06% to 0.09% in measurements on 6 October, which is about 6 to 9 cents per 100 USDC for normal sizes, and a little more for larger ones.
+- **A buffer.** The swap is priced in advance and must return at least the bill, so you borrow a little more than the bill is worth, never more than 1.5% over. Whatever the swap does not need stays in your wallet as spare USDC (about 0.37 USDC on a 100 USDC bill with a 0.4% buffer), and the loan stays the full amount borrowed.
+- **Gas** is about 1.1 million gas for a 100 USDC bill, which is about 0.02 USDC at Arc's 20 gwei floor, against about 0.008 USDC for a bitcoin payment in the bill's own currency.
+- **Interest** on the euro loan, at Morpho's rate for that market.
+
+### The currency risk
+
+A euro loan is a euro debt. The amount you owe is fixed in euros, and its dollar cost moves with EUR/USD.
+
+A 100 USDC bill paid from a EURC loan borrows about 88.8 EURC when EUR/USD is 1.127, which was the price on 6 October 2026. Then:
+
+- At 1.127, the debt costs about $100.09.
+- If EUR/USD rises 5%, the same debt costs $105.09, which is $5.00 more.
+- If EUR/USD falls 5%, it costs $95.09, which is $5.00 less.
+
+So each 1% move changes the dollar cost of a $100 bill by about $1.
+
+The loan-to-value moves too. A loan taken at 38.1% reaches about 40.0% if the euro rises 5%, and falls to about 36.2% if the euro falls 5%. The 40% line is checked only when new debt is added, so a rising euro never blocks anything, but it does leave the loan closer to Morpho's 86% liquidation line. With a euro loan, liquidation depends on BTC/USD and EUR/USD together. From 38.1%, bitcoin would have to fall about 56%, measured in euros. [AdagGuard](/docs/loan-guard) can watch the loan afterwards, but it repays only from the loan's own currency already in your wallet, so after a conversion it needs EURC there.
+
+### The limits
+
+- **One conversion per payment.** A basket can hold one group paid this way, never two, and never two converting in opposite directions.
+- **Not for Safes.** Circle's quote lasts 10 minutes and a Safe's signatures take longer, so a Safe pays in the bill's own currency.
+- **Very large conversions are refused on gas.** A converting payment is signed with a fixed gas ceiling of 2.5 million. If the simulation shows it would need more, with 25% headroom, the app says so and sends nothing. Pay a smaller amount, or in the bill's own currency.
+- **A fresh euro price.** The euro feed must be no older than 96 hours, and it pauses over weekends. While it is stale, a dollar bill cannot be paid from a euro loan. Paying in the bill's own currency still works.
+- **Circle must answer.** The app makes one request to Circle when you press pay, and none when a page loads. If Circle is busy, finds no route or does not answer, the app shows one of its own sentences and sends nothing. Circle sees your wallet address, the amounts and the timing of that request.
+- **Nothing left open.** Before offering a conversion, Adag reads what Circle's adapter may already do with your wallet. An earlier approval to it for any of the three tokens, or an authorisation of it on Morpho, blocks the conversion until you clear it, which takes one signature. After the batch the approval reads zero.
+- **A quote that is too old is not used.** A plan with less than two minutes left is refused, and a plan is spent the moment a signature is asked for.
+
+### Closing such a loan with the other currency
+
+A loan taken this way can be closed with the other currency. If you owe EURC from a converted payment and hold USDC instead, Adag sells USDC to Circle for at least the amount needed to close, runs the same balance check on EURC, repays the loan by shares, takes your cirBTC back only after that full repayment, and sets the adapter's approval back to 0, all in one signature. The same rules and limits apply. Converting out and converting back costs about 0.1% in fees and prices, before any move in EUR/USD.
+
+### The proof
+
+`node packages/web/scripts/check-fx.mjs`, run from the repository root, prints ten checks, F1 to F10, against live Arc mainnet state. Every step is a simulation on a real block, and nothing is signed or sent.
+
+- F1 and F2: the balance check passes when met and reverts when short, including the slack on USDC.
+- F3 and F4: code inside the batch tries to make Multicall3From and Memo move your cirBTC as you, and your cirBTC does not move.
+- F5 and F6: a 100 USDC bill paid from a EURC loan with a real Circle plan, then the same batch with a stand-in that keeps the borrowed euros, which reverts.
+- F7: a EURC loan closed with USDC through a real plan.
+- F8: a 3 EURC bill paid from a USDC loan. It reports SKIP when the USDC market has too little cash to lend.
+- F9 and F10: the bill and the close again, built by the app's own code.
+
+It does not cover a real transaction, MEV, a Safe, or what a wallet shows you. The rules behind it are C65 to C75 in the [threat model](/docs/security/threat-model).
 
 ## After the payment: the loan guard
 
