@@ -60,18 +60,44 @@ const cirBtcOf = (who) => fork.readContract({ address: CIRBTC, abi: tokenAbi, fu
 const results = [];
 const consoleErrors = [];
 const cspMessages = [];
+// Errors the browser logs for a failing answer from Circle that is expected: the one this run stubbed on purpose (scenario fx-c), and
+// the real "no route" or rate-limit answers that the pay and close pages repeat by design. They are counted and shown, not hidden: only
+// a failing answer from api.circle.com on a page opened to expect one is set aside.
+const stubbedCircleErrors = [];
+// --fx-only runs just the cross-currency scenarios against a fresh fork: for working on those screens without the rest.
+const FX_ONLY = process.argv.includes('--fx-only');
+const FX_SCENARIOS = 8;
 const record = (label, ok, detail = '') => {
   results.push({ label, ok });
   console.log(`  ${ok ? 'PASS' : 'FAIL'}  ${label}${detail ? `\n        ${detail}` : ''}`);
 };
 
+// The fork fetches Arc's state from the public RPC the first time anything touches it, and WSL's name lookup drops for a few
+// seconds now and then. A command that failed only for that reason is tried again; any other failure stops the run.
+const FORK_NETWORK_HICCUP = /dns error|failed to lookup address|error sending request for url \(https:\/\/rpc\.mainnet\.arc\.io/;
 function forkScript(...args) {
-  const r = spawnSync('bash', [resolve(WEB, 'scripts/e2e-fork.sh'), ...args], { encoding: 'utf8', shell: false });
-  if (r.status !== 0) throw new Error(`e2e-fork.sh ${args.join(' ')} failed: ${r.stderr || r.stdout}`);
-  return r.stdout.trim();
+  for (let attempt = 1; ; attempt++) {
+    const r = spawnSync('bash', [resolve(WEB, 'scripts/e2e-fork.sh'), ...args], { encoding: 'utf8', shell: false });
+    if (r.status === 0) return r.stdout.trim();
+    const said = r.stderr || r.stdout;
+    if (attempt >= 4 || args[0] === 'start' || !FORK_NETWORK_HICCUP.test(said)) throw new Error(`e2e-fork.sh ${args.join(' ')} failed: ${said}`);
+    console.log(`  the fork lost its network for a moment (${args[0]}, attempt ${attempt}); trying again`);
+    spawnSync('bash', ['-c', 'sleep 6']);
+  }
 }
 const newBill = (currency, amount, ref, contract = 'current') => BigInt(forkScript('bill', currency, String(amount), ref, contract).split('\n').at(-1));
 const rpc = (method, params = []) => fork.request({ method, params });
+// A transaction mined on Arc itself, long before this run, is fetched by the fork from Arc's own public RPC on demand, and that
+// RPC no longer returns receipts this old (checked on 7 October 2026: it answers null where dRPC returns the receipt). So the fork
+// is asked first and, when it has nothing, dRPC is, which is read-only and returns the same chain's receipt.
+const archive = createPublicClient({ transport: http('https://rpc.drpc.mainnet.arc.io', { timeout: 60_000 }) });
+async function oldReceipt(hash) {
+  try {
+    return await fork.getTransactionReceipt({ hash });
+  } catch {
+    return archive.getTransactionReceipt({ hash });
+  }
+}
 
 const USDC_PARAMS = `(${USDC},${CIRBTC},0x2AA87fF48933Ce6aBA240BEE916Fc2e6Ec1e51Ab,0xF02615d094Fc02fC031C35fe705e175aA4653f20,860000000000000000)`;
 const EURC_PARAMS = `(${EURC},${CIRBTC},0x6945246777DfdF4744D957323857F797Ec19Ca1e,0xF02615d094Fc02fC031C35fe705e175aA4653f20,860000000000000000)`;
@@ -89,7 +115,7 @@ async function resetPayer() {
     if (shares > 0n) {
       if (token === EURC) forkScript('fund-eurc', PAYER, '5000000');
       else await rpc('anvil_setBalance', [PAYER, `0x${START_USDC.toString(16)}`]);
-      forkScript('send', PAYER, token, 'approve(address,uint256)', MORPHO, '5000000');
+      forkScript('send', PAYER, token, 'approve(address,uint256)', MORPHO, '50000000');
       forkScript('send', PAYER, MORPHO, `repay(${MP},uint256,uint256,address,bytes)`, params, '0', String(shares), PAYER, '0x');
       forkScript('send', PAYER, token, 'approve(address,uint256)', MORPHO, '0');
       done.push(`${symbol} loan of ${shares} shares repaid`);
@@ -331,19 +357,28 @@ async function moveWalletTo(page, chainHex) {
 }
 
 let browser;
-async function openPage({ account, width = 1440, theme = 'dark', noWallet = false, addArcFlow = false, signer = null }) {
+async function openPage({ account, width = 1440, theme = 'dark', noWallet = false, addArcFlow = false, signer = null, expectCircleErrors = false }) {
   const context = await browser.newContext({ viewport: { width, height: width < 600 ? 812 : 900 }, colorScheme: theme, hasTouch: width < 600 });
   await context.addCookies([{ name: 'adag-theme', value: theme, url: APP }]);
   await stubReown(context);
   if (!noWallet) await context.addInitScript(walletScript, { account, fork: FORK, addArcFlow });
   if (signer) await context.exposeFunction('__e2eSign', (json) => signTypedJson(signer, json));
   const page = await context.newPage();
+  // Every POST this page makes to Circle, so a scenario can count them: none on load, one per press (C73).
+  const circle = [];
+  page.on('request', (r) => {
+    if (new URL(r.url()).host === 'api.circle.com' && r.method() === 'POST') circle.push({ url: r.url(), body: r.postData() });
+  });
   page.on('console', (m) => {
+    if (m.type() === 'error' && expectCircleErrors && (m.location().url ?? '').startsWith('https://api.circle.com/')) {
+      stubbedCircleErrors.push(m.text());
+      return;
+    }
     if (m.type() === 'error') consoleErrors.push(`${page.url()}: ${m.text()}`);
     if (/content security policy/i.test(m.text())) cspMessages.push(`${page.url()}: ${m.text().slice(0, 200)}`);
   });
   page.on('pageerror', (e) => consoleErrors.push(`${page.url()}: pageerror ${e.message}`));
-  return { context, page };
+  return { context, page, circle };
 }
 
 async function connect(page, path) {
@@ -432,9 +467,529 @@ function startMockSafeService() {
   return new Promise((resolve) => server.listen(MOCK_PORT, '127.0.0.1', () => resolve(server)));
 }
 
+// ---- Paying from, and closing, a loan in the other currency (FX-3, C65 to C75) ----------------------------------------
+// The browser reaches api.circle.com for real here (the plan is Circle's own); Reown stays stubbed and the RPC is the fork.
+// Each scenario saves a 375px light screenshot of the state that matters, and checks that nothing of ours spills past 375.
+const CIRCLE_ADAPTER = '0x7FB8c7260b63934d8da38aF902f87ae6e284a845';
+const CIRCLE_NO_ROUTE = 'Circle found no swap that returns enough for this payment right now. Try again in a moment, or pay another way.';
+const SAFE_CONVERT_SENTENCE = "Converting is not available for Safe payments: Circle's quotes last 10 minutes and a Safe's owners sign later.";
+
+// `hide` names something to leave out of the fit check (the screenshot still shows it). Nothing needs it now: the Safe screen's wide
+// button wraps at 375.
+async function shot375(page, name, ours = '[data-convert-section], [data-group], [data-close-convert], [data-safe-pay]', hide = null) {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'light'));
+  await page.evaluate(async () => {
+    for (let y = 0; y < document.body.scrollHeight; y += 300) {
+      window.scrollTo(0, y);
+      await new Promise((r) => setTimeout(r, 90));
+    }
+    window.scrollTo(0, 0);
+  });
+  await page.waitForTimeout(900);
+  await page.screenshot({ path: `${SHOTS}/fx3-${name}-375-light.png`, fullPage: true });
+  if (hide) await page.addStyleTag({ content: `${hide} { display: none !important; }` });
+  const fit = await page.evaluate((sel) => {
+    const boxes = [...document.querySelectorAll(sel)].map((e) => e.getBoundingClientRect());
+    return { pageWidth: document.documentElement.scrollWidth, width: window.innerWidth, spill: boxes.filter((b) => b.right > window.innerWidth + 0.5 || b.left < -0.5).length, checked: boxes.length };
+  }, ours);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'));
+  return fit.checked > 0 && fit.spill === 0 && fit.pageWidth <= fit.width;
+}
+
+class Slow extends Error {}
+// Circle's own answers, in the app's fixed sentences. The market moves under a live quote, so a press can meet "no route"
+// or "busy" even after the app has repeated the request twice. Each press gets a fresh plan, so a payer presses again. The
+// "too large for one payment" sentence is not in this list: with the 4 million gas ceiling no route Circle has returned is
+// refused for gas, so seeing it is a failure.
+const CIRCLE_TOO_LARGE = 'This conversion is too large for one payment. Pay part from your balance or split the bill.';
+const CIRCLE_RETRYABLE = [CIRCLE_NO_ROUTE, "Circle's swap service is busy. Wait a minute and try again."];
+// One press asks Circle once, and repeats the identical request up to twice when Circle says no route or busy (C73).
+const requestsPerPress = (requests, presses) => requests >= presses && requests <= 3 * presses;
+
+const fmt6 = (v) => {
+  const [whole, fraction = ''] = formatUnits(v, 6).split('.');
+  const trimmed = fraction.replace(/0+$/, '');
+  return `${whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}.${trimmed.padEnd(2, '0')}`;
+};
+
+// `only` names the scenarios to run (all of them when left out). The ones that run a real Circle plan go first, while the fork is
+// young: Circle quotes today's pools, and a fork's pools stay as they were when it started, so the longer the fork has been up
+// the further its swap route and its price drift from Circle's (twice, an hour in, Circle's plan found no route or used more
+// gas than the fixed ceiling). The Safe scenario needs the Safe the later scenarios create, so it runs there.
+async function fxScenarios({ safe, advanceStore, only }) {
+  const run = (id) => !only || only.includes(id);
+  const tokenBalance = (token, who) => fork.readContract({ address: token, abi: tokenAbi, functionName: 'balanceOf', args: [who] });
+  const adapterAccess = async () => [
+    ...(await Promise.all([USDC, EURC, CIRBTC].map((token) => fork.readContract({ address: token, abi: tokenAbi, functionName: 'allowance', args: [PAYER, CIRCLE_ADAPTER] })))),
+    await fork.readContract({ address: MORPHO, abi: parseAbi(['function isAuthorized(address, address) view returns (bool)']), functionName: 'isAuthorized', args: [PAYER, CIRCLE_ADAPTER] }),
+  ];
+  const accessClear = (a) => a[0] === 0n && a[1] === 0n && a[2] === 0n && a[3] === false;
+  const eurcPosition = (who) => fork.readContract({ address: MORPHO, abi: morphoAbi, functionName: 'position', args: [MARKET_EURC, who] });
+  const eurcLtv = () => fork.readContract({ address: ADAG, abi: parseAbi(['function loanToValue(address user, bytes32 marketId) view returns (uint256)']), functionName: 'loanToValue', args: [PAYER, MARKET_EURC] });
+  const acceptMorpho = async (page) => {
+    const dialog = page.getByRole('dialog', { name: /Borrowing through Morpho/ });
+    if (await dialog.waitFor({ timeout: 6_000 }).then(() => true, () => false)) {
+      await dialog.getByRole('checkbox').check();
+      await dialog.getByRole('button', { name: 'Continue to payment' }).click();
+    }
+  };
+  const openBasketFor = async (page, ids) => {
+    await page.goto(`${APP}/pay/basket?bills=${ids.join(',')}`, { waitUntil: 'networkidle', timeout: 120_000 });
+    await clickConnect(page);
+    await page.locator('[data-group]').first().waitFor({ timeout: 60_000 });
+    await page.waitForFunction(() => !document.querySelector('.live-shimmer, [data-reading]'), null, { timeout: 60_000 }).catch(() => {});
+  };
+  // What the signed batch actually carried, read from the transaction on the fork: the amount approved to the adapter,
+  // every borrow, and every pledge. Compared with what the screen showed, this is C70's "shown equals signed".
+  const callsOf = async (hash) => {
+    const tx = await fork.getTransaction({ hash });
+    const batch = decodeFunctionData({ abi: parseAbi(['function aggregate3((address target, bool allowFailure, bytes callData)[] calls) returns ((bool success, bytes returnData)[])']), data: tx.input });
+    const morpho = parseAbi([
+      'function borrow((address,address,address,address,uint256) marketParams, uint256 assets, uint256 shares, address onBehalf, address receiver) returns (uint256, uint256)',
+      'function supplyCollateral((address,address,address,address,uint256) marketParams, uint256 assets, address onBehalf, bytes data)',
+    ]);
+    const erc20 = parseAbi(['function approve(address spender, uint256 amount) returns (bool)']);
+    const out = { toAdapter: [], borrows: [], pledges: [], target: tx.to, calls: batch.args[0].length };
+    for (const c of batch.args[0]) {
+      for (const [abi, handle] of [
+        [erc20, (d) => { if (d.functionName === 'approve' && getAddress(d.args[0]) === getAddress(CIRCLE_ADAPTER)) out.toAdapter.push(d.args[1]); }],
+        [morpho, (d) => { if (d.functionName === 'borrow') out.borrows.push(d.args[1]); if (d.functionName === 'supplyCollateral') out.pledges.push(d.args[1]); }],
+      ]) {
+        try { handle(decodeFunctionData({ abi, data: c.callData })); } catch {}
+      }
+    }
+    return out;
+  };
+  // Presses a payment button. When Circle itself says no (its fixed sentence, shown by the page), a payer presses again, so
+  // this does too, up to eight presses (measured on 7 October 2026: Circle's keyless swap answered the same request with a plan
+  // about half the time and "No route available" otherwise); every press is a new request and the scenario checks that count. Anything else the
+  // page says is a failure.
+  const pressUntilDone = async (page, buttonSelector, resultSelector, name) => {
+    for (let press = 1; ; press++) {
+      await page.locator(buttonSelector).click();
+      // The last press's sentence fades out as the new press starts; it must be gone before the page is asked what happened.
+      if (press > 1) await page.locator('[data-tx-state="failed"], [data-tx-state="refused"]').first().waitFor({ state: 'hidden', timeout: 10_000 }).catch(() => {});
+      await acceptMorpho(page);
+      try {
+        await resultOrReason(page, resultSelector, name);
+        return press;
+      } catch (error) {
+        if (press >= 8 || !CIRCLE_RETRYABLE.some((t) => String(error.message).includes(t))) throw error;
+        console.log(`  ${name}: press ${press} met Circle's fixed sentence ("${String(error.message).slice(-120)}"); pressing again`);
+        await page.waitForTimeout(8_000);
+      }
+    }
+  };
+  const hashFrom = async (locator) => (await locator.first().getAttribute('href')).split('/tx/')[1];
+  // Waits for the result card, or for the page to say why there is none, so a payment that stalls reports the page's own
+  // words and leaves a screenshot instead of a bare timeout.
+  const resultOrReason = async (page, resultSelector, name, timeout = 180_000) => {
+    const reasonSelector = '[data-tx-state="failed"], [data-tx-state="refused"]';
+    const first = await Promise.race([
+      page.locator(resultSelector).first().waitFor({ timeout }).then(() => 'result', () => 'timeout'),
+      page.locator(reasonSelector).first().waitFor({ timeout }).then(() => 'reason', () => 'timeout'),
+    ]);
+    if (first === 'result') return;
+    await page.screenshot({ path: `${SHOTS}/fx3-stalled-${name}.png`, fullPage: true }).catch(() => {});
+    const said = first === 'reason' ? await page.locator(reasonSelector).first().innerText().catch(() => '') : (await page.locator('[data-tx-state]').first().innerText().catch(() => 'no status line'));
+    throw new Slow(`${name}: ${first === 'reason' ? 'the page refused or failed' : 'no result in ' + timeout / 1000 + ' s'}: ${said.replace(/\s+/g, ' ')}; fork block time ${(await fork.getBlock()).timestamp}, this machine ${Math.floor(Date.now() / 1000)}`);
+  };
+
+  console.log(`  fx: the demo payer reset on the fork: ${await resetPayer()}`);
+  const head = await fork.getBlock();
+  console.log(`  fx: fork clock ${head.timestamp} against this machine's ${Math.floor(Date.now() / 1000)} (Circle's plans last 600 s and are checked against the fork's clock)`);
+  // The demo payer holds about $10 of cirBTC, enough for a bill of a few dollars. Circle routes small amounts through longer paths that
+  // cost far more gas (1.9 to 2.4 million, against about 1.1 million from 5 USDC up, measured on this fork on 7 October 2026), so the bills
+  // here are 5 USDC and more, and the payer is given the cirBTC their pledges need. Morpho holds every pledged satoshi, so it is the
+  // one holder sure to exist (as with fund-eurc), and the same amount goes back at the end.
+  const FX_BTC = 100_000n;
+  // resetPayer repays any EURC loan with 5 EURC it funds itself; these scenarios borrow more than that, so the payer gets more first.
+  const resetWithEurc = async () => {
+    forkScript('fund-eurc', PAYER, '20000000');
+    return resetPayer();
+  };
+  if (run('a') || run('b') || run('g') || run('h')) console.log(`  fx: payer given ${FX_BTC} sat of cirBTC from Morpho: ${forkScript('send', MORPHO, CIRBTC, 'transfer(address,uint256)', PAYER, String(FX_BTC))}`);
+
+  // (fx-a) One USDC bill paid from a EURC loan on the single bill page, with a real Circle plan. Circle's adapter first
+  // holds a stray USDC approval, so the page offers to reset it; then the payment, with every figure checked against
+  // what was signed.
+  if (run('a')) {
+    const BILL_A = 5_000_000n;
+    const A = newBill('USDC', BILL_A, 'E2E-FX-A');
+    forkScript('send', PAYER, USDC, 'approve(address,uint256)', CIRCLE_ADAPTER, '1000000');
+    const payeeBefore = await tokenBalance(USDC, PAYEE);
+    const { context, page, circle } = await openPage({ account: PAYER, expectCircleErrors: true });
+    await connect(page, `/bill/${A}`);
+    const blocked = page.locator('[data-convert-off]');
+    await blocked.waitFor({ timeout: 60_000 });
+    const blockedText = await blocked.innerText();
+    const resetShown = await page.locator('[data-action="convert-reset"]').count();
+    await shot375(page, 'a-blocked');
+    await page.locator('[data-action="convert-reset"]').click();
+    const resetEnded = await Promise.race([
+      page.locator('[data-convert-reset-done]').waitFor({ timeout: 120_000 }).then(() => 'done', () => 'timeout'),
+      page.locator('[data-convert-reset-failed]').waitFor({ timeout: 120_000 }).then(() => 'failed', () => 'timeout'),
+    ]);
+    if (resetEnded !== 'done') {
+      await page.screenshot({ path: `${SHOTS}/fx3-stalled-fx-a-reset.png`, fullPage: true }).catch(() => {});
+      const said = (await page.locator('[data-convert-reset-box]').first().innerText().catch(() => 'no reset box')).replace(/\s+/g, ' ');
+      throw new Slow(`fx-a reset: ${resetEnded}: "${said}"; wallet requests ${await page.evaluate(() => window.__walletLog.join(' '))}; console errors so far: ${consoleErrors.join(' | ').slice(0, 600)}`);
+    }
+    const accessAfterReset = await adapterAccess();
+    await page.locator('[data-convert-estimate]').waitFor({ timeout: 60_000 });
+    await page.locator('[data-action="pay-convert"]:not([disabled])').waitFor({ timeout: 60_000 });
+    // A refresh must not ask Circle anything either.
+    await page.reload({ waitUntil: 'networkidle', timeout: 120_000 });
+    await connectIfShown(page);
+    await page.locator('[data-action="pay-convert"]:not([disabled])').waitFor({ timeout: 60_000 });
+    const askedBeforePress = circle.length;
+    const section = await page.locator('[data-convert-section]').innerText();
+    const shownX = await page.locator('[data-convert-x]').first().getAttribute('data-convert-x');
+    const shownPledge = await page.locator('[data-convert-pledge]').first().getAttribute('data-convert-pledge');
+    const fits = await shot375(page, 'a-estimate');
+    const sendsBefore = await sends(page);
+    // The page polls bill(id) every 6 seconds and refreshes the server props once it reads Paid. Holding this page's receipt
+    // reads back 15 seconds makes that refresh land before the payment has read its receipt, every run: the order that once
+    // left the pay options on a paid bill. Without it, which came first was luck.
+    await page.route((url) => url.origin === new URL(FORK).origin, async (route) => {
+      if ((route.request().postData() ?? '').includes('"eth_getTransactionReceipt"')) await new Promise((r) => setTimeout(r, 15_000));
+      await route.continue();
+    });
+    // Watched in the page from here on: whether the payment's progress card showed while the bill already read Paid (so the
+    // refresh did land mid-payment), and whether any pay button was ever on screen next to a Paid stamp.
+    await page.evaluate(() => {
+      window.__sawProgress = false;
+      window.__optionsOnPaid = false;
+      const look = () => {
+        if (document.querySelector('[data-pay-closed="progress"]')) window.__sawProgress = true;
+        if (document.querySelector('[role="img"][aria-label="Status: Paid"]') && document.querySelector('[data-action^="pay-"]')) window.__optionsOnPaid = true;
+      };
+      new MutationObserver(look).observe(document.body, { childList: true, subtree: true, attributes: true });
+    });
+    const presses = await pressUntilDone(page, '[data-action="pay-convert"]', '[data-tx-result="paid"]', 'fx-a');
+    await page.getByRole('img', { name: 'Status: Paid' }).first().waitFor({ timeout: 60_000 });
+    await page.waitForTimeout(1500);
+    const card = await page.locator('[data-tx-result="paid"]').innerText();
+    const hash = await hashFrom(page.locator('[data-tx-result="paid"] a'));
+    const watched = await page.evaluate(() => ({ progress: window.__sawProgress, optionsOnPaid: window.__optionsOnPaid }));
+    await shot375(page, 'a-paid', '[data-tx-result="paid"]');
+    const receipt = await fork.getTransactionReceipt({ hash });
+    const signed = await callsOf(hash);
+    const sentNow = (await sends(page)) - sendsBefore;
+    const bodies = circle.map((r) => JSON.parse(r.body ?? '{}'));
+    const body = bodies.at(-1) ?? {};
+    const paidLog = await billPaidLog(A);
+    const converted = parseEventLogs({ abi: parseAbi(['event Transfer(address indexed from, address indexed to, uint256 value)']), logs: receipt.logs })
+      .filter((l) => l.address.toLowerCase() === USDC.toLowerCase() && l.args.to.toLowerCase() === PAYER.toLowerCase() && l.args.from.toLowerCase() !== PAYER.toLowerCase())
+      .reduce((sum, l) => sum + l.args.value, 0n);
+    const payeeRise = (await tokenBalance(USDC, PAYEE)) - payeeBefore;
+    const access = await adapterAccess();
+    const debt = await eurcPosition(PAYER);
+    await context.close();
+    record(`(fx-a) USDC bill #${A} paid from a EURC loan on the bill page: real Circle plan, one to three identical requests per press, payee credited exactly, Paid shown, adapter access 0 after`,
+      /Circle's swap adapter can already spend your USDC/.test(blockedText) && resetShown === 1 && accessClear(accessAfterReset)
+        && askedBeforePress === 0 && requestsPerPress(circle.length, presses) && bodies.every((b) => b.tokenInAddress === EURC && b.tokenOutAddress === USDC && b.amount === shownX && b.stopLimit === String(BILL_A) && b.fromAddress === PAYER && b.toAddress === PAYER)
+        && /Your debt will be in EURC\. Its dollar cost moves with the euro\./.test(section) && /Adag checks the 40% limit only now, when you pay\./.test(section)
+        && /The loan guard can only repay this loan from EURC in your wallet\./.test(section) && /Circle's fee is 0\.02%/.test(section) && /Worst case, 1 EURC returns at least/.test(section)
+        && receipt.status === 'success' && signed.target.toLowerCase() === '0x522fAf9A91c41c443c66765030741e4AaCe147D0'.toLowerCase()
+        && signed.toAdapter[0]?.toString() === shownX && signed.toAdapter.at(-1) === 0n && signed.borrows.length === 1 && signed.borrows[0].toString() === shownX
+        && signed.pledges.reduce((x, y) => x + y, 0n).toString() === shownPledge
+        && payeeRise === BILL_A && (await statusOf(A)) === 2 && paidLog?.args.payer.toLowerCase() === PAYER.toLowerCase()
+        && accessClear(access) && debt[1] > 0n && sentNow === 1
+        && card.includes(`${fmt6(BigInt(shownX))} EURC became ${fmt6(converted)} USDC`) && card.includes(fmt6(converted - BILL_A)) && fits
+        && watched.progress && !watched.optionsOnPaid,
+      `stray approval: "${blockedText.slice(0, 90)}..."; reset button ${resetShown}, access after ${accessAfterReset.join('/')}; Circle requests before the press ${askedBeforePress}, after ${circle.length} for ${presses} press(es); asked ${body.amount} EURC for at least ${body.stopLimit} USDC (screen showed ${shownX}); gas used ${receipt.gasUsed}; signed approve ${signed.toAdapter.join('/')}, borrow ${signed.borrows.join('/')}, pledge ${signed.pledges.join('/')} (screen ${shownPledge}); payee +${payeeRise}; swap returned ${converted}; access after ${access.join('/')}; wallet sends for the payment ${sentNow}; fits at 375: ${fits}; the page's refresh to Paid landed before the receipt was read and the progress card showed: ${watched.progress}; a pay button next to a Paid stamp: ${watched.optionsOnPaid}; card: ${card.replace(/\s*\n\s*/g, ' | ').slice(0, 330)}`);
+  }
+
+  // (fx-b) The same in a basket: the USDC bill converts, and the other group, a EURC bill, is paid from bitcoin in the same
+  // market, so one pledge covers both (C69).
+  if (run('b')) {
+    await resetWithEurc();
+    const U_AMT = 5_000_000n;
+    const E_AMT = 2_000_000n;
+    const U = newBill('USDC', U_AMT, 'E2E-FX-B-USDC');
+    const E = newBill('EURC', E_AMT, 'E2E-FX-B-EURC');
+    const usdcBefore = await tokenBalance(USDC, PAYEE);
+    const eurcBefore = await tokenBalance(EURC, PAYEE);
+    const posBefore = await eurcPosition(PAYER);
+    const { context, page, circle } = await openPage({ account: PAYER, expectCircleErrors: true });
+    await openBasketFor(page, [U, E]);
+    await page.locator('[data-choice="USDC-convert"]:not([disabled])').waitFor({ timeout: 60_000 });
+    await page.locator('[data-choice="USDC-convert"]').click();
+    await page.locator('[data-choice="USDC-convert"][aria-checked="true"]').waitFor({ timeout: 10_000 });
+    await page.locator('[data-choice="EURC-bitcoin"]:not([disabled])').waitFor({ timeout: 30_000 });
+    await page.locator('[data-choice="EURC-bitcoin"]').click();
+    await page.locator('[data-convert-shared]').waitFor({ timeout: 30_000 });
+    await page.waitForTimeout(800);
+    const sharedNote = await page.locator('[data-convert-shared]').innerText();
+    const bitcoinCard = await page.locator('[data-choice="EURC-bitcoin"]').innerText();
+    const shownX = await page.locator('[data-convert-x]').first().getAttribute('data-convert-x');
+    const shownPledge = await page.locator('[data-convert-pledge]').first().getAttribute('data-convert-pledge');
+    const feeText = await page.locator('[data-fee]').first().innerText();
+    const fits = await shot375(page, 'b-estimate');
+    const askedBeforePress = circle.length;
+    await page.locator('[data-action="pay-basket"]:not([disabled])').waitFor({ timeout: 60_000 });
+    const presses = await pressUntilDone(page, '[data-action="pay-basket"]', '[data-tx-result="basket-paid"]', 'fx-b');
+    await page.waitForFunction(() => [...document.querySelectorAll('[data-basket-bill]')].every((e) => e.getAttribute('data-landed') === 'paid'), null, { timeout: 15_000 });
+    await page.waitForTimeout(900);
+    const card = await page.locator('[data-tx-result="basket-paid"]').innerText();
+    const hash = await hashFrom(page.locator('[data-tx-result="basket-paid"] a'));
+    await shot375(page, 'b-paid', '[data-tx-result="basket-paid"]');
+    const receipt = await fork.getTransactionReceipt({ hash });
+    const signed = await callsOf(hash);
+    const paidLogs = parseEventLogs({ abi: [billPaidEvent], logs: receipt.logs }).filter((l) => l.address.toLowerCase() === ADAG.toLowerCase());
+    const bodies = circle.map((r) => JSON.parse(r.body ?? '{}'));
+    const body = bodies.at(-1) ?? {};
+    const access = await adapterAccess();
+    const posAfter = await eurcPosition(PAYER);
+    const ltv = await eurcLtv();
+    const sent = await sends(page);
+    await context.close();
+    record(`(fx-b) basket of USDC bill #${U} (converted from a EURC loan) and EURC bill #${E} (from bitcoin, same market): both paid in one signature, one pledge, payees credited exactly, adapter access 0`,
+      askedBeforePress === 0 && requestsPerPress(circle.length, presses) && bodies.every((b) => b.amount === shownX && b.stopLimit === String(U_AMT))
+        && /same Morpho market/.test(bitcoinCard) && sharedNote.includes(`${fmt6(E_AMT)} EURC`) && /With a conversion the network fee is checked when you press pay/.test(feeText)
+        && receipt.status === 'success' && paidLogs.length === 2 && paidLogs.every((l) => l.args.payer.toLowerCase() === PAYER.toLowerCase())
+        && signed.toAdapter[0]?.toString() === shownX && signed.pledges.reduce((x, y) => x + y, 0n).toString() === shownPledge
+        && signed.borrows.length === 2 && signed.borrows.map(String).includes(shownX) && signed.borrows.map(String).includes(String(E_AMT))
+        && (await tokenBalance(USDC, PAYEE)) - usdcBefore === U_AMT && (await tokenBalance(EURC, PAYEE)) - eurcBefore === E_AMT
+        && (await statusOf(U)) === 2 && (await statusOf(E)) === 2 && accessClear(access) && posAfter[1] > posBefore[1] && ltv > 0n && ltv <= 400000000000000000n && sent === 1
+        && /became/.test(card) && /left in your wallet/i.test(card) && fits,
+      `Circle requests before the press ${askedBeforePress}, after ${circle.length} for ${presses} press(es); asked ${body.amount} for at least ${body.stopLimit} (screen ${shownX}); gas used ${receipt.gasUsed}; signed borrows ${signed.borrows.join('/')}, pledge ${signed.pledges.join('/')} (screen ${shownPledge}); BillPaid ${paidLogs.length}; EURC loan-to-value ${(Number(ltv) / 1e16).toFixed(2)}%; access ${access.join('/')}; wallet sends ${sent}; fits at 375: ${fits}; shared note "${sharedNote.slice(0, 120)}"; card: ${card.replace(/\s*\n\s*/g, ' | ').slice(0, 300)}`);
+  }
+
+  // (fx-c) Circle answers "no route", stubbed: the app repeats the identical request twice (three in all), then the page shows the
+  // fixed sentence, never Circle's words, sends nothing and does not raise anything by itself.
+  if (run('c')) {
+    const C = newBill('USDC', 1_000_000, 'E2E-FX-C');
+    const { context, page, circle } = await openPage({ account: PAYER, expectCircleErrors: true });
+    const stubbed = [];
+    await context.route('https://api.circle.com/**', (route) => {
+      const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' };
+      if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
+      stubbed.push(route.request().postData());
+      return route.fulfill({ status: 400, contentType: 'application/json', headers: cors, body: JSON.stringify({ code: 331001, message: 'secret-circle-words: no route for your wallet' }) });
+    });
+    await connect(page, `/bill/${C}`);
+    await page.locator('[data-action="pay-convert"]:not([disabled])').waitFor({ timeout: 60_000 });
+    await page.locator('[data-action="pay-convert"]').click();
+    await acceptMorpho(page);
+    const failed = page.locator('[data-tx-state="failed"]');
+    await failed.waitFor({ timeout: 90_000 });
+    const text = await failed.innerText();
+    await page.waitForTimeout(3_000);
+    const fits = await shot375(page, 'c-circle-error', '[data-convert-section], [data-tx-state]');
+    const sent = await sends(page);
+    const stillOpen = (await statusOf(C)) === 1;
+    const buttonBack = await page.locator('[data-action="pay-convert"]:not([disabled])').count();
+    await context.close();
+    const identical = stubbed.length > 0 && stubbed.every((body) => body === stubbed[0]) && circle.every((r) => r.body === circle[0]?.body);
+    record(`(fx-c) Circle answering "no route" for bill #${C}: the same request three times, then Circle's fixed sentence, none of its words, nothing sent, the button back for a new press`,
+      text.includes(CIRCLE_NO_ROUTE) && !text.includes('secret-circle-words') && circle.length === 3 && stubbed.length === 3 && identical && sent === 0 && stillOpen && buttonBack === 1 && fits,
+      `shown: "${text}"; Circle POSTs seen by the page ${circle.length}, by the stub ${stubbed.length}, bodies identical ${identical}; wallet sends ${sent}; bill still open ${stillOpen}; pay button usable again ${buttonBack}; fits at 375: ${fits}`);
+  }
+
+  // (fx-d) The loan market's free cash is short: the option is shown, off, with its reason, on the bill page and in a basket.
+  if (run('d')) {
+    const euroMarket = await fork.readContract({ address: MORPHO, abi: parseAbi(['function market(bytes32 id) view returns (uint128 totalSupplyAssets, uint128 totalSupplyShares, uint128 totalBorrowAssets, uint128 totalBorrowShares, uint128 lastUpdate, uint128 fee)']), functionName: 'market', args: [MARKET_EURC] });
+    const free = euroMarket[0] > euroMarket[2] ? euroMarket[0] - euroMarket[2] : 0n;
+    const bigAmount = ((free + 1_000_000n) * 13n) / 10n;
+    const D = newBill('USDC', bigAmount, 'E2E-FX-D');
+    const one = await openPage({ account: PAYER });
+    await connect(one.page, `/bill/${D}`);
+    const note = one.page.locator('[data-convert-off]');
+    await note.waitFor({ timeout: 60_000 });
+    const noteText = await note.innerText();
+    const buttons = await one.page.locator('[data-action="pay-convert"]').count();
+    const fitsOne = await shot375(one.page, 'd-bill-page');
+    const sentOne = await sends(one.page);
+    await one.context.close();
+
+    const two = await openPage({ account: PAYER });
+    await openBasketFor(two.page, [D]);
+    const choice = two.page.locator('[data-choice="USDC-convert"]');
+    await choice.filter({ hasText: 'ready to lend right now' }).waitFor({ timeout: 60_000 });
+    const choiceText = (await choice.innerText()).replace(/\s+/g, ' ');
+    const choiceDisabled = await choice.isDisabled();
+    const checked = await choice.getAttribute('aria-checked');
+    const fitsTwo = await shot375(two.page, 'd-basket');
+    const sentTwo = await sends(two.page);
+    await two.context.close();
+    const freeText = fmt6(free);
+    const pattern = new RegExp(`^Morpho has ${freeText.replace(/[.,]/g, '\\$&')} EURC ready to lend right now, less than the [\\d,]+\\.\\d{2,6} EURC this conversion borrows\\. Pay another way, or check back later\\.$`);
+    record(`(fx-d) bill #${D} needing more EURC than Morpho's ${freeText} free: the conversion is shown, off, with its reason, on the bill page and in a basket, and nothing is sent`,
+      pattern.test(noteText) && buttons === 0 && choiceDisabled && checked !== 'true' && choiceText.includes(`Morpho has ${freeText} EURC ready to lend right now`) && sentOne === 0 && sentTwo === 0 && (await statusOf(D)) === 1 && fitsOne && fitsTwo,
+      `fork free cash ${free} (${freeText} EURC); bill ${bigAmount}; page: "${noteText}", pay-convert buttons ${buttons}; basket option disabled ${choiceDisabled}, checked ${checked}; sends ${sentOne + sentTwo}; fits at 375: ${fitsOne}/${fitsTwo}`);
+  }
+
+  // (fx-e) Opposite conversions in one basket: once the USDC bills convert, the EURC bills cannot, and the other way round.
+  if (run('e')) {
+    const U = newBill('USDC', 1_000_000, 'E2E-FX-E-USDC');
+    const E = newBill('EURC', 1_000_000, 'E2E-FX-E-EURC');
+    const { context, page, circle } = await openPage({ account: PAYER });
+    await openBasketFor(page, [U, E]);
+    await page.locator('[data-choice="USDC-convert"]:not([disabled])').waitFor({ timeout: 60_000 });
+    await page.locator('[data-choice="EURC-convert"]:not([disabled])').waitFor({ timeout: 60_000 });
+    await page.locator('[data-choice="USDC-convert"]').click();
+    await page.locator('[data-choice="EURC-convert"][disabled]').waitFor({ timeout: 30_000 });
+    const euroOff = (await page.locator('[data-choice="EURC-convert"]').innerText()).replace(/\s+/g, ' ');
+    const euroChecked = await page.locator('[data-choice="EURC-convert"]').getAttribute('aria-checked');
+    const fitsFirst = await shot375(page, 'e-usdc-converts');
+    await page.locator('[data-choice="USDC-balance"]:not([disabled])').click();
+    await page.locator('[data-choice="EURC-convert"]:not([disabled])').waitFor({ timeout: 30_000 });
+    await page.locator('[data-choice="EURC-convert"]').click();
+    await page.locator('[data-choice="USDC-convert"][disabled]').waitFor({ timeout: 30_000 });
+    const dollarOff = (await page.locator('[data-choice="USDC-convert"]').innerText()).replace(/\s+/g, ' ');
+    const dollarChecked = await page.locator('[data-choice="USDC-convert"]').getAttribute('aria-checked');
+    const fitsSecond = await shot375(page, 'e-eurc-converts');
+    const sent = await sends(page);
+    await context.close();
+    const reasonFor = (bills) => `The ${bills} bills in this basket are already paid by converting. One signature runs one conversion, and never one in each direction.`;
+    record(`(fx-e) basket of USDC bill #${U} and EURC bill #${E}: when one group converts, the other group's conversion is off with its reason, both ways round`,
+      euroOff.includes(reasonFor('USDC')) && euroChecked !== 'true' && dollarOff.includes(reasonFor('EURC')) && dollarChecked !== 'true' && circle.length === 0 && sent === 0 && fitsFirst && fitsSecond,
+      `with USDC converting, the EURC option says "${euroOff.slice(0, 150)}"; with EURC converting, the USDC option says "${dollarOff.slice(0, 150)}"; Circle requests ${circle.length}; wallet sends ${sent}; fits at 375: ${fitsFirst}/${fitsSecond}`);
+  }
+
+  // (fx-f) A Safe payer: the conversion is shown, off, with the Safe line, and nothing can be proposed through Circle.
+  if (safe && run('f')) {
+    advanceStore();
+    const F = newBill('USDC', 1_000_000, 'E2E-FX-F');
+    const { context, page, circle } = await openPage({ account: safe.OWNER1.address, signer: safe.OWNER1 });
+    await connect(page, `/bill/${F}`).catch(() => {});
+    await page.locator('[data-safe-pay]').waitFor({ timeout: 60_000 });
+    await page.locator('[data-field="safe-address"]').fill(safe.SAFE);
+    await page.locator('[data-action="safe-check"]').click();
+    await page.locator('[data-safe-verified]').waitFor({ timeout: 60_000 });
+    const line = page.locator('[data-safe-convert="USDC"]');
+    await line.waitFor({ timeout: 30_000 });
+    const lineText = (await line.innerText()).replace(/\s+/g, ' ');
+    const radioOff = await line.locator('input').isDisabled();
+    const buttons = await page.locator('[data-action="pay-convert"]').count();
+    const enrolButtons = await page.locator('[data-action="safe-enrol"]').count();
+    const fits = await shot375(page, 'f-safe', '[data-safe-pay], [data-safe-convert], [data-action="safe-enrol"]');
+    const signed = await signRequests(page);
+    const sent = await sends(page);
+    await context.close();
+    record(`(fx-f) a Safe owner paying bill #${F} as the Safe sees the Safe line on the conversion, off, and no way to propose one`,
+      lineText.includes('From the Safe\'s bitcoin, borrowing EURC.') && lineText.includes(SAFE_CONVERT_SENTENCE) && radioOff && buttons === 0 && circle.length === 0 && signed === 0 && sent === 0 && fits,
+      `shown: "${lineText}"; option disabled ${radioOff}; pay-convert buttons ${buttons}; Circle requests ${circle.length}; signature requests ${signed}, sends ${sent}; fits at 375, with the ${enrolButtons} record-the-loan button(s) wrapping inside it: ${fits}`);
+  }
+
+  // (fx-g) Closing a EURC loan with USDC from the wallet page: debt 0, all the bitcoin back, adapter access 0.
+  if (run('g')) {
+    console.log(`  fx-g: demo payer reset again: ${await resetWithEurc()}`);
+    const pledge = 3_000n;
+    const euroPrice = await fork.readContract({ address: '0x6945246777DfdF4744D957323857F797Ec19Ca1e', abi: parseAbi(['function price() view returns (uint256)']), functionName: 'price' });
+    const borrow = (((pledge * euroPrice) / 10n ** 36n) * 35n) / 100n;
+    const setup = [
+      forkScript('send', PAYER, CIRBTC, 'approve(address,uint256)', MORPHO, String(pledge)),
+      forkScript('send', PAYER, MORPHO, `supplyCollateral(${MP},uint256,address,bytes)`, EURC_PARAMS, String(pledge), PAYER, '0x'),
+      forkScript('send', PAYER, MORPHO, `borrow(${MP},uint256,uint256,address,address)`, EURC_PARAMS, String(borrow), '0', PAYER, PAYER),
+    ];
+    // The borrowed EURC goes straight to the supplier, so the payer cannot close the loan with EURC and has to convert.
+    const held = await tokenBalance(EURC, PAYER);
+    const moved = forkScript('send', PAYER, EURC, 'transfer(address,uint256)', PAYEE, String(held));
+    const btcBefore = await cirBtcOf(PAYER);
+    const { context, page, circle } = await openPage({ account: PAYER, expectCircleErrors: true });
+    await connect(page, '/app').catch(() => {});
+    const ticket = page.locator('[data-loan="EURC"]');
+    await ticket.waitFor({ timeout: 60_000 });
+    await ticket.getByRole('tab', { name: 'Close loan' }).click();
+    await ticket.locator('[data-action="close-other"]:not([disabled])').waitFor({ timeout: 90_000 });
+    const estimate = await ticket.locator('[data-close-estimate]').innerText();
+    const shownY = await ticket.locator('[data-close-x]').first().getAttribute('data-close-x');
+    const buttonLabel = await ticket.locator('[data-action="close-other"]').innerText();
+    const closeShort = await ticket.locator('[data-close-short]').count();
+    const fits = await shot375(page, 'g-close-estimate', '[data-loan], [data-close-convert]');
+    const askedBeforePress = circle.length;
+    const presses = await pressUntilDone(page, '[data-loan="EURC"] [data-action="close-other"]', '[data-tx-result="closed"]', 'fx-g');
+    const text = await ticket.locator('[data-tx-result="closed"]').innerText();
+    const hash = await hashFrom(ticket.locator('[data-tx-result="closed"] a'));
+    await shot375(page, 'g-closed', '[data-loan]');
+    const receipt = await fork.getTransactionReceipt({ hash });
+    const end = await eurcPosition(PAYER);
+    const back = (await cirBtcOf(PAYER)) - btcBefore;
+    const bodies = circle.map((r) => JSON.parse(r.body ?? '{}'));
+    const body = bodies.at(-1) ?? {};
+    const access = await adapterAccess();
+    const morphoAllowance = await fork.readContract({ address: EURC, abi: tokenAbi, functionName: 'allowance', args: [PAYER, MORPHO] });
+    const sent = await sends(page);
+    await context.close();
+    record('(fx-g) a EURC loan closed with USDC from the wallet page: debt 0, all the bitcoin back, no approval left to Morpho or Circle, one Circle request',
+      setup.every((x) => x.includes('"status":"0x1"')) && moved.includes('"status":"0x1"') && buttonLabel === 'Close with USDC' && /Circle's fee is 0\.02%/.test(estimate)
+        && askedBeforePress === 0 && requestsPerPress(circle.length, presses) && bodies.every((b) => b.tokenInAddress === USDC && b.tokenOutAddress === EURC && b.amount === shownY && BigInt(b.stopLimit) > 0n)
+        && receipt.status === 'success' && end[1] === 0n && end[2] === 0n && back === pledge && morphoAllowance === 0n && accessClear(access) && sent === 1
+        && text.includes('Loan closed. 0 owed, 0 pledged.') && /Circle turned/.test(text) && fits,
+      `set-up ${setup.join(' ')}; EURC moved off the wallet ${moved}; button "${buttonLabel}"; close-short notices ${closeShort}; Circle requests before the press ${askedBeforePress}, after ${circle.length} for ${presses} press(es); asked ${body.amount} USDC for at least ${body.stopLimit} EURC (screen ${shownY}); gas used ${receipt.gasUsed}; after: ${end[1]} shares, ${end[2]} pledged; cirBTC back ${back} of ${pledge}; Morpho EURC allowance ${morphoAllowance}; adapter access ${access.join('/')}; fits at 375: ${fits}; shown: ${text.replace(/\s*\n\s*/g, ' | ').slice(0, 330)}`);
+  }
+
+  // (fx-h) A 1 USDC bill paid from a EURC loan. Circle routes a bill this small through a longer path that measured 1.9 to 2.4 million
+  // gas, which the old ceiling of 2.5 million (25% headroom, so 2 million simulated) refused as "too large for one payment". The sentence
+  // must not appear now. The scenario passes when the bill is paid, or when every press that failed met Circle's own no-route or busy
+  // sentence after the app's repeats (Circle's keyless API is flaky); the detail line says which, and how many presses and requests it took.
+  if (run('h')) {
+    await resetWithEurc();
+    const BILL_H = 1_000_000n;
+    const H = newBill('USDC', BILL_H, 'E2E-FX-H');
+    const payeeBefore = await tokenBalance(USDC, PAYEE);
+    const { context, page, circle } = await openPage({ account: PAYER, expectCircleErrors: true });
+    await connect(page, `/bill/${H}`);
+    await page.locator('[data-action="pay-convert"]:not([disabled])').waitFor({ timeout: 60_000 });
+    const sendsBefore = await sends(page);
+    let presses = 0;
+    let stopped = '';
+    try {
+      presses = await pressUntilDone(page, '[data-action="pay-convert"]', '[data-tx-result="paid"]', 'fx-h');
+    } catch (error) {
+      stopped = String(error.message);
+    }
+    const tooLarge = stopped.includes(CIRCLE_TOO_LARGE) || (await page.getByText(CIRCLE_TOO_LARGE).count()) > 0;
+    const paid = presses > 0;
+    let gasUsed = 0n;
+    if (paid) {
+      const hash = await hashFrom(page.locator('[data-tx-result="paid"] a'));
+      gasUsed = (await fork.getTransactionReceipt({ hash })).gasUsed;
+    }
+    const payeeRise = (await tokenBalance(USDC, PAYEE)) - payeeBefore;
+    const sentNow = (await sends(page)) - sendsBefore;
+    const status = await statusOf(H);
+    const bodies = circle.map((r) => r.body);
+    await context.close();
+    // Unpaid is allowed only when Circle itself said no on every press: the bill is still open and nothing was sent.
+    const circleSaidNo = !paid && CIRCLE_RETRYABLE.some((t) => stopped.includes(t));
+    record(`(fx-h) a 1 USDC bill #${H} paid from a EURC loan is not refused as too large`,
+      !tooLarge && ((paid && payeeRise === BILL_H && status === 2 && sentNow === 1 && gasUsed > 0n && gasUsed * 125n / 100n <= 4_000_000n) || (circleSaidNo && payeeRise === 0n && status === 1 && sentNow === 0)) && bodies.length > 0,
+      paid
+        ? `paid after ${presses} press(es) and ${circle.length} Circle request(s), so ${presses - 1} press(es) met Circle's no-route or busy sentence first; gas used ${gasUsed} (the sender allows ${4_000_000n} with 25% headroom); the "too large" sentence never showed`
+        : `NOT paid: Circle answered no route or busy on every press (${circle.length} requests over up to 8 presses); the "too large" sentence did not show (${tooLarge ? 'IT SHOWED' : 'it never showed'}); stopped with: "${stopped.slice(-160)}"`);
+  }
+
+  // Whatever ran above, leave the payer as the other scenarios expect to find it: no loan, no pledge, no stray EURC, 10 USDC.
+  if (only && !safe) {
+    await resetWithEurc();
+    const left = await tokenBalance(EURC, PAYER);
+    if (left > 0n) forkScript('send', PAYER, EURC, 'transfer(address,uint256)', PAYEE, String(left));
+    forkScript('send', PAYER, CIRBTC, 'transfer(address,uint256)', MORPHO, String(FX_BTC));
+    // Every connected pay page asks the Safe routes for a list, and they allow 20 calls per client per ten minutes; this block loaded
+    // enough pages to use some of that, so the stand-in store's clock moves past the window before the other scenarios begin.
+    advanceStore();
+  }
+}
+
 async function main() {
   console.log('e2e: starting the Arc fork in WSL');
-  console.log(`  ${forkScript('start')}`);
+  // WSL's name lookup fails now and then at the moment the fork first asks Arc's RPC for its head block, so a failed start is tried again.
+  for (let attempt = 1; ; attempt++) {
+    try {
+      console.log(`  ${forkScript('start')}`);
+      break;
+    } catch (error) {
+      if (attempt >= 4) throw error;
+      console.log(`  the fork did not start (attempt ${attempt}): ${String(error.message).split('\n')[0].slice(0, 120)}; trying again`);
+      await new Promise((r) => setTimeout(r, 5_000));
+    }
+  }
   const chain = await rpc('eth_chainId');
   if (chain !== '0x13b2') throw new Error(`the fork reports chain ${chain}, not 5042`);
   console.log(`  demo payer reset on the fork: ${await resetPayer()}; 10 USDC`);
@@ -456,6 +1011,12 @@ async function main() {
   browser = await chromium.launch();
 
   try {
+    if (FX_ONLY) {
+      await fxScenarios({ safe: null, advanceStore: () => store.advance(601_000) });
+      return;
+    }
+    // The scenarios that run a real Circle plan go first, while the fork is young (see fxScenarios).
+    await fxScenarios({ safe: null, advanceStore: () => store.advance(601_000), only: ['a', 'b', 'c', 'd', 'e', 'g', 'h'] });
     // (a) Pay bill A from balance.
     {
       const { context, page } = await openPage({ account: PAYER });
@@ -692,7 +1253,7 @@ async function main() {
 
       const p2 = await openPage({ account: PAYER });
       await connect(p2.page, '/app').catch(() => {});
-      await p2.page.locator('[data-list="paid"] [data-bill-row]').first().waitFor({ timeout: 60_000 });
+      await p2.page.locator('[data-list="paid"] [data-bill-row]').first().waitFor({ timeout: 150_000 });
       const paid = await p2.page.locator('[data-list="paid"] [data-bill-row]').evaluateAll((els) => els.map((e) => ({
         id: e.getAttribute('data-bill-row'), contract: e.getAttribute('data-contract'),
         href: e.querySelector('a')?.getAttribute('href'), marked: !!e.querySelector('[data-first-deployment]'),
@@ -1810,8 +2371,16 @@ async function main() {
 
     // (rr) F6: /bill/1, the judge's proof, shows how it was paid, read from its own transaction, and three ways on.
     {
+      // Bill #1's own payment is the proof the judges open, and the page can only describe a payment it can fetch. Arc's public RPC keeps
+      // transaction lookups for about ten days: on 7 October 2026 it stopped returning the 26 September one (null for eth_getTransactionByHash,
+      // while dRPC still has it). Once it is gone, the same checks run on bill B, which this run paid from bitcoin and whose transaction the
+      // fork holds itself, and the result line says so.
+      const bill1Served = await createPublicClient({ transport: http('https://rpc.mainnet.arc.io', { timeout: 30_000 }) })
+        .getTransaction({ hash: '0x7dba4d03f85fd5c323c2172252e55a8d9ed00f0903a2a0ccf1313a84687e3ad0' })
+        .then(() => true, () => false);
+      const rrBill = bill1Served ? 1n : B;
       const { context, page } = await openPage({ account: PAYER, noWallet: true });
-      await page.goto(`${APP}/bill/1`, { waitUntil: 'networkidle', timeout: 120_000 });
+      await page.goto(`${APP}/bill/${rrBill}`, { waitUntil: 'networkidle', timeout: 120_000 });
       const how = page.locator('[data-how-paid]');
       await how.waitFor({ timeout: 60_000 });
       const kind = await how.getAttribute('data-how-paid');
@@ -1821,7 +2390,7 @@ async function main() {
       await shoot(page, 'a2e-rr-how-paid');
       await context.close();
       const hash = txHref.split('/tx/')[1];
-      const receipt = await fork.getTransactionReceipt({ hash });
+      const receipt = await oldReceipt(hash);
       const morphoEvents = parseAbi([
         'event SupplyCollateral(bytes32 indexed id, address indexed caller, address indexed onBehalf, uint256 assets)',
         'event Borrow(bytes32 indexed id, address caller, address indexed onBehalf, address indexed receiver, uint256 assets, uint256 shares)',
@@ -1835,7 +2404,7 @@ async function main() {
       const wantLtv = `${bp / 100n}.${(bp % 100n).toString().padStart(2, '0')}%`;
       const pledgedShown = value('Pledged').split(' ')[0];
       const borrowedShown = value('Borrowed').split(' ')[0];
-      record('(rr) /bill/1 shows how it was paid: pledged, borrowed and loan-to-value after, matching its own transaction, with three links onward',
+      record(`(rr) /bill/${rrBill} shows how it was paid: pledged, borrowed and loan-to-value after, matching its own transaction, with three links onward${bill1Served ? '' : ' (bill 1 is past Arc public RPC retention, see above)'}`,
         kind === 'bitcoin' && pledgedShown !== '' && parseUnits(pledgedShown, 8) === pledged && borrowedShown !== '' && parseUnits(borrowedShown, 6) === borrowed
           && value('Loan-to-value after') === wantLtv && value('Bitcoin sold').startsWith('0') && JSON.stringify(links) === JSON.stringify(['/break', '/bill/new', '/docs/how-it-works']),
         `tx ${hash}; pledged ${pledgedShown} (receipt ${pledged} sat); borrowed ${borrowedShown} (receipt ${borrowed}); loan-to-value ${value('Loan-to-value after')} (at the block ${wantLtv}); links ${links.join(' ')}`);
@@ -1965,6 +2534,9 @@ async function main() {
         `fork free cash ${free} base units (${readyShown}); bill ${bigAmount} base units; bill page: "${noteText}", pay-from-bitcoin buttons ${bitcoinButtons} (usable ${bitcoinUsable}); basket option disabled ${choiceDisabled}, checked ${choiceChecked}, text "${choiceText}"; wallet sends ${sentOne + sentTwo}; covered: ${coveredNote}`);
     }
 
+    // The cross-currency Safe line, now that the Safe exists (the rest of the cross-currency scenarios ran first).
+    await fxScenarios({ safe: { SAFE, OWNER1 }, advanceStore: () => store.advance(601_000), only: ['f'] });
+
     // The mobile menu open, and the wallet page before connecting.
     {
       const { context, page } = await openPage({ account: PAYER, width: 375, theme: 'light' });
@@ -1999,6 +2571,7 @@ try {
   const passed = results.filter((r) => r.ok).length;
   console.log(`\nconsole errors: ${consoleErrors.length}${consoleErrors.length ? `\n  ${consoleErrors.join('\n  ')}` : ''}`);
   console.log(`CSP violation messages: ${cspMessages.length}${cspMessages.length ? `\n  ${cspMessages.slice(0, 10).join('\n  ')}` : ''}`);
+  console.log(`browser errors for a failing Circle answer that was expected (stubbed on purpose, or a real no route the app repeats): ${stubbedCircleErrors.length}`);
   const reownByKind = new Map();
   for (const r of reownRequests) {
     const [method, where] = r.split(' ');
@@ -2007,7 +2580,7 @@ try {
   }
   console.log(`requests to Reown and WalletConnect, every one answered by a stub: ${reownRequests.length}`);
   for (const [kind, n] of reownByKind) console.log(`  ${n} x ${kind}`);
-  const allOk = passed === results.length && results.length === 46 && consoleErrors.length === 0;
+  const allOk = passed === results.length && results.length === (FX_ONLY ? FX_SCENARIOS - 1 : 46 + FX_SCENARIOS) && consoleErrors.length === 0;
   console.log(allOk ? `ALL ${passed} SCENARIOS PASSED` : `${results.length - passed} of ${results.length} scenarios failed`);
   code = allOk ? 0 : 1;
 } catch (error) {

@@ -10,9 +10,11 @@
 // inside a batch; F5 to F8 run real Circle plans with batches this script writes itself. F9 and F10 do the same job with
 // the app's own code: src/lib/fx/circle.ts asks Circle, src/lib/fx/estimate.ts sizes the amount from the euro price,
 // src/lib/fx/plan.ts checks the plan and the simulation's transfers, and src/lib/pay/build.ts writes the batch. The
-// payer's own state is real. State overrides are used only to plant the test-only contracts in scripts/fx-fixtures
-// (never deployed) and to add balances where a check needs them; each check says where. F8 may SKIP, only when the USDC
-// market has too little free cash. Exits 0 only if nothing fails.
+// payer is an address nobody holds a key for, with no code and no history: its cirBTC and USDC come only from state
+// overrides, read back through balanceOf under the same override before any check runs, so no real wallet's holdings
+// matter. Other overrides plant the test-only contracts in scripts/fx-fixtures (never deployed) and add balances where a
+// check needs them; each check says where. F8 may SKIP, only when the USDC market has too little free cash. Exits 0 only
+// if nothing fails.
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { registerHooks } from 'node:module';
@@ -56,8 +58,8 @@ const SIM_RPC = 'https://rpc.drpc.mainnet.arc.io';
 const CIRCLE_SWAP_URL = 'https://api.circle.com/v1/stablecoinKits/swap';
 const CIRCLE_QUOTE_URL = 'https://api.circle.com/v1/stablecoinKits/quote';
 const CIRCLE_ADAPTER = getAddress('0x7FB8c7260b63934d8da38aF902f87ae6e284a845');
-// A wallet with cirBTC and plenty of USDC and no loans, found by reading the chain. FX_PAYER swaps in another one.
-const PAYER = getAddress(process.env.FX_PAYER ?? '0x870C73C98A14b6956b79247e1a1CDC68BA0060ee');
+// Derived from a fixed phrase, so nobody holds its key and nothing on the chain is its own. What it holds here is FUNDING.
+const PAYER = getAddress(`0x${keccak256(stringToHex('adag check-fx payer')).slice(-40)}`);
 const PAYEE = getAddress('0xc95DE79125A9D7fCfE17f35C7Dbe0e88725Ad93B');
 // Throwaway addresses where the test-only code is planted, and the account that makes the read calls.
 const STAND_IN = getAddress('0x00000000000000000000000000000000000f0001');
@@ -162,8 +164,9 @@ async function getPin() {
   const baseFee = BigInt(head.baseFeePerGas);
   return { number: BigInt(head.number), timestamp: BigInt(head.timestamp), baseFee, maxFee: (baseFee * FEE_HEADROOM_PCT + 99n) / 100n };
 }
-const ethCall = async (pin, spec) => decode(spec, await rpc('eth_call', [{ to: spec.to, data: spec.data }, toHex(pin.number)]));
-const nativeAt = async (pin, who) => BigInt(await rpc('eth_getBalance', [who, toHex(pin.number)]));
+// Every read sees the payer as FUNDING sets it; plainCall is the chain as it is, for the report line only.
+const ethCall = async (pin, spec) => decode(spec, await rpc('eth_call', [{ to: spec.to, data: spec.data }, toHex(pin.number), FUNDING]));
+const plainCall = async (pin, spec) => decode(spec, await rpc('eth_call', [{ to: spec.to, data: spec.data }, toHex(pin.number)]));
 
 // Several override objects merged per address (balance, code, and storage changes together).
 function overrides(...parts) {
@@ -178,9 +181,17 @@ function overrides(...parts) {
 }
 const withBalance = (who, units6) => ({ [who]: { balance: toHex(units6 * UNIT) } });
 const withCode = (who, code) => ({ [who]: { code } });
-const withEurc = (who, amount) => ({
-  [C.EURC]: { stateDiff: { [keccak256(encodeAbiParameters([{ type: 'address' }, { type: 'uint256' }], [who, 9n]))]: pad(toHex(amount), { size: 32 }) } },
-});
+// EURC and cirBTC both keep balances in a mapping at slot 9 (Circle's FiatToken layout). For cirBTC this was read off the
+// chain: the slot for Morpho holds exactly balanceOf(Morpho). main() proves it again for the payer before any check.
+const FIAT_BALANCES_SLOT = 9n;
+const fiatBalanceKey = (who) => keccak256(encodeAbiParameters([{ type: 'address' }, { type: 'uint256' }], [who, FIAT_BALANCES_SLOT]));
+const withFiatBalance = (token, who, amount) => ({ [token]: { stateDiff: { [fiatBalanceKey(who)]: pad(toHex(amount), { size: 32 }) } } });
+const withEurc = (who, amount) => withFiatBalance(C.EURC, who, amount);
+// The payer in every read and simulation: 1,000 USDC as its native balance (Arc's USDC is the account balance itself, 18
+// decimals) and 0.05 cirBTC, enough for every pledge here. A check that needs more says so and adds it.
+const FUND_USDC = 1_000_000_000n;
+const FUND_BTC = 5_000_000n;
+const FUNDING = overrides(withBalance(PAYER, FUND_USDC), withFiatBalance(C.CIRBTC, PAYER, FUND_BTC));
 
 // blocks: [{ calls: [{ from, to, data, gas?, maxFeePerGas? }], overrides? }], each a block one second after the last.
 // The base fee is pinned to the latest real header: dRPC's simulated blocks work it out with the plain Ethereum formula,
@@ -208,7 +219,7 @@ async function simulate(pin, blocks, traceTransfers = false) {
 async function scenario(pin, { setup = [], ov, pre = [], tx, post = [], trace = false }) {
   const asRead = (s) => ({ from: READER, to: s.to, data: s.data });
   const out = await simulate(pin, [
-    { calls: setup, overrides: overrides(withBalance(READER, 5_000_000n), ov) },
+    { calls: setup, overrides: overrides(FUNDING, withBalance(READER, 5_000_000n), ov) },
     { calls: pre.map(asRead) },
     { calls: [tx] },
     { calls: post.map(asRead) },
@@ -347,7 +358,8 @@ async function floorChecks() {
   const ownEurc = 500_000_000n;
   const eurcOv = overrides(withCode(STAND_IN, standIn.code), withEurc(PAYER, ownEurc), withEurc(STAND_IN, AMOUNT));
   const usdcBefore = await ethCall(pin, balanceOf(C.USDC, PAYER));
-  const nativeBefore = await nativeAt(pin, PAYER);
+  // FUNDING sets the payer's native balance to exactly this; eth_getBalance takes no override, so it is not read back.
+  const nativeBefore = FUND_USDC * UNIT;
   const usdcOv = overrides(withCode(STAND_IN, standIn.code), withBalance(STAND_IN, AMOUNT));
   const eurcRun = (delivered) => scenario(pin, {
     ov: eurcOv, pre: [balanceOf(C.EURC, PAYER)], post: [balanceOf(C.EURC, PAYER)],
@@ -375,7 +387,7 @@ async function floorChecks() {
     `the floor self-transfer passes when met: EURC ${f1e.tx.ok ? 'ok' : 'REVERTED'}, native USDC ${f1u.tx.ok ? 'ok' : 'REVERTED'} (floor ${usdc(usdcBefore + AMOUNT - slack)} = balance ${usdc(usdcBefore)} + ${usdc(AMOUNT)} - slack ${usdc(slack)})`,
     [
       `EURC: payer owns ${tok('EURC', ownEurc)} (override), stand-in delivers ${tok('EURC', AMOUNT)} (override on the stand-in), floor ${tok('EURC', ownEurc + AMOUNT)}; balance after ${tok('EURC', f1e.after[0])}; ${f1e.tx.ok ? `gas ${f1e.tx.gas}` : explain(f1e.tx.revertData)}`,
-      `USDC: payer balance is real, stand-in holds ${usdc(AMOUNT)} (override on the stand-in); ${f1u.tx.ok ? `gas ${f1u.tx.gas}` : explain(f1u.tx.revertData)}`,
+      `USDC: payer holds ${usdc(usdcBefore)} (FUNDING), stand-in holds ${usdc(AMOUNT)} (override on the stand-in); ${f1u.tx.ok ? `gas ${f1u.tx.gas}` : explain(f1u.tx.revertData)}`,
       `how Arc charges gas: gas limit ${GAS_LIMIT}, max fee ${Number(pin.maxFee) / 1e9} gwei, base fee ${Number(f1u.baseFee) / 1e9} gwei, tip 0`,
       `  before the first call the balance already fell by ${usdc(upfront)} = gas limit x base fee (${usdc(expectedUpfront)}), not gas limit x max fee (${usdc(slack)})`,
       `  after the batch the net charge is ${usdc(netCharge)} = gas used ${f1u.tx.gas} x base fee (${usdc(expectedNet)}); the unused ${usdc(upfront - netCharge)} came back`,
@@ -720,12 +732,22 @@ async function main() {
   console.log(`check-fx: cross-currency guards on live Arc mainnet state (chain ${chainId}, latest block ${BigInt(head.number)}, base fee ${Number(BigInt(head.baseFeePerGas)) / 1e9} gwei).`);
   console.log(`Every step runs in eth_simulateV1 on dRPC with validation on. Nothing is signed or sent. Payer ${PAYER}, payee ${PAYEE}, adapter ${CIRCLE_ADAPTER}.`);
   console.log(`Gas for F1 to F8: limit ${GAS_LIMIT}, max fee ${FEE_HEADROOM_PCT}% of the base fee; F9 and F10 use the app's cap of ${C.FX_GAS_CAP} and the same fee. Test-only contracts built with solc ${fixtures.compiler.split('+')[0]}. Code addresses ${wrong.length ? `DIFFER from the list pinned in this script for ${wrong.map(([n]) => n).join(', ')} (the code's value is used)` : 'match the list pinned in this script'}.`);
-  console.log();
 
+  // The funding must read back exactly through the tokens' own balanceOf, or nothing below means anything.
   const qualifyPin = await getPin();
-  const usdcBal = await ethCall(qualifyPin, balanceOf(C.USDC, PAYER));
-  const btcBal = await ethCall(qualifyPin, balanceOf(C.CIRBTC, PAYER));
-  if (usdcBal < 2n * AMOUNT || btcBal < 1_000_000n) throw new Error(`Payer ${PAYER} holds ${usdc(usdcBal)} and ${btc(btcBal)}: too little for these checks. Set FX_PAYER to a wallet with cirBTC and over 200 USDC and no open loans.`);
+  if ((await rpc('eth_getCode', [PAYER, toHex(qualifyPin.number)])) !== '0x') throw new Error(`Payer ${PAYER} has code on Arc; these checks need a plain address.`);
+  const usdcFunded = await ethCall(qualifyPin, balanceOf(C.USDC, PAYER));
+  const btcFunded = await ethCall(qualifyPin, balanceOf(C.CIRBTC, PAYER));
+  const usdcReal = await plainCall(qualifyPin, balanceOf(C.USDC, PAYER));
+  const btcReal = await plainCall(qualifyPin, balanceOf(C.CIRBTC, PAYER));
+  if (usdcFunded !== FUND_USDC || btcFunded !== FUND_BTC) {
+    throw new Error(`The funding overrides did not take: balanceOf under them reads ${usdc(usdcFunded)} and ${btc(btcFunded)}, not ${usdc(FUND_USDC)} and ${btc(FUND_BTC)}. Nothing was checked.`);
+  }
+  console.log(`Payer ${PAYER}: no key, no code. Funded only by state overrides, in every read and every simulation:`);
+  console.log(`  USDC ${usdc(FUND_USDC)}: the account's native balance set to ${FUND_USDC * UNIT} wei`);
+  console.log(`  cirBTC ${btc(FUND_BTC)}: ${C.CIRBTC} storage slot ${fiatBalanceKey(PAYER)} (balances mapping at slot ${FIAT_BALANCES_SLOT})`);
+  console.log(`  balanceOf under the overrides reads ${usdc(usdcFunded)} and ${btc(btcFunded)}; on the chain itself the payer holds ${usdc(usdcReal)} and ${btc(btcReal)}.`);
+  console.log();
 
   const steps = [floorChecks, attackChecks, billFromLoanChecks, closeLoanCheck, reverseCheck, appBillCheck, appCloseCheck];
   for (const step of steps) {
