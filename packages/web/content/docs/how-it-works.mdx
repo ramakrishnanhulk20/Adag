@@ -105,7 +105,7 @@ The conversion is Circle's App Kit Swap, run through Circle's own swap adapter o
 The balance check in step 5 is what keeps a bad swap from costing you more than gas. It is a transfer of the floor amount from your wallet to your own wallet, which reverts unless you really hold that much. The floor is your balance of the bill's currency before the batch, plus the bill amount. If the swap did not deliver, the transfer fails and the whole batch is undone: nothing borrowed, nothing paid. Without it, Adag's `pay` would take the missing dollars from your own balance, because it takes a bill's amount from your whole balance. In the test on Arc, a stand-in for Circle's adapter kept the borrowed euros and returned nothing. With the check, the batch reverted and the supplier got nothing. Without it, the same batch paid the bill from the payer's own USDC.
 
 <Callout type="warn" title="The named slack of the balance check">
-  When the bill is in USDC, Arc takes the network fee from the same balance that the check reads. The floor is lowered by the most the fee can be, so a swap that comes up short by up to that much still passes. With today's settings that is about 0.05 USDC, and your own money fills it. For a EURC bill the slack is zero.
+  When the bill is in USDC, Arc takes the network fee from the same balance that the check reads, up front, at the price it will actually charge. The floor is lowered by the gas limit at the highest price the transaction allows, which is a little more. A swap that comes up short by that difference still passes: at most the gas limit of 4 million times the highest fee minus the fee charged. With today's fees that is about 0.08 USDC, and your own money fills it. For a EURC bill the slack is zero.
 </Callout>
 
 ### What it costs
@@ -113,7 +113,7 @@ The balance check in step 5 is what keeps a bad swap from costing you more than 
 - **Circle's fee** is 0.02%, already inside its quote.
 - **The price the pools pay** adds the rest. Fee and price together lost 0.06% to 0.09% in measurements on 6 October, which is about 6 to 9 cents per 100 USDC for normal sizes, and a little more for larger ones.
 - **A buffer.** The swap is priced in advance and must return at least the bill, so you borrow a little more than the bill is worth, never more than 1.5% over. Whatever the swap does not need stays in your wallet as spare USDC (about 0.37 USDC on a 100 USDC bill with a 0.4% buffer), and the loan stays the full amount borrowed.
-- **Gas** is about 1.1 million gas for a 100 USDC bill, which is about 0.02 USDC at Arc's 20 gwei floor, against about 0.008 USDC for a bitcoin payment in the bill's own currency.
+- **Gas** is about 1.1 million gas for a 100 USDC bill, which is about 0.02 USDC at Arc's 20 gwei floor, against about 0.008 USDC for a bitcoin payment in the bill's own currency. Circle's route for a bill of 1 to 3 USDC measured more, 1.9 to 2.4 million gas.
 - **Interest** on the euro loan, at Morpho's rate for that market.
 
 ### The currency risk
@@ -134,9 +134,10 @@ The loan-to-value moves too. A loan taken at 38.1% reaches about 40.0% if the eu
 
 - **One conversion per payment.** A basket can hold one group paid this way, never two, and never two converting in opposite directions.
 - **Not for Safes.** Circle's quote lasts 10 minutes and a Safe's signatures take longer, so a Safe pays in the bill's own currency.
-- **Very large conversions are refused on gas.** A converting payment is signed with a fixed gas ceiling of 2.5 million. If the simulation shows it would need more, with 25% headroom, the app says so and sends nothing. Pay a smaller amount, or in the bill's own currency.
+- **Very large conversions are refused on gas.** A converting payment is signed with a fixed gas ceiling of 4 million. If the simulation shows it would need more, with 25% headroom, the app says so and sends nothing. Pay a smaller amount, or in the bill's own currency.
 - **A fresh euro price.** The euro feed must be no older than 96 hours, and it pauses over weekends. While it is stale, a dollar bill cannot be paid from a euro loan. Paying in the bill's own currency still works.
-- **Circle must answer.** The app makes one request to Circle when you press pay, and none when a page loads. If Circle is busy, finds no route or does not answer, the app shows one of its own sentences and sends nothing. Circle sees your wallet address, the amounts and the timing of that request.
+- **Circle must answer.** The app asks Circle when you press pay, and never when a page loads. If Circle says it found no route or is rate limiting, the app repeats the identical request up to twice, after 1.5 and then 3 seconds, and nothing you see or sign changes. If Circle is still busy, finds no route or does not answer, the app shows one of its own sentences and sends nothing. Circle sees your wallet address, the amounts and the timing of each request.
+- **A double-check before you sign.** Before your wallet is asked, the app runs the whole payment on a node that traces every token transfer, and refuses unless each transfer out of your wallet is one it expects. If no node can do that, or none answers in time, the app says "We could not double-check this conversion just now. Nothing was sent. Try again in a minute." and never asks your wallet to sign.
 - **Nothing left open.** Before offering a conversion, Adag reads what Circle's adapter may already do with your wallet. An earlier approval to it for any of the three tokens, or an authorisation of it on Morpho, blocks the conversion until you clear it, which takes one signature. After the batch the approval reads zero.
 - **A quote that is too old is not used.** A plan with less than two minutes left is refused, and a plan is spent the moment a signature is asked for.
 
@@ -182,6 +183,7 @@ flowchart LR
   TG["Telegram bot"]
   STS["Safe Transaction Service"]
   RPC["Arc RPC"]
+  CAPI["Circle swap API"]
   subgraph Arc["Arc mainnet, chain 5042"]
     M3F["Multicall3From"]
     Memo["Memo"]
@@ -192,6 +194,7 @@ flowchart LR
     OR["Market oracles"]
     AGG["Chainlink aggregators, BTC/USD and EUR/USD"]
     TOK["USDC, EURC, cirBTC"]
+    CAD["Circle swap adapter"]
   end
   App -- "views and logs" --> RPC
   App -- "one batch to sign" --> Wallet
@@ -200,6 +203,8 @@ flowchart LR
   M3F -- "as the wallet" --> TOK
   M3F -- "as the wallet" --> Morpho
   M3F -- "as the wallet" --> Memo
+  App -- "one quote per press" --> CAPI
+  M3F -- "execute, as the wallet" --> CAD
   M3F -- "setRule, clearRule, as the wallet" --> Guard
   Memo -- "pay, as the wallet" --> Adag
   App -- "list, propose, status" --> SafeR
@@ -208,6 +213,7 @@ flowchart LR
   Adag -- "position, accrue" --> Morpho
   Adag -- "price, freshness" --> OR
   Adag -- "payer to supplier" --> TOK
+  CAD -- "swap, output to the wallet" --> TOK
   Guard -- "pull within the approval" --> TOK
   Guard -- "repay for the borrower" --> Morpho
   Guard -- "price" --> OR

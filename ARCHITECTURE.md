@@ -1,6 +1,6 @@
 # Adag architecture and frontend interface
 
-The one document the app is built from: what exists on chain, what the app and its server routes read, what they ask a wallet or a Safe to sign, and the rules they obey. Every address below is live on Arc mainnet (chain 5042). The security rules are cited by number from `docs/security/threat-model.md` section C, which runs from C1 to C60.
+The one document the app is built from: what exists on chain, what the app and its server routes read, what they ask a wallet or a Safe to sign, and the rules they obey. Every address below is live on Arc mainnet (chain 5042). The security rules are cited by number from `docs/security/threat-model.md` section C, which runs from C1 to C75.
 
 ## 1. What Adag is
 
@@ -31,6 +31,7 @@ flowchart LR
   TG["Telegram bot"]
   STS["Safe Transaction Service"]
   RPC["Arc RPC"]
+  CAPI["Circle swap API"]
   subgraph Arc["Arc mainnet, chain 5042"]
     M3F["Multicall3From"]
     Memo["Memo"]
@@ -41,6 +42,7 @@ flowchart LR
     OR["Market oracles"]
     AGG["Chainlink aggregators, BTC/USD and EUR/USD"]
     TOK["USDC, EURC, cirBTC"]
+    CAD["Circle swap adapter"]
   end
   App -- "views and logs" --> RPC
   App -- "one batch to sign" --> Wallet
@@ -49,6 +51,8 @@ flowchart LR
   M3F -- "as the wallet" --> TOK
   M3F -- "as the wallet" --> Morpho
   M3F -- "as the wallet" --> Memo
+  App -- "one quote per press" --> CAPI
+  M3F -- "execute, as the wallet" --> CAD
   M3F -- "setRule, clearRule, as the wallet" --> Guard
   Memo -- "pay, as the wallet" --> Adag
   App -- "list, propose, status" --> SafeR
@@ -57,6 +61,7 @@ flowchart LR
   Adag -- "position, accrue" --> Morpho
   Adag -- "price, freshness" --> OR
   Adag -- "payer to supplier" --> TOK
+  CAD -- "swap, output to the wallet" --> TOK
   Guard -- "pull within the approval" --> TOK
   Guard -- "repay for the borrower" --> Morpho
   Guard -- "price" --> OR
@@ -393,7 +398,7 @@ The keeper's wallet holds gas only and can build exactly one call: `protect(borr
 
 ## 7. Rules the app must obey
 
-The full list is `docs/security/threat-model.md` section C, C1 to C60, each naming where it is upheld. The ones every screen meets:
+The full list is `docs/security/threat-model.md` section C, C1 to C75, each naming where it is upheld. The ones every screen meets:
 
 - **C3, what goes into a batch.** Targets are only the build-time constants in section 3. Approvals are exact and go only to the contract that uses them. Every `allowFailure` is false. Every `onBehalf` and `receiver` is the payer. From a link the app reads one thing, the bill id; everything else comes from `bill(id)`. Market params fetched from the RPC must hash to the fixed id before they are used: `keccak256(abi.encode(loanToken, collateralToken, oracle, irm, lltv)) == marketId`, and the oracle, rate model and 86% line must equal the constants.
 - **C4, chain 5042 only.** No transaction is built and no signature is requested unless the wallet reports chain 5042.

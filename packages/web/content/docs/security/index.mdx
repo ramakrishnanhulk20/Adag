@@ -5,7 +5,7 @@ description: What Adag protects, how it does it, and the risks it deliberately l
 
 Adag moves real money for people who cannot read what they sign: a wallet shows a batch of calls as a blob of hex. So the design starts from one question. If the page, the link, the RPC or a server route is wrong, what is the worst that can happen? The answer we built to is that the worst case is a transaction that reverts, never one that loses money.
 
-The full list of rules is the [threat model](/docs/security/threat-model), C1 to C60, used as the definition of done. Each part was written before the code it covers: C1 to C24 before the first contract, C25 to C30 for the app, C31 to C57 before AdagGuard, recording a loan, the keeper, alerts and Safe payments, and C58 to C60 from the review of that code. This page is the short version.
+The full list of rules is the [threat model](/docs/security/threat-model), C1 to C75, used as the definition of done. Each part was written before the code it covers: C1 to C24 before the first contract, C25 to C30 for the app, C31 to C57 before AdagGuard, recording a loan, the keeper, alerts and Safe payments, C58 to C60 from the review of that code, C61 to C64 from running the live service, and C65 to C75 before paying from a loan in the other currency. This page is the short version.
 
 ## What is protected, and how
 

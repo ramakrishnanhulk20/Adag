@@ -57,7 +57,7 @@ A Safe pays through its own path, as one Safe transaction its owners approve (se
 
 ## What does it cost?
 
-Adag charges no fee: the contract has no way to take one. You pay Arc's network fee, in USDC, and Morpho's interest on the loan. A payment converted by Circle also pays Circle's 0.02% fee and the price of the swap, and uses about 0.02 USDC of gas (see [What does the conversion cost and risk?](#what-does-the-conversion-cost-and-risk)).
+Adag charges no fee: the contract has no way to take one. You pay Arc's network fee, in USDC, and Morpho's interest on the loan. A payment converted by Circle also pays Circle's 0.02% fee and the price of the swap, and uses about 0.02 USDC of gas for a 100 USDC bill. Small bills of 1 to 3 USDC take a longer route and use about 0.04 to 0.05 USDC. See [What does the conversion cost and risk?](#what-does-the-conversion-cost-and-risk)
 
 | Action | Network fee at Arc's 20 gwei floor |
 | --- | ---: |
@@ -75,7 +75,7 @@ Morpho's borrow rate moves with demand. The live rate, read from the chain, is o
 
 ## Is it audited?
 
-Not by an outside firm. It is self-audited, with the evidence published: a threat model of 60 rules, each part written before the code it covers; 131 tests including 8 fuzz tests and 12 invariants; three static analysis tools with no real bugs in either contract; separate reviews by a reviewer who did not write the code, of both contracts and of the app; two security passes over the web app and its server routes, with every finding fixed or closed with a reason; attack suites run against the live contracts; and source verification on Sourcify and explorer.arc.io. See [Audit status](/docs/security/audit-status).
+Not by an outside firm. It is self-audited, with the evidence published: a threat model of 75 rules, each part written before the code it covers; 131 tests including 8 fuzz tests and 12 invariants; three static analysis tools with no real bugs in either contract; separate reviews by a reviewer who did not write the code, of both contracts and of the app; two security passes over the web app and its server routes, with every finding fixed or closed with a reason; attack suites run against the live contracts; and source verification on Sourcify and explorer.arc.io. See [Audit status](/docs/security/audit-status).
 
 ## Why Arc?
 
@@ -105,7 +105,7 @@ The limits: one conversion per payment, not for a Safe, and a very large convers
 
 ## What does the conversion cost and risk?
 
-The cost is Circle's 0.02% fee plus the price the pools pay, which came to about 6 to 9 cents per 100 USDC in measurements on 6 October, plus about 0.02 USDC of gas. Adag adds nothing.
+The cost is Circle's 0.02% fee plus the price the pools pay, which came to about 6 to 9 cents per 100 USDC in measurements on 6 October, plus about 0.02 USDC of gas for a 100 USDC bill (small bills of 1 to 3 USDC take a longer route, about 0.04 to 0.05 USDC). Adag adds nothing.
 
 The risk is that you now owe euros. Your debt is fixed in euros, and its dollar cost moves with EUR/USD: a 5% move in the euro changes what a $100 bill costs you by about $5, in either direction. The 40% line is checked only when you borrow, so a rising euro does not block anything, but it leaves the loan closer to Morpho's 86% liquidation line. The loan guard repays only from the loan's own currency already in your wallet. Circle also sees your wallet address and the amounts when you press pay. The rules and their limits are C65 to C75 in the [threat model](/docs/security/threat-model).
 

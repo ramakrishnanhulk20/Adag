@@ -17,7 +17,7 @@ Each is an exact source match on Sourcify and on explorer.arc.io, compiled with 
 
 The first deployment has no way to record an existing loan. It stays live and immutable, and its bills open at `/bill/first/N`; the app writes every new bill to the current AdagBills. The two deployments both number bills from 1, so a bill is always the pair (contract, id).
 
-## Arc, Morpho, Chainlink and Safe contracts Adag uses
+## Arc, Morpho, Chainlink, Circle and Safe contracts Adag uses
 
 | What | Address |
 | --- | --- |
@@ -36,6 +36,7 @@ The first deployment has no way to record an existing loan. It stays live and im
 | BTC/USD aggregator, whose `AnswerUpdated` wakes the keeper | [`0x733FE1bA02ea9003C3CFbf5dcc41cf685fF64362`](https://explorer.arc.io/address/0x733FE1bA02ea9003C3CFbf5dcc41cf685fF64362) |
 | EUR/USD aggregator | [`0xCEDbC96d866EBe46dcbeF8Ed12F9feA2C464d88F`](https://explorer.arc.io/address/0xCEDbC96d866EBe46dcbeF8Ed12F9feA2C464d88F) |
 | Safe MultiSendCallOnly v1.4.1, the batch a Safe payment runs | [`0x9641d764fc13c8B624c04430C7356C1C7C8102e2`](https://explorer.arc.io/address/0x9641d764fc13c8B624c04430C7356C1C7C8102e2) |
+| Circle App Kit Swap adapter, the one call a converted payment makes (upgradeable proxy, run by Circle) | [`0x7FB8c7260b63934d8da38aF902f87ae6e284a845`](https://explorer.arc.io/address/0x7FB8c7260b63934d8da38aF902f87ae6e284a845) |
 
 ## The two Morpho markets
 

@@ -9,9 +9,9 @@
 <p align="center">Adag, from the Tamil அடகு, <em>adagu</em>, a pledge: the way families pledge gold for cash instead of selling it.</p>
 
 <p align="center">
-  <a href="https://adag-btc.vercel.app">Live app</a> ·
-  <a href="https://adag-btc.vercel.app/docs">Docs</a> ·
-  <a href="https://adag-btc.vercel.app/break">Try to break it</a> ·
+  <a href="https://adag.site">Live app</a> ·
+  <a href="https://adag.site/docs">Docs</a> ·
+  <a href="https://adag.site/break">Try to break it</a> ·
   <a href="https://explorer.arc.io/address/0xaf6C47ae3e2ccD2Cd829Dd8a1DcCb7a7665c08cB">Contract on explorer.arc.io</a>
 </p>
 
@@ -31,9 +31,9 @@ The first deployment has no way to record an existing loan. It stays live and im
 | --- | --- | --- |
 | 26 September 2026: bill #1 on the current AdagBills, 1.00 USDC, paid from a cirBTC-backed Morpho loan in one signature, 40% check run | [`0x7dba...3ad0`](https://explorer.arc.io/tx/0x7dba4d03f85fd5c323c2172252e55a8d9ed00f0903a2a0ccf1313a84687e3ad0) | [prove-it-2026-09-26.md](packages/contracts/deployments/prove-it-2026-09-26.md) |
 | 26 September 2026: the guard's first repayment. A second wallet called `protect` and repaid 0.464348 USDC of the payer's own loan from the payer's own wallet, 39.07% down to 30.00%; a repeat at the same price repaid 0 | [`0xb54f...9880`](https://explorer.arc.io/tx/0xb54f4242b994d30f62022ceb395122bc3a1a83ca63220a970c5448085b5c9880), repeat [`0x60f9...8a37`](https://explorer.arc.io/tx/0x60f9ad40a0b4ad6caacd71d81aed447b4e58c8f86a600f9f3e9271625b538a37) | [guard-prove-2026-09-26.md](packages/contracts/deployments/guard-prove-2026-09-26.md) |
-| 5 October 2026, on the live site: the team paying itself. Three bills in one signature, #3 for 0.30 USDC, #4 for 0.20 USDC and #5 for 0.10 EURC, each currency from its own cirBTC-backed Morpho loan | [`0xfb8f...62e6`](https://explorer.arc.io/tx/0xfb8fac03fd03c31758743003775555a93f2520da6ef8c11c3e5c1ebb0d8362e6), block 24,370,697 | [/bill/3](https://adag-btc.vercel.app/bill/3), [/bill/4](https://adag-btc.vercel.app/bill/4), [/bill/5](https://adag-btc.vercel.app/bill/5) |
+| 5 October 2026, on the live site: the team paying itself. Three bills in one signature, #3 for 0.30 USDC, #4 for 0.20 USDC and #5 for 0.10 EURC, each currency from its own cirBTC-backed Morpho loan | [`0xfb8f...62e6`](https://explorer.arc.io/tx/0xfb8fac03fd03c31758743003775555a93f2520da6ef8c11c3e5c1ebb0d8362e6), block 24,370,697 | [/bill/3](https://adag.site/bill/3), [/bill/4](https://adag.site/bill/4), [/bill/5](https://adag.site/bill/5) |
 
-The web app is at [https://adag-btc.vercel.app](https://adag-btc.vercel.app), with the docs at [/docs](https://adag-btc.vercel.app/docs).
+The web app is at [https://adag.site](https://adag.site), with the docs at [/docs](https://adag.site/docs).
 
 ## Overview
 
@@ -68,6 +68,7 @@ Under the hood it is two contracts and this web app. AdagBills is a public bill 
 - **Paid status, live.** A bill's page turns Paid within seconds of the payment, for the payer and the supplier, with a link to the transaction.
 - **Pay from bitcoin without selling it.** Pledge cirBTC, borrow exactly the bills, and pay, as one all-or-nothing batch signed once.
 - **Or pay from a USDC or EURC balance**, in the same one signature, with no loan.
+- **Or borrow the other currency.** When Morpho's dollar market is fully lent and its euro market has cash, a USDC bill can be paid from a EURC loan, and a EURC bill from a USDC loan. Circle's App Kit Swap converts it inside the same one signature, and a balance check right after the swap undoes the whole payment if the swap delivers less than the bill. Your debt is then in the other currency, so its dollar cost moves with EUR/USD; the pay screen says so before you sign. A loan in one currency can also be closed with the other.
 - **A hard cap on the loan.** The contract refuses any payment that pushes the loan past 40% of the bitcoin's value. The app proposes the pledge the contract itself computes, plus a 5% margin.
 - **Record an existing loan once.** A wallet that already borrows on Morpho above 40% is refused, even when paying from cash, until it records its loan with AdagBills. A single bill and a basket both show the card "Record your existing loan first" with the button **Record my existing loan**: one signature, no money moves, and the payment opens in the next block. From then on a payment through Adag is never the action that takes the position above 40%. A Safe gets **Propose: record this Safe's existing loan**, a Safe transaction of its own, and its payment can be proposed once that has executed.
 - **Protect a loan with the guard.** On each loan: a trigger, a target, an optional end date, and an approval of exactly the amount you type, which is the most the guard can ever take. When the loan passes the trigger, anyone may call `protect`, and it repays only what brings the loan back to your target, from your own USDC or EURC. Stopping clears the rule and sets the approval to 0 in the same transaction, and so does closing the loan: "Closing also stops the loan guard for this loan: the rule is cleared and its approval set to 0." Before a bitcoin payment that takes the loan to or past your own trigger, the pay screen says how much the guard will then repay. A payment from your balance keeps aside what the guard is about to repay and says so under the button: "Your loan guard will repay about ... from this wallet within minutes, so that is kept aside." If the guard cannot be read, the pay screens say so and do not pay.
@@ -86,7 +87,7 @@ Under the hood it is two contracts and this web app. AdagBills is a public bill 
 ### For anyone checking
 
 - **Live numbers before any wallet connects.** The first screen reads Morpho's liquidity, the live borrow rate, the 40% cap and Morpho's 86% line from Arc. The total paid through Adag and the ledger of the newest 8 paid bills, across both deployments with the old ones marked "First deployment", come only from each contract's own `BillPaid` event. The home page shows no bill references, so nobody can put words on it. A read that fails shows "unavailable", never zero.
-- **Try to break it.** [/break](https://adag-btc.vercel.app/break) runs 35 attacks against the live contracts in about a minute, simulated on current mainnet state, in three groups: paying bills (16), recording an existing loan (5) and the loan guard (14). Each row shows what should stop it and the chain's own answer, marked Refused (the call reverts), Held (it goes through and changes nothing it should not) or Allowed by design (a named residual).
+- **Try to break it.** [/break](https://adag.site/break) runs 35 attacks against the live contracts in about a minute, simulated on current mainnet state, in three groups: paying bills (16), recording an existing loan (5) and the loan guard (14). Each row shows what should stop it and the chain's own answer, marked Refused (the call reverts), Held (it goes through and changes nothing it should not) or Allowed by design (a named residual).
 - **Run the proof yourself.** One command, no keys: see the judge path below.
 - **Everything is on the record.** Every bill, payment, loan and protection is public on Arc and linked to its transaction on the explorer.
 
@@ -145,6 +146,7 @@ flowchart LR
   TG["Telegram bot"]
   STS["Safe Transaction Service"]
   RPC["Arc RPC"]
+  CAPI["Circle swap API"]
   subgraph Arc["Arc mainnet, chain 5042"]
     M3F["Multicall3From"]
     Memo["Memo"]
@@ -155,6 +157,7 @@ flowchart LR
     OR["Market oracles"]
     AGG["Chainlink aggregators, BTC/USD and EUR/USD"]
     TOK["USDC, EURC, cirBTC"]
+    CAD["Circle swap adapter"]
   end
   App -- "views and logs" --> RPC
   App -- "one batch to sign" --> Wallet
@@ -163,6 +166,8 @@ flowchart LR
   M3F -- "as the wallet" --> TOK
   M3F -- "as the wallet" --> Morpho
   M3F -- "as the wallet" --> Memo
+  App -- "one quote per press" --> CAPI
+  M3F -- "execute, as the wallet" --> CAD
   M3F -- "setRule, clearRule, as the wallet" --> Guard
   Memo -- "pay, as the wallet" --> Adag
   App -- "list, propose, status" --> SafeR
@@ -171,6 +176,7 @@ flowchart LR
   Adag -- "position, accrue" --> Morpho
   Adag -- "price, freshness" --> OR
   Adag -- "payer to supplier" --> TOK
+  CAD -- "swap, output to the wallet" --> TOK
   Guard -- "pull within the approval" --> TOK
   Guard -- "repay for the borrower" --> Morpho
   Guard -- "price" --> OR
@@ -267,10 +273,10 @@ Solid arrows are code dependencies. Dotted arrows are calls to deployed contract
 
 ## The two-minute judge path
 
-1. **Open [https://adag-btc.vercel.app](https://adag-btc.vercel.app).** Before you connect anything, the first screen shows live numbers read from Arc: the USDC Morpho has ready to lend, the live borrow rate, Adag's 40% cap next to Morpho's 86% line, and the total paid through Adag. Further down, the ledger lists the newest 8 paid bills from both deployments, each linked to its transaction.
-2. **Open [/bill/1](https://adag-btc.vercel.app/bill/1).** Bill #1 on the current AdagBills: 1.00 USDC, reference `ADAG-PROOF-0001`, marked Paid, settled from a cirBTC-backed Morpho loan in one signature with the 40% check run. Its transaction is [`0x7dba...3ad0`](https://explorer.arc.io/tx/0x7dba4d03f85fd5c323c2172252e55a8d9ed00f0903a2a0ccf1313a84687e3ad0) on explorer.arc.io. The first deployment's bill #1, paid the day before, is at [/bill/first/1](https://adag-btc.vercel.app/bill/first/1).
-3. **Open [/break](https://adag-btc.vercel.app/break) and press "Run all 35 attacks".** In about a minute it runs 35 real attacks against the live contracts, simulated on current mainnet state, with nothing signed or sent: paying bills (16), recording an existing loan (5) and the loan guard (14). Every row ends Refused or Held, except the two named residuals, which are allowed by design, and the cash payment after a simulated price drop, which is allowed on purpose because it adds no debt. The guard rows start from a labelled simulated premise that puts the demo loan at 38.00%, above its 35% trigger.
-4. **Skim [/docs](https://adag-btc.vercel.app/docs)**, especially [How it works](https://adag-btc.vercel.app/docs/how-it-works), [The loan guard](https://adag-btc.vercel.app/docs/loan-guard) and [Audit status](https://adag-btc.vercel.app/docs/security/audit-status).
+1. **Open [https://adag.site](https://adag.site).** Before you connect anything, the first screen shows live numbers read from Arc: the USDC Morpho has ready to lend, the live borrow rate, Adag's 40% cap next to Morpho's 86% line, and the total paid through Adag. Further down, the ledger lists the newest 8 paid bills from both deployments, each linked to its transaction.
+2. **Open [/bill/1](https://adag.site/bill/1).** Bill #1 on the current AdagBills: 1.00 USDC, reference `ADAG-PROOF-0001`, marked Paid, settled from a cirBTC-backed Morpho loan in one signature with the 40% check run. Its transaction is [`0x7dba...3ad0`](https://explorer.arc.io/tx/0x7dba4d03f85fd5c323c2172252e55a8d9ed00f0903a2a0ccf1313a84687e3ad0) on explorer.arc.io. The first deployment's bill #1, paid the day before, is at [/bill/first/1](https://adag.site/bill/first/1).
+3. **Open [/break](https://adag.site/break) and press "Run all 35 attacks".** In about a minute it runs 35 real attacks against the live contracts, simulated on current mainnet state, with nothing signed or sent: paying bills (16), recording an existing loan (5) and the loan guard (14). Every row ends Refused or Held, except the two named residuals, which are allowed by design, and the cash payment after a simulated price drop, which is allowed on purpose because it adds no debt. The guard rows start from a labelled simulated premise that puts the demo loan at 38.00%, above its 35% trigger.
+4. **Skim [/docs](https://adag.site/docs)**, especially [How it works](https://adag.site/docs/how-it-works), [The loan guard](https://adag.site/docs/loan-guard) and [Audit status](https://adag.site/docs/security/audit-status).
 5. **Run the proof yourself** (Node 20 or later, no keys, no `.env`):
 
 ```bash
@@ -617,7 +623,7 @@ Paying from bitcoin costs about 209,000 gas more than paying from a balance: tha
 ├── LICENSE
 ├── docs/
 │   ├── assets/adag-mark.svg
-│   └── security/threat-model.md the threat model, C1 to C60, written before each contract
+│   └── security/threat-model.md the threat model, C1 to C75, written before each part of the code
 └── packages/
     ├── contracts/
     │   ├── src/                 AdagBills.sol, AdagGuard.sol and five minimal interfaces
@@ -666,11 +672,11 @@ Paying from bitcoin costs about 209,000 gas more than paying from a balance: tha
 
 Self-audited, not audited by a firm. The evidence is published so you can check each step:
 
-- The [threat model](docs/security/threat-model.md), C1 to C60, with its section C as the definition of done. Each part was written before the code it covers: C1 to C24 before the first contract, C25 to C30 for the app, C31 to C57 before AdagGuard, enrol, the keeper, alerts and Safe payments, and C58 to C60 from the review of that code.
+- The [threat model](docs/security/threat-model.md), C1 to C75, with its section C as the definition of done. Each part was written before the code it covers: C1 to C24 before the first contract, C25 to C30 for the app, C31 to C57 before AdagGuard, enrol, the keeper, alerts and Safe payments, C58 to C60 from the review of that code, C61 to C64 from running the live service, and C65 to C75 before paying from a loan in the other currency.
 - Attack runs against the live contracts: [AdagBills](packages/contracts/deployments/attacks-2026-09-26.md) (23 of 23) and [AdagGuard](packages/contracts/deployments/attacks-2026-09-26-guard.md) (14 of 14), every one behaving as the threat model says.
 - [Static analysis](packages/contracts/analysis/STATIC-ANALYSIS.md) of both contracts with slither, solhint and arc-forge lint: no real bugs, and a verdict for every finding.
 - 131 passing tests, including 8 fuzz tests and 12 invariants.
-- Separate reviews, each by a reviewer who did not write the code: the first contract's review found a bypass before deploy, since fixed and attacked on every run; the new contracts were reviewed at the backend gate and cleared; and two security passes over the web app and its server routes, with every finding fixed or closed with a reason. The full account is on the [audit status](https://adag-btc.vercel.app/docs/security/audit-status) page.
+- Separate reviews, each by a reviewer who did not write the code: the first contract's review found a bypass before deploy, since fixed and attacked on every run; the new contracts were reviewed at the backend gate and cleared; and two security passes over the web app and its server routes, with every finding fixed or closed with a reason. The full account is on the [audit status](https://adag.site/docs/security/audit-status) page.
 
 The design goal is that if the page, a link or the RPC is wrong, the worst case is a transaction that reverts, never one that loses money. Neither contract can take a payer's bitcoin. The only token movement AdagBills can cause is the exact bill amount, from the payer, to that bill's supplier, inside the call that marks the bill paid. The only one AdagGuard can cause is a repayment of the borrower's own loan from the borrower's own wallet, within the approval they gave, never past their target.
 
