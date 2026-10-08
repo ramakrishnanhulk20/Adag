@@ -120,9 +120,10 @@ test('what the caller expects is itself checked', () => {
 });
 
 test('C68, C71: the gas slack is ceil(FX_GAS_CAP x maxFee / 1e12), the one figure the builder and the sender share', () => {
-  assert.equal(floorSlack(parseGwei('41')), 102_500n);
-  assert.equal(floorSlack(parseGwei('25')), 62_500n);
-  assert.equal(floorSlack(20_000_000_001n), 50_001n);
+  assert.equal(C.FX_GAS_CAP, 4_000_000n);
+  assert.equal(floorSlack(parseGwei('41')), 164_000n);
+  assert.equal(floorSlack(parseGwei('25')), 100_000n);
+  assert.equal(floorSlack(20_000_000_001n), 80_001n);
   assert.throws(() => floorSlack(0n), PlanError);
   assert.throws(() => floorSlack(-1n), PlanError);
 });

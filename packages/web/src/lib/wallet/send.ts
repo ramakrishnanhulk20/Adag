@@ -1,9 +1,9 @@
-import { parseGwei, type Address, type Hex, type TransactionReceipt } from "viem";
+import { encodeFunctionData, isAddressEqual, parseGwei, type Address, type Hex, type TransactionReceipt } from "viem";
 import { arc } from "viem/chains";
 import { getConnection, getPublicClient, sendTransaction, waitForTransactionReceipt } from "wagmi/actions";
-import { adagAbi } from "@/lib/pay/abi";
-import { assertConversionBatch, reachesSwapAdapter } from "@/lib/pay/build";
-import { FX_GAS_CAP, PLAN_MIN_SECONDS_LEFT, requireDeployment } from "@/lib/pay/constants";
+import { adagAbi, erc20Abi, morphoAbi } from "@/lib/pay/abi";
+import { assertConversionBatch, decodeBatch, reachesSwapAdapter } from "@/lib/pay/build";
+import { CIRBTC, CIRCLE_SWAP_ADAPTER, EURC, FX_GAS_CAP, MORPHO, MULTICALL3_FROM, PLAN_MIN_SECONDS_LEFT, USDC, requireDeployment } from "@/lib/pay/constants";
 import { decodeAdagError, type PlainError } from "@/lib/pay/errors";
 import { formatUnitsExact } from "@/lib/pay/format";
 import { PlanError, checkEffects, claimPlan, conversionUsdcOut, type Conversion } from "@/lib/fx/plan";
@@ -23,8 +23,8 @@ const WATCH_EVERY_MS = 3_000;
 export type TxStep = "checking" | "signing" | "confirming" | "watching" | "rereading";
 
 export type TxOutcome =
-  // `effects` is "checked" when the simulation's transfers were held to the conversion's rules, and "unavailable" when the
-  // connection could not run that simulation, so only the batch's own balance check protected the payment (C71).
+  // `effects` is "checked" when the simulation's transfers were held to the conversion's rules. "unavailable" is only for a
+  // send that does not require the check: every conversion requires it and is refused instead (C71).
   | { ok: true; hash: Hex; receipt: TransactionReceipt; effects?: "checked" | "unavailable" }
   | { ok: false; stage: "refused"; error: PlainError }
   | { ok: false; stage: "declined" | "failed"; message: string; hash?: Hex }
@@ -117,6 +117,22 @@ function simulationUnavailable(error: unknown): boolean {
   return false;
 }
 
+// Shown when a conversion cannot be double-checked. The screens use the same sentence for their early warning.
+export const EFFECTS_UNAVAILABLE = "We could not double-check this conversion just now. Nothing was sent. Try again in a minute.";
+
+export type SimulationVerdict = "revert" | "refuse" | "go on unchecked";
+
+// What a failed transfer-tracing simulation means for the signature. A node that ran the batch and found it failing has
+// given an answer, so that is shown as a refusal. A node that gave no answer (no such method, unreachable, too slow) leaves
+// the transfers unchecked: a conversion that requires the check is refused and the wallet is never asked, and only a send
+// that does not require it goes on, with the outcome saying so.
+export function simulationVerdict(error: unknown, requireEffects: boolean): SimulationVerdict {
+  if (!simulationUnavailable(error)) return "revert";
+  return requireEffects ? "refuse" : "go on unchecked";
+}
+
+const effectsUnavailable = (): TxOutcome => ({ ok: false, stage: "refused", error: { name: "effects unavailable", message: EFFECTS_UNAVAILABLE, next: "", text: EFFECTS_UNAVAILABLE } });
+
 // Our own sentences reach the page; anything else a library says does not.
 const ownSentence = (error: unknown): string =>
   error instanceof PlanError || (error instanceof Error && error.constructor === Error && /^Refusing /.test(error.message))
@@ -129,9 +145,10 @@ type SimCall = { status: "success" | "failure"; gasUsed: bigint; logs?: readonly
 // decided; the plan must still have time on Arc's clock; the batch is simulated at the latest block with its fixed gas
 // ceiling and the fee ceiling its floor was worked out from; every transfer out of the wallet must be one the batch is
 // allowed to make; each bill must show a payment from this wallet on its own contract. Only then is a signature asked for,
-// and a plan is spent the moment it is (C74). The RPC is not trusted: the batch's own balance check (C68) and the
-// one-amount allowance (C67) are the guards, and this is the early warning.
-async function sendConversion({ client, account, to, data, onStep, usdcOut, conversion }: { client: ReturnType<typeof publicArc>; account: Address; to: Address; data: Hex; onStep: (step: TxStep) => void; usdcOut: bigint; conversion: Conversion }): Promise<TxOutcome> {
+// and a plan is spent the moment it is (C74). With `requireEffects`, a node that cannot trace transfers, or does not answer
+// in time, ends in a refusal and the wallet is never asked. The RPC is not trusted: the batch's own balance check (C68) and
+// the one-amount allowance (C67) are the guards, and this is the early warning.
+async function sendConversion({ client, account, to, data, onStep, usdcOut, conversion, requireEffects }: { client: ReturnType<typeof publicArc>; account: Address; to: Address; data: Hex; onStep: (step: TxStep) => void; usdcOut: bigint; conversion: Conversion; requireEffects: boolean }): Promise<TxOutcome> {
   try {
     assertConversionBatch(to, data, conversion, account);
   } catch (error) {
@@ -191,7 +208,9 @@ async function sendConversion({ client, account, to, data, onStep, usdcOut, conv
       return refusal("effects", ownSentence(error), "Nothing was sent.");
     }
   } catch (error) {
-    if (!simulationUnavailable(error)) return { ok: false, stage: "refused", error: decodeAdagError(error) };
+    const verdict = simulationVerdict(error, requireEffects);
+    if (verdict === "revert") return { ok: false, stage: "refused", error: decodeAdagError(error) };
+    if (verdict === "refuse") return effectsUnavailable();
     effects = "unavailable";
     try {
       await client.call({ account, to, data, gas: FX_GAS_CAP });
@@ -209,16 +228,72 @@ async function sendConversion({ client, account, to, data, onStep, usdcOut, conv
   return signAndConfirm({ account, to, data, gas: FX_GAS_CAP, fees, onStep, effects });
 }
 
+// The wallet must be connected on Arc as this very account (C4). The refusal is the same wherever it is raised.
+function walletOffArc(account: Address): TxOutcome | null {
+  const connection = getConnection(wagmiConfig);
+  if (connection.status !== "connected" || connection.chainId !== arc.id || connection.address?.toLowerCase() !== account.toLowerCase()) {
+    return { ok: false, stage: "failed", message: "Your wallet is not on Arc mainnet with this address any more. Nothing was sent." };
+  }
+  return null;
+}
+
+// The exact bytes of the only two calls an adapter reset may hold. Comparing whole call data, not decoded fields, leaves no
+// room for trailing bytes or another amount (C67).
+const RESET_APPROVE = encodeFunctionData({ abi: erc20Abi, functionName: "approve", args: [CIRCLE_SWAP_ADAPTER, 0n] });
+const RESET_DEAUTHORIZE = encodeFunctionData({ abi: morphoAbi, functionName: "setAuthorization", args: [CIRCLE_SWAP_ADAPTER, false] });
+const RESET_TOKENS: readonly Address[] = [USDC, EURC, CIRBTC];
+
+// Throws a sentence unless this is exactly a Multicall3From batch that sets some of USDC, EURC and cirBTC allowances to
+// Circle's adapter back to 0, and withdraws the adapter's Morpho authorisation, each at most once and nothing else.
+export function assertAdapterReset(to: Address, data: Hex): void {
+  if (!isAddressEqual(to, MULTICALL3_FROM)) throw new Error("A reset of Circle's adapter must go through Multicall3From.");
+  const calls = decodeBatch(data);
+  if (!calls || calls.length === 0 || calls.length > RESET_TOKENS.length + 1) throw new Error("This is not a batch of the reset's own calls.");
+  const seen = new Set<string>();
+  for (const c of calls) {
+    const key = c.target.toLowerCase();
+    const isApproval = RESET_TOKENS.some((t) => isAddressEqual(t, c.target)) && c.callData.toLowerCase() === RESET_APPROVE;
+    const isDeauthorize = isAddressEqual(c.target, MORPHO) && c.callData.toLowerCase() === RESET_DEAUTHORIZE;
+    if (c.allowFailure !== false || (!isApproval && !isDeauthorize) || seen.has(key)) throw new Error("This batch holds a call that the adapter reset does not allow.");
+    seen.add(key);
+  }
+}
+
+// The one way to send Circle's adapter an allowance of 0 or take away its Morpho authorisation. simulateAndSend refuses
+// anything that reaches the adapter without a conversion, so a reset comes through here, which holds the batch to the reset's
+// two calls and then runs the same gates: the wallet is on Arc as this account (C4), an eth_call and gas estimate on Arc
+// pass, and the wallet proves it is still on Arc when it signs.
+export async function sendAdapterReset({ account, to, data, onStep = () => {} }: { account: Address; to: Address; data: Hex; onStep?: (step: TxStep) => void }): Promise<TxOutcome> {
+  try {
+    assertAdapterReset(to, data);
+  } catch (error) {
+    return refusal("adapter reset", (error as Error).message, "Nothing was sent.");
+  }
+  const client = publicArc();
+  onStep("checking");
+  const off = walletOffArc(account);
+  if (off) return off;
+
+  let estimate: bigint;
+  let fees: Fees;
+  try {
+    await client.call({ account, to, data });
+    estimate = await client.estimateGas({ account, to, data });
+    fees = await feesNow();
+  } catch {
+    return { ok: false, stage: "failed", message: "Arc's dry run of the reset did not pass, so nothing was sent. Try again in a moment." };
+  }
+  return signAndConfirm({ account, to, data, gas: feeFigures(estimate, fees).gasLimit, fees, onStep });
+}
+
 // One path for every money action: check the wallet is on Arc (C4), simulate with eth_call and stop on any revert
 // with plain words, then ask the wallet, then wait for Arc. Nothing reaches the wallet unless the simulation passed.
 export async function simulateAndSend({ account, to, data, onStep, usdcOut = 0n, conversion }: SendArgs): Promise<TxOutcome> {
   const client = publicArc();
   onStep("checking");
 
-  const connection = getConnection(wagmiConfig);
-  if (connection.status !== "connected" || connection.chainId !== arc.id || connection.address?.toLowerCase() !== account.toLowerCase()) {
-    return { ok: false, stage: "failed", message: "Your wallet is not on Arc mainnet with this address any more. Nothing was sent." };
-  }
+  const off = walletOffArc(account);
+  if (off) return off;
 
   // Anything that reaches Circle's adapter goes through the conversion path, and a batch that does so without carrying its
   // Conversion is refused: the rules below cannot be skipped by leaving the description out.
@@ -230,7 +305,7 @@ export async function simulateAndSend({ account, to, data, onStep, usdcOut = 0n,
   }
   if (conversion || reaches) {
     if (!conversion) return refusal("conversion", "This payment reaches Circle's swap adapter without saying what it converts, so Adag will not send it.", "Nothing was sent. Reload the page and try again.");
-    return sendConversion({ client, account, to, data, onStep, usdcOut, conversion });
+    return sendConversion({ client, account, to, data, onStep, usdcOut, conversion, requireEffects: true });
   }
 
   let estimate: bigint;

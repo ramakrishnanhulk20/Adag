@@ -23,6 +23,14 @@ export const arcClient = createPublicClient({
   transport: fallback([http(RPC_PRIMARY, transportOptions), http(RPC_FALLBACK, transportOptions)], { rank: false, retryCount: 0 }),
 });
 
+// The fallback endpoint alone: for the one read the primary can answer with "nothing here" while the fallback has it. A
+// public node keeps recent transactions only, so an old receipt comes back null from it (7 October 2026) and the other
+// node, which keeps the full history, still has it.
+export const arcFallbackClient = createPublicClient({
+  chain: arc,
+  transport: http(RPC_FALLBACK, transportOptions),
+});
+
 // The primary endpoint alone, with no fallback: for reads that must agree with each other, such as a chain head and
 // the logs up to it (C64). If this endpoint fails, the read fails; it never quietly switches to another node.
 export const arcPrimaryClient = createPublicClient({

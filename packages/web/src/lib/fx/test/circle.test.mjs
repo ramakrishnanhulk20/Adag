@@ -4,7 +4,7 @@ import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { C, PAYER, CHAIN_TIME, planParams, SIGNATURE } from './fixtures.mjs';
 
-const { requestPlan, CIRCLE_SENTENCES, CIRCLE_MAX_RESPONSE_BYTES, CIRCLE_TIMEOUT_MS } = await import('../circle.ts');
+const { requestPlan, CIRCLE_SENTENCES, CIRCLE_MAX_RESPONSE_BYTES, CIRCLE_TIMEOUT_MS, CIRCLE_RETRY_WAITS_MS } = await import('../circle.ts');
 const { checkPlan } = await import('../plan.ts');
 
 const realFetch = globalThis.fetch;
@@ -14,6 +14,9 @@ afterEach(() => {
 
 const AMOUNT_IN = 89_083_698n;
 const MIN_OUT = 100_000_000n;
+// The real waits are 1.5 s and 3 s; a test that expects retries asks for shorter ones, which are the only change allowed.
+const QUICK = { retryWaitsMs: [1, 1] };
+const NO_ROUTE = () => answer({ code: 331001, message: 'No route found that satisfies the requested stop limit' }, { status: 404 });
 const request = (over = {}) => ({ tokenIn: C.EURC, amountIn: AMOUNT_IN, tokenOut: C.USDC, minOut: MIN_OUT, account: PAYER, ...over });
 
 // Circle writes whole numbers as strings, and one instruction's value as "0x0".
@@ -107,12 +110,12 @@ test('C73: a non-2xx answer becomes a fixed sentence and none of Circle’s word
 });
 
 test('C73: "no route" and "busy" each have their own fixed sentence, chosen only from a number', async () => {
-  stub(() => answer({ code: 331001, message: 'No route found that satisfies the requested stop limit' }, { status: 404 }));
-  const none = await requestPlan(request());
+  stub(NO_ROUTE);
+  const none = await requestPlan(request(), QUICK);
   fixed(none, 'no_route');
   assert.ok(!none.error.includes('stop limit'));
   stub(() => answer({ message: 'slow down' }, { status: 429 }));
-  fixed(await requestPlan(request()), 'busy');
+  fixed(await requestPlan(request(), QUICK), 'busy');
   stub(() => answer({ code: 12345, message: 'something else' }, { status: 404 }));
   fixed(await requestPlan(request()), 'unavailable');
 });
@@ -204,4 +207,102 @@ test('Circle’s own summary is neither used nor passed on', async () => {
   const result = await requestPlan(request());
   assert.equal(result.ok, true);
   assert.ok(!JSON.stringify(result, (_, v) => (typeof v === 'bigint' ? v.toString() : v)).includes('SHOW'));
+});
+
+// The retry amendment to C73: one press may repeat the identical request twice for "no route" or 429, and for nothing else.
+test('C73: two "no route" answers and then a good one return the plan, from three requests', async () => {
+  let n = 0;
+  const seen = stub(() => (++n <= 2 ? NO_ROUTE() : answer(circleJson())));
+  const result = await requestPlan(request(), QUICK);
+  assert.equal(result.ok, true);
+  checkPlan(result.plan.calldata, { account: PAYER, tokenIn: C.EURC, tokenOut: C.USDC, amountIn: AMOUNT_IN, minOut: MIN_OUT, latestBlockTimestamp: CHAIN_TIME });
+  assert.equal(seen.length, 3);
+});
+
+test('C73: three "no route" answers return the fixed sentence, after exactly three requests', async () => {
+  const seen = stub(NO_ROUTE);
+  const result = await requestPlan(request(), QUICK);
+  fixed(result, 'no_route');
+  assert.ok(!JSON.stringify(result).includes('stop limit'));
+  assert.equal(seen.length, 3, 'one try and two repeats, never a fourth');
+});
+
+test('C73: rate limiting is repeated the same way, then shows its own sentence', async () => {
+  let n = 0;
+  const seen = stub(() => (++n === 1 ? answer({ message: 'slow down' }, { status: 429 }) : answer(circleJson())));
+  assert.equal((await requestPlan(request(), QUICK)).ok, true);
+  assert.equal(seen.length, 2);
+  const busy = stub(() => answer({ message: 'slow down' }, { status: 429 }));
+  fixed(await requestPlan(request(), QUICK), 'busy');
+  assert.equal(busy.length, 3);
+});
+
+test('C73: a 500, a timeout, an unreadable or odd answer, a redirect and another Circle code are single attempts', async () => {
+  const single = {
+    'a 500': () => answer({ code: 1, message: 'SECRET' }, { status: 500 }),
+    'another Circle code': () => answer({ code: 12345 }, { status: 404 }),
+    'a bad gateway page': () => answer('<html>bad gateway</html>', { status: 502 }),
+    'a 200 that is not a plan': () => answer({ estimatedAmount: '1' }),
+    'a 200 that is not json': () => answer('this is not json'),
+    'a network failure': () => {
+      throw new TypeError('redirect mode is set to error');
+    },
+  };
+  for (const [name, handler] of Object.entries(single)) {
+    const seen = stub(handler);
+    const result = await requestPlan(request(), QUICK);
+    assert.equal(result.ok, false, name);
+    assert.equal(seen.length, 1, name);
+  }
+  const timed = stub((url, init) => new Promise((_, reject) => init.signal.addEventListener('abort', () => reject(init.signal.reason))));
+  fixed(await requestPlan(request(), { timeoutMs: 30, ...QUICK }), 'unavailable');
+  assert.equal(timed.length, 1, 'a timeout');
+});
+
+test('C73: a repeat ends as soon as Circle answers with anything but "no route" or 429', async () => {
+  let n = 0;
+  const seen = stub(() => (++n === 1 ? NO_ROUTE() : answer({ code: 1 }, { status: 500 })));
+  fixed(await requestPlan(request(), QUICK), 'unavailable');
+  assert.equal(seen.length, 2);
+});
+
+test('C73: every repeat is the identical request: same address, method and headers, and a body equal byte for byte', async () => {
+  const seen = stub(NO_ROUTE);
+  await requestPlan(request(), QUICK);
+  assert.equal(seen.length, 3);
+  const first = seen[0];
+  for (const next of seen.slice(1)) {
+    assert.equal(next.url, first.url);
+    assert.equal(next.init.method, first.init.method);
+    assert.deepEqual(next.init.headers, first.init.headers);
+    assert.equal(next.init.credentials, 'omit');
+    assert.equal(next.init.redirect, 'error');
+    assert.equal(next.init.body, first.init.body);
+  }
+  assert.equal(JSON.parse(first.init.body).amount, AMOUNT_IN.toString());
+});
+
+test('C73: the waits are 1.5 s then 3 s, and a test can only make them shorter', async (t) => {
+  assert.deepEqual([...CIRCLE_RETRY_WAITS_MS], [1_500, 3_000]);
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const settle = async () => {
+    for (let i = 0; i < 8; i++) await new Promise((resolve) => setImmediate(resolve));
+  };
+  const seen = stub(NO_ROUTE);
+  const pending = requestPlan(request(), { retryWaitsMs: [60_000, 60_000] });
+  await settle();
+  assert.equal(seen.length, 1);
+  t.mock.timers.tick(1_499);
+  await settle();
+  assert.equal(seen.length, 1, 'still waiting 1 ms before the first repeat');
+  t.mock.timers.tick(1);
+  await settle();
+  assert.equal(seen.length, 2, 'a longer wish is capped at 1.5 s');
+  t.mock.timers.tick(2_999);
+  await settle();
+  assert.equal(seen.length, 2, 'still waiting 1 ms before the second repeat');
+  t.mock.timers.tick(1);
+  await settle();
+  assert.equal(seen.length, 3);
+  fixed(await pending, 'no_route');
 });

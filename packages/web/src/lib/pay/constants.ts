@@ -71,8 +71,8 @@ export const BPS = 10_000n;
 // AdagBills.EUR_USD_MAX_AGE: past this the contract treats the euro price as stale, so nothing is offered either.
 export const EUR_USD_MAX_AGE_SECONDS = 96n * 3600n;
 
-// check-fx measured 1.14M gas for a 100 USDC bill and 0.77M for a close; 2.5M leaves room for a ten-bill basket, and more is refused.
-export const FX_GAS_CAP = 2_500_000n;
+// Circle's route for a 1 to 3 USDC bill measured 1.9M to 2.4M gas (a 100 USDC bill 1.14M, a close 0.77M), and the sender keeps 25% headroom over the simulated gas, so 4M covers the worst small bill and more is refused.
+export const FX_GAS_CAP = 4_000_000n;
 
 // A plan from Circle has 2 instructions and 3 to 7 KB of calldata at every size seen; these leave room, not freedom.
 export const PLAN_MAX_INSTRUCTIONS = 6;

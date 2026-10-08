@@ -1,11 +1,14 @@
-// Plain TypeScript with relative imports only. The one place the app talks to Circle (C73): a single request to a fixed
-// address, built from typed values, answered once and never quoted. Nothing here decides whether a plan is safe; that is
-// plan.ts's checkPlan, which runs on the bytes this file produces.
+// Plain TypeScript with relative imports only. The one place the app talks to Circle (C73): a request to a fixed address,
+// built from typed values, answered once and never quoted. Nothing here decides whether a plan is safe; that is plan.ts's
+// checkPlan, which runs on the bytes this file produces.
 import { getAddress, isAddress, isAddressEqual, isHex, size, type Address, type Hex } from "viem";
 import { CIRCLE_SWAP_URL, EURC, PLAN_MAX_CALLDATA_BYTES, PLAN_MAX_INSTRUCTIONS, USDC } from "../pay/constants";
 import { encodeExecute, type PlanInstruction, type PlanParams } from "./plan";
 
 export const CIRCLE_TIMEOUT_MS = 20_000;
+// Circle sometimes answers "no route" or 429 to a request that works a moment later. One press may repeat the identical
+// request twice, after these waits, and for no other failure.
+export const CIRCLE_RETRY_WAITS_MS = [1_500, 3_000] as const;
 // Real answers are 9 to 16 KB. The cap is for a broken or hostile server, not for real plans.
 export const CIRCLE_MAX_RESPONSE_BYTES = 120_000;
 // Circle's own code for "No route found that satisfies the requested stop limit". Only this number is read from an
@@ -155,13 +158,8 @@ function parsePlan(json: unknown, req: PlanRequest): CirclePlan | null {
   return { calldata, execId, deadline };
 }
 
-// C73: the only request this app makes to Circle. One attempt per call: no retry, no second route, no fallback.
-// `timeoutMs` exists so a test need not wait; it can only shorten the limit.
-export async function requestPlan(req: PlanRequest, options: { timeoutMs?: number } = {}): Promise<PlanResult> {
-  const body = requestBody(req);
-  if (body === null) return fail("bad_request");
-  const timeoutMs = Math.min(options.timeoutMs ?? CIRCLE_TIMEOUT_MS, CIRCLE_TIMEOUT_MS);
-
+// One attempt: the request, the capped read and the single parse.
+async function attempt(body: string, timeoutMs: number, req: PlanRequest): Promise<PlanResult> {
   let res: Response;
   try {
     res = await fetch(CIRCLE_SWAP_URL, {
@@ -195,4 +193,23 @@ export async function requestPlan(req: PlanRequest, options: { timeoutMs?: numbe
   }
   const plan = parsePlan(json, req);
   return plan ? { ok: true, plan } : fail("bad_answer");
+}
+
+// C73: the only request this app makes to Circle, and none on load or refresh. One press may repeat the identical request
+// (the same body, byte for byte) up to twice, waiting 1.5 s and then 3 s, when Circle reports no route or rate limiting.
+// Every other failure is a single attempt, and there is no second route and no fallback. Nothing the payer sees or signs
+// changes between attempts. `timeoutMs` and `retryWaitsMs` exist so a test need not wait; they can only shorten the limits.
+export async function requestPlan(req: PlanRequest, options: { timeoutMs?: number; retryWaitsMs?: readonly number[] } = {}): Promise<PlanResult> {
+  const body = requestBody(req);
+  if (body === null) return fail("bad_request");
+  const timeoutMs = Math.min(options.timeoutMs ?? CIRCLE_TIMEOUT_MS, CIRCLE_TIMEOUT_MS);
+
+  let result = await attempt(body, timeoutMs, req);
+  for (let i = 0; i < CIRCLE_RETRY_WAITS_MS.length; i++) {
+    if (result.ok || (result.kind !== "no_route" && result.kind !== "busy")) break;
+    const wait = Math.min(options.retryWaitsMs?.[i] ?? CIRCLE_RETRY_WAITS_MS[i]!, CIRCLE_RETRY_WAITS_MS[i]!);
+    await new Promise((resolve) => setTimeout(resolve, wait));
+    result = await attempt(body, timeoutMs, req);
+  }
+  return result;
 }
