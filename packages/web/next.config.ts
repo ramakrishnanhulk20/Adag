@@ -50,7 +50,8 @@ const WALLETCONNECT = process.env.NEXT_PUBLIC_WC_PROJECT_ID
   : null;
 
 function contentSecurityPolicy(): string {
-  const connect = ["'self'", "https://rpc.mainnet.arc.io", "https://rpc.drpc.mainnet.arc.io", rpcOverrideOrigin()];
+  // The last entry is Circle's swap service, asked once per press of a conversion (C73), and nowhere else.
+  const connect = ["'self'", "https://rpc.mainnet.arc.io", "https://rpc.drpc.mainnet.arc.io", rpcOverrideOrigin(), "https://api.circle.com"];
   const script = ["'self'", "'unsafe-inline'"];
   if (isDev) {
     // Hot reload evaluates modules and talks over a websocket. Neither exists in a production build.

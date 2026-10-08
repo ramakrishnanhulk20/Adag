@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { motion } from "motion/react";
 import { useQuery } from "@tanstack/react-query";
 import { formatUnits, type Address, type Hex } from "viem";
@@ -10,20 +10,26 @@ import { Button } from "@/components/Button";
 import { GuardSection } from "@/components/guard/GuardSection";
 import { adagAbi, erc20Abi, irmAbi, morphoAbi, oracleAbi } from "@/lib/pay/abi";
 import { parseAmountInput } from "@/lib/pay/amount";
-import { buildAddCollateral, buildCloseLoan, buildRepaySome, type GuardStop } from "@/lib/pay/build";
+import { buildAddCollateral, buildCloseLoan, buildCloseWithOtherCurrency, buildRepaySome, type GuardStop } from "@/lib/pay/build";
+import { loanCurrencyFor } from "@/lib/fx/estimate";
+import { checkAdapterPreflight } from "@/lib/fx/preflight";
 import { guardAbi } from "@/lib/guard/abi";
 import { ADAG_GUARD } from "@/lib/guard/constants";
 import { ADAG_BILLS, CIRBTC, CIRBTC_DECIMALS, EXPLORER, MAX_LTV_WAD, MORPHO, USDC, WAD, type Currency } from "@/lib/pay/constants";
 import { formatPercentWad, formatUnitsExact, shortAddress, usdOfSats } from "@/lib/pay/format";
 import { accrueBorrowAssets, closeApproval, debtFromShares, liquidationDropWad, ltvWad, repaySomeCap } from "@/lib/pay/loan";
 import { paramsFromTuple } from "@/lib/pay/market";
-import { morphoEventsIn, ruleClearedIn } from "@/lib/pay/receipt";
+import { conversionOutcome, morphoEventsIn, ruleClearedIn } from "@/lib/pay/receipt";
 import { hasAcceptedMorphoDisclaimer, rememberMorphoDisclaimer } from "@/lib/wallet/consent";
-import { estimateFee, publicArc, simulateAndSend, type TxStep } from "@/lib/wallet/send";
-import { RetryContext, Value, type Cell } from "./cells";
+import { estimateFee, publicArc, simulateAndSend, type TxOutcome, type TxStep } from "@/lib/wallet/send";
+import { Reading, RetryContext, Value, type Cell } from "./cells";
 import { FeeLine } from "./FeeLine";
 import { GetSetUp, type SetupNeed } from "./GetSetUp";
 import { MorphoDisclaimer } from "./MorphoDisclaimer";
+import { CloseConvertEstimate, ConvertReset } from "./fx/ConvertParts";
+import { EFFECTS_UNAVAILABLE, closeConvertView, reasons, type CloseEstimate, type CloseView } from "./fx/figures";
+import { adapterReadBack, askCircle, conversionFailure, effectsCanBeChecked } from "./fx/press";
+import { useCloseConvert } from "./fx/useConvert";
 import { BusyLabel, TxMessage, type TxState } from "./TxProgress";
 import { usdHint, useUsdPrice } from "./usdPrice";
 
@@ -48,7 +54,8 @@ type LoanTicketProps = {
 };
 
 type Done = { kind: "added" | "repaid" | "closed"; hash: Hex; text: string };
-type Action = "add" | "repay" | "close";
+type Action = "add" | "repay" | "close" | "closeOther";
+type CloseConvertState = { kind: "loading" } | { kind: "unavailable" } | CloseView;
 
 export function LoanTicket(props: LoanTicketProps) {
   const { address, currency, position, cirBtc, loanTokenBalance, usdcBalance, canSign, blockedReason, onChanged } = props;
@@ -111,6 +118,24 @@ export function LoanTicket(props: LoanTicketProps) {
   const [asking, setAsking] = useState<null | Action>(null);
   const busy = tx.kind === "busy" ? tx : null;
   const step = (s: TxStep) => setTx((prev) => ({ kind: "busy", step: s, since: prev.kind === "busy" && prev.step === s ? prev.since : Date.now() }));
+
+  // Closing with the other currency (C75): the amount to sell is read when the close tab is open, and never asks Circle
+  // anything. Pressing the button freezes the figures on screen; the close uses exactly these until it ends (C70).
+  const sold = loanCurrencyFor(currency.symbol);
+  const [frozen, setFrozen] = useState<CloseEstimate | null>(null);
+  const frozenRef = useRef<CloseEstimate | null>(null);
+  const unfreeze = useCallback(() => {
+    frozenRef.current = null;
+    setFrozen(null);
+  }, []);
+  const closeRead = useCloseConvert({ enabled: mode === "close" && shares > 0n && canSign && !done && !busy && !frozen, payer: address, loan: currency, approval });
+  const closeConvert: CloseConvertState = frozen
+    ? { kind: "ready", estimate: frozen }
+    : closeRead.data
+      ? closeConvertView(closeRead.data)
+      : closeRead.isError
+        ? { kind: "unavailable" }
+        : { kind: "loading" };
 
   const add = parseAmountInput(addText, CIRBTC_DECIMALS);
   const addError = !add.ok ? add.message : cirBtc.state === "ok" && add.value > cirBtc.value ? `Your wallet holds ${formatUnitsExact(cirBtc.value, CIRBTC_DECIMALS)} cirBTC.` : null;
@@ -274,6 +299,127 @@ export function LoanTicket(props: LoanTicketProps) {
     onChanged();
   };
 
+  // The proof of a close, the same for both ways of closing: Morpho's own Repay and WithdrawCollateral for this wallet, the
+  // position read back at 0, no approval left to Morpho, and the guard stopped when it was running (C60).
+  const settleClose = async (
+    out: Extract<TxOutcome, { ok: true }>,
+    c: { liveShares: bigint; liveCollateral: bigint; stop: GuardStop; btcBefore: bigint; extra?: (repaidAssets: bigint | null) => Promise<string> },
+  ) => {
+    const client = publicArc();
+    const { liveShares, liveCollateral, stop, btcBefore } = c;
+    const events = morphoEventsIn(out.receipt.logs).filter((e) => e.id.toLowerCase() === m.toLowerCase() && e.onBehalf.toLowerCase() === address.toLowerCase());
+    const repaid = events.find((e) => e.name === "Repay");
+    const withdrawn = events.find((e) => e.name === "WithdrawCollateral");
+    const [after, allowance, btcAfter, guardAfter] = await Promise.all([
+      client.readContract({ address: MORPHO, abi: morphoAbi, functionName: "position", args: [m, address] }),
+      client.readContract({ address: currency.address, abi: erc20Abi, functionName: "allowance", args: [address, MORPHO] }),
+      client.readContract({ address: CIRBTC, abi: erc20Abi, functionName: "balanceOf", args: [address] }),
+      ADAG_GUARD ? readGuardStop(address, currency) : Promise.resolve({ hasRule: false, allowance: 0n }),
+    ]).catch(() => [null, null, null, null] as const);
+    // C60: when the close stopped the guard, AdagGuard's own RuleCleared (if there was a rule) and a 0 approval prove it.
+    const guardStopped =
+      !(stop.hasRule || stop.allowance > 0n) ||
+      (guardAfter !== null && !guardAfter.hasRule && guardAfter.allowance === 0n && (!stop.hasRule || ruleClearedIn(out.receipt.logs, address, m)));
+    const proven =
+      (liveShares === 0n || (repaid?.name === "Repay" && repaid.shares === liveShares)) &&
+      (liveCollateral === 0n || (withdrawn?.name === "WithdrawCollateral" && withdrawn.assets === liveCollateral && withdrawn.receiver.toLowerCase() === address.toLowerCase())) &&
+      after !== null && after[1] === 0n && after[2] === 0n && (liveShares === 0n || allowance === 0n) && guardStopped;
+    if (!proven || btcAfter === null) return fail("Arc confirmed the transaction, but Morpho does not read the loan as closed. Check the transaction.", out.hash);
+    const back = btcAfter - btcBefore;
+    const returned = `${formatUnitsExact(back, CIRBTC_DECIMALS)} cirBTC is back in your wallet.`;
+    const more = c.extra ? ` ${await c.extra(repaid?.name === "Repay" ? repaid.assets : null)}` : "";
+    setDone({
+      kind: "closed",
+      hash: out.hash,
+      text: `${liveShares > 0n ? `Loan closed. 0 owed, 0 pledged. ${returned}` : `Done. 0 pledged in this market, and ${returned}`}${stop.hasRule || stop.allowance > 0n ? " The loan guard for this loan is off: no rule, and its approval is 0." : ""}${more}`,
+    });
+    setTx({ kind: "idle" });
+    onChanged();
+  };
+
+  // C75: closing with the other currency. Circle is asked once, last, for exactly the amount frozen at the press; every
+  // other check is read again here, and nothing reaches the wallet unless the sender's checks and the transfer trace pass.
+  const runCloseOther = async () => {
+    const est = frozenRef.current;
+    if (!est) return;
+    step("checking");
+    const client = publicArc();
+    const failed = (message: string) => setTx({ kind: "failed", message: `${message} Nothing was sent.` });
+    let tuple: readonly [Hex, Hex, Hex, Hex, bigint];
+    let live: Position;
+    let mk: MarketState;
+    let btcBefore: bigint;
+    let soldHeld: bigint;
+    let now: bigint;
+    let ratePerSecond: bigint;
+    try {
+      let block: { timestamp: bigint };
+      [tuple, live, mk, btcBefore, soldHeld, block] = await Promise.all([
+        client.readContract({ address: MORPHO, abi: morphoAbi, functionName: "idToMarketParams", args: [m] }),
+        client.readContract({ address: MORPHO, abi: morphoAbi, functionName: "position", args: [m, address] }),
+        client.readContract({ address: MORPHO, abi: morphoAbi, functionName: "market", args: [m] }),
+        client.readContract({ address: CIRBTC, abi: erc20Abi, functionName: "balanceOf", args: [address] }),
+        client.readContract({ address: sold.address, abi: erc20Abi, functionName: "balanceOf", args: [address] }),
+        client.getBlock(),
+      ]);
+      now = block.timestamp;
+      ratePerSecond = await client.readContract({
+        address: currency.params.irm,
+        abi: irmAbi,
+        functionName: "borrowRateView",
+        args: [currency.params, { totalSupplyAssets: mk[0], totalSupplyShares: mk[1], totalBorrowAssets: mk[2], totalBorrowShares: mk[3], lastUpdate: mk[4], fee: mk[5] }],
+      });
+    } catch {
+      return failed("Arc did not answer, so the close was not built. Try again.");
+    }
+    const [, liveShares, liveCollateral] = live;
+    if (liveShares === 0n) return failed("There is no loan here to close with a conversion.");
+    const liveApproval = closeApproval(liveShares, accrueBorrowAssets(mk[2], ratePerSecond, now - mk[4]), mk[3]);
+    if (soldHeld < est.amountIn) return failed(reasons.closeShort(soldHeld, est.amountIn, sold.symbol));
+    let stop: GuardStop;
+    let pre: Awaited<ReturnType<typeof checkAdapterPreflight>>;
+    try {
+      [stop, pre] = await Promise.all([readGuardStop(address, currency), checkAdapterPreflight(client, address, sold.address)]);
+    } catch {
+      return failed("Arc did not answer about your loan guard, so the close was not built. Try again.");
+    }
+    if (pre.state !== "clear") return failed(pre.state === "blocked" ? pre.blockers.join(" ") : pre.text);
+    const asked = await askCircle(client, { payer: address, sell: sold, buy: currency, amountIn: est.amountIn, minOut: liveApproval });
+    if (!asked.ok) return setTx({ kind: "failed", message: asked.message });
+    let built;
+    try {
+      built = buildCloseWithOtherCurrency(
+        address,
+        currency,
+        { shares: liveShares, collateral: liveCollateral },
+        liveApproval,
+        paramsFromTuple(tuple),
+        { amountIn: est.amountIn, plan: asked.pinned.plan, outputBalance: asked.pinned.outputBalance, maxFeePerGas: asked.pinned.maxFeePerGas, chainTime: asked.pinned.chainTime, rate: asked.pinned.rate },
+        stop,
+      );
+    } catch (error) {
+      return failed((error as Error).message);
+    }
+    // C71, failing closed: a conversion is only signed when this connection can trace the transfers it makes.
+    if (!(await effectsCanBeChecked(client))) return setTx({ kind: "failed", message: EFFECTS_UNAVAILABLE });
+    const out = await simulateAndSend({ account: address, to: built.to, data: built.data, onStep: step, usdcOut: 0n, conversion: built.conversion });
+    if (!out.ok) return setTx(conversionFailure(out));
+    await settleClose(out, {
+      liveShares,
+      liveCollateral,
+      stop,
+      btcBefore,
+      // What the swap returned comes from the receipt's own Transfer logs, and Circle's adapter is read back to 0 (C67, C72).
+      extra: async (repaidAssets) => {
+        const outcome = conversionOutcome(out.receipt.logs, { token: currency.address, payer: address, spent: repaidAssets ?? liveApproval });
+        const clear = await adapterReadBack(client, address).catch(() => null);
+        const left = outcome.surplus > 0n ? ` ${formatUnitsExact(outcome.surplus, currency.decimals)} ${currency.symbol} is left in your wallet.` : "";
+        const adapter = clear === true ? " Circle's adapter has no access to your wallet." : " Circle's adapter may still have access to your wallet: check it before converting again.";
+        return `Circle turned ${formatUnitsExact(est.amountIn, 6)} ${sold.symbol} into ${formatUnitsExact(outcome.converted, currency.decimals)} ${currency.symbol}.${left}${adapter}${out.effects === "unavailable" ? " Adag could not trace the swap's transfers before you signed." : ""}`;
+      },
+    });
+  };
+
   const runClose = async () => {
     step("checking");
     const client = publicArc();
@@ -329,41 +475,24 @@ export function LoanTicket(props: LoanTicketProps) {
     const out = await simulateAndSend({ account: address, to: built.to, data: built.data, onStep: step, usdcOut: isUsdc ? liveApproval : 0n });
     if (!out.ok) return setTx(out.stage === "refused" ? { kind: "refused", error: out.error } : { kind: "failed", message: out.message, href: out.hash && `${EXPLORER}/tx/${out.hash}` });
 
-    const events = morphoEventsIn(out.receipt.logs).filter((e) => e.id.toLowerCase() === m.toLowerCase() && e.onBehalf.toLowerCase() === address.toLowerCase());
-    const repaid = events.find((e) => e.name === "Repay");
-    const withdrawn = events.find((e) => e.name === "WithdrawCollateral");
-    const [after, allowance, btcAfter, guardAfter] = await Promise.all([
-      client.readContract({ address: MORPHO, abi: morphoAbi, functionName: "position", args: [m, address] }),
-      client.readContract({ address: currency.address, abi: erc20Abi, functionName: "allowance", args: [address, MORPHO] }),
-      client.readContract({ address: CIRBTC, abi: erc20Abi, functionName: "balanceOf", args: [address] }),
-      ADAG_GUARD ? readGuardStop(address, currency) : Promise.resolve({ hasRule: false, allowance: 0n }),
-    ]).catch(() => [null, null, null, null] as const);
-    // C60: when the close stopped the guard, AdagGuard's own RuleCleared (if there was a rule) and a 0 approval prove it.
-    const guardStopped =
-      !(stop.hasRule || stop.allowance > 0n) ||
-      (guardAfter !== null && !guardAfter.hasRule && guardAfter.allowance === 0n && (!stop.hasRule || ruleClearedIn(out.receipt.logs, address, m)));
-    const proven =
-      (liveShares === 0n || (repaid?.name === "Repay" && repaid.shares === liveShares)) &&
-      (liveCollateral === 0n || (withdrawn?.name === "WithdrawCollateral" && withdrawn.assets === liveCollateral && withdrawn.receiver.toLowerCase() === address.toLowerCase())) &&
-      after !== null && after[1] === 0n && after[2] === 0n && (liveShares === 0n || allowance === 0n) && guardStopped;
-    if (!proven || btcAfter === null) return fail("Arc confirmed the transaction, but Morpho does not read the loan as closed. Check the transaction.", out.hash);
-    const back = btcAfter - btcBefore;
-    const returned = `${formatUnitsExact(back, CIRBTC_DECIMALS)} cirBTC is back in your wallet.`;
-    setDone({
-      kind: "closed",
-      hash: out.hash,
-      text: `${liveShares > 0n ? `Loan closed. 0 owed, 0 pledged. ${returned}` : `Done. 0 pledged in this market, and ${returned}`}${stop.hasRule || stop.allowance > 0n ? " The loan guard for this loan is off: no rule, and its approval is 0." : ""}`,
-    });
-    setTx({ kind: "idle" });
-    onChanged();
+    await settleClose(out, { liveShares, liveCollateral, stop, btcBefore });
   };
 
-  const run = (which: Action) => void (which === "add" ? runAdd() : which === "repay" ? runRepay() : runClose());
+  const run = (which: Action) => void (which === "add" ? runAdd() : which === "repay" ? runRepay() : which === "close" ? runClose() : runCloseOther().finally(unfreeze));
   const start = (which: Action) => {
     setTx({ kind: "idle" });
     setDone(null);
     if (!hasAcceptedMorphoDisclaimer(address)) return setAsking(which);
     run(which);
+  };
+
+  // Pressing the button freezes the figures on screen: the close uses exactly these, and anything that moves after the
+  // press needs a new press (C70).
+  const onCloseOther = () => {
+    if (closeConvert.kind !== "ready") return;
+    frozenRef.current = closeConvert.estimate;
+    setFrozen(closeConvert.estimate);
+    start("closeOther");
   };
 
   const closed = done?.kind === "closed";
@@ -530,11 +659,39 @@ export function LoanTicket(props: LoanTicketProps) {
                       </p>
                     )}
                     <Button variant="primary" disabled={Boolean(busy) || (shares > 0n && short === null)} onClick={() => start("close")} data-action="close-loan" className="mt-5 w-full md:w-auto">
-                      {busy ? <BusyLabel step={busy.step} since={busy.since} /> : shares > 0n ? "Close loan" : "Take your bitcoin back"}
+                      {busy && !frozen ? <BusyLabel step={busy.step} since={busy.since} /> : shares > 0n ? "Close loan" : "Take your bitcoin back"}
                     </Button>
                     {shares > 0n && short === null && !busy && <p className="type-body mt-2 text-muted" data-blocked-reason>Reading your loan and balance on Arc.</p>}
                     <FeeLine query={closeFee} className="mt-3" />
                   </>
+                )}
+                {shares > 0n && (
+                  <div className="mt-6 border-t border-rule pt-5" data-close-convert>
+                    <p className="type-h4 text-text">Close with {sold.symbol}</p>
+                    {closeConvert.kind === "loading" ? (
+                      <p className="type-body mt-2 text-muted">
+                        Reading the euro price and your {sold.symbol} on Arc. <Reading />
+                      </p>
+                    ) : closeConvert.kind === "unavailable" ? (
+                      <p className="type-body mt-2 text-muted">Adag could not read what a conversion needs, so it is off. Reload to try again.</p>
+                    ) : closeConvert.kind === "off" ? (
+                      <>
+                        <p className="type-body mt-2 text-text" data-close-convert-off>
+                          {closeConvert.reason}
+                        </p>
+                        {closeConvert.reset && <ConvertReset account={address} loanToken={sold.address} canSign={!busy} onDone={() => void closeRead.refetch()} className="mt-4" />}
+                      </>
+                    ) : (
+                      <>
+                        <div className="type-body text-muted">
+                          <CloseConvertEstimate e={closeConvert.estimate} />
+                        </div>
+                        <Button variant="secondary" disabled={Boolean(busy)} onClick={onCloseOther} data-action="close-other" className="mt-5 w-full md:w-auto">
+                          {busy && frozen ? <BusyLabel step={busy.step} since={busy.since} /> : `Close with ${sold.symbol}`}
+                        </Button>
+                      </>
+                    )}
+                  </div>
                 )}
               </div>
             )}
@@ -556,7 +713,10 @@ export function LoanTicket(props: LoanTicketProps) {
 
       <MorphoDisclaimer
         open={asking !== null}
-        onCancel={() => setAsking(null)}
+        onCancel={() => {
+          setAsking(null);
+          unfreeze();
+        }}
         onAccept={() => {
           rememberMorphoDisclaimer(address);
           const which = asking;

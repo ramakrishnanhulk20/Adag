@@ -1,18 +1,20 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { isAddressEqual, type Address, type Hex } from "viem";
 import { Button } from "@/components/Button";
 import { adagAbi, erc20Abi, morphoAbi, oracleAbi } from "@/lib/pay/abi";
-import { buildPayFromBalance, buildPayFromBitcoin, suggestPledge, type Bill } from "@/lib/pay/build";
+import { buildPayConverted, buildPayFromBalance, buildPayFromBitcoin, suggestPledge, type Bill } from "@/lib/pay/build";
+import { loanCurrencyFor, readLoanPriceFresh } from "@/lib/fx/estimate";
+import { checkAdapterPreflight } from "@/lib/fx/preflight";
 import { BILL_STATUS, CIRBTC, CIRBTC_DECIMALS, EXPLORER, MAX_LTV_WAD, MORPHO, USDC, type Currency } from "@/lib/pay/constants";
 import { formatPercentWad, formatUnitsExact } from "@/lib/pay/format";
 import { lendCovers, readyToLend } from "@/lib/pay/lend";
 import { debtFromShares, liquidationDropWad, ltvWad } from "@/lib/pay/loan";
 import { paramsFromTuple } from "@/lib/pay/market";
-import { billPaidIn } from "@/lib/pay/receipt";
+import { billPaidIn, conversionOutcome, payPanelFor, type PayPanel } from "@/lib/pay/receipt";
 import type { Blocker } from "@/lib/pay/enrol";
 import {
   GUARD_RULE_UNREADABLE,
@@ -35,6 +37,10 @@ import { keepText } from "./fee";
 import { FeeLine } from "./FeeLine";
 import { GetSetUp, type SetupNeed } from "./GetSetUp";
 import { MorphoDisclaimer } from "./MorphoDisclaimer";
+import { ConvertEstimate, ConvertReset, convertTitle } from "./fx/ConvertParts";
+import { EFFECTS_UNAVAILABLE, billConvertView, reasons, type ConvertView, type Estimate } from "./fx/figures";
+import { adapterReadBack, askCircle, conversionFailure, effectsCanBeChecked } from "./fx/press";
+import { useBillConvert } from "./fx/useConvert";
 import { SuccessCard } from "./SuccessCard";
 import { BusyLabel, TxMessage, type TxState } from "./TxProgress";
 import { usdHint, useUsdPrice } from "./usdPrice";
@@ -59,6 +65,8 @@ export type PayActionsProps = {
   // loan was recorded in the current block.
   enrol: { balance: Blocker[] | null; bitcoin: Blocker[] | null; sameBlock: boolean };
   onRecorded: () => void;
+  // Told whether a payment is under way, so the page keeps this panel mounted until the payment has read its receipt.
+  onBusy: (busy: boolean) => void;
 };
 
 
@@ -66,10 +74,26 @@ export type PayActionsProps = {
 const USDC_FEE_FALLBACK = 10_000n;
 const NATIVE_PER_USDC_UNIT = 10n ** 12n;
 
-type Paid = { method: "balance" | "bitcoin"; hash: Hex; loanChecked: boolean | null; ltvAfter?: bigint; sold?: bigint; pledged?: bigint };
+type Paid = {
+  method: "balance" | "bitcoin" | "convert";
+  hash: Hex;
+  loanChecked: boolean | null;
+  ltvAfter?: bigint;
+  sold?: bigint;
+  pledged?: bigint;
+  // Set when a loan in the other currency paid it: what the swap put in the wallet and what was left over, from the
+  // receipt's own Transfer logs (C72), and whether Circle's adapter reads as having no access afterwards (C67).
+  borrowed?: bigint;
+  converted?: bigint;
+  surplus?: bigint;
+  adapterClear?: boolean | null;
+  effectsUnchecked?: boolean;
+};
+type ConvertState = { kind: "loading" } | { kind: "unavailable" } | ConvertView;
 
 export function PayActions(props: PayActionsProps) {
-  const { bill, address, currency, balance, cirBtc, position, market, price, priceStatus, needed, borrowApy, onSettled, enrol, onRecorded } = props;
+  const { bill, address, currency, balance, cirBtc, position, market, price, priceStatus, needed, borrowApy, onSettled, enrol, onRecorded, onBusy } = props;
+  const open = bill.status === BILL_STATUS.Open;
   const [enrolling, setEnrolling] = useState(false);
   const balanceBlockers = enrol.balance ?? [];
   const bitcoinBlockers = enrol.bitcoin ?? [];
@@ -98,13 +122,71 @@ export function PayActions(props: PayActionsProps) {
   const usd = useUsdPrice();
   const [tx, setTx] = useState<TxState>({ kind: "idle" });
   const [paid, setPaid] = useState<Paid | null>(null);
-  const [asking, setAsking] = useState(false);
+  const [asking, setAsking] = useState<null | "bitcoin" | "convert">(null);
+  // The conversion's figures as they stood when pay was pressed. The screen shows them, and the payment uses them, until
+  // it ends: a refresh in between never changes what is signed (C70).
+  const [frozen, setFrozen] = useState<{ estimate: Estimate } | null>(null);
+  const frozenRef = useRef<{ estimate: Estimate } | null>(null);
+  const unfreeze = useCallback(() => {
+    frozenRef.current = null;
+    setFrozen(null);
+  }, []);
   // Stable on purpose: the disclaimer resets its checkbox whenever this callback changes, and this page re-renders
   // while the dialog is open (a fee estimate or a balance read landing).
-  const closeDisclaimer = useCallback(() => setAsking(false), []);
-  const [active, setActive] = useState<"balance" | "bitcoin" | null>(null);
+  const closeDisclaimer = useCallback(() => {
+    setAsking(null);
+    unfreeze();
+  }, [unfreeze]);
+  const [active, setActive] = useState<"balance" | "bitcoin" | "convert" | null>(null);
+  const [convertCaught, setConvertCaught] = useState<string | null>(null);
   const busy = tx.kind === "busy";
+  // The page polls the bill and can refresh it to Paid before this payment has read its receipt; the parent keeps this
+  // panel mounted while busy, so the receipt card is not lost to that refresh.
+  useEffect(() => {
+    onBusy(busy);
+    return () => onBusy(false);
+  }, [busy, onBusy]);
   const step = (s: TxStep) => setTx((prev) => ({ kind: "busy", step: s, since: prev.kind === "busy" && prev.step === s ? prev.since : Date.now() }));
+
+  // The conversion option: its figures are read once and never ask Circle anything (C73), plus the payer's loan guard for
+  // the loan market, which is the other currency's (C58, C69).
+  const loan = loanCurrencyFor(currency.symbol);
+  const convertRead = useBillConvert({ enabled: open && !paid && !busy && !frozen, payer: address, contract: bill.contract, billSymbol: currency.symbol, total: bill.amount, otherTotal: 0n });
+  const loanGuardQuery = useQuery({
+    queryKey: ["adag-guard-rule", address, loan.marketId],
+    refetchInterval: 30_000,
+    queryFn: () => readOwnGuard(publicArc(), address, loan.marketId, loan.address),
+  });
+  const loanGuardView = guardViewOf(loanGuardQuery);
+  const convertState: ConvertState = frozen
+    ? { kind: "ready", estimate: frozen.estimate }
+    : convertRead.data
+      ? billConvertView(convertRead.data, { otherConverts: false, otherBill: null, sharedBorrow: 0n })
+      : convertRead.isError
+        ? { kind: "unavailable" }
+        : { kind: "loading" };
+  const convertEstimate = convertState.kind === "ready" ? convertState.estimate : null;
+  const convertFigures = convertRead.data && convertRead.data.state === "ok" ? convertRead.data : null;
+  // C58: this conversion's loan-to-value against the payer's own guard trigger, in the loan market.
+  const convertGuardAfter =
+    convertEstimate && convertFigures && loanGuardView.state === "ok"
+      ? guardRepayAfterBorrow({
+          rule: loanGuardView.rule,
+          nowSeconds: BigInt(Math.floor(Date.now() / 1000)),
+          ltvAfterWad: convertEstimate.ltvAfter,
+          before: { shares: convertFigures.position[1], collateral: convertFigures.position[2] },
+          totals: { totalBorrowAssets: convertFigures.market[2], totalBorrowShares: convertFigures.market[3] },
+          borrow: convertEstimate.amountIn,
+          pledge: convertEstimate.pledge,
+          price: convertFigures.price,
+          allowance: loanGuardView.allowance,
+          balanceAfter: convertFigures.loanBalance,
+        })
+      : null;
+  const convertShortOfBtc = convertEstimate !== null && convertEstimate.cirBtc < convertEstimate.pledge;
+  // The loans the conversion would check and fail: the same list as paying from balance, less the loan market, whose
+  // new borrowing the pledge already sizes.
+  const convertBlockers = balanceBlockers.filter((b) => b.market.toLowerCase() !== loan.marketId.toLowerCase());
 
   const fresh = priceStatus.state === "ok" ? priceStatus.value[0] : null;
   const pledge: Cell<bigint> = needed.state === "ok" ? { state: "ok", value: suggestPledge(needed.value) } : needed;
@@ -129,7 +211,7 @@ export function PayActions(props: PayActionsProps) {
   const pledgeValue = pledge.state === "ok" ? pledge.value : null;
   const bitcoinFee = useQuery({
     queryKey: ["adag-fee", "bitcoin", bill.contract, bill.id.toString(), address, pledgeValue?.toString()],
-    enabled: fresh === true && pledgeValue !== null && !shortOfBtc && !lendShort && !paid,
+    enabled: open && fresh === true && pledgeValue !== null && !shortOfBtc && !lendShort && !paid,
     staleTime: 30_000,
     retry: false,
     // The fixed params go in here; the real payment re-reads Morpho's and proves them by hash before building.
@@ -142,7 +224,7 @@ export function PayActions(props: PayActionsProps) {
   const balanceFee = useQuery({
     queryKey: ["adag-fee", "balance", bill.contract, bill.id.toString(), address],
     // With an unrecorded loan the estimate would only revert, so it waits for the recording.
-    enabled: heldEnoughForBill && !paid && (enrol.balance?.length ?? 0) === 0,
+    enabled: open && heldEnoughForBill && !paid && (enrol.balance?.length ?? 0) === 0,
     staleTime: 30_000,
     retry: false,
     queryFn: () => {
@@ -161,7 +243,7 @@ export function PayActions(props: PayActionsProps) {
     const record = await publicArc()
       .readContract({ address: bill.contract, abi: adagAbi, functionName: "bill", args: [bill.id] })
       .catch(() => null);
-    const proof = logs ? billPaidIn(logs, bill.contract, bill.id) : null;
+    const proof = logs ? billPaidIn(logs, bill.contract, bill.id, address) : null;
     // C16, C53: the bill's own contract's BillPaid in the receipt, or, when the receipt never came, that contract's
     // record naming this payer.
     const proven = record !== null && record.status === BILL_STATUS.Paid && (proof !== null || (logs === null && isAddressEqual(record.payer, address)));
@@ -183,14 +265,14 @@ export function PayActions(props: PayActionsProps) {
     if (out.stage === "refused") {
       // A check on an existing loan: read the loans again, so the enrol card can take the place of the raw refusal.
       if (out.error.name === "LtvAboveLimit" || out.error.name === "StalePrice") onRecorded();
-      return setTx({ kind: "refused", error: out.error });
+      return setTx(method === "convert" ? conversionFailure(out) : { kind: "refused", error: out.error });
     }
     if (out.stage === "unconfirmed") {
       step("watching");
       if (await watchBills(bill.contract, [bill.id], BILL_STATUS.Paid, address)) return settle(method, out.hash, null, extra);
       return setTx({ kind: "failed", message: "Arc has not confirmed it after two minutes. Do not pay again: check the transaction first.", href: `${EXPLORER}/tx/${out.hash}` });
     }
-    setTx({ kind: "failed", message: out.message, href: out.hash && `${EXPLORER}/tx/${out.hash}` });
+    setTx(method === "convert" ? conversionFailure(out) : { kind: "failed", message: out.message, href: out.hash && `${EXPLORER}/tx/${out.hash}` });
   };
 
   const payFromBalance = async () => {
@@ -309,12 +391,151 @@ export function PayActions(props: PayActionsProps) {
     });
   };
 
+  // Paying from a loan in the other currency (C65 to C75): every check is read again at the moment of paying against the
+  // figures frozen at the press, Circle is asked once and last, and nothing reaches the wallet unless the sender's own
+  // checks and the transfer trace both pass.
+  const payFromConvert = async () => {
+    const est = frozenRef.current?.estimate;
+    if (!est) return;
+    setActive("convert");
+    step("checking");
+    const client = publicArc();
+    const sold = est.loan;
+    const failed = (message: string) => setTx({ kind: "failed", message: `${message} Nothing was sent.` });
+    try {
+      // The bill is read again: the figures on screen were sized for exactly this amount.
+      const record = await client.readContract({ address: bill.contract, abi: adagAbi, functionName: "bill", args: [bill.id] });
+      if (record.status !== BILL_STATUS.Open || record.amount !== bill.amount || !isAddressEqual(record.payee, bill.payee) || !isAddressEqual(record.currency, bill.currency) || record.ref !== bill.ref) {
+        return failed("This bill changed since the page loaded. Reload the page to see it as it is now.");
+      }
+    } catch {
+      return failed("Arc did not answer, so the payment was not built. Try again.");
+    }
+    const pendingNow = await pendingGuardOutflow(client, address);
+    if (!pendingNow) return setTx({ kind: "failed", message: GUARD_UNREADABLE });
+    let tuple: readonly [Hex, Hex, Hex, Hex, bigint];
+    try {
+      const [loanFresh, mk, params, held, pre] = await Promise.all([
+        readLoanPriceFresh(client, bill.contract, currency.symbol),
+        client.readContract({ address: MORPHO, abi: morphoAbi, functionName: "market", args: [sold.marketId] }),
+        client.readContract({ address: MORPHO, abi: morphoAbi, functionName: "idToMarketParams", args: [sold.marketId] }),
+        client.readContract({ address: CIRBTC, abi: erc20Abi, functionName: "balanceOf", args: [address] }),
+        checkAdapterPreflight(client, address, sold.address),
+      ]);
+      if (loanFresh === false) return failed(reasons.loanPaused(sold.symbol));
+      if (loanFresh === null) return failed(reasons.loanUnknown(sold.symbol));
+      if (pre.state !== "clear") return failed(pre.state === "blocked" ? pre.blockers.join(" ") : pre.text);
+      const cash = readyToLend(mk);
+      if (!lendCovers(cash, est.amountIn)) return failed(reasons.cash(cash, est.amountIn, sold.symbol));
+      if (held < est.pledge) return failed(`This payment pledges ${formatUnitsExact(est.pledge, CIRBTC_DECIMALS)} cirBTC and your wallet holds ${formatUnitsExact(held, CIRBTC_DECIMALS)}.`);
+      tuple = params;
+    } catch {
+      return failed("Arc did not answer, so the payment was not built. Try again.");
+    }
+
+    // C58, read again at the moment of signing, in the loan market: a trip the page had not shown stops here.
+    const guardNow = await readOwnGuard(client, address, sold.marketId, sold.address);
+    if (guardNow.state !== "ok") return setTx({ kind: "failed", message: GUARD_RULE_UNREADABLE });
+    let tripNow: string | null = null;
+    try {
+      const [pos, mk, px, tokenHeld] = await Promise.all([
+        client.readContract({ address: MORPHO, abi: morphoAbi, functionName: "position", args: [sold.marketId, address] }),
+        client.readContract({ address: MORPHO, abi: morphoAbi, functionName: "market", args: [sold.marketId] }),
+        client.readContract({ address: sold.params.oracle, abi: oracleAbi, functionName: "price" }),
+        client.readContract({ address: sold.address, abi: erc20Abi, functionName: "balanceOf", args: [address] }),
+      ]);
+      const ltvAfterWad = ltvWad(debtFromShares(pos[1], mk[2], mk[3]) + est.amountIn, pos[2] + est.pledge, px);
+      const repay = guardRepayAfterBorrow({
+        rule: guardNow.rule,
+        nowSeconds: BigInt(Math.floor(Date.now() / 1000)),
+        ltvAfterWad,
+        before: { shares: pos[1], collateral: pos[2] },
+        totals: { totalBorrowAssets: mk[2], totalBorrowShares: mk[3] },
+        borrow: est.amountIn,
+        pledge: est.pledge,
+        price: px,
+        allowance: guardNow.allowance,
+        balanceAfter: tokenHeld,
+      });
+      if (repay) tripNow = triggerSentence({ ltvAfterWad, amount: repay.amount, triggerWad: repay.triggerWad, targetWad: repay.targetWad, symbol: sold.symbol });
+    } catch {
+      return setTx({ kind: "failed", message: GUARD_RULE_UNREADABLE });
+    }
+    if (tripNow && !convertGuardAfter && convertCaught === null) {
+      setConvertCaught(tripNow);
+      return setTx({ kind: "failed", message: "Your loan guard changed since this page loaded: read the note above before paying. Nothing was sent." });
+    }
+
+    // C73: Circle is asked here, for exactly the frozen amount (the identical request is repeated at most twice for "no
+    // route" or rate limiting). If it still refuses, times out or answers badly, its fixed sentence is shown and the payer
+    // presses again; nothing is raised.
+    const asked = await askCircle(client, { payer: address, sell: sold, buy: currency, amountIn: est.amountIn, minOut: bill.amount });
+    if (!asked.ok) return setTx({ kind: "failed", message: asked.message });
+    let built;
+    try {
+      built = buildPayConverted(bill, address, {
+        from: "convert",
+        loan: sold.symbol,
+        amountIn: est.amountIn,
+        pledge: est.pledge,
+        marketParams: paramsFromTuple(tuple),
+        plan: asked.pinned.plan,
+        outputBalance: asked.pinned.outputBalance,
+        maxFeePerGas: asked.pinned.maxFeePerGas,
+        chainTime: asked.pinned.chainTime,
+        rate: asked.pinned.rate,
+      });
+    } catch (error) {
+      return failed((error as Error).message);
+    }
+    // C71, failing closed: a conversion is only signed when this connection can trace the transfers it makes.
+    if (!(await effectsCanBeChecked(client))) return setTx({ kind: "failed", message: EFFECTS_UNAVAILABLE });
+    const out = await simulateAndSend({ account: address, to: built.to, data: built.data, onStep: step, usdcOut: pendingNow.usdc, conversion: built.conversion });
+    await conclude(out, "convert", async () => {
+      // What the swap returned comes from the receipt's own Transfer logs, and Circle's adapter is read back to 0 (C67, C72).
+      const outcome = out.ok ? conversionOutcome(out.receipt.logs, { token: currency.address, payer: address, spent: bill.amount }) : null;
+      const [adapterClear, ltv] = await Promise.all([
+        adapterReadBack(client, address),
+        client.readContract({ address: bill.contract, abi: adagAbi, functionName: "loanToValue", args: [address, sold.marketId] }),
+      ]);
+      return {
+        borrowed: est.amountIn,
+        converted: outcome?.converted,
+        surplus: outcome?.surplus,
+        adapterClear,
+        ltvAfter: ltv,
+        pledged: est.pledge,
+        effectsUnchecked: out.ok && out.effects === "unavailable",
+      };
+    });
+  };
+
   const onBitcoin = () => {
     setTx({ kind: "idle" });
     if (hasAcceptedMorphoDisclaimer(address)) void payFromBitcoin();
-    else setAsking(true);
+    else setAsking("bitcoin");
   };
 
+  // Pressing pay freezes the figures on screen: the payment below uses exactly these, and anything that moves after the
+  // press needs a new press (C70).
+  const runConvert = async () => {
+    try {
+      await payFromConvert();
+    } finally {
+      unfreeze();
+    }
+  };
+  const onConvert = () => {
+    setTx({ kind: "idle" });
+    if (!convertEstimate) return;
+    const snapshot = { estimate: convertEstimate };
+    frozenRef.current = snapshot;
+    setFrozen(snapshot);
+    if (hasAcceptedMorphoDisclaimer(address)) void runConvert();
+    else setAsking("convert");
+  };
+
+  const panel = payPanelFor({ status: bill.status, paid: paid !== null, busy });
   if (paid) {
     return (
       <SuccessCard
@@ -323,7 +544,44 @@ export function PayActions(props: PayActionsProps) {
         title={`Bill #${bill.id} is paid.`}
         rows={[
           { label: "Supplier received", value: amountText },
-          { label: "Paid from", value: paid.method === "balance" ? `Your ${currency.symbol} balance` : "A loan against your cirBTC" },
+          {
+            label: "Paid from",
+            value:
+              paid.method === "balance"
+                ? `Your ${currency.symbol} balance`
+                : paid.method === "convert"
+                  ? `A ${loan.symbol} loan against your cirBTC, converted to ${currency.symbol} by Circle`
+                  : "A loan against your cirBTC",
+          },
+          ...(paid.method === "convert"
+            ? [
+                {
+                  label: "Borrowed and converted",
+                  value:
+                    paid.borrowed !== undefined && paid.converted !== undefined
+                      ? `${formatUnitsExact(paid.borrowed, 6)} ${loan.symbol} became ${formatUnitsExact(paid.converted, 6)} ${currency.symbol}`
+                      : "unavailable",
+                },
+                { label: "Left in your wallet", value: paid.surplus !== undefined ? `${formatUnitsExact(paid.surplus, 6)} ${currency.symbol}` : "unavailable" },
+                { label: "Pledged now", value: paid.pledged !== undefined ? `${formatUnitsExact(paid.pledged, CIRBTC_DECIMALS)} cirBTC more${usdHint(paid.pledged, usd)}` : "unavailable" },
+                { label: `${loan.symbol} loan-to-value after`, value: paid.ltvAfter !== undefined ? formatPercentWad(paid.ltvAfter) : "unavailable" },
+                { label: "40% check", value: paid.loanChecked === null ? "See the transaction" : paid.loanChecked ? "Ran and passed" : "Not needed" },
+                { label: "Your debt", value: `In ${loan.symbol}. Its dollar cost moves with the euro.` },
+                {
+                  label: "Circle's adapter",
+                  value: (
+                    <span data-adapter-clear={String(paid.adapterClear ?? null)}>
+                      {paid.adapterClear === true ? "No access to your wallet is left." : paid.adapterClear === false ? "It still has access to your wallet." : "Its access could not be read."}
+                      {paid.adapterClear !== true && <ConvertReset account={address} loanToken={loan.address} canSign onDone={() => setPaid((p) => (p ? { ...p, adapterClear: true } : p))} className="mt-2" />}
+                    </span>
+                  ),
+                },
+                ...(paid.effectsUnchecked
+                  ? [{ label: "Extra check", value: "Adag could not trace this conversion's transfers before you signed, so only the payment's own balance check guarded it." }]
+                  : []),
+                { label: "Your bitcoin back", value: "Repay any time from Your wallet: Close loan, or close it with the other currency." },
+              ]
+            : []),
           ...(paid.method === "bitcoin"
             ? [
                 { label: "Bitcoin sold", value: paid.sold !== undefined ? `${paid.sold === 0n ? "0" : formatUnitsExact(paid.sold, CIRBTC_DECIMALS)} cirBTC` : "unavailable" },
@@ -338,6 +596,18 @@ export function PayActions(props: PayActionsProps) {
             : []),
         ]}
       />
+    );
+  }
+
+  if (panel !== "options") {
+    return (
+      <div className="app-panel flex h-full flex-col p-6 md:p-8" data-pay-closed={panel}>
+        <p className="type-label text-muted">Pay this bill</p>
+        <p className="type-lead mt-4 text-text">{closedText(bill.status, panel)}</p>
+        <div className="mt-5">
+          <TxMessage state={tx} />
+        </div>
+      </div>
     );
   }
 
@@ -573,6 +843,57 @@ export function PayActions(props: PayActionsProps) {
         )}
       </div>
 
+      <div className="mt-6 border-t border-rule pt-6" data-convert-section>
+        <p className="type-h4 text-text">{convertTitle(loan)}</p>
+        {convertState.kind === "loading" ? (
+          <p className="type-body mt-2 text-muted">
+            Reading the euro price and the {loan.symbol} market on Arc. <Reading />
+          </p>
+        ) : convertState.kind === "unavailable" ? (
+          <p className="type-body mt-2 text-muted">Adag could not read what a conversion needs, so it is off. Reload to try again.</p>
+        ) : convertState.kind === "off" ? (
+          <>
+            <p className="type-body mt-2 text-text" data-convert-off>
+              {convertState.reason}
+            </p>
+            {convertState.reset && <ConvertReset account={address} loanToken={loan.address} canSign={!busy} onDone={() => void convertRead.refetch()} className="mt-4" />}
+          </>
+        ) : (
+          <>
+            <div className="type-body text-muted">
+              <ConvertEstimate e={convertState.estimate} />
+            </div>
+            {(convertGuardAfter || convertCaught) && (
+              <p className="type-body mt-5 text-text" data-guard-trigger>
+                {convertGuardAfter
+                  ? triggerSentence({ ltvAfterWad: convertState.estimate.ltvAfter, amount: convertGuardAfter.amount, triggerWad: convertGuardAfter.triggerWad, targetWad: convertGuardAfter.targetWad, symbol: loan.symbol })
+                  : convertCaught}
+              </p>
+            )}
+            <Button
+              variant="secondary"
+              disabled={busy || enrolling || convertBlockers.length > 0 || enrol.sameBlock || guardBlocked || loanGuardView.state !== "ok" || convertShortOfBtc}
+              onClick={onConvert}
+              className="mt-6 w-full md:w-auto"
+              data-action="pay-convert"
+            >
+              {busyStep && active === "convert" ? <BusyLabel step={busyStep.step} since={busyStep.since} /> : `Pay from bitcoin, borrowing ${loan.symbol}`}
+            </Button>
+            {!busy && (convertShortOfBtc || convertBlockers.length > 0 || loanGuardView.state !== "ok") && (
+              <p className={`type-body mt-2 ${convertShortOfBtc ? "text-danger" : "text-muted"}`} data-convert-blocked>
+                {convertShortOfBtc
+                  ? "Your wallet holds less cirBTC than this pledge."
+                  : convertBlockers.length > 0
+                    ? "Record your existing loan first, above."
+                    : loanGuardView.state === "unreadable"
+                      ? GUARD_RULE_UNREADABLE
+                      : "Reading your loan guard on Arc."}
+              </p>
+            )}
+          </>
+        )}
+      </div>
+
       {needs.length > 0 && <GetSetUp needs={needs} className="mt-6" />}
 
       <div className="mt-5">
@@ -580,16 +901,26 @@ export function PayActions(props: PayActionsProps) {
       </div>
 
       <MorphoDisclaimer
-        open={asking}
+        open={asking !== null}
         onCancel={closeDisclaimer}
         onAccept={() => {
           rememberMorphoDisclaimer(address);
-          setAsking(false);
-          void payFromBitcoin();
+          const which = asking;
+          setAsking(null);
+          void (which === "convert" ? runConvert() : payFromBitcoin());
         }}
       />
     </div>
   );
+}
+
+function closedText(status: number, panel: PayPanel): string {
+  if (panel === "progress") {
+    return status === BILL_STATUS.Paid
+      ? "Arc already shows this bill as paid. Adag is reading your transaction to confirm the payment is yours."
+      : "This bill was cancelled while your payment was on its way. Adag is reading your transaction.";
+  }
+  return status === BILL_STATUS.Paid ? "Already paid. Nothing to pay here." : status === BILL_STATUS.Void ? "Cancelled. It can never be paid." : "This bill cannot be paid.";
 }
 
 function Figure<T>({ label, cell, render, note }: { label: string; cell: Cell<T>; render: (v: T) => React.ReactNode; note?: string }) {

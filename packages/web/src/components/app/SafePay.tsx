@@ -26,7 +26,9 @@ import { wagmiConfig } from "@/lib/wallet/config";
 import { hasAcceptedMorphoDisclaimer, rememberMorphoDisclaimer } from "@/lib/wallet/consent";
 import { publicArc } from "@/lib/wallet/send";
 import { readyToSign, useWallet } from "@/lib/wallet/useWallet";
+import { loanCurrencyFor } from "@/lib/fx/estimate";
 import { MorphoDisclaimer } from "./MorphoDisclaimer";
+import { SAFE_CONVERT_LINE } from "./fx/figures";
 import { forgetProposal, recallProposal, rememberProposal } from "./safeMemory";
 import { useSafeList } from "./safeList";
 import { useElapsed } from "./TxProgress";
@@ -467,7 +469,7 @@ export function SafePay({ bills, onProposed }: { bills: Bill[]; onProposed?: () 
                       Proposed ({shortAddress(enrolProposed.safeTxHash)}). Once your other owners execute it in Safe&apos;s app, the payment can be proposed here.
                     </p>
                   ) : (
-                    <Button variant="primary" size="sm" disabled={busy} onClick={() => void proposeEnrol()} className="mt-3" data-action="safe-enrol">
+                    <Button variant="primary" size="sm" disabled={busy} onClick={() => void proposeEnrol()} className="mt-3 h-auto min-h-10 w-full whitespace-normal py-2 text-center md:w-auto" data-action="safe-enrol">
                       Propose: record this Safe&apos;s existing loan
                     </Button>
                   )}
@@ -512,6 +514,13 @@ export function SafePay({ bills, onProposed }: { bills: Bill[]; onProposed?: () 
                             </label>
                           );
                         })}
+                        {/* Always shown, never available to a Safe: Circle's quote lasts 10 minutes and the owners sign later (C74). */}
+                        <label className="type-body flex items-start gap-3 text-muted opacity-60" data-safe-convert={g.currency.symbol}>
+                          <input type="radio" name={`safe-${g.currency.symbol}`} disabled className="mt-1.5 accent-[var(--gold-fill)]" />
+                          <span>
+                            From the Safe&apos;s bitcoin, borrowing {loanCurrencyFor(g.currency.symbol).symbol}. {SAFE_CONVERT_LINE}
+                          </span>
+                        </label>
                       </div>
                     </div>
                   );

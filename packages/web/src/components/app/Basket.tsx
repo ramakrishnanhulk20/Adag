@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "motion/react";
 import { useQuery } from "@tanstack/react-query";
 import { isAddressEqual, type Address, type Hex } from "viem";
@@ -10,6 +10,8 @@ import { Hallmark } from "@/components/Hallmark";
 import { adagAbi, erc20Abi, morphoAbi, oracleAbi } from "@/lib/pay/abi";
 import { billFromJson, type BillJson } from "@/lib/pay/billJson";
 import { buildPayMany, suggestPledge, type BasketPlan, type Bill } from "@/lib/pay/build";
+import { loanCurrencyFor, readLoanPriceFresh } from "@/lib/fx/estimate";
+import { checkAdapterPreflight } from "@/lib/fx/preflight";
 import { billHref } from "@/lib/pay/billId";
 import {
   BILL_STATUS,
@@ -30,7 +32,7 @@ import { formatPercentWad, formatUnitsExact, fullAddress, referenceText, shortAd
 import { lendCovers, readyToLend } from "@/lib/pay/lend";
 import { debtFromShares, liquidationDropWad, ltvWad } from "@/lib/pay/loan";
 import { currencyOf, paramsFromTuple } from "@/lib/pay/market";
-import { billsPaidIn } from "@/lib/pay/receipt";
+import { billsPaidIn, conversionOutcome } from "@/lib/pay/receipt";
 import { blockers, type Blocker, type MarketInput } from "@/lib/pay/enrol";
 import { EnrolCard } from "./EnrolCard";
 import {
@@ -47,8 +49,9 @@ import { pendingGuardOutflow } from "@/lib/guard/outflow";
 import { hasAcceptedMorphoDisclaimer, rememberMorphoDisclaimer } from "@/lib/wallet/consent";
 import { estimateFee, publicArc, simulateAndSend, watchBills, type TxStep } from "@/lib/wallet/send";
 import { readyToSign, useWallet } from "@/lib/wallet/useWallet";
-import { RetryContext, Value, type Cell } from "./cells";
+import { Reading, RetryContext, Value, type Cell } from "./cells";
 import { ConnectButton } from "./ConnectButton";
+import { keepText } from "./fee";
 import { FeeLine } from "./FeeLine";
 import { GetSetUp, type SetupNeed } from "./GetSetUp";
 import { MorphoDisclaimer } from "./MorphoDisclaimer";
@@ -56,13 +59,17 @@ import { FirstContractSafeNote, PayAsSwitch, usePayAsMode } from "./PayAs";
 import { SafePay } from "./SafePay";
 import { recallProposal, type RememberedProposal } from "./safeMemory";
 import { BusyLabel, TxMessage, type TxState } from "./TxProgress";
+import { ConvertEstimate, ConvertReset, convertTitle } from "./fx/ConvertParts";
+import { EFFECTS_UNAVAILABLE, billConvertView, reasons, type ConvertView, type Estimate } from "./fx/figures";
+import { adapterReadBack, askCircle, conversionFailure, effectsCanBeChecked } from "./fx/press";
+import { useBillConvert } from "./fx/useConvert";
 import { usdHint, useUsdPrice } from "./usdPrice";
 
 export type BasketItem = { id: string; kind: "found"; bill: BillJson } | { id: string; kind: "none" | "unavailable" };
 
 type Position = readonly [bigint, bigint, bigint];
 type MarketState = readonly [bigint, bigint, bigint, bigint, bigint, bigint];
-type Choice = "balance" | "bitcoin";
+type Choice = "balance" | "bitcoin" | "convert";
 
 // On Arc the fee comes out of the USDC balance, so a USDC group paid from balance keeps this much back for it.
 const USDC_FEE_RESERVE = 10_000n;
@@ -71,7 +78,17 @@ const STAMP_WINDOW_MS = 450;
 
 type GroupData = { balance: Cell<bigint>; fresh: Cell<boolean>; needed: Cell<bigint>; position: Cell<Position>; market: Cell<MarketState>; price: Cell<bigint> };
 type Group = { currency: Currency; bills: Bill[]; total: bigint };
-type Paid = { hash: Hex; count: number; sold: bigint | null; ltv: { symbol: string; value: bigint }[] };
+// `convert` is set when a group was paid from a loan in the other currency: what Circle's swap put in the wallet (from the
+// receipt's Transfer logs, C72), what was left over, and whether Circle's adapter reads as having no access afterwards (C67).
+type Paid = {
+  hash: Hex;
+  count: number;
+  sold: bigint | null;
+  ltv: { symbol: string; value: bigint }[];
+  convert: { loan: Currency; bill: Currency; amountIn: bigint; converted: bigint | null; surplus: bigint | null; adapterClear: boolean | null; effectsUnchecked: boolean } | null;
+};
+// A group's conversion option as the screen holds it: still reading, not readable, or a view that is ready or off.
+type ConvertState = { kind: "loading" } | { kind: "unavailable" } | ConvertView;
 
 function asideReason(item: BasketItem, bill: Bill | null, me: Address | null): string | null {
   if (item.kind === "none") return "No bill with this number on Arc yet.";
@@ -130,9 +147,20 @@ export function Basket({
   const [paid, setPaid] = useState<Paid | null>(null);
   const [landed, setLanded] = useState<Set<string>>(new Set());
   const [asking, setAsking] = useState(false);
+  // The conversion's figures as they stood when pay was pressed. The screen shows them, and the payment uses them, until
+  // it ends: a refresh in between never changes what is signed (C70).
+  const [frozen, setFrozen] = useState<{ symbol: "USDC" | "EURC"; estimate: Estimate } | null>(null);
+  const frozenRef = useRef<{ symbol: "USDC" | "EURC"; estimate: Estimate } | null>(null);
+  const unfreeze = useCallback(() => {
+    frozenRef.current = null;
+    setFrozen(null);
+  }, []);
   // Stable on purpose: the disclaimer resets its checkbox whenever this callback changes, and this page re-renders
   // while the dialog is open (a fee estimate or a balance read landing).
-  const closeDisclaimer = useCallback(() => setAsking(false), []);
+  const closeDisclaimer = useCallback(() => {
+    setAsking(false);
+    unfreeze();
+  }, [unfreeze]);
   const busy = tx.kind === "busy" ? tx : null;
   const step = (s: TxStep) => setTx((prev) => ({ kind: "busy", step: s, since: prev.kind === "busy" && prev.step === s ? prev.since : Date.now() }));
 
@@ -252,11 +280,43 @@ export function Basket({
   // C58 at signing: a trip the page had not shown is stopped and shown here instead of sending.
   const [caught, setCaught] = useState<string[]>([]);
 
+  // The conversion option of each currency group (C69, C70): read when the screen opens, never asking Circle anything.
+  const totalOf = (symbol: "USDC" | "EURC") => groups.find((g) => g.currency.symbol === symbol)?.total ?? 0n;
+  const convertOn = Boolean(me) && ready && !safeMode && !paid && !busy && !frozen;
+  const convertReads = {
+    USDC: useBillConvert({ enabled: convertOn && totalOf("USDC") > 0n, payer: me, contract, billSymbol: "USDC", total: totalOf("USDC"), otherTotal: totalOf("EURC") }),
+    EURC: useBillConvert({ enabled: convertOn && totalOf("EURC") > 0n, payer: me, contract, billSymbol: "EURC", total: totalOf("EURC"), otherTotal: totalOf("USDC") }),
+  };
+  const convertStateOf = (g: Group): ConvertState => {
+    const sym = g.currency.symbol;
+    if (frozen && frozen.symbol === sym) return { kind: "ready", estimate: frozen.estimate };
+    const q = convertReads[sym];
+    if (!q.data) return q.isError ? { kind: "unavailable" } : { kind: "loading" };
+    const other = groups.find((x) => x !== g) ?? null;
+    const otherChoice = other ? choices[other.currency.symbol] : undefined;
+    return billConvertView(q.data, {
+      otherConverts: otherChoice === "convert",
+      otherBill: other ? other.currency.symbol : null,
+      sharedBorrow: other && otherChoice === "bitcoin" ? other.total : 0n,
+    });
+  };
+  const converting = groups.find((g) => choices[g.currency.symbol] === "convert") ?? null;
+  const convertingState = converting ? convertStateOf(converting) : null;
+  const convertingEstimate: Estimate | null = convertingState?.kind === "ready" ? convertingState.estimate : null;
+  // C69: when a group converts, the other group's bitcoin loan is in the same Morpho market. One pledge covers both and
+  // sits in the conversion's figures; the free cash must cover both borrows.
+  const sharesMarket = (g: Group) => converting !== null && converting !== g;
+  const extraBorrowIn = (g: Group) => (sharesMarket(g) ? (convertingEstimate?.amountIn ?? 0n) : 0n);
+
   const balanceEnough = (g: Group, d: GroupData) =>
     d.balance.state === "ok" && d.balance.value >= g.total + (isAddressEqual(g.currency.address, USDC) ? USDC_FEE_RESERVE : 0n) + guardPullOf(g);
-  const pledgeOf = (d: GroupData) => (d.needed.state === "ok" ? suggestPledge(d.needed.value) : null);
+  const pledgeOf = (g: Group, d: GroupData) => {
+    if (choices[g.currency.symbol] === "convert") return convertingEstimate?.pledge ?? null;
+    if (sharesMarket(g)) return 0n;
+    return d.needed.state === "ok" ? suggestPledge(d.needed.value) : null;
+  };
   // An unreadable market never counts as short: the dry run before signing still refuses a market without the cash.
-  const lendShortOf = (g: Group, d: GroupData) => d.market.state === "ok" && !lendCovers(readyToLend(d.market.value), g.total);
+  const lendShortOf = (g: Group, d: GroupData) => d.market.state === "ok" && !lendCovers(readyToLend(d.market.value), g.total + extraBorrowIn(g));
 
   // The payer's choice is theirs. The app picks a default only for a group that has never had one; a choice that
   // stops being valid is cleared, never swapped for the other path, and the group says why and asks again.
@@ -294,48 +354,102 @@ export function Basket({
     });
   }, [loadedKey]);
 
-  const pledgeTotal = groups.reduce((s, g, gi) => (choices[g.currency.symbol] === "bitcoin" ? s + (pledgeOf(groupData[gi]!) ?? 0n) : s), 0n);
+  // A conversion that stops being offered (the feed or the loan price goes stale, the cash runs short, Circle's adapter
+  // gains access) is cleared with its reason, never swapped for another way to pay.
+  const convertSeen = `${convertReads.USDC.dataUpdatedAt}|${convertReads.EURC.dataUpdatedAt}|${JSON.stringify(choices)}`;
+  useEffect(() => {
+    if (!converting || frozen || busy) return;
+    const state = convertStateOf(converting);
+    if (state.kind !== "off") return;
+    const sym = converting.currency.symbol;
+    setCleared((prev) => ({ ...prev, [sym]: `${state.reason} Choose again.` }));
+    setChoices((prev) => {
+      const next = { ...prev };
+      delete next[sym];
+      return next;
+    });
+    // Runs when a read lands or a choice changes; the figures themselves are read inside.
+  }, [convertSeen]);
+
+  const pledgeTotal = groups.reduce((s, g, gi) => (choices[g.currency.symbol] === "bitcoin" || choices[g.currency.symbol] === "convert" ? s + (pledgeOf(g, groupData[gi]!) ?? 0n) : s), 0n);
   const shortOfBtc = cirBtc.state === "ok" && pledgeTotal > cirBtc.value;
   const allChosen = groups.length > 0 && groups.every((g) => choices[g.currency.symbol]);
   // The markets this basket borrows in are checked on the new borrowing, which the pledge suggestion sizes; the others
   // are checked on the loan the payer already had, and fail when it is over 40% or the price is stale.
-  const borrowing = groups.filter((g) => choices[g.currency.symbol] === "bitcoin").map((g) => g.currency.marketId);
+  const borrowing = [
+    ...groups.filter((g) => choices[g.currency.symbol] === "bitcoin").map((g) => g.currency.marketId),
+    ...(convertingEstimate ? [convertingEstimate.loan.marketId] : []),
+  ];
   const basketBlockers: Blocker[] = loans.data ? blockers({ markets: loans.data, borrowsIn: borrowing.length ? borrowing : null }) : [];
   const refusedOnOldLoan =
     tx.kind === "refused" &&
     ((tx.error.name === "LtvAboveLimit" && basketBlockers.some((b) => b.market.toLowerCase() === String(tx.error.args?.[0] ?? "").toLowerCase())) ||
       (tx.error.name === "StalePrice" && basketBlockers.some((b) => b.reason === "stale")));
   const showEnrol = basketBlockers.length > 0 || refusedOnOldLoan || enrolling;
-  const guardNotReady = groups.filter((g) => choices[g.currency.symbol] === "bitcoin").map((g) => guardStateOf(g.currency.symbol).state).find((s) => s !== "ok");
+  // The loan guard of every market this basket borrows in, the conversion's loan market included (C58, C69).
+  const guardNotReady = [
+    ...groups.filter((g) => choices[g.currency.symbol] === "bitcoin").map((g) => g.currency.symbol),
+    ...(converting ? [convertingEstimate ? convertingEstimate.loan.symbol : loanCurrencyFor(converting.currency.symbol).symbol] : []),
+  ]
+    .map((symbol) => guardStateOf(symbol).state)
+    .find((s) => s !== "ok");
+  const convertNotReady = converting !== null && convertingState?.kind !== "ready";
   const canPay =
-    ready && allChosen && !shortOfBtc && !busy && payable.length > 0 && pending !== null && pending !== undefined && basketBlockers.length === 0 && !enrolling && !guardNotReady;
+    ready && allChosen && !shortOfBtc && !busy && payable.length > 0 && pending !== null && pending !== undefined && basketBlockers.length === 0 && !enrolling && !guardNotReady && !convertNotReady;
   const pendingText = pending ? keptAsideText(pending) : null;
 
-  // C58, per group paid from bitcoin: the loan-to-value after this basket against the payer's own trigger.
-  const triggerNotes = groups.flatMap((g, gi) => {
-    if (choices[g.currency.symbol] !== "bitcoin") return [];
-    const d = groupData[gi]!;
-    const pledge = pledgeOf(d);
-    const view = guardStateOf(g.currency.symbol);
-    const guard = view.state === "ok" ? view : null;
-    if (!guard || pledge === null || d.position.state !== "ok" || d.market.state !== "ok" || d.price.state !== "ok" || d.balance.state !== "ok") return [];
-    const debt = debtFromShares(d.position.value[1], d.market.value[2], d.market.value[3]) + g.total;
-    const after = ltvWad(debt, d.position.value[2] + pledge, d.price.value);
-    const repay = guardRepayAfterBorrow({
-      rule: guard.rule,
-      nowSeconds: BigInt(Math.floor(Date.now() / 1000)),
-      ltvAfterWad: after,
-      before: { shares: d.position.value[1], collateral: d.position.value[2] },
-      totals: { totalBorrowAssets: d.market.value[2], totalBorrowShares: d.market.value[3] },
-      borrow: g.total,
-      pledge,
-      price: d.price.value,
-      allowance: guard.allowance,
-      balanceAfter: d.balance.value,
-    });
-    if (!repay) return [];
-    return [{ symbol: g.currency.symbol, text: triggerSentence({ ltvAfterWad: after, amount: repay.amount, triggerWad: repay.triggerWad, targetWad: repay.targetWad, symbol: g.currency.symbol }) }];
-  });
+  // C58, per market this basket borrows in: the loan-to-value after it against the payer's own trigger. A group paid from
+  // bitcoin borrows in its own market; a conversion borrows in the other currency's market, together with any group that
+  // borrows there (C69), and the guard repays from the loan currency in the wallet.
+  const triggerNotes = [
+    ...groups.flatMap((g, gi) => {
+      if (choices[g.currency.symbol] !== "bitcoin" || sharesMarket(g)) return [];
+      const d = groupData[gi]!;
+      const pledge = pledgeOf(g, d);
+      const view = guardStateOf(g.currency.symbol);
+      const guard = view.state === "ok" ? view : null;
+      if (!guard || pledge === null || d.position.state !== "ok" || d.market.state !== "ok" || d.price.state !== "ok" || d.balance.state !== "ok") return [];
+      const debt = debtFromShares(d.position.value[1], d.market.value[2], d.market.value[3]) + g.total;
+      const after = ltvWad(debt, d.position.value[2] + pledge, d.price.value);
+      const repay = guardRepayAfterBorrow({
+        rule: guard.rule,
+        nowSeconds: BigInt(Math.floor(Date.now() / 1000)),
+        ltvAfterWad: after,
+        before: { shares: d.position.value[1], collateral: d.position.value[2] },
+        totals: { totalBorrowAssets: d.market.value[2], totalBorrowShares: d.market.value[3] },
+        borrow: g.total,
+        pledge,
+        price: d.price.value,
+        allowance: guard.allowance,
+        balanceAfter: d.balance.value,
+      });
+      if (!repay) return [];
+      return [{ symbol: g.currency.symbol, text: triggerSentence({ ltvAfterWad: after, amount: repay.amount, triggerWad: repay.triggerWad, targetWad: repay.targetWad, symbol: g.currency.symbol }) }];
+    }),
+    ...(() => {
+      const read = converting ? convertReads[converting.currency.symbol].data : undefined;
+      if (!converting || !convertingEstimate || !read || read.state !== "ok") return [];
+      const view = guardStateOf(convertingEstimate.loan.symbol);
+      if (view.state !== "ok") return [];
+      const borrow = convertingEstimate.amountIn + convertingEstimate.sharedBorrow;
+      const after = ltvWad(debtFromShares(read.position[1], read.market[2], read.market[3]) + borrow, read.position[2] + convertingEstimate.pledge, read.price);
+      const repay = guardRepayAfterBorrow({
+        rule: view.rule,
+        nowSeconds: BigInt(Math.floor(Date.now() / 1000)),
+        ltvAfterWad: after,
+        before: { shares: read.position[1], collateral: read.position[2] },
+        totals: { totalBorrowAssets: read.market[2], totalBorrowShares: read.market[3] },
+        borrow,
+        pledge: convertingEstimate.pledge,
+        price: read.price,
+        allowance: view.allowance,
+        balanceAfter: read.loanBalance,
+      });
+      if (!repay) return [];
+      const symbol = convertingEstimate.loan.symbol;
+      return [{ symbol, text: triggerSentence({ ltvAfterWad: after, amount: repay.amount, triggerWad: repay.triggerWad, targetWad: repay.targetWad, symbol }) }];
+    })(),
+  ];
   const shownNotes = [...triggerNotes.map((t) => t.text), ...caught.filter((c) => !triggerNotes.some((t) => c.includes(` ${t.symbol} from`)))];
   const usd = useUsdPrice();
   const refetchReads = data.refetch;
@@ -355,20 +469,25 @@ export function Basket({
             ? `Choose how to pay the ${unchosen.currency.symbol} bills.`
             : guardNotReady === "pending"
               ? "Reading your loan guard on Arc."
-              : shortOfBtc
+              : converting && convertingState?.kind === "loading"
+                ? "Reading the euro price and the loan market on Arc."
+                : converting && convertingState?.kind === "unavailable"
+                  ? "Adag could not read what the conversion needs. Reload to try again."
+                  : shortOfBtc
               ? "This basket pledges more cirBTC than your wallet holds. Pay a group from balance instead."
               : null;
   const setupNeeds: SetupNeed[] = [];
-  if (shortOfBtc || groups.some((g, gi) => !balanceEnough(g, groupData[gi]!) && groupData[gi]!.balance.state === "ok" && pledgeOf(groupData[gi]!) !== null && cirBtc.state === "ok" && cirBtc.value < (pledgeOf(groupData[gi]!) ?? 0n)))
+  if (shortOfBtc || groups.some((g, gi) => !balanceEnough(g, groupData[gi]!) && groupData[gi]!.balance.state === "ok" && pledgeOf(g, groupData[gi]!) !== null && cirBtc.state === "ok" && cirBtc.value < (pledgeOf(g, groupData[gi]!) ?? 0n)))
     setupNeeds.push("cirbtc");
   if (groups.some((g, gi) => isAddressEqual(g.currency.address, USDC) && groupData[gi]!.balance.state === "ok" && !balanceEnough(g, groupData[gi]!))) setupNeeds.push("usdc");
 
   // The fee for exactly the batch the button would build, recomputed whenever a group's choice or pledge changes.
   // The fixed params stand in here; the real payment re-reads Morpho's and proves them by hash.
-  const planKey = groups.map((g, gi) => `${g.currency.symbol}:${choices[g.currency.symbol] ?? "-"}:${pledgeOf(groupData[gi]!) ?? "?"}`).join("|");
+  const planKey = groups.map((g, gi) => `${g.currency.symbol}:${choices[g.currency.symbol] ?? "-"}:${pledgeOf(g, groupData[gi]!) ?? "?"}`).join("|");
   const feeQuery = useQuery({
     queryKey: ["adag-basket-fee", contract, me, payable.map((b) => b.id.toString()).join(","), planKey],
-    enabled: Boolean(me) && ready && allChosen && !shortOfBtc && !paid,
+    // A conversion has no plan until the payer presses pay, so there is no batch to price yet.
+    enabled: Boolean(me) && ready && allChosen && !shortOfBtc && !paid && !converting,
     staleTime: 30_000,
     retry: false,
     queryFn: async () => {
@@ -376,7 +495,7 @@ export function Basket({
       groups.forEach((g, gi) => {
         const choice = choices[g.currency.symbol];
         if (choice === "balance") plan[g.currency.symbol] = { from: "balance" };
-        else if (choice === "bitcoin") plan[g.currency.symbol] = { from: "bitcoin", pledge: pledgeOf(groupData[gi]!) ?? 0n, marketParams: g.currency.params };
+        else if (choice === "bitcoin") plan[g.currency.symbol] = { from: "bitcoin", pledge: pledgeOf(g, groupData[gi]!) ?? 0n, marketParams: g.currency.params };
       });
       const built = buildPayMany(payable, me!, plan);
       return estimateFee({ account: me!, to: built.to, data: built.data });
@@ -386,10 +505,21 @@ export function Basket({
   const fail = (message: string, hash?: Hex) => setTx({ kind: "failed", message, href: hash && `${EXPLORER}/tx/${hash}` });
 
   const pay = async () => {
+    try {
+      await payNow();
+    } finally {
+      unfreeze();
+    }
+  };
+
+  const payNow = async () => {
     if (!me) return;
     step("checking");
     const client = publicArc();
     const ids = payable.map((b) => b.id);
+    // The conversion's figures from the moment pay was pressed, if a group converts (C70).
+    const conv = frozenRef.current;
+    const cg = conv ? (groups.find((g) => g.currency.symbol === conv.symbol) ?? null) : null;
     let fresh: Bill[];
     try {
       // Read every bill again at the moment of paying. A bill that changed is named; none is ever dropped quietly.
@@ -414,7 +544,8 @@ export function Basket({
       let pledged = 0n;
       for (const g of groups) {
         const m = g.currency.marketId;
-        if (choices[g.currency.symbol] === "balance") {
+        const choice = choices[g.currency.symbol];
+        if (choice === "balance") {
           const bal = await client.readContract({ address: g.currency.address, abi: erc20Abi, functionName: "balanceOf", args: [me] });
           const guardPull = g.currency.symbol === "USDC" ? pendingNow.usdc : pendingNow.eurc;
           const need = g.total + (isAddressEqual(g.currency.address, USDC) ? USDC_FEE_RESERVE : 0n) + guardPull;
@@ -425,6 +556,7 @@ export function Basket({
           plan[g.currency.symbol] = { from: "balance" };
           continue;
         }
+        if (choice === "convert") continue;
         const [status, needed, tuple] = await Promise.all([
           client.readContract({ address: contract, abi: adagAbi, functionName: "priceStatus", args: [m] }),
           client.readContract({ address: contract, abi: adagAbi, functionName: "collateralNeeded", args: [me, m, g.total] }),
@@ -432,20 +564,39 @@ export function Basket({
         ]);
         // C24: the bitcoin path needs a fresh price at the moment of paying, not only when the page loaded.
         if (!status[0]) return fail(`New loans in ${g.currency.symbol} are paused until the bitcoin price updates. Pay those bills from balance, or wait. Nothing was sent.`);
-        const pledge = suggestPledge(needed);
+        // C69: with the other group converting, this loan is in the conversion's market and its pledge covers both.
+        const pledge = conv && conv.symbol !== g.currency.symbol ? 0n : suggestPledge(needed);
         pledged += pledge;
         plan[g.currency.symbol] = { from: "bitcoin", pledge, marketParams: paramsFromTuple(tuple) };
       }
+      if (conv) pledged += conv.estimate.pledge;
       if (pledged > held) return fail(`This basket pledges ${formatUnitsExact(pledged, CIRBTC_DECIMALS)} cirBTC and your wallet holds ${formatUnitsExact(held, CIRBTC_DECIMALS)}. Nothing was sent.`);
     } catch {
       return fail("Arc did not answer, so nothing was built. Try again.");
     }
 
-    let built;
-    try {
-      built = buildPayMany(fresh, me, plan);
-    } catch (error) {
-      return fail(`${(error as Error).message} Nothing was sent.`);
+    // The conversion, checked again at the moment of paying against the figures that were frozen: the loan market's
+    // price and free cash (C69), and that Circle's adapter still holds no access to the wallet (C67).
+    let loanTuple: readonly [Hex, Hex, Hex, Hex, bigint] | null = null;
+    if (conv && cg) {
+      const est = conv.estimate;
+      try {
+        const [loanFresh, mk, tuple, pre] = await Promise.all([
+          readLoanPriceFresh(client, contract, cg.currency.symbol),
+          client.readContract({ address: MORPHO, abi: morphoAbi, functionName: "market", args: [est.loan.marketId] }),
+          client.readContract({ address: MORPHO, abi: morphoAbi, functionName: "idToMarketParams", args: [est.loan.marketId] }),
+          checkAdapterPreflight(client, me, est.loan.address),
+        ]);
+        if (loanFresh === false) return fail(`${reasons.loanPaused(est.loan.symbol)} Nothing was sent.`);
+        if (loanFresh === null) return fail(`${reasons.loanUnknown(est.loan.symbol)} Nothing was sent.`);
+        if (pre.state !== "clear") return fail(`${pre.state === "blocked" ? pre.blockers.join(" ") : pre.text} Nothing was sent.`);
+        const need = est.amountIn + est.sharedBorrow;
+        const cash = readyToLend(mk);
+        if (!lendCovers(cash, need)) return fail(`${reasons.cash(cash, need, est.loan.symbol)} Nothing was sent.`);
+        loanTuple = tuple;
+      } catch {
+        return fail("Arc did not answer, so nothing was built. Try again.");
+      }
     }
 
     const pledgedNow = async () => {
@@ -456,43 +607,51 @@ export function Basket({
       ]);
       return w + pu[2] + pe[2];
     };
-    const btcBefore = await pledgedNow().catch(() => null);
 
-    // C58, read again at the moment of signing, for every group paid from bitcoin: the rule and the approval against
-    // the loan as it will stand. A trip the page had not shown stops here and is shown instead of sending.
-    const newTrips: string[] = [];
+    // C58, read again at the moment of signing, for every market this payment borrows in: the rule and the approval
+    // against the loan as it will stand. A trip the page had not shown stops here and is shown instead of sending. Groups
+    // that borrow in one market are one loan (C69), the conversion's included.
+    const legs = new Map<string, { market: Currency; borrow: bigint; pledge: bigint }>();
+    const addLeg = (market: Currency, borrow: bigint, pledge: bigint) => {
+      const cur = legs.get(market.marketId);
+      legs.set(market.marketId, { market, borrow: (cur?.borrow ?? 0n) + borrow, pledge: (cur?.pledge ?? 0n) + pledge });
+    };
     for (const g of groups) {
       const p = plan[g.currency.symbol];
-      if (!p || p.from !== "bitcoin") continue;
-      const m = g.currency.marketId;
-      const guardNow = await readOwnGuard(client, me, m, g.currency.address);
+      if (p?.from === "bitcoin") addLeg(g.currency, g.total, p.pledge);
+    }
+    if (conv) addLeg(conv.estimate.loan, conv.estimate.amountIn, conv.estimate.pledge);
+    const newTrips: string[] = [];
+    for (const leg of legs.values()) {
+      const m = leg.market.marketId;
+      const guardNow = await readOwnGuard(client, me, m, leg.market.address);
       if (guardNow.state !== "ok") return fail(GUARD_RULE_UNREADABLE);
       let text: string | null = null;
       try {
         const [pos, mk, px, tokenHeld] = await Promise.all([
           client.readContract({ address: MORPHO, abi: morphoAbi, functionName: "position", args: [m, me] }),
           client.readContract({ address: MORPHO, abi: morphoAbi, functionName: "market", args: [m] }),
-          client.readContract({ address: g.currency.params.oracle, abi: oracleAbi, functionName: "price" }),
-          client.readContract({ address: g.currency.address, abi: erc20Abi, functionName: "balanceOf", args: [me] }),
+          client.readContract({ address: leg.market.params.oracle, abi: oracleAbi, functionName: "price" }),
+          client.readContract({ address: leg.market.address, abi: erc20Abi, functionName: "balanceOf", args: [me] }),
         ]);
-        const after = ltvWad(debtFromShares(pos[1], mk[2], mk[3]) + g.total, pos[2] + p.pledge, px);
+        const after = ltvWad(debtFromShares(pos[1], mk[2], mk[3]) + leg.borrow, pos[2] + leg.pledge, px);
         const repay = guardRepayAfterBorrow({
           rule: guardNow.rule,
           nowSeconds: BigInt(Math.floor(Date.now() / 1000)),
           ltvAfterWad: after,
           before: { shares: pos[1], collateral: pos[2] },
           totals: { totalBorrowAssets: mk[2], totalBorrowShares: mk[3] },
-          borrow: g.total,
-          pledge: p.pledge,
+          borrow: leg.borrow,
+          pledge: leg.pledge,
           price: px,
           allowance: guardNow.allowance,
           balanceAfter: tokenHeld,
         });
-        if (repay) text = triggerSentence({ ltvAfterWad: after, amount: repay.amount, triggerWad: repay.triggerWad, targetWad: repay.targetWad, symbol: g.currency.symbol });
+        if (repay) text = triggerSentence({ ltvAfterWad: after, amount: repay.amount, triggerWad: repay.triggerWad, targetWad: repay.targetWad, symbol: leg.market.symbol });
       } catch {
         return fail(GUARD_RULE_UNREADABLE);
       }
-      const onScreen = triggerNotes.some((t) => t.symbol === g.currency.symbol) || caught.some((c) => c.includes(` ${g.currency.symbol} from`));
+      const onScreen = triggerNotes.some((t) => t.symbol === leg.market.symbol) || caught.some((c) => c.includes(` ${leg.market.symbol} from`));
       if (text && !onScreen) newTrips.push(text);
     }
     if (newTrips.length) {
@@ -500,8 +659,38 @@ export function Basket({
       return fail("Your loan guard changed since this page loaded: read the note above before paying. Nothing was sent.");
     }
 
+    // C73: Circle is asked here, for exactly the frozen amount, and only after every other check has passed (the identical
+    // request is repeated at most twice for "no route" or rate limiting). If it still refuses, times out or answers badly,
+    // its fixed sentence is shown and the payer presses again; nothing is raised.
+    if (conv && cg && loanTuple) {
+      const asked = await askCircle(client, { payer: me, sell: conv.estimate.loan, buy: cg.currency, amountIn: conv.estimate.amountIn, minOut: cg.total });
+      if (!asked.ok) return fail(asked.message);
+      plan[cg.currency.symbol] = {
+        from: "convert",
+        loan: conv.estimate.loan.symbol,
+        amountIn: conv.estimate.amountIn,
+        pledge: conv.estimate.pledge,
+        marketParams: paramsFromTuple(loanTuple),
+        plan: asked.pinned.plan,
+        outputBalance: asked.pinned.outputBalance,
+        maxFeePerGas: asked.pinned.maxFeePerGas,
+        chainTime: asked.pinned.chainTime,
+        rate: asked.pinned.rate,
+      };
+    }
+
+    let built;
+    try {
+      built = buildPayMany(fresh, me, plan);
+    } catch (error) {
+      return fail(`${(error as Error).message} Nothing was sent.`);
+    }
+    // C71, failing closed: a conversion is only signed when this connection can trace the transfers it makes.
+    if (built.conversion && !(await effectsCanBeChecked(client))) return fail(EFFECTS_UNAVAILABLE);
+    const btcBefore = await pledgedNow().catch(() => null);
+
     const usdcOut = groups.reduce((s, g) => (choices[g.currency.symbol] === "balance" && isAddressEqual(g.currency.address, USDC) ? s + g.total : s), pendingNow.usdc);
-    const out = await simulateAndSend({ account: me, to: built.to, data: built.data, onStep: step, usdcOut });
+    const out = await simulateAndSend({ account: me, to: built.to, data: built.data, onStep: step, usdcOut, conversion: built.conversion });
     let logs: Parameters<typeof billsPaidIn>[0] | null;
     let hash: Hex;
     if (out.ok) {
@@ -518,12 +707,13 @@ export function Basket({
     } else {
       // A check on an existing loan: read the loans again, so the enrol card can take the place of the raw refusal.
       if (out.stage === "refused" && (out.error.name === "LtvAboveLimit" || out.error.name === "StalePrice")) void refetchLoans();
+      if (built.conversion) return setTx(conversionFailure(out));
       return setTx(out.stage === "refused" ? { kind: "refused", error: out.error } : { kind: "failed", message: out.message, href: out.hash && `${EXPLORER}/tx/${out.hash}` });
     }
 
-    // C16, C53: every bill is proven by its own BillPaid from the basket's contract and its record read again there;
-    // without a receipt, by the record alone, which must name this payer.
-    const proofs = logs ? billsPaidIn(logs, contract, ids) : null;
+    // C16, C53, C72: every bill is proven by its own BillPaid from the basket's contract naming this payer, and its
+    // record read again there; without a receipt, by the record alone, which must name this payer.
+    const proofs = logs ? billsPaidIn(logs, contract, ids, me) : null;
     const after = await Promise.all(ids.map((id) => client.readContract({ address: contract, abi: adagAbi, functionName: "bill", args: [id] }))).catch(() => null);
     const missing = ids.filter((id, i) => (proofs !== null && !proofs.get(id)) || !after || after[i]!.status !== BILL_STATUS.Paid || !isAddressEqual(after[i]!.payer, me));
     if (missing.length) return fail(`Arc confirmed the transaction, but bill #${missing.join(", #")} does not read as paid by you. Check the transaction.`, hash);
@@ -532,7 +722,27 @@ export function Basket({
     const ltv = await Promise.all(
       CURRENCIES.map(async (c) => ({ symbol: c.symbol, value: await client.readContract({ address: contract, abi: adagAbi, functionName: "loanToValue", args: [me, c.marketId] }) })),
     ).catch(() => []);
-    setPaid({ hash, count: ids.length, sold: btcBefore !== null && btcAfter !== null ? btcBefore - btcAfter : null, ltv: ltv.filter((l) => l.value > 0n) });
+    // What the swap returned comes from the receipt's own Transfer logs, and Circle's adapter is read back to 0 (C67, C72).
+    const outcome = conv && cg && logs ? conversionOutcome(logs, { token: cg.currency.address, payer: me, spent: cg.total }) : null;
+    const adapterClear = conv ? await adapterReadBack(client, me).catch(() => null) : null;
+    setPaid({
+      hash,
+      count: ids.length,
+      sold: btcBefore !== null && btcAfter !== null ? btcBefore - btcAfter : null,
+      ltv: ltv.filter((l) => l.value > 0n),
+      convert:
+        conv && cg
+          ? {
+              loan: conv.estimate.loan,
+              bill: cg.currency,
+              amountIn: conv.estimate.amountIn,
+              converted: outcome?.converted ?? null,
+              surplus: outcome?.surplus ?? null,
+              adapterClear,
+              effectsUnchecked: out.ok && out.effects === "unavailable",
+            }
+          : null,
+    });
     setTx({ kind: "idle" });
     // The signature moment: every stamp lands, staggered inside half a second.
     const gap = ids.length > 1 ? Math.min(150, STAMP_WINDOW_MS / (ids.length - 1)) : 0;
@@ -541,7 +751,12 @@ export function Basket({
 
   const onPay = () => {
     setTx({ kind: "idle" });
-    const usesBitcoin = groups.some((g) => choices[g.currency.symbol] === "bitcoin");
+    if (converting && convertingEstimate) {
+      const snapshot = { symbol: converting.currency.symbol, estimate: convertingEstimate };
+      frozenRef.current = snapshot;
+      setFrozen(snapshot);
+    }
+    const usesBitcoin = groups.some((g) => choices[g.currency.symbol] === "bitcoin" || choices[g.currency.symbol] === "convert");
     if (usesBitcoin && me && !hasAcceptedMorphoDisclaimer(me)) return setAsking(true);
     void pay();
   };
@@ -670,6 +885,12 @@ export function Basket({
                       });
                     }}
                     usd={usd}
+                    convert={convertStateOf(g)}
+                    sharedWith={converting && converting !== g ? converting.currency.symbol : null}
+                    extraBorrow={extraBorrowIn(g)}
+                    me={me}
+                    canSign={ready && !busy}
+                    onResetDone={() => void convertReads[g.currency.symbol].refetch()}
                   />
                 ))}
                 {setupNeeds.length > 0 && <GetSetUp needs={setupNeeds} />}
@@ -684,7 +905,15 @@ export function Basket({
                 {groups.map((g) => `${formatUnitsExact(g.total, g.currency.decimals)} ${g.currency.symbol}`).join(" and ")} across {n} bill{n === 1 ? "" : "s"}. Every
                 step succeeds together or nothing moves.
               </p>
-              <FeeLine query={feeQuery} idle="The network fee shows once each currency has a choice." className="mt-3" />
+              <FeeLine
+                query={feeQuery}
+                idle={
+                  convertingEstimate
+                    ? `With a conversion the network fee is checked when you press pay: ${keepText(convertingEstimate.keepUpTo)}.`
+                    : "The network fee shows once each currency has a choice."
+                }
+                className="mt-3"
+              />
               {shownNotes.map((t) => (
                 <p key={t} className="type-body mt-4 text-text" data-guard-trigger>
                   {t}
@@ -783,7 +1012,47 @@ export function Basket({
                 </dd>
               </div>
             ))}
+            {paid.convert && (
+              <>
+                <div data-convert-paid>
+                  <dt className="type-micro text-muted">Converted by Circle</dt>
+                  <dd className="type-body mt-1 tabular-nums text-text" data-converted>
+                    {paid.convert.converted === null
+                      ? "unavailable"
+                      : `${formatUnitsExact(paid.convert.amountIn, 6)} ${paid.convert.loan.symbol} became ${formatUnitsExact(paid.convert.converted, 6)} ${paid.convert.bill.symbol}`}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="type-micro text-muted">Left in your wallet</dt>
+                  <dd className="type-body mt-1 tabular-nums text-text" data-surplus>
+                    {paid.convert.surplus === null ? "unavailable" : `${formatUnitsExact(paid.convert.surplus, 6)} ${paid.convert.bill.symbol}`}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="type-micro text-muted">Your debt</dt>
+                  <dd className="type-body mt-1 text-text">In {paid.convert.loan.symbol}. Its dollar cost moves with the euro.</dd>
+                </div>
+                <div>
+                  <dt className="type-micro text-muted">Circle&apos;s adapter</dt>
+                  <dd className="type-body mt-1 text-text" data-adapter-clear={String(paid.convert.adapterClear)}>
+                    {paid.convert.adapterClear === true
+                      ? "No access to your wallet is left."
+                      : paid.convert.adapterClear === false
+                        ? "It still has access to your wallet."
+                        : "Its access could not be read."}
+                    {paid.convert.adapterClear !== true && me && (
+                      <ConvertReset account={me} loanToken={paid.convert.loan.address} canSign={ready} onDone={() => setPaid((p) => (p && p.convert ? { ...p, convert: { ...p.convert, adapterClear: true } } : p))} className="mt-2" />
+                    )}
+                  </dd>
+                </div>
+              </>
+            )}
           </dl>
+          {paid.convert?.effectsUnchecked && (
+            <p className="type-body mt-5 text-muted" data-effects-unchecked>
+              Adag could not trace this conversion&apos;s transfers before you signed, so only the payment&apos;s own balance check guarded it.
+            </p>
+          )}
         </motion.div>
       )}
 
@@ -852,14 +1121,25 @@ type GroupPanelProps = {
   notice: string | null;
   onChoose: (c: Choice) => void;
   usd: bigint | null;
+  // The conversion option (C69, C70) and the other group's conversion this group's bitcoin loan would share a market with.
+  convert: ConvertState;
+  sharedWith: "USDC" | "EURC" | null;
+  extraBorrow: bigint;
+  me: Address | null;
+  canSign: boolean;
+  onResetDone: () => void;
 };
 
-function GroupPanel({ group, data, cirBtc, choice, balanceOk, disabled, notice, onChoose, usd }: GroupPanelProps) {
+function GroupPanel({ group, data, cirBtc, choice, balanceOk, disabled, notice, onChoose, usd, convert, sharedWith, extraBorrow, me, canSign, onResetDone }: GroupPanelProps) {
   const { currency, total, bills } = group;
+  const loanCurrency = loanCurrencyFor(currency.symbol);
   const fresh = data.fresh.state === "ok" ? data.fresh.value : null;
-  const pledge: Cell<bigint> = data.needed.state === "ok" ? { state: "ok", value: suggestPledge(data.needed.value) } : data.needed;
+  // C69: when the other group converts, this loan is in the conversion's market, so the pledge is counted once, there.
+  const pledge: Cell<bigint> = sharedWith ? { state: "ok", value: 0n } : data.needed.state === "ok" ? { state: "ok", value: suggestPledge(data.needed.value) } : data.needed;
   let after: Cell<{ ltv: bigint; drop: bigint }> = { state: "loading" };
-  if (pledge.state === "ok" && data.position.state === "ok" && data.market.state === "ok" && data.price.state === "ok") {
+  if (sharedWith) {
+    after = { state: "unavailable" };
+  } else if (pledge.state === "ok" && data.position.state === "ok" && data.market.state === "ok" && data.price.state === "ok") {
     const debt = debtFromShares(data.position.value[1], data.market.value[2], data.market.value[3]) + total;
     const ltv = ltvWad(debt, data.position.value[2] + pledge.value, data.price.value);
     after = { state: "ok", value: { ltv, drop: liquidationDropWad(ltv, currency.params.lltv) } };
@@ -868,10 +1148,10 @@ function GroupPanel({ group, data, cirBtc, choice, balanceOk, disabled, notice, 
   }
   const isUsdc = isAddressEqual(currency.address, USDC);
   const ready: Cell<bigint> = data.market.state === "ok" ? { state: "ok", value: readyToLend(data.market.value) } : data.market;
-  const lendShort = ready.state === "ok" && !lendCovers(ready.value, total);
+  const lendShort = ready.state === "ok" && !lendCovers(ready.value, total + extraBorrow);
   const readyText = (v: bigint) => `${formatUnitsExact(v, currency.decimals)} ${currency.symbol}`;
 
-  const option = (c: Choice, title: string, enabled: boolean, body: React.ReactNode) => (
+  const option = (c: Choice, title: string, enabled: boolean, body: React.ReactNode, wide = false) => (
     <button
       type="button"
       role="radio"
@@ -879,7 +1159,7 @@ function GroupPanel({ group, data, cirBtc, choice, balanceOk, disabled, notice, 
       disabled={!enabled || disabled}
       onClick={() => onChoose(c)}
       data-choice={`${currency.symbol}-${c}`}
-      className={`flex h-full flex-col rounded-[8px] border p-5 text-left transition-colors duration-200 disabled:cursor-not-allowed disabled:opacity-45 ${
+      className={`flex h-full flex-col rounded-[8px] border p-5 text-left transition-colors duration-200 disabled:cursor-not-allowed disabled:opacity-45 ${wide ? "md:col-span-2" : ""} ${
         choice === c ? "border-gold bg-raised" : "border-rule hover:border-rule-strong"
       }`}
     >
@@ -919,7 +1199,13 @@ function GroupPanel({ group, data, cirBtc, choice, balanceOk, disabled, notice, 
             "New loans are paused until the bitcoin price updates."
           ) : lendShort ? (
             <>
-              Morpho has <Value cell={ready} render={readyText} className="text-text" /> ready to lend right now, less than these bills. Pay from your balance, or check back later.
+              Morpho has <Value cell={ready} render={readyText} className="text-text" /> ready to lend right now, less than{" "}
+              {extraBorrow > 0n ? "these bills together with the conversion you chose" : "these bills"}. Pay from your balance, or check back later.
+            </>
+          ) : sharedWith ? (
+            <>
+              These bills are in the same Morpho market as the conversion chosen for the {sharedWith} bills, so one pledge covers both and is shown there. You pledge no extra cirBTC
+              here. Morpho has <Value cell={ready} render={readyText} className="text-text" /> ready to lend now.
             </>
           ) : (
             <>
@@ -944,8 +1230,26 @@ function GroupPanel({ group, data, cirBtc, choice, balanceOk, disabled, notice, 
             {balanceOk ? "One exact approval, then each bill is paid." : isUsdc ? "Not enough for these bills and the network fee." : "Not enough for these bills."}
           </>,
         )}
+        {option(
+          "convert",
+          convertTitle(loanCurrency),
+          convert.kind === "ready",
+          convert.kind === "loading" ? (
+            <>
+              Reading the euro price and the {loanCurrency.symbol} market on Arc. <Reading />
+            </>
+          ) : convert.kind === "unavailable" ? (
+            <>Adag could not read what a conversion needs, so it is off. Reload to try again.</>
+          ) : convert.kind === "off" ? (
+            <span data-convert-off>{convert.reason}</span>
+          ) : (
+            <ConvertEstimate e={convert.estimate} />
+          ),
+          true,
+        )}
       </div>
-      {fresh !== false && (
+      {convert.kind === "off" && convert.reset && me && <ConvertReset account={me} loanToken={loanCurrency.address} canSign={canSign} onDone={onResetDone} className="mt-4" />}
+      {fresh !== false && !sharedWith && (
         <details className="group mt-4">
           <summary className="type-micro cursor-pointer list-none text-muted transition-colors duration-200 hover:text-text">Details</summary>
           <p className="type-body mt-2 text-muted">

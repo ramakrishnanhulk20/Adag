@@ -1,6 +1,6 @@
 import { decodeEventLog, isAddressEqual, type Address, type Hex, type Log } from "viem";
-import { adagAbi, morphoAbi } from "./abi";
-import { ADAG_BILLS, MORPHO, requireDeployment } from "./constants";
+import { adagAbi, erc20Abi, morphoAbi } from "./abi";
+import { ADAG_BILLS, BILL_STATUS, MORPHO, requireDeployment } from "./constants";
 import { guardAbi } from "../guard/abi";
 import { ADAG_GUARD } from "../guard/constants";
 
@@ -123,4 +123,47 @@ export function morphoEventsIn(logs: readonly Log[]): MorphoEvent[] {
     }
   }
   return out;
+}
+
+// C72: what a conversion put into the payer's wallet, read from Transfer logs whose emitter is the fixed token and whose
+// recipient is the payer. A transfer from the payer to the payer is left out: the batch's balance check is exactly that,
+// and it moves nothing new. Logs from any other emitter, and transfers to anyone else, are not counted.
+export function convertedInto(logs: readonly Log[], token: Address, payer: string): bigint {
+  let total = 0n;
+  for (const log of logs) {
+    if (log.removed || !isAddressEqual(log.address, token)) continue;
+    try {
+      const ev = decodeEventLog({ abi: erc20Abi, data: log.data, topics: log.topics, strict: true });
+      if (ev.eventName !== "Transfer") continue;
+      if (!isAddressEqual(ev.args.to, payer as Address) || isAddressEqual(ev.args.from, payer as Address)) continue;
+      total += ev.args.value;
+    } catch {
+      // Not a plain Transfer of this token.
+    }
+  }
+  return total;
+}
+
+// Which card a bill's pay panel shows. Only an Open bill offers the pay options; any other status, an unknown one
+// included, never does. This wallet's proven payment shows its receipt, a payment still reading its receipt keeps its
+// progress on screen, and anything else says the bill's status.
+export type PayPanel = "receipt" | "progress" | "closed" | "options";
+export function payPanelFor(a: { status: number; paid: boolean; busy: boolean }): PayPanel {
+  if (a.paid) return "receipt";
+  if (a.status === BILL_STATUS.Open) return "options";
+  return a.busy ? "progress" : "closed";
+}
+
+// Whether the bill page keeps this wallet's pay panel mounted. A payment under way keeps it: the page's own poll can
+// refresh the bill to Paid before the payment has read its receipt, and a panel unmounted then loses the receipt card.
+// Once this wallet has paid, or proposed a Safe payment, here, the panel stays for the result.
+export function keepsPayPanel(a: { open: boolean; paying: boolean; actedHere: boolean; safeProposed: boolean }): boolean {
+  return a.open || a.paying || a.actedHere || a.safeProposed;
+}
+
+// The converted amount, and what the swap returned beyond `spent` (the bills paid or the loan repaid), which stays in
+// the wallet. The surplus is never negative: a swap that returned less than was spent would have reverted the batch.
+export function conversionOutcome(logs: readonly Log[], input: { token: Address; payer: string; spent: bigint }): { converted: bigint; surplus: bigint } {
+  const converted = convertedInto(logs, input.token, input.payer);
+  return { converted, surplus: converted > input.spent ? converted - input.spent : 0n };
 }

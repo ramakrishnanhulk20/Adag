@@ -29,6 +29,7 @@ import {
 import { formatPercentWad, formatUnitsExact } from "@/lib/pay/format";
 import { debtFromShares, liquidationDropWad } from "@/lib/pay/loan";
 import { currencyOf } from "@/lib/pay/market";
+import { keepsPayPanel } from "@/lib/pay/receipt";
 import { readyToSign, useWallet, type WalletState } from "@/lib/wallet/useWallet";
 import { RetryContext, Value, rise, type Cell } from "./cells";
 import { ConnectButton } from "./ConnectButton";
@@ -205,6 +206,9 @@ function ConnectedWallet({ address, bill, wallet, justPaid, paidTxUrl }: Connect
 
   // Once this wallet pays here, its receipt card stays on screen after the page refresh reports the bill as paid.
   const [actedHere, setActedHere] = useState(false);
+  // While this wallet's payment is under way: the page's poll can report the bill as paid before the payment has read its
+  // receipt, and the pay panel must stay mounted through that refresh (keepsPayPanel).
+  const [paying, setPaying] = useState(false);
   // F3: who pays, this wallet or a Safe. A Safe cannot pay bills on the first contract, so those get no switch.
   const firstContract = deploymentOf(bill.contract)?.label === "first";
   const payAs = usePayAsMode(address, bill.contract, [bill.id]);
@@ -237,10 +241,10 @@ function ConnectedWallet({ address, bill, wallet, justPaid, paidTxUrl }: Connect
             <PaidJustNow bill={bill} currencySymbol={currency?.symbol ?? ""} decimals={currency?.decimals ?? 6} txUrl={paidTxUrl} />
           ) : isPayee ? (
             <VoidAction bill={bill} address={address} canSign={reason === null} blockedReason={reason} />
-          ) : (open || actedHere || safeProposed) && currency ? (
-            reason === null || actedHere || safeProposed ? (
+          ) : keepsPayPanel({ open, paying, actedHere, safeProposed }) && currency ? (
+            reason === null || actedHere || paying || safeProposed ? (
               <div className="flex h-full flex-col">
-                {open && !actedHere && !firstContract && <PayAsSwitch mode={payAs.mode} onChoose={payAs.choose} className="mb-4" />}
+                {open && !actedHere && !paying && !firstContract && <PayAsSwitch mode={payAs.mode} onChoose={payAs.choose} className="mb-4" />}
                 <div className="min-h-0 flex-1">
                   {safeMode ? (
                     <SafePay bills={[bill]} onProposed={() => setSafeProposed(true)} />
@@ -260,6 +264,7 @@ function ConnectedWallet({ address, bill, wallet, justPaid, paidTxUrl }: Connect
                       onSettled={onSettled}
                       enrol={enrol}
                       onRecorded={retry}
+                      onBusy={setPaying}
                     />
                   )}
                 </div>
