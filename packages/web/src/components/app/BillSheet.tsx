@@ -141,7 +141,13 @@ export function BillSheet({ bill, paidTx }: { bill: Bill; paidTx: PaidTx }) {
                   )}
                 </Row>
                 {paidTx.kind === "found" && (
-                  <Row label="40% check">{paidTx.loanChecked ? "Passed. This payment borrowed against bitcoin, so Adag checked the loan stayed at or under 40%." : "Not needed: no new debt."}</Row>
+                  <Row label="40% check">
+                    {paidTx.loanChecked
+                      ? "Passed. This payment borrowed against bitcoin, so Adag checked the loan stayed at or under 40%."
+                      : paidTx.checkedOnBill !== null
+                        ? `Passed. This bill was paid in one transaction with bill #${paidTx.checkedOnBill}, where Adag checked the loan stayed at or under 40%.`
+                        : "Not needed: no new debt."}
+                  </Row>
                 )}
               </>
             )}

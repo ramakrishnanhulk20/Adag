@@ -1,15 +1,32 @@
-import { isAddressEqual, type Block, type Hex, type PublicClient } from "viem";
+import { isAddressEqual, type Address, type Block, type Hex, type PublicClient } from "viem";
 import { LOG_MAX_PAGES, LOG_PAGE_BLOCKS } from "../arc/constants";
 import { adagAbi } from "./abi";
 import { BILL_STATUS, EXPLORER, requireDeployment } from "./constants";
 import type { Bill } from "./build";
 
 export type PaidTx =
-  | { kind: "found"; txHash: Hex; logIndex: number; blockNumber: string; loanChecked: boolean; url: string }
+  | { kind: "found"; txHash: Hex; logIndex: number; blockNumber: string; loanChecked: boolean; checkedOnBill: bigint | null; url: string }
   | { kind: "not-found" }
   | { kind: "unavailable" };
 
 const MAX_PROBES = 8;
+
+type PaidLog = { removed?: boolean; address: Address; transactionHash: Hex | null; args: { id: bigint; payer: Address; loanChecked: boolean } };
+
+// AdagBills runs the 40% check inside the pay() call where the payer's debt grew. In a basket the borrow comes before
+// the first pay(), so only that bill's BillPaid says loanChecked and its siblings say false. A bill that was not checked
+// itself points at the sibling that was: same transaction, same AdagBills, same payer. Several siblings is not expected,
+// but the lowest id is taken so the answer never depends on log order.
+export function checkedOnBill(own: { loanChecked: boolean; txHash: Hex }, logs: readonly PaidLog[], contract: Address, payer: Address): bigint | null {
+  if (own.loanChecked) return null;
+  let found: bigint | null = null;
+  for (const log of logs) {
+    if (log.removed || log.transactionHash === null || log.transactionHash.toLowerCase() !== own.txHash.toLowerCase()) continue;
+    if (!isAddressEqual(log.address, contract) || !isAddressEqual(log.args.payer, payer) || !log.args.loanChecked) continue;
+    if (found === null || log.args.id < found) found = log.args.id;
+  }
+  return found;
+}
 
 type Mark = { number: bigint; timestamp: bigint };
 const mark = (b: Block): Mark => {
@@ -74,12 +91,27 @@ export async function searchBillPaid(client: PublicClient, bill: Bill): Promise<
           log.logIndex !== null,
       );
       if (match) {
+        const txHash = match.transactionHash!;
+        // The same node answers both reads. If this one fails the whole result is "unavailable", which is never cached,
+        // instead of a found payment that wrongly reads as "no check needed".
+        const siblings = match.args.loanChecked
+          ? []
+          : await client.getContractEvents({
+              address: contract,
+              abi: adagAbi,
+              eventName: "BillPaid",
+              args: { payer: bill.payer },
+              fromBlock: match.blockNumber,
+              toBlock: match.blockNumber,
+              strict: true,
+            });
         return {
           kind: "found",
-          txHash: match.transactionHash!,
+          txHash,
           logIndex: match.logIndex!,
           blockNumber: String(match.blockNumber),
           loanChecked: match.args.loanChecked,
+          checkedOnBill: checkedOnBill({ loanChecked: match.args.loanChecked, txHash }, siblings, contract, bill.payer),
           url: `${EXPLORER}/tx/${match.transactionHash}`,
         };
       }
