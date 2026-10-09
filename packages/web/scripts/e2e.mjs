@@ -1165,16 +1165,36 @@ async function main() {
       await page.waitForTimeout(1600);
       await shoot(page, 'f7-g-written');
       await shoot(page, 'p1-write-share');
+
+      // "Write another bill" clears the form on the same page, and a second bill lands one id higher.
+      const amountField = page.locator('[data-field="amount"]');
+      const refField = page.locator('[data-field="ref"]');
+      await shoot(page, 'a2-g-write-another-card');
+      await page.locator('[data-action="write-another"]').click();
+      await card.waitFor({ state: 'detached', timeout: 10_000 });
+      await page.locator('[data-action="write-bill"]').waitFor({ state: 'visible', timeout: 10_000 });
+      const cleared = (await amountField.inputValue()) === '' && (await refField.inputValue()) === '';
+      const reopened = (await amountField.isEnabled()) && (await refField.isEnabled());
+      const focusedAmount = await page.waitForFunction(() => document.activeElement?.getAttribute('data-field') === 'amount', null, { timeout: 5_000 }).then(() => true, () => false);
+      await shoot(page, 'a2-g-write-another-cleared');
+      await amountField.fill('0.35');
+      await refField.fill('E2E-G2');
+      await page.locator('[data-action="write-bill"]').click();
+      await card.waitFor({ timeout: 120_000 });
+      const G2 = BigInt(await card.getAttribute('data-bill-id'));
+      const second = await fork.readContract({ address: ADAG, abi: adagAbi, functionName: 'bill', args: [G2] });
+
       const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dueInput);
       const wantDue = m ? BigInt(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12) / 1000) : -1n;
       const onFork = await fork.readContract({ address: ADAG, abi: adagAbi, functionName: 'bill', args: [G] });
       await page.goto(`${APP}/bill/${G}`, { waitUntil: 'networkidle', timeout: 120_000 });
       const openStamp = await page.getByRole('img', { name: 'Status: Open' }).first().isVisible();
       await shoot(page, 'f7-g-bill-page');
-      record(`(g) the payee writes bill #${G} (0.25 USDC, "${G_REF}") through /bill/new; it reads OPEN`,
+      record(`(g) the payee writes bill #${G} (0.25 USDC, "${G_REF}") through /bill/new; it reads OPEN; "Write another bill" clears the form and bill #${G2} follows`,
         link.endsWith(`/bill/${G}`) && onFork.amount === 250_000n && onFork.due === wantDue && onFork.ref === stringToHex(G_REF)
-          && onFork.payee.toLowerCase() === PAYEE.toLowerCase() && onFork.status === 1 && openStamp,
-        `link ${link}; fork amount ${onFork.amount}, due ${onFork.due} (want ${wantDue}), ref ${onFork.ref} (want ${stringToHex(G_REF)})`);
+          && onFork.payee.toLowerCase() === PAYEE.toLowerCase() && onFork.status === 1 && openStamp
+          && cleared && reopened && focusedAmount && G2 === G + 1n && second.amount === 350_000n && second.ref === stringToHex('E2E-G2') && second.status === 1,
+        `link ${link}; fork amount ${onFork.amount}, due ${onFork.due} (want ${wantDue}), ref ${onFork.ref} (want ${stringToHex(G_REF)}); write another: cleared ${cleared}, enabled ${reopened}, amount focused ${focusedAmount}, second bill #${G2} amount ${second.amount}`);
       await context.close();
     }
 

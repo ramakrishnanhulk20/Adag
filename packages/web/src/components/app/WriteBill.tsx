@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useId, useMemo, useState } from "react";
-import { AnimatePresence, motion } from "motion/react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useQuery } from "@tanstack/react-query";
 import { isAddressEqual, size, type Hex } from "viem";
 import { BillStamp } from "@/components/BillStamp";
@@ -41,6 +41,8 @@ export function WriteBill() {
   const [touched, setTouched] = useState(false);
   const [tx, setTx] = useState<TxState>({ kind: "idle" });
   const [written, setWritten] = useState<Written | null>(null);
+  const amountInput = useRef<HTMLInputElement>(null);
+  const reduceMotion = useReducedMotion();
 
   // Dates depend on the visitor's clock, so they are set after mount; the server never guesses a time zone.
   useEffect(() => {
@@ -112,6 +114,23 @@ export function WriteBill() {
     setTx({ kind: "idle" });
   };
 
+  const writeAnother = () => {
+    const now = new Date();
+    setWritten(null);
+    setTx({ kind: "idle" });
+    setAmountText("");
+    setRefText("");
+    setTouched(false);
+    setNoDue(false);
+    setDueDate(localIsoDate(new Date(now.getTime() + DEFAULT_DUE_DAYS * 86_400_000)));
+    setToday(localIsoDate(now));
+    // The fields stay disabled until the reset renders, and a disabled input cannot take focus, so wait one frame.
+    requestAnimationFrame(() => {
+      amountInput.current?.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "center" });
+      amountInput.current?.focus({ preventScroll: true });
+    });
+  };
+
   const shareLink = written ? `${typeof window === "undefined" ? "" : window.location.origin}${billHref(ADAG_BILLS, written.id)}` : "";
 
   const showErrors = touched || amountText !== "";
@@ -175,6 +194,7 @@ export function WriteBill() {
               </label>
               <div className="mt-2 flex items-end gap-3">
                 <input
+                  ref={amountInput}
                   id={ids.amount}
                   name="amount"
                   inputMode="decimal"
@@ -287,6 +307,7 @@ export function WriteBill() {
                   data-bill-id={written.id.toString()}
                   initial={{ opacity: 0, y: 24 }}
                   animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 12, transition: { duration: 0.3, ease: [0.16, 1, 0.3, 1] } }}
                   transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
                   className="app-panel p-6 md:p-8"
                 >
@@ -303,6 +324,9 @@ export function WriteBill() {
                     />
                     <Button href={billHref(ADAG_BILLS, written.id)} variant="secondary" className="w-full md:w-auto">
                       Open the bill page
+                    </Button>
+                    <Button type="button" variant="secondary" className="w-full md:w-auto" data-action="write-another" onClick={writeAnother}>
+                      Write another bill
                     </Button>
                   </div>
                   <a href={`${EXPLORER}/tx/${written.hash}`} target="_blank" rel="noopener noreferrer" className="link-draw type-address mt-5 inline-block text-muted hover:text-gold">
