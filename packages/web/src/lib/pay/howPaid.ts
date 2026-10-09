@@ -1,14 +1,14 @@
-import { isAddressEqual, type Hex, type PublicClient, type TransactionReceipt } from "viem";
+import { decodeEventLog, isAddressEqual, type Address, type Hex, type Log, type PublicClient, type TransactionReceipt } from "viem";
 import { arcFallbackClient } from "../arc/client";
-import { adagAbi } from "./abi";
+import { adagAbi, erc20Abi } from "./abi";
 import type { Bill } from "./build";
-import { CURRENCIES, requireDeployment } from "./constants";
+import { CIRCLE_SWAP_ADAPTER, CURRENCIES, requireDeployment } from "./constants";
 import type { PaidTx } from "./paidTx";
 import { morphoEventsIn } from "./receipt";
 
 export type HowPaid =
   | { kind: "balance" }
-  | { kind: "bitcoin"; pledged: bigint; borrowed: { symbol: "USDC" | "EURC"; assets: bigint; ltvAfterWad: bigint | null }[] }
+  | { kind: "bitcoin"; pledged: bigint; borrowed: { symbol: "USDC" | "EURC"; assets: bigint; ltvAfterWad: bigint | null; converted: boolean }[] }
   | { kind: "unavailable" };
 
 const isReceiptNotFound = (error: unknown): boolean => {
@@ -17,6 +17,20 @@ const isReceiptNotFound = (error: unknown): boolean => {
   }
   return false;
 };
+
+// Whether the payer sent this token to Circle's swap adapter in the transaction. Only a Transfer log emitted by the fixed
+// token counts, so a look-alike token or a transfer to anyone else cannot make a loan read as converted.
+function sentToSwapAdapter(logs: readonly Log[], token: Address, payer: Address): boolean {
+  return logs.some((log) => {
+    if (log.removed || !isAddressEqual(log.address, token)) return false;
+    try {
+      const ev = decodeEventLog({ abi: erc20Abi, data: log.data, topics: log.topics, strict: true });
+      return ev.eventName === "Transfer" && isAddressEqual(ev.args.from, payer) && isAddressEqual(ev.args.to, CIRCLE_SWAP_ADAPTER);
+    } catch {
+      return false;
+    }
+  });
+}
 
 // A node that has no record of the transaction answers null, which viem raises as "not found", and the fallback transport
 // does not move on for that. So the fallback endpoint is asked next, and its answer is read with the same client. A
@@ -54,7 +68,8 @@ export async function readHowPaid(
         const ltvAfterWad = await source
           .readContract({ address, abi: adagAbi, functionName: "loanToValue", args: [bill.payer, b.id], blockNumber: receipt.blockNumber })
           .catch(() => null);
-        return { symbol: currencyOf(b.id)!.symbol, assets: b.assets, ltvAfterWad };
+        const currency = currencyOf(b.id)!;
+        return { symbol: currency.symbol, assets: b.assets, ltvAfterWad, converted: sentToSwapAdapter(receipt.logs, currency.address, bill.payer) };
       }),
     );
     return { kind: "bitcoin", pledged, borrowed };

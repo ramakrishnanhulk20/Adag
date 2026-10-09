@@ -7,6 +7,7 @@ import { BillWallet } from "@/components/app/BillWallet";
 import { parseBillRoute } from "@/lib/pay/billId";
 import { billToJson } from "@/lib/pay/billJson";
 import { deploymentOf } from "@/lib/pay/constants";
+import { currencyOf } from "@/lib/pay/market";
 import { findPaidTx, readBill, readBillCount } from "@/lib/pay/read";
 import type { PublicClient } from "viem";
 import { HowPaid } from "@/components/app/HowPaid";
@@ -50,10 +51,11 @@ export async function BillRoute({ segments }: { segments: string[] }) {
 
   const paidTx = await findPaidTx(read.bill);
   const how = paidTx.kind === "found" ? await readHowPaid(arcClient as PublicClient, read.bill, paidTx) : null;
+  const billCurrency = currencyOf(read.bill.currency);
   return (
     <AppShell>
       <BillSheet bill={read.bill} paidTx={paidTx} />
-      {how && <HowPaid how={how} />}
+      {how && billCurrency && <HowPaid how={how} billSymbol={billCurrency.symbol} />}
       <BillWallet bill={billToJson(read.bill)} paidTxUrl={paidTx.kind === "found" ? paidTx.url : null} />
       <BillLive contract={read.bill.contract} id={read.bill.id.toString()} status={read.bill.status} />
     </AppShell>

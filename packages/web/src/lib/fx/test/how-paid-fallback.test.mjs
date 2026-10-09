@@ -62,7 +62,7 @@ test('a loan paid from bitcoin read from the second node takes its loan-to-value
   const how = await readHowPaid(first, paidBill(), paid, second);
   assert.equal(how.kind, 'bitcoin');
   assert.equal(how.pledged, 34_000n);
-  assert.deepEqual(how.borrowed, [{ symbol: 'USDC', assets: 5_000_000n, ltvAfterWad: 321_000_000_000_000_000n }]);
+  assert.deepEqual(how.borrowed, [{ symbol: 'USDC', assets: 5_000_000n, ltvAfterWad: 321_000_000_000_000_000n, converted: false }]);
   assert.equal(first.asked.reads.length, 0, 'the node that did not have the transaction is not asked for state at its block');
   assert.equal(second.asked.reads.length, 1);
   assert.equal(second.asked.reads[0].blockNumber, 123n);
