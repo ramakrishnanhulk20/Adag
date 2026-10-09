@@ -370,7 +370,7 @@ test('C65, C67: a call or approval to the adapter hidden inside Memo or a batch 
   }
   const ordinaryMemo = build.buildPayFromBalance(bill(), PAYER).calls[1];
   assert.equal(build.reachesSwapAdapter(C.MULTICALL3_FROM, encode(A.multicall3FromAbi, 'aggregate3', [[ordinaryMemo]])), false);
-  build.assertCalls([ordinaryMemo]);
+  build.assertCalls([ordinaryMemo], null, null, { payer: PAYER, bills: [bill()], sender: 'wallet' });
 });
 
 // ---- closing a loan with the other currency (C75) ----

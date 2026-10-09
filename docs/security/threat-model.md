@@ -142,6 +142,7 @@ Choice: trivially true if the loan goes straight to the payee, since Adag moves 
 - Every allowFailure is false.
 - Every onBehalf and receiver is the payer. The one exception is a borrow receiver that is the payee read from the verified bill.
 - From a link, the app reads exactly one thing: a bill id, or a signed bill and its signature.
+- Amended 9 October: every batch the app builds or re-checks before signing (a wallet batch, a conversion or a Safe MultiSend) holds only calls its own builders write, each read back with the fixed ABIs to the exact same bytes: on a token, only an approval to Morpho, to the AdagBills a paid bill is on, to the guard at 0 in a close, or to the adapter in a conversion, plus a conversion's one balance-check transfer; a Memo pay(id) only for a bill that batch pays, under that bill's memo id; only Morpho's four loan calls, on Adag's two markets, for the payer, with no callback data; direct AdagBills calls only from a Safe, to pay its own bills or to enrol alone; and on AdagGuard, only the closing loan's exact clearRule. Upheld by assertCallShapes, called from assertCalls in packages/web/src/lib/pay/build.ts; with that call switched off, 14 refusal tests fail.
 
 Choice: on-chain bills make the link a single id, the smallest surface. Signed links carry the whole bill, so the bill must be verified before any field is used.
 

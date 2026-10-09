@@ -1,4 +1,4 @@
-import { decodeFunctionData, encodeFunctionData, getAddress, isAddress, isAddressEqual, isHex, numberToHex, size, stringToHex, type Address, type Hex } from "viem";
+import { decodeFunctionData, encodeFunctionData, getAddress, isAddress, isAddressEqual, isHex, numberToHex, size, stringToHex, type Abi, type Address, type Hex } from "viem";
 import { adagAbi, erc20Abi, memoAbi, morphoAbi, multicall3FromAbi } from "./abi";
 import {
   ADAG_BILLS,
@@ -303,12 +303,125 @@ function assertSwapCalls(calls: readonly Call3[], s: Conversion) {
   if (wanted.size > 0) throw new Error("Refusing a conversion batch that leaves a bill unpaid.");
 }
 
+// What a batch's builder decided it is for: the wallet it runs as and the bills it pays. A Multicall3From batch pays
+// through Memo; a Safe pays AdagBills directly, because Memo needs an ordinary wallet as the sender.
+export type BatchIntent = { payer: Address; bills: readonly Pick<Bill, "contract" | "id">[]; sender: "wallet" | "safe" };
+
+// A call read with one of the fixed ABIs, or null. Re-encoding must give back the same bytes, so a call cannot be read
+// one way here and run another way: viem's decoder ignores trailing bytes and dirty padding, this does not.
+function readCall(abi: Abi, data: Hex): { functionName: string; args: readonly unknown[] } | null {
+  try {
+    const { functionName, args } = decodeFunctionData({ abi, data });
+    const again = encodeFunctionData({ abi, functionName, args } as never);
+    return again.toLowerCase() === data.toLowerCase() ? { functionName, args: args ?? [] } : null;
+  } catch {
+    return null;
+  }
+}
+
+const billKey = (contract: string, id: bigint) => `${contract.toLowerCase()}:${id}`;
+const isBillsContract = (a: Address) => BILLS_CONTRACTS.some((t) => isAddressEqual(t, a));
+const MORPHO_CALLS: readonly string[] = ["supplyCollateral", "borrow", "repay", "withdrawCollateral"];
+const ENROL_CALL = encodeFunctionData({ abi: adagAbi, functionName: "enrol" }).toLowerCase();
+
+// C3 by shape, for every batch: each call must be one the builders in this file write. Tokens: approvals only, plus a
+// conversion's balance check. Memo: only pay(id) on the bill's own contract, for a bill this batch pays, each once, under
+// that bill's memo id. Morpho: the four loan calls on Adag's two markets, for the payer, with no callback data. AdagBills
+// directly: only from a Safe, to pay its bills or, alone, to enrol. AdagGuard: only the exact clearRule of the loan being
+// closed and its token's approval at 0. No batch inside the batch. The swap call, its approvals and the balance check are
+// held by assertSwapCalls. Amounts are not checked here: the builders size them, and the contracts and the simulation are
+// the guards on those.
+function assertCallShapes(calls: readonly Call3[], guardMarket: Hex | null, swap: Conversion | null, intent: BatchIntent | null) {
+  const scope: BatchIntent | null = swap ? { payer: swap.payer, bills: swap.bills, sender: "wallet" } : intent;
+  const payer = scope?.payer ?? null;
+  const fromSafe = scope?.sender === "safe";
+  const bills = scope?.bills ?? [];
+  const unpaid = new Set(bills.map((b) => billKey(b.contract, b.id)));
+  const swapAt = swap ? calls.findIndex((c) => isAddressEqual(c.target, CIRCLE_SWAP_ADAPTER)) : -1;
+  const closing = guardMarket === null ? undefined : CURRENCIES.find((x) => x.marketId.toLowerCase() === guardMarket.toLowerCase());
+
+  // The id a pay(id) call settles, once, for a bill this batch was built for; null when the bytes are not exactly pay(id).
+  const settles = (contract: Address, data: Hex): bigint | null => {
+    const inner = readCall(adagAbi, data);
+    if (inner?.functionName !== "pay") return null;
+    const id = inner.args[0] as bigint;
+    if (!unpaid.delete(billKey(contract, id))) throw new Error("Refusing a payment for a bill this batch was not built for, or one paid twice.");
+    return id;
+  };
+
+  calls.forEach((c, i) => {
+    const t = c.target;
+    if (swap && isAddressEqual(t, CIRCLE_SWAP_ADAPTER)) return;
+    if (isAddressEqual(t, MULTICALL3_FROM)) throw new Error("Refusing a batch inside the batch.");
+
+    if (TOKEN_ADDRESSES.some((x) => isAddressEqual(x, t))) {
+      const r = readCall(erc20Abi, c.callData);
+      if (r?.functionName === "transfer" && swapAt >= 0 && i === swapAt + 1) return;
+      if (r?.functionName !== "approve") throw new Error("Refusing a token call other than an approval.");
+      const spender = r.args[0] as Address;
+      if (isAddressEqual(spender, MORPHO)) return;
+      if (swap && isAddressEqual(spender, CIRCLE_SWAP_ADAPTER)) return;
+      if (isBillsContract(spender)) {
+        if (isAddressEqual(t, CIRBTC) || !bills.some((b) => isAddressEqual(b.contract, spender))) {
+          throw new Error("Refusing a cirBTC approval to AdagBills, or one to a contract no bill in this batch is on.");
+        }
+        return;
+      }
+      if (ADAG_GUARD !== null && isAddressEqual(spender, ADAG_GUARD) && closing && isAddressEqual(t, closing.address) && r.args[1] === 0n) return;
+      throw new Error(`Refusing an approval to ${spender}.`);
+    }
+
+    if (isAddressEqual(t, MEMO)) {
+      if (fromSafe) throw new Error("Refusing a Memo call in a Safe batch. A Safe pays AdagBills directly.");
+      const m = readCall(memoAbi, c.callData);
+      const target = m?.args[0] as Address | undefined;
+      const id = m && target && isBillsContract(target) ? settles(target, m.args[1] as Hex) : null;
+      if (id === null) throw new Error("Refusing a Memo call that is not a bill payment.");
+      if (String(m!.args[2]).toLowerCase() !== memoId(id).toLowerCase()) throw new Error("Refusing a Memo payment filed under another bill's memo id.");
+      return;
+    }
+
+    if (isAddressEqual(t, MORPHO)) {
+      const m = readCall(morphoAbi, c.callData);
+      if (!m || !MORPHO_CALLS.includes(m.functionName)) throw new Error("Refusing a Morpho call this app does not make.");
+      const a = m.args;
+      if (!CURRENCIES.some((x) => isMarketOf(a[0] as MarketParams, x.marketId))) throw new Error("Refusing a Morpho call on a market that is not one of Adag's two.");
+      const onBehalf = (m.functionName === "borrow" || m.functionName === "repay" ? a[3] : a[2]) as Address;
+      if (payer === null || !isAddressEqual(onBehalf, payer)) throw new Error("Refusing a Morpho call made for anyone but the payer.");
+      if (m.functionName === "borrow" || m.functionName === "withdrawCollateral") {
+        if (!isAddressEqual((m.functionName === "borrow" ? a[4] : a[3]) as Address, payer)) throw new Error("Refusing a Morpho call that sends money to anyone but the payer.");
+      }
+      const callback = m.functionName === "supplyCollateral" ? a[3] : m.functionName === "repay" ? a[4] : "0x";
+      if (callback !== "0x") throw new Error("Refusing a Morpho call that asks Morpho to call back into the batch.");
+      return;
+    }
+
+    if (isBillsContract(t)) {
+      if (!fromSafe) throw new Error("Refusing a direct call to AdagBills in a batch. Bills are paid through Memo.");
+      if (calls.length === 1 && isAddressEqual(t, ADAG_BILLS) && c.callData.toLowerCase() === ENROL_CALL) return;
+      if (settles(t, c.callData) === null) throw new Error("Refusing an AdagBills call from a Safe other than paying one of its bills, or recording its loan on its own.");
+      return;
+    }
+
+    if (ADAG_GUARD !== null && isAddressEqual(t, ADAG_GUARD)) {
+      const stop = closing ? encodeFunctionData({ abi: guardAbi, functionName: "clearRule", args: [closing.marketId] }).toLowerCase() : null;
+      if (c.callData.toLowerCase() !== stop) throw new Error("Refusing a loan guard call other than exactly stopping this loan's rule.");
+      return;
+    }
+
+    throw new Error(`Refusing a batch that calls ${t}.`);
+  });
+  if (unpaid.size > 0) throw new Error("Refusing a batch that leaves a bill it was built for unpaid.");
+}
+
 // One rule for AdagGuard, rather than a place on the lists: a close may call it only to clear the rule of the market
 // it closes, and may approve it only to 0. No other batch may touch it at all (C60).
 // A swap through Circle's adapter is allowed only for a batch that carries its Conversion: with it, assertSwapCalls
 // holds the call, its approvals and the balance check to C65 to C69. Without it, the adapter is just another address
 // that is on neither list.
-export function assertCalls(calls: readonly Call3[], guardMarket: Hex | null = null, swap: Conversion | null = null) {
+// Then every call is held to its shape (assertCallShapes) against the intent the builder passes, or the Conversion's
+// payer and bills when there is one. With neither, no Morpho call and no payment can pass.
+export function assertCalls(calls: readonly Call3[], guardMarket: Hex | null = null, swap: Conversion | null = null, intent: BatchIntent | null = null) {
   if (swap) assertSwapCalls(calls, swap);
   for (const c of calls) {
     if (c.allowFailure !== false) throw new Error("Refusing a batch step that may fail on its own.");
@@ -341,10 +454,11 @@ export function assertCalls(calls: readonly Call3[], guardMarket: Hex | null = n
       if (!SPENDERS.some((s) => isAddressEqual(s, args[0] as Address))) throw new Error(`Refusing an approval to ${String(args[0])}.`);
     }
   }
+  assertCallShapes(calls, guardMarket, swap, intent);
 }
 
-function batch(calls: Call3[], guardMarket: Hex | null = null, conversion: Conversion | null = null): Batch {
-  assertCalls(calls, guardMarket, conversion);
+function batch(calls: Call3[], intent: BatchIntent, guardMarket: Hex | null = null, conversion: Conversion | null = null): Batch {
+  assertCalls(calls, guardMarket, conversion, intent);
   const data = encodeFunctionData({ abi: multicall3FromAbi, functionName: "aggregate3", args: [calls] });
   return conversion ? { to: MULTICALL3_FROM, data, calls, conversion } : { to: MULTICALL3_FROM, data, calls };
 }
@@ -385,7 +499,7 @@ export function assertConversionBatch(to: Address, data: Hex, conversion: Conver
 export function buildPayFromBalance(bill: Bill, payer: string): Batch {
   const who = checkedPayer(payer);
   const currency = payableCurrency(bill, who);
-  return batch([approve(currency.address, bill.contract, bill.amount), memoPay(bill)]);
+  return batch([approve(currency.address, bill.contract, bill.amount), memoPay(bill)], { payer: who, bills: [bill], sender: "wallet" });
 }
 
 // ARCHITECTURE.md section 6, pay from bitcoin. `marketParams` is what Morpho returned; it must hash to the fixed
@@ -410,7 +524,7 @@ export function buildPayFromBitcoin(bill: Bill, payer: string, pledgeCirBtc: big
     approve(currency.address, bill.contract, bill.amount),
     memoPay(bill),
   );
-  return batch(calls);
+  return batch(calls, { payer: who, bills: [bill], sender: "wallet" });
 }
 
 export const MAX_BASKET_BILLS = 10;
@@ -542,7 +656,8 @@ export function buildPayMany(bills: Bill[], payer: string, plan: BasketPlan): Ba
   }
   for (const c of groups) calls.push(approve(c.address, contract, totals.get(c)!));
   for (const b of bills) calls.push(memoPay(b));
-  if (!swap) return batch(calls);
+  const intent: BatchIntent = { payer: who, bills, sender: "wallet" };
+  if (!swap) return batch(calls, intent);
 
   calls.push(approve(swap.loan.address, CIRCLE_SWAP_ADAPTER, 0n));
   let pledge = 0n;
@@ -567,7 +682,7 @@ export function buildPayMany(bills: Bill[], payer: string, plan: BasketPlan): Ba
     bills: paid,
     guardMarket: null,
   };
-  return batch(calls, null, conversion);
+  return batch(calls, intent, null, conversion);
 }
 
 // One bill paid from a loan in the other currency: the single-bill form of buildPayMany with a converting group.
@@ -623,10 +738,10 @@ export function buildAddCollateral(payer: string, currency: Currency, amount: bi
   const who = checkedPayer(payer);
   const { params } = verifiedParams(currency, marketParams);
   if (typeof amount !== "bigint" || amount <= 0n) throw new Error("The amount of cirBTC to add must be more than zero.");
-  return batch([
-    approve(CIRBTC, MORPHO, amount),
-    call(MORPHO, encodeFunctionData({ abi: morphoAbi, functionName: "supplyCollateral", args: [params, amount, who, "0x"] })),
-  ]);
+  return batch(
+    [approve(CIRBTC, MORPHO, amount), call(MORPHO, encodeFunctionData({ abi: morphoAbi, functionName: "supplyCollateral", args: [params, amount, who, "0x"] }))],
+    { payer: who, bills: [], sender: "wallet" },
+  );
 }
 
 // ARCHITECTURE.md section 6, close a loan: repay by the live share count (repaying by assets leaves dust that blocks
@@ -641,10 +756,10 @@ export function buildRepaySome(payer: string, currency: Currency, assets: bigint
   if (typeof cap !== "bigint" || assets > cap) {
     throw new Error("That is more than this way of repaying can take. Use Close loan to repay everything.");
   }
-  return batch([
-    approve(c.address, MORPHO, assets),
-    call(MORPHO, encodeFunctionData({ abi: morphoAbi, functionName: "repay", args: [params, assets, 0n, who, "0x"] })),
-  ]);
+  return batch(
+    [approve(c.address, MORPHO, assets), call(MORPHO, encodeFunctionData({ abi: morphoAbi, functionName: "repay", args: [params, assets, 0n, who, "0x"] }))],
+    { payer: who, bills: [], sender: "wallet" },
+  );
 }
 
 // The loan guard's state for the market being closed, read by the caller: whether a rule exists, and the approval.
@@ -698,7 +813,7 @@ export function buildCloseLoan(
   const who = checkedPayer(payer);
   const { c, params } = verifiedParams(currency, marketParams);
   const { calls, stops } = closeCalls(who, c, params, position, repayApproval, guardStop);
-  return batch(calls, stops ? c.marketId : null);
+  return batch(calls, { payer: who, bills: [], sender: "wallet" }, stops ? c.marketId : null);
 }
 
 // C75: what a close needs to pay its loan with the other currency instead.
@@ -767,7 +882,7 @@ export function buildCloseWithOtherCurrency(
     bills: [],
     guardMarket,
   };
-  return batch(calls, guardMarket, conversion);
+  return batch(calls, { payer: who, bills: [], sender: "wallet" }, guardMarket, conversion);
 }
 
 // Records the caller's existing Morpho loans as they stand on the current AdagBills, so later payments are judged only
@@ -840,6 +955,8 @@ export function buildSafeBatch(safe: Address, bills: Bill[], plan: BasketPlan): 
   if (inner.some((i) => isAddressEqual(i.to, CIRCLE_SWAP_ADAPTER) || (i.data.slice(0, 10).toLowerCase() === APPROVE_SELECTOR && i.data.toLowerCase().includes(CIRCLE_SWAP_ADAPTER.slice(2).toLowerCase())))) {
     throw new Error(SAFE_NO_CONVERSION);
   }
+  // The same shape rule as a wallet's batch, with the Safe as the payer (C3, C51).
+  assertCalls(inner.map((i) => call(i.to, i.data)), null, null, { payer: who, bills, sender: "safe" });
   assertSafeInnerCalls(who, inner);
   const batch: SafeBatch = { to: MULTISEND_CALL_ONLY, data: encodeMultiSend(inner), operation: 1, value: 0n, inner };
   // The outer shape too, with a placeholder nonce: the real nonce is read from the Safe right before signing (C52).
@@ -853,6 +970,7 @@ export function buildSafeBatch(safe: Address, bills: Bill[], plan: BasketPlan): 
 export function buildSafeEnrol(safe: Address): SafeBatch {
   const who = checkedPayer(safe);
   const inner: SafeInnerCall[] = [{ to: ADAG_BILLS, value: 0n, data: encodeFunctionData({ abi: adagAbi, functionName: "enrol" }), operation: 0 }];
+  assertCalls(inner.map((i) => call(i.to, i.data)), null, null, { payer: who, bills: [], sender: "safe" });
   assertSafeInnerCalls(who, inner);
   const out: SafeBatch = { to: MULTISEND_CALL_ONLY, data: encodeMultiSend(inner), operation: 1, value: 0n, inner };
   assertSafeTxShape(who, safeTxFor(out, 0n));
