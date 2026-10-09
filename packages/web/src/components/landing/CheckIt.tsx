@@ -71,14 +71,14 @@ export function CheckIt() {
                 <p className="type-label text-muted transition-colors duration-200 group-hover:text-gold">{String(i + 1).padStart(2, "0")}</p>
                 <h3 className="type-h4">{proof.title}</h3>
                 <p className="type-body max-w-[34ch] text-muted">{proof.body}</p>
-                <p className="mt-auto flex flex-wrap gap-x-6 gap-y-2 pt-2">
+                <p className="mt-auto flex flex-wrap gap-x-6">
                   {proof.links.map((link) =>
                     link.external ? (
-                      <a key={link.label} href={link.href} target="_blank" rel="noopener noreferrer" className="link-draw type-label text-gold">
+                      <a key={link.label} href={link.href} target="_blank" rel="noopener noreferrer" className="link-draw tap-target type-label text-gold">
                         {link.label}
                       </a>
                     ) : (
-                      <Link key={link.label} href={link.href} className="link-draw type-label text-gold">
+                      <Link key={link.label} href={link.href} className="link-draw tap-target type-label text-gold">
                         {link.label}
                       </Link>
                     ),

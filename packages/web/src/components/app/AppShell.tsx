@@ -24,12 +24,12 @@ function AppFooter() {
           <p className="font-display text-[22px] font-semibold tracking-[0.08em] text-text">ADAG</p>
           <p className="type-body mt-2 max-w-[34rem] text-muted">Bills on Arc mainnet, paid from balance or from a loan against pledged bitcoin.</p>
         </div>
-        <div className="flex flex-col gap-3 md:items-end">
+        <div className="flex flex-col md:items-end">
           <a
             href="https://morpho.org"
             target="_blank"
             rel="noopener noreferrer"
-            className="type-label inline-flex items-center gap-2 text-text transition-colors duration-200 hover:text-gold"
+            className="type-label inline-flex min-h-10 items-center gap-2 text-text transition-colors duration-200 hover:text-gold"
           >
             <span aria-hidden="true" className="diamond" />
             Powered by Morpho
@@ -38,7 +38,7 @@ function AppFooter() {
             href={`${EXPLORER}/address/${ADAG_BILLS}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="link-draw type-address text-muted transition-colors duration-200 hover:text-text"
+            className="link-draw tap-target type-address break-all text-muted transition-colors duration-200 hover:text-text"
           >
             AdagBills {ADAG_BILLS}
           </a>
@@ -46,7 +46,7 @@ function AppFooter() {
             href={`${EXPLORER}/address/${ADAG_BILLS_FIRST}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="link-draw type-address text-muted transition-colors duration-200 hover:text-text"
+            className="link-draw tap-target type-address break-all text-muted transition-colors duration-200 hover:text-text"
           >
             First deployment {ADAG_BILLS_FIRST}
           </a>

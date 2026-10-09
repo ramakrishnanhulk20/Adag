@@ -7,7 +7,7 @@ export type LoanLine = { id: string; d: string; label: { x: number; y: number; a
 type Geometry = { w: number; h: number; wide: boolean; lines: LoanLine[] };
 
 const EMPTY: Geometry = { w: 1, h: 1, wide: true, lines: [] };
-const WIDE = 768;
+const WIDE = 1300;
 
 // The point where the line leaves the photographed coin's rim, heading for (tx, ty).
 function rimPoint(cx: number, cy: number, rx: number, ry: number, tx: number, ty: number) {
@@ -30,7 +30,8 @@ function measure(stage: HTMLElement): Geometry {
   const rx = (f.width * COIN_SIZE.w) / 2;
   const ry = (f.height * COIN_SIZE.h) / 2;
   const wide = window.innerWidth >= WIDE;
-  const gutter = s.width - 10;
+  // Measured from the photo's right edge, not the stage's, so the line follows the centred column on tablets.
+  const gutter = f.right - s.left - 10;
 
   const lines = slots.map((slot, i): LoanLine => {
     const id = slot.dataset.plSlot ?? "";

@@ -34,7 +34,7 @@ export function usePledgeMotion({ pinRef, stageRef, key, ready, stamps, onFinal 
     let final = false;
 
     // matchMedia only calls back when a condition matches, so "narrow" is listed for phones with motion on.
-    mm.add({ wide: "(min-width: 768px)", narrow: "(max-width: 767.98px)", reduce: "(prefers-reduced-motion: reduce)" }, (ctx) => {
+    mm.add({ wide: "(min-width: 1300px)", narrow: "(max-width: 1299.98px)", reduce: "(prefers-reduced-motion: reduce)" }, (ctx) => {
       const { wide, reduce } = ctx.conditions as { wide: boolean; reduce: boolean };
       const tl = buildTimeline(stage, { stamps, gapless: !wide });
       let run: gsap.core.Timeline | null = null;

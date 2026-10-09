@@ -9,8 +9,8 @@ const PROOF_TX = "https://explorer.arc.io/tx/0x6987964bddd7f8a8fe2a59d6de9baaa6a
 export function OneSignature() {
   return (
     <section id="how" aria-labelledby="how-title" className="landing-section scroll-mt-20 border-t border-rule bg-bg px-5 py-24 md:px-[6vw] md:py-36">
-      <div className="grid gap-14 md:grid-cols-12 md:gap-8">
-        <div className="md:sticky md:top-32 md:col-span-6 md:self-start">
+      <div className="grid gap-14 lg:grid-cols-12 lg:gap-8">
+        <div className="lg:sticky lg:top-32 lg:col-span-6 lg:self-start">
           <Reveal>
             <Hallmark>04 · One signature</Hallmark>
           </Reveal>
@@ -26,13 +26,13 @@ export function OneSignature() {
             </p>
           </Reveal>
         </div>
-        <div className="md:col-span-6">
+        <div className="lg:col-span-6">
           <Reveal>
             <Receipt />
           </Reveal>
-          <Reveal delay={0.08} className="mt-12 flex flex-col gap-5">
+          <Reveal delay={0.08} className="mt-12 flex flex-col gap-2">
             <p className="type-h3 max-w-[22ch]">If any step fails, none of it happened.</p>
-            <a href={PROOF_TX} target="_blank" rel="noopener noreferrer" className="link-draw type-label self-start text-gold">
+            <a href={PROOF_TX} target="_blank" rel="noopener noreferrer" className="link-draw tap-target type-label self-start text-gold">
               See the real one on Arc
             </a>
           </Reveal>

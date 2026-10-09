@@ -132,7 +132,7 @@ export function PledgeStage() {
               <span className="diamond" aria-hidden="true" />
               {story.honesty}
             </span>
-            {snapshot?.blockNumber && <span className="hidden text-muted md:inline">Arc block {Number(snapshot.blockNumber).toLocaleString("en-US")}</span>}
+            {snapshot?.blockNumber && <span className="hidden text-muted min-[1300px]:inline">Arc block {Number(snapshot.blockNumber).toLocaleString("en-US")}</span>}
           </motion.div>
 
           <div className="pl-head">
@@ -185,7 +185,7 @@ export function PledgeStage() {
                   src={images.vaultCoin}
                   alt="An open safe deposit drawer lined with blue velvet"
                   fill
-                  sizes="(min-width: 768px) 62vw, 100vw"
+                  sizes="(min-width: 1300px) 62vw, 100vw"
                   quality={85}
                   placeholder="blur"
                   className="object-cover"

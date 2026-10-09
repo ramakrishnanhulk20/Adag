@@ -10,8 +10,8 @@ const STEPS = ["Write a bill", "Share its link", "Get paid in USDC or EURC, matc
 export function ForSuppliers() {
   return (
     <section aria-labelledby="suppliers-title" className="landing-section border-t border-rule bg-bg px-5 py-24 md:px-[6vw] md:py-36">
-      <div className="grid gap-14 md:grid-cols-12 md:items-center md:gap-8">
-        <div className="md:col-span-5">
+      <div className="grid gap-14 lg:grid-cols-12 lg:items-center lg:gap-8">
+        <div className="lg:col-span-5">
           <Reveal>
             <Hallmark>07 · For suppliers</Hallmark>
           </Reveal>
@@ -36,7 +36,7 @@ export function ForSuppliers() {
             </HeroAction>
           </Reveal>
         </div>
-        <div className="md:col-span-6 md:col-start-7">
+        <div className="lg:col-span-6 lg:col-start-7">
           <Reveal>
             <p className="type-micro mb-4 text-muted">The latest payment on Arc, read live</p>
             <BillCard />

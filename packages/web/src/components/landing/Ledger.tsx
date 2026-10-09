@@ -30,11 +30,11 @@ function Row({ entry, index }: { entry: PaidEntry; index: number }) {
       viewport={{ once: true, amount: 0.5 }}
       transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1], delay: index * 0.06 }}
       data-ledger-row={`${entry.first ? "first" : "current"}:${entry.id}`}
-      className="grid grid-cols-[auto_1fr] items-center gap-x-6 gap-y-3 border-t border-rule py-6 transition-colors duration-200 hover:border-gold md:grid-cols-[7rem_12rem_1fr_8rem_10rem]"
+      className="grid grid-cols-[auto_1fr] items-center gap-x-6 gap-y-3 border-t border-rule py-6 transition-colors duration-200 hover:border-gold lg:grid-cols-[7rem_12rem_1fr_8rem_10rem]"
     >
       <span className="flex flex-col items-start gap-1.5">
         {href ? (
-          <Link href={href} className="link-draw type-label text-gold">
+          <Link href={href} className="link-draw tap-target type-label text-gold">
             Bill #{entry.id}
           </Link>
         ) : (
@@ -43,7 +43,7 @@ function Row({ entry, index }: { entry: PaidEntry; index: number }) {
         {entry.first && <span className="type-micro text-muted">First deployment</span>}
       </span>
       <span className="type-h4">{formatAmount(entry.amountBaseUnits, entry.currency)}</span>
-      <span className="col-span-2 flex min-w-0 flex-col gap-1 md:col-span-1">
+      <span className="col-span-2 flex min-w-0 flex-col gap-1 lg:col-span-1">
         <span className="type-address text-text">
           <span className="text-muted">from </span>
           {short(entry.payer)}
@@ -58,8 +58,8 @@ function Row({ entry, index }: { entry: PaidEntry; index: number }) {
       <span className="origin-left scale-[0.8]">
         <BillStamp status="paid" entrance="in-view" />
       </span>
-      <span className="md:text-right">
-        <a href={entry.explorerUrl} target="_blank" rel="noopener noreferrer" className="link-draw type-label text-gold">
+      <span className="lg:text-right">
+        <a href={entry.explorerUrl} target="_blank" rel="noopener noreferrer" className="link-draw tap-target type-label text-gold">
           Payment on Arc
         </a>
       </span>

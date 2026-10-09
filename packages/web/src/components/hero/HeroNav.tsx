@@ -52,9 +52,9 @@ export function HeroNav() {
         filled ? "border-rule bg-bg/92 backdrop-blur-[12px]" : "border-transparent bg-transparent"
       }`}
     >
-      <div className="flex h-14 items-center justify-between px-5 md:h-[72px] md:px-[6vw]">
+      <div className="flex h-14 items-center justify-between px-5 max-[359px]:px-4 md:h-[72px] md:px-[6vw]">
         <div className="flex items-center gap-12">
-          <a href="#top" className="font-display text-[22px] font-semibold tracking-[0.08em] text-text transition-colors duration-200 hover:text-gold">
+          <a href="#top" className="inline-flex min-h-10 items-center font-display text-[22px] font-semibold tracking-[0.08em] text-text transition-colors duration-200 hover:text-gold">
             ADAG
           </a>
           <nav aria-label="Main" className="hidden items-center gap-9 md:flex">
@@ -65,7 +65,7 @@ export function HeroNav() {
             ))}
           </nav>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 max-[359px]:gap-2">
           <ThemeControl variant="cycle" tipAlign="end" />
           <HeroAction href="/app" variant="secondary" size="sm" className="hidden md:inline-flex">
             Open app

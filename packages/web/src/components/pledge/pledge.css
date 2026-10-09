@@ -1,7 +1,8 @@
 /*
   The pledge stage (SPEC section 5). The timeline writes its progress to --p on .pl-stage; the chapter rule, the
   chapter names and the coin's float read it here, so React never re-renders per frame.
-  Phones first: everything in one column. From 48rem the stage is one pinned screen.
+  Phones first: everything in one column. From 1300px the stage is one pinned screen. Below that the text column cannot
+  clear the fanned bills, so tablets and small laptops keep the one-column stage.
 */
 
 .pl-section {
@@ -13,7 +14,7 @@
   from the first paint means nothing below the stage moves when the pin is created after the page loads, so an
   in-page link clicked early still lands on its section.
 */
-@media (width >= 48rem) and (prefers-reduced-motion: no-preference) {
+@media (width >= 1300px) and (prefers-reduced-motion: no-preference) {
   .pl-section {
     min-height: calc(max(100svh, 620px) + 240vh);
   }
@@ -169,13 +170,18 @@
   vector-effect: non-scaling-stroke;
 }
 
+/*
+  Centred on the slot with plain offsets, not translate: -50%. GSAP animates this element, and it guesses a -50% shift by
+  comparing rounded sizes. On some widths the guess fails, the shift is turned into a fixed length, and the first
+  y tween wipes it, leaving the coin half its height too low. The frame is always 4:3, so half the coin's height is
+  7.165% of the width, which is 9.5533% of the height.
+*/
 .pl-coin {
   position: absolute;
-  left: 50.17%;
-  top: 50.42%;
+  left: calc(50.17% - 7.165%);
+  top: calc(50.42% - 9.5533%);
   width: 14.33%;
   aspect-ratio: 1;
-  translate: -50% -50%;
   pointer-events: none;
 }
 .pl-coin-svg {
@@ -376,6 +382,12 @@
   right: 12px;
   transform-origin: 50% 50%;
 }
+/* On a small phone the first card sits right under the three-line callout, so the stamp drops into the card's empty top corner. */
+@media (width < 30rem) {
+  .pl-stamp {
+    top: 22px;
+  }
+}
 .pl-stamp .stamp {
   background-color: color-mix(in srgb, var(--raised) 86%, transparent);
   font-size: 0.9375rem;
@@ -548,8 +560,35 @@
   transform: scaleX(var(--p));
 }
 
+/* Tablets and small laptops keep the one-column stage, in a centred column so the bills and the photograph are not stretched across the screen. */
+@media (width >= 768px) and (width < 1300px) {
+  .pl-honesty,
+  .pl-head,
+  .pl-frame,
+  .pl-cards,
+  .pl-figures {
+    width: 100%;
+    max-width: 44rem;
+    margin-inline: auto;
+  }
+  .pl-chapters {
+    width: calc(100% - 2 * var(--gut));
+    max-width: calc(44rem - 2 * var(--gut));
+    margin-inline: auto;
+    flex-wrap: nowrap;
+    justify-content: space-between;
+    column-gap: 10px;
+  }
+  .pl-chapter {
+    white-space: nowrap;
+  }
+  .pl-tag-6 .pl-hallmark-wrap {
+    text-wrap: balance;
+  }
+}
+
 /* Wide screens: one pinned screen. Left for words and numbers, right 60% for the photograph, bills fanned across the seam. */
-@media (width >= 48rem) {
+@media (width >= 1300px) {
   .pl-stage {
     --gut: 6vw;
     --fw: min(60%, 104svh);
@@ -668,7 +707,7 @@
   }
 }
 
-@media (width >= 48rem) and (max-height: 820px) {
+@media (width >= 1300px) and (max-height: 820px) {
   .pl-sub {
     display: none;
   }

@@ -66,7 +66,7 @@ const CELLS: CellSpec[] = [
       const tail = (
         <>
           {" · "}
-          <Link href={BILL_ONE} className="link-draw text-gold" aria-label="See bill 1, the live proof payment">
+          <Link href={BILL_ONE} className="link-draw text-gold max-md:tap-target" aria-label="See bill 1, the live proof payment">
             see bill #1
           </Link>
         </>
@@ -110,7 +110,7 @@ function Value({ shown }: { shown: Shown }) {
       transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
     >
       {shown.number}
-      {shown.suffix && <span className="type-micro ml-2 align-middle text-muted">{shown.suffix}</span>}
+      {shown.suffix && <span className="type-micro mt-1.5 block text-muted lg:mt-0 lg:ml-2 lg:inline lg:align-middle">{shown.suffix}</span>}
     </motion.p>
   );
 }

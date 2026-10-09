@@ -89,9 +89,9 @@ export function AppNav() {
         solid || open ? "border-rule bg-bg/92 backdrop-blur-[12px]" : "border-transparent bg-bg/60 backdrop-blur-[6px]"
       }`}
     >
-      <div className="flex h-14 items-center justify-between gap-3 px-5 md:h-[72px] md:px-[6vw]">
+      <div className="flex h-14 items-center justify-between gap-3 px-5 max-[359px]:px-4 md:h-[72px] md:px-[6vw]">
         <div className="flex items-center gap-10">
-          <Link href="/" className="font-display text-[22px] font-semibold tracking-[0.08em] text-text transition-colors duration-200 hover:text-gold">
+          <Link href="/" className="inline-flex min-h-10 items-center font-display text-[22px] font-semibold tracking-[0.08em] text-text transition-colors duration-200 hover:text-gold">
             ADAG
           </Link>
           <nav aria-label="App" className="hidden items-center gap-8 lg:flex">
@@ -107,7 +107,7 @@ export function AppNav() {
             ))}
           </nav>
         </div>
-        <div className="flex items-center gap-2.5 md:gap-3">
+        <div className="flex items-center gap-2.5 max-[359px]:gap-2 md:gap-3">
           <ThemeControl variant="cycle" tipAlign="end" />
           <div className="hidden sm:block">
             <ConnectButton />

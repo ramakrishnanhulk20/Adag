@@ -106,8 +106,8 @@ const PARTS: Part[] = [
 export function AfterYouPay({ label = "06 · After you pay" }: { label?: string }) {
   return (
     <section id="after" aria-labelledby="after-title" className="landing-section scroll-mt-20 border-t border-rule bg-bg px-5 py-24 md:px-[6vw] md:py-36">
-      <div className="grid gap-14 md:grid-cols-12 md:gap-8">
-        <div className="md:sticky md:top-32 md:col-span-5 md:self-start">
+      <div className="grid gap-14 lg:grid-cols-12 lg:gap-8">
+        <div className="lg:sticky lg:top-32 lg:col-span-5 lg:self-start">
           <Reveal>
             <Hallmark>{label}</Hallmark>
           </Reveal>
@@ -123,10 +123,10 @@ export function AfterYouPay({ label = "06 · After you pay" }: { label?: string 
             </p>
           </Reveal>
         </div>
-        <ol className="grid gap-px bg-rule md:col-span-7 md:grid-cols-2">
+        <ol className="grid gap-px bg-rule lg:col-span-7 lg:grid-cols-2">
           {PARTS.map((part, i) => (
             <li key={part.id} data-after={part.id} className="after-plate group bg-bg">
-              <Reveal delay={0.06 * i} className="flex h-full flex-col gap-5 py-9 md:px-8 md:py-10">
+              <Reveal delay={0.06 * i} className="flex h-full flex-col gap-5 py-9 lg:px-8 lg:py-10">
                 <div className="flex items-start justify-between gap-6">
                   {part.glyph}
                   <span className="type-label text-muted transition-colors duration-200 group-hover:text-gold">{String(i + 1).padStart(2, "0")}</span>
@@ -135,7 +135,7 @@ export function AfterYouPay({ label = "06 · After you pay" }: { label?: string 
                 <p className="type-body max-w-[40ch] text-muted">{part.body}</p>
                 {part.keyLine && <p className="after-key type-body text-text">{part.keyLine}</p>}
                 {part.after && <p className="type-body max-w-[40ch] text-muted">{part.after}</p>}
-                <Link href={part.link.href} className="link-draw type-label mt-auto self-start pt-2 text-gold">
+                <Link href={part.link.href} className="link-draw tap-target type-label mt-auto self-start text-gold">
                   {part.link.label}
                 </Link>
               </Reveal>

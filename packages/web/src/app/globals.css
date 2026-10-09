@@ -128,6 +128,19 @@
   text-transform: none;
 }
 
+/*
+  Keeps a small link's text size and gives a finger 40px of height. The padding is outside the content box, and the
+  underline of .link-draw is placed against the content box, so it still sits just under the words.
+*/
+@utility tap-target {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.5rem;
+  padding-block: 0.8rem;
+  background-origin: content-box;
+  background-position: 0 calc(100% + 2px);
+}
+
 @layer base {
   html {
     background-color: var(--bg);

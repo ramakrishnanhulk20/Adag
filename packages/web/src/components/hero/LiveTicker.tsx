@@ -10,8 +10,8 @@ export function LiveTicker({ className = "" }: { className?: string }) {
   const live = useLive();
   const liquidity = live.status === "ready" && live.snapshot.liquidity.ok ? live.snapshot.liquidity.value.usdcBaseUnits : null;
   return (
-    <Hallmark className={className}>
-      <span aria-live="polite">{liquidity === null ? "Live on Arc mainnet" : `Live on Arc · ${formatMoney(liquidity, "USD")} ready to lend`}</span>
+    <Hallmark className={`max-w-full max-sm:flex max-sm:w-full max-sm:justify-center ${className}`}>
+      <span aria-live="polite" className="min-w-0 truncate max-sm:tracking-[0.07em]">{liquidity === null ? "Live on Arc mainnet" : `Live on Arc · ${formatMoney(liquidity, "USD")} ready to lend`}</span>
     </Hallmark>
   );
 }

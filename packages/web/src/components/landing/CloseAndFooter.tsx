@@ -40,24 +40,24 @@ export function CloseAndFooter() {
             <span className="font-display text-[22px] font-semibold tracking-[0.08em]">ADAG</span>
             <p className="type-micro text-muted">Powered by Morpho · on Arc mainnet</p>
           </div>
-          <nav aria-label="Footer" className="type-label flex flex-wrap gap-x-8 gap-y-3 text-text/88">
-            <Link href="/docs" className="link-draw hover:text-gold">
+          <nav aria-label="Footer" className="type-label flex flex-wrap gap-x-8 text-text/88">
+            <Link href="/docs" className="link-draw tap-target hover:text-gold">
               Docs
             </Link>
-            <Link href="/terms" className="link-draw hover:text-gold">
+            <Link href="/terms" className="link-draw tap-target hover:text-gold">
               Terms of Use
             </Link>
           </nav>
           <ThemeControl variant="segmented" />
         </div>
-        <ul aria-label="Contracts on Arc mainnet" className="mt-10 flex flex-col gap-3 border-t border-rule pt-6 md:flex-row md:flex-wrap md:gap-x-10">
+        <ul aria-label="Contracts on Arc mainnet" className="mt-10 flex flex-col border-t border-rule pt-3 md:flex-row md:flex-wrap md:gap-x-10">
           {CONTRACTS.map((c) => (
-            <li key={c.address} className="type-micro flex flex-wrap items-baseline gap-x-3 gap-y-1 text-muted">
+            <li key={c.address} className="type-micro flex flex-wrap items-center gap-x-3 text-muted">
               <span className="text-text/88">{c.name}</span>
-              <a href={c.explorer} target="_blank" rel="noopener noreferrer" className="link-draw hover:text-gold">
+              <a href={c.explorer} target="_blank" rel="noopener noreferrer" className="link-draw tap-target hover:text-gold">
                 Explorer
               </a>
-              <a href={c.sourcify} target="_blank" rel="noopener noreferrer" className="link-draw hover:text-gold">
+              <a href={c.sourcify} target="_blank" rel="noopener noreferrer" className="link-draw tap-target hover:text-gold">
                 Sourcify
               </a>
             </li>

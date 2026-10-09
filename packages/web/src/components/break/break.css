@@ -349,6 +349,14 @@
   }
 }
 
+/* A section mark such as "02 · Recording an existing loan" is wider than a 320px phone, so below 360px it wraps. */
+@media (width < 360px) {
+  .bk-page .hallmark {
+    white-space: normal;
+    max-width: 100%;
+  }
+}
+
 /* The hero enters with CSS keyframes on the server-rendered markup, so its words never wait for JavaScript. */
 @keyframes bk-rise-lg {
   from {

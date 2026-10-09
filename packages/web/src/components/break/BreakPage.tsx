@@ -138,7 +138,7 @@ export function BreakPage() {
   return (
     <div className="bk-page">
       <header className="bk-nav">
-        <Link href="/" className="font-display text-[22px] font-semibold tracking-[0.08em] text-text transition-colors duration-200 hover:text-gold">
+        <Link href="/" className="inline-flex min-h-10 items-center font-display text-[22px] font-semibold tracking-[0.08em] text-text transition-colors duration-200 hover:text-gold">
           ADAG
         </Link>
         <div className="flex items-center gap-6">

@@ -67,14 +67,14 @@ export function FortyLine() {
                 <p className="type-label text-gold">{String(i + 1).padStart(2, "0")}</p>
                 <h3 className="type-h3 mt-4 max-w-[18ch]">{fact.title}</h3>
                 <p className="type-body mt-4 max-w-[46ch] text-muted">{fact.body}</p>
-                <p className="mt-5 flex flex-wrap gap-x-6 gap-y-2">
+                <p className="mt-2 flex flex-wrap gap-x-6">
                   {fact.links.map((link) =>
                     link.internal ? (
-                      <Link key={link.label} href={link.href} className="link-draw type-label text-gold">
+                      <Link key={link.label} href={link.href} className="link-draw tap-target type-label text-gold">
                         {link.label}
                       </Link>
                     ) : (
-                      <a key={link.label} href={link.href} target="_blank" rel="noopener noreferrer" className="link-draw type-label text-gold">
+                      <a key={link.label} href={link.href} target="_blank" rel="noopener noreferrer" className="link-draw tap-target type-label text-gold">
                         {link.label}
                       </a>
                     ),

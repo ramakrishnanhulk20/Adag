@@ -403,7 +403,7 @@ function Preview({ currency, amount, due, refBytes, payee, written }: PreviewPro
       <dl className="app-ledger mt-8 border-y border-rule">
         <div className="app-ledger-row">
           <dt className="type-micro text-muted">Pays</dt>
-          <dd className="type-address min-w-0 break-all text-text">{payee ?? "Your connected wallet"}</dd>
+          <dd className={`type-address min-w-0 text-text ${payee ? "break-all" : ""}`}>{payee ?? "Your connected wallet"}</dd>
         </div>
         <div className="app-ledger-row">
           <dt className="type-micro text-muted">Due</dt>
