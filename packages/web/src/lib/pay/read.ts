@@ -53,11 +53,24 @@ export async function readBillCount(contract: string): Promise<{ ok: true; count
   }
 }
 
-// Bills written across both deployments. Either failing makes the total unknown rather than smaller.
-export async function readTotalBillCount(): Promise<{ ok: true; count: bigint } | { ok: false }> {
-  const counts = await Promise.all(DEPLOYMENTS.map((d) => readBillCount(d.address)));
-  if (counts.some((c) => !c.ok)) return { ok: false };
-  return { ok: true, count: counts.reduce((s, c) => s + (c.ok ? c.count : 0n), 0n) };
+export type BillCounts = { ok: true; total: bigint; current: bigint; first: bigint } | { ok: false };
+
+// Either deployment failing makes the counts unknown rather than smaller.
+export function sumBillCounts(reads: { label: "current" | "first"; result: Awaited<ReturnType<typeof readBillCount>> }[]): BillCounts {
+  let current = 0n;
+  let first = 0n;
+  for (const { label, result } of reads) {
+    if (!result.ok) return { ok: false };
+    if (label === "current") current += result.count;
+    else first += result.count;
+  }
+  return { ok: true, total: current + first, current, first };
+}
+
+// Bills written on each deployment, and in all.
+export async function readTotalBillCount(): Promise<BillCounts> {
+  const reads = await Promise.all(DEPLOYMENTS.map(async (d) => ({ label: d.label, result: await readBillCount(d.address) })));
+  return sumBillCounts(reads);
 }
 
 // A found payment never changes, so it is kept for the life of the server process, keyed by contract and id.

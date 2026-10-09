@@ -4,7 +4,7 @@ import { HeroAction } from "@/components/hero/HeroAction";
 import { BillCard } from "./BillCard";
 import { Reveal } from "./Reveal";
 
-const STEPS = ["Write a bill", "Share its link", "Get paid in USDC or EURC, invoice number attached"];
+const STEPS = ["Write a bill", "Share its link", "Get paid in USDC or EURC, matched to your invoice number"];
 
 // Section 6: the supplier's side, with one real bill read from Arc.
 export function ForSuppliers() {

@@ -29,6 +29,8 @@ async function execute(run: Run) {
     const passed = results.filter((r) => r.pass).length;
     const broken = results.filter((r) => r.verdict === "broken").length;
     const notRun = results.filter((r) => r.verdict === "error").length;
+    const allowedRows = results.filter((r) => r.verdict === "allowed" || r.verdict === "by-design").length;
+    const allowedClause = allowedRows > 0 ? `, or, in ${allowedRows} ${allowedRows === 1 ? "row" : "rows"}, allowed by design` : "";
     push({
       type: "done",
       passed,
@@ -36,7 +38,7 @@ async function execute(run: Run) {
       providers: providersUsed(),
       summary:
         passed === results.length
-          ? `All ${results.length} checks behaved as the threat model says: every attack was refused or held. The two known, accepted gaps, A4 and E5, behaved as the threat model says: each only affects the attacker's own loan.`
+          ? `All ${results.length} checks behaved as the threat model says: every attack was refused or held${allowedClause}. The two known, accepted gaps, A4 and E5, behaved as the threat model says: each only affects the attacker's own loan.`
           : [
               broken ? `${broken} of ${results.length} checks did not behave as expected.` : null,
               notRun ? `${notRun} could not run this time; nothing is claimed for ${notRun === 1 ? "it" : "them"}.` : null,

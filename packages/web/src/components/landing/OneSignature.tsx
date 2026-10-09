@@ -10,7 +10,7 @@ export function OneSignature() {
   return (
     <section id="how" aria-labelledby="how-title" className="landing-section scroll-mt-20 border-t border-rule bg-bg px-5 py-24 md:px-[6vw] md:py-36">
       <div className="grid gap-14 md:grid-cols-12 md:gap-8">
-        <div className="md:sticky md:top-32 md:col-span-5 md:self-start">
+        <div className="md:sticky md:top-32 md:col-span-6 md:self-start">
           <Reveal>
             <Hallmark>04 · One signature</Hallmark>
           </Reveal>
@@ -26,7 +26,7 @@ export function OneSignature() {
             </p>
           </Reveal>
         </div>
-        <div className="md:col-span-7">
+        <div className="md:col-span-6">
           <Reveal>
             <Receipt />
           </Reveal>

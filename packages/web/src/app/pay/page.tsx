@@ -22,7 +22,7 @@ export default async function PayPage() {
           className="app-watermark absolute right-[4vw] top-[8vh] -z-10 invisible text-[clamp(14rem,30vw,32rem)] md:visible"
         >
           <span className="app-watermark-sign">№</span>
-          {count.ok ? count.count.toString() : ""}
+          {count.ok ? count.total.toString() : ""}
         </div>
 
         <div className="app-rise" style={{ "--d": 0 } as React.CSSProperties}>
@@ -41,9 +41,11 @@ export default async function PayPage() {
         </div>
 
         <div className="app-rise mt-6 flex items-baseline gap-4 border-t border-rule pt-6 md:mt-10 md:max-w-[44rem]" style={{ "--d": 4 } as React.CSSProperties}>
-          <span className={count.ok ? "type-number text-text" : "type-label text-muted"}>{count.ok ? count.count.toString() : "unavailable"}</span>
+          <span className={count.ok ? "type-number text-text" : "type-label text-muted"}>{count.ok ? count.total.toString() : "unavailable"}</span>
           <span className="type-body text-muted">
-            {count.ok ? `bill${count.count === 1n ? "" : "s"} written on Arc so far, read from both AdagBills deployments just now.` : "Arc did not answer, so the bill count is unknown right now."}
+            {count.ok
+              ? `bill${count.total === 1n ? "" : "s"} written on Arc so far: ${count.current} on the current AdagBills and ${count.first} on the first deployment, read just now.`
+              : "Arc did not answer, so the bill count is unknown right now."}
           </span>
         </div>
       </section>

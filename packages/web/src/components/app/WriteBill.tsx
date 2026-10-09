@@ -142,7 +142,8 @@ export function WriteBill() {
         <Hallmark>Write a bill · Arc mainnet</Hallmark>
       </div>
       <h1 className="app-title app-rise mt-6 max-w-[12ch] text-text" style={{ "--d": 1 } as React.CSSProperties}>
-        Write a <em className="font-semibold text-gold italic">bill</em>.
+        {/* The display face has no kerning pair for W and r, which leaves a visible gap, so the W is pulled in by hand. */}
+        <span className="-mr-[0.07em]">W</span>rite a <em className="font-semibold text-gold italic">bill</em>.
       </h1>
       <p className="type-lead app-rise mt-6 max-w-[40rem] text-text/88" style={{ "--d": 2 } as React.CSSProperties}>
         One signature puts it on Arc, payable to you, exactly once. Send the link to whoever owes it.

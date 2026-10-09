@@ -65,7 +65,7 @@ export function Hero() {
           <p className="hero-in-2 type-lead hero-lead mt-4 max-w-[620px] text-text/88 md:mt-8">
             Pay your suppliers from the bitcoin your company holds. One signature, from your wallet{" "}
             <em className="text-gold not-italic">or your company Safe</em>, pledges cirBTC on Morpho, borrows exactly the bills and pays them
-            in USDC or EURC, invoice number attached.
+            in USDC or EURC, each matched to its invoice number.
           </p>
           <div className="hero-in-3 mt-5 flex gap-3 md:mt-8">
             <HeroAction href="/pay" variant="primary" className="flex w-full md:inline-flex md:w-auto">
@@ -77,7 +77,7 @@ export function Hero() {
           </div>
           {/* Phones have room for one button, so suppliers get a quiet line instead of losing the way in. It sits on the
               photo's brass scale, so a soft patch of the theme's ground sits behind this line alone to keep it readable. */}
-          <p className="hero-in-3 type-micro -ml-2.5 mt-2 self-start rounded-[6px] bg-[rgb(var(--scrim-rgb)/0.84)] px-2.5 py-1.5 text-text/88 backdrop-blur-[3px] [text-shadow:0_0_10px_var(--bg),0_0_3px_var(--bg)] md:hidden">
+          <p className="hero-in-3 type-micro mt-2 self-start rounded-[6px] bg-[rgb(var(--scrim-rgb)/0.84)] px-2.5 py-1.5 text-text/88 backdrop-blur-[3px] [text-shadow:0_0_10px_var(--bg),0_0_3px_var(--bg)] md:hidden">
             Sending a bill?{" "}
             <Link href="/bill/new" className="link-draw text-gold">
               Write one

@@ -128,6 +128,8 @@ export async function runBills(pin: Pin, row: Row, state: (lines: string[]) => v
     if (bad) throw new SuiteError(`setup createBill failed: ${outcome(bad)}`);
   };
   const firstNewId = () => ctx.count + 1n;
+  // The paid bill is a simulated one whenever the setup block writes it; otherwise it is the real bill #1 on Arc.
+  const paidLabel = () => `${ctx.setup.length ? "Simulated bill" : "Bill"} #${ctx.paidId}`;
 
   const [pRes] = await reads([{ to: MORPHO, data: encodeFunctionData({ abi: morphoAbi, functionName: "idToMarketParams", args: [MARKET_USDC] }) }]);
   const p = decodeFunctionResult({ abi: morphoAbi, functionName: "idToMarketParams", data: pRes!.returnData });
@@ -216,7 +218,7 @@ export async function runBills(pin: Pin, row: Row, state: (lines: string[]) => v
     const res = await sim([{ time: t(1), overrides: STRANGER_FUNDS, calls: [tx(STRANGER, approve(USDC, ADAG, 1_000000n)), tx(STRANGER, adag.pay(ctx.paidId))] }]);
     const x = res[0]![1]!;
     const pass = res[0]![0]!.ok && !x.ok && outcome(x) === `BillNotOpen(${ctx.paidId}, 2)`;
-    row("A1", pass, pass ? `Refused. Bill #${ctx.paidId} is already paid, and a paid bill can never be paid again.` : `Not refused as expected: ${tidy(outcome(x))}.`, outcome(x), x.gas);
+    row("A1", pass, pass ? `Refused. ${paidLabel()} is already paid, and a paid bill can never be paid again.` : `Not refused as expected: ${tidy(outcome(x))}.`, outcome(x), x.gas);
   };
 
   const closeAndRepledge = async (repledge: bigint, extraBlocks: SimBlock[], id: bigint) => {
@@ -353,7 +355,7 @@ export async function runBills(pin: Pin, row: Row, state: (lines: string[]) => v
     const aPass = !stranger.ok && outcome(stranger) === `NotPayee(${STRANGER})` && st === "Open";
     row("A7a", aPass, aPass ? "Refused. Only the supplier who wrote a bill can cancel it; the bill stays open and payable." : `Not refused as expected: ${tidy(outcome(stranger))}; bill ${st}.`, `${outcome(stranger)}; bill ${st}`, stranger.gas);
     const bPass = !paidVoid.ok && outcome(paidVoid) === `BillNotOpen(${ctx.paidId}, 2)`;
-    row("A7b", bPass, bPass ? `Refused. Bill #${ctx.paidId} is paid, and a paid bill can never be cancelled.` : `Not refused as expected: ${tidy(outcome(paidVoid))}.`, outcome(paidVoid), paidVoid.gas);
+    row("A7b", bPass, bPass ? `Refused. ${paidLabel()} is paid, and a paid bill can never be cancelled.` : `Not refused as expected: ${tidy(outcome(paidVoid))}.`, outcome(paidVoid), paidVoid.gas);
   };
 
   const A8 = async () => {

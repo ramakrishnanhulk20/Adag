@@ -40,12 +40,12 @@ function Tally({ run }: { run: BreakRun }) {
     run.phase === "idle"
       ? "Attacks armed"
       : run.phase === "running"
-        ? `Of ${TOTAL} held so far`
+        ? `Of ${TOTAL} as the threat model says, so far`
         : broken > 0
           ? `Held. ${broken} broke through`
           : held === TOTAL
-            ? `Of ${TOTAL} held`
-            : `Held. ${TOTAL - held} could not run`;
+            ? `Of ${TOTAL} as the threat model says`
+            : `As the threat model says. ${TOTAL - held} could not run`;
   return (
     <div className="bk-tally" aria-live="polite">
       <motion.p key={run.phase === "idle" ? "idle" : held} className="bk-tally-number" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease: EASE }}>
