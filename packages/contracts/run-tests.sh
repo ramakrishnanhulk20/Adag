@@ -10,7 +10,7 @@ set -euo pipefail
 DEFAULT_FORK_BLOCK=22727600
 FORK_BLOCK="${FORK_BLOCK:-$DEFAULT_FORK_BLOCK}"
 
-if [ "$(uname -s)" != "Linux" ]; then
+if [[ "$(uname -s)" == MINGW* || "$(uname -s)" == MSYS* || "$(uname -s)" == CYGWIN* ]]; then
     win_dir="$(cd "$(dirname "$0")" && pwd -W)"
     drive="$(printf '%s' "${win_dir:0:1}" | tr '[:upper:]' '[:lower:]')"
     # Windows variables do not cross into WSL on their own, so the pin travels as an explicit env assignment.

@@ -1,5 +1,6 @@
 import { concat, decodeFunctionData, encodeFunctionData, encodePacked, getAddress, isAddressEqual, size, slice, hexToBigInt, hexToNumber, type Address, type Hex } from "viem";
 import { adagAbi, erc20Abi, morphoAbi } from "../pay/abi";
+import { assertCallShapes } from "../pay/build";
 import { ADAG_BILLS, CIRBTC, EURC, MARKET_EURC, MARKET_USDC, MORPHO, USDC, type MarketParams } from "../pay/constants";
 import { verifyMarketParams } from "../pay/market";
 import { multiSendAbi } from "./abi";
@@ -98,6 +99,18 @@ export function assertSafeInnerCalls(safe: Address, calls: readonly { operation:
         if (!isAdagMarket(args[0] as MarketParams)) throw new SafeShapeError("Refusing a Morpho step on a market that is not one of Adag's two.");
       }
     }
+  }
+  // C3 and C51: then the very rule the browser's builder holds a Safe batch to, so the server refuses every call shape
+  // the browser refuses. The server is sent only the batch, so its bills are the ones its own pay(id) calls name, each
+  // to be paid once; assertSafeAmounts then holds them to AdagBills' records.
+  try {
+    const bills = payIds(calls).map((id) => ({ contract: ADAG_BILLS, id }));
+    assertCallShapes(calls.map((c) => ({ target: c.to, allowFailure: false, callData: c.data })), null, null, { payer: safe, bills, sender: "safe" });
+  } catch (error) {
+    // Only build.ts's own plain-Error sentences are passed on (C62). A decoder error stays a library error, which the
+    // route answers with its own fixed sentence.
+    if (error instanceof Error && error.constructor === Error) throw new SafeShapeError(error.message);
+    throw error;
   }
 }
 

@@ -8,7 +8,7 @@
 #   bash scripts/e2e-fork.sh stop
 set -euo pipefail
 
-if [ "$(uname -s)" != "Linux" ]; then
+if [[ "$(uname -s)" == MINGW* || "$(uname -s)" == MSYS* || "$(uname -s)" == CYGWIN* ]]; then
     win_dir="$(cd "$(dirname "$0")" && pwd -W)"
     drive="$(printf '%s' "${win_dir:0:1}" | tr '[:upper:]' '[:lower:]')"
     # wsl.exe hands its arguments to a shell again, so each is escaped once here; "approve(address,uint256)" survives.

@@ -79,3 +79,56 @@ test('C51 on the server: approvals to AdagBills and borrows must equal the bills
   refuse([...good, borrow(eurc.params, 1n)], 'a borrow in the other currency, which is paid from balance here');
   refuse([...good, payBill(10n)], 'a bill that was not read');
 });
+
+// The server's re-check, run on a Safe transaction exactly as the propose route receives one: assertSafeTxShape, which
+// holds the inner calls to build.ts's shape rule with the Safe as the sender. Does NOT cover the route's chain reads,
+// the owner's signature or the Safe service.
+const { buildSafeBatch, memoId } = await import('../build.ts');
+const { assertSafeTxShape, encodeMultiSend, SafeShapeError } = await import('../../safe/multisend.ts');
+const { safeTxFor } = await import('../../safe/typedData.ts');
+const { memoAbi } = await import('../abi.ts');
+const { ATTACKER, bill } = await import('../../fx/test/fixtures.mjs');
+
+const realPay = buildSafeBatch(SAFE, [bill(), bill({ id: 8n, amount: 3_000_000n, currency: C.EURC })], {
+  USDC: { from: 'bitcoin', pledge: 3_000n, marketParams: usdc.params },
+  EURC: { from: 'balance' },
+});
+const onServer = (inner) => () => assertSafeTxShape(SAFE, safeTxFor({ to: MULTISEND_CALL_ONLY, data: encodeMultiSend(inner) }, 3n));
+const refusedOnServer = (inner, reason) => assert.throws(onServer(inner), (e) => e instanceof SafeShapeError && reason.test(e.message), String(reason));
+const transfer = (token, to) => call(token, encodeFunctionData({ abi: erc20Abi, functionName: 'transfer', args: [to, 1n] }));
+
+test('the server passes a real Safe payment exactly as buildSafeBatch wrote it', () => {
+  assert.doesNotThrow(() => assertSafeTxShape(SAFE, safeTxFor(realPay, 3n)));
+  assert.doesNotThrow(onServer(decodeMultiSend(realPay.data)));
+});
+
+test('the server refuses a token transfer from the Safe to anyone, beside a real payment or alone', () => {
+  for (const token of [C.USDC, C.EURC, C.CIRBTC]) {
+    for (const to of [ATTACKER, SAFE, C.MORPHO, C.ADAG_BILLS]) refusedOnServer([...realPay.inner, transfer(token, to)], /token call other than an approval/);
+  }
+  refusedOnServer([transfer(C.USDC, ATTACKER)], /token call other than an approval/);
+});
+
+test("the server refuses a repay or a collateral withdrawal on any market but Adag's two", () => {
+  const repay = (params) => call(C.MORPHO, encodeFunctionData({ abi: morphoAbi, functionName: 'repay', args: [params, 0n, 1n, SAFE, '0x'] }));
+  const withdraw = (params) => call(C.MORPHO, encodeFunctionData({ abi: morphoAbi, functionName: 'withdrawCollateral', args: [params, 1n, SAFE, SAFE] }));
+  for (const params of [{ ...usdc.params, oracle: ATTACKER }, { ...eurc.params, lltv: eurc.params.lltv - 1n }]) {
+    refusedOnServer([approve(usdc.address, C.MORPHO, 1n), repay(params)], /not one of Adag's two/);
+    refusedOnServer([withdraw(params)], /not one of Adag's two/);
+    refusedOnServer([...realPay.inner, withdraw(params)], /not one of Adag's two/);
+  }
+});
+
+test('the server refuses an unknown selector on a token, on AdagBills and on Morpho', () => {
+  refusedOnServer([...realPay.inner, call(C.USDC, '0xdeadbeef')], /token call other than an approval/);
+  refusedOnServer([...realPay.inner, call(C.CIRBTC, `0xdeadbeef${'00'.repeat(32)}`)], /token call other than an approval/);
+  refusedOnServer([call(C.ADAG_BILLS, '0xdeadbeef')], /other than paying/);
+  // Refused by the ABI decoder, so the route answers with its own fixed sentence rather than this error's text.
+  assert.throws(onServer([...realPay.inner, call(C.MORPHO, '0xdeadbeef')]));
+});
+
+test('the server refuses a Memo call from a Safe, even one paying the very bill the batch pays', () => {
+  const viaMemo = call(C.MEMO, encodeFunctionData({ abi: memoAbi, functionName: 'memo', args: [C.ADAG_BILLS, payBill(7n).data, memoId(7n), bill().ref] }));
+  refusedOnServer([approve(usdc.address, C.ADAG_BILLS, bill().amount), viaMemo], /Safe batch that calls/);
+  refusedOnServer([...realPay.inner, viaMemo], /Safe batch that calls/);
+});

@@ -331,7 +331,7 @@ const ENROL_CALL = encodeFunctionData({ abi: adagAbi, functionName: "enrol" }).t
 // closed and its token's approval at 0. No batch inside the batch. The swap call, its approvals and the balance check are
 // held by assertSwapCalls. Amounts are not checked here: the builders size them, and the contracts and the simulation are
 // the guards on those.
-function assertCallShapes(calls: readonly Call3[], guardMarket: Hex | null, swap: Conversion | null, intent: BatchIntent | null) {
+export function assertCallShapes(calls: readonly Call3[], guardMarket: Hex | null, swap: Conversion | null, intent: BatchIntent | null) {
   const scope: BatchIntent | null = swap ? { payer: swap.payer, bills: swap.bills, sender: "wallet" } : intent;
   const payer = scope?.payer ?? null;
   const fromSafe = scope?.sender === "safe";

@@ -375,6 +375,8 @@ npm run dev
 
 Open http://localhost:3000. A production build is `npm run build` then `npm run start`. `packages/web/.env.example` lists every server key with a one-line note.
 
+Another port works too: `npm run dev -- --port 3020`, and `npm run start` takes the same `--port` flag or a `PORT` variable.
+
 ### Run the proofs and the attack suites
 
 The proof is step 5 of the judge path above. The attack suites need the same one `npm ci` and nothing else:
@@ -397,7 +399,7 @@ Against the current contracts the two scripts run 37 attacks (23 plus 14). The `
 
 ### Run the tests
 
-The contract tests need [Arc Foundry](https://github.com/circlefin/arc-foundry) (`arc-forge`), Arc's build of Foundry. Upstream `forge` cannot run Arc's CallFrom precompile, so Memo and Multicall3From tests fail or lie under it. Install it and put `arc-forge` on your PATH. On Windows the scripts call Arc Foundry through WSL Ubuntu and expect `arc-forge` in `~/.local/bin` there; on Linux they call it directly. On macOS the scripts do not work as written, because they send every system that is not Linux to `wsl.exe`. Install Arc Foundry natively and run, from `packages/contracts`, the commands the scripts run: `arc-forge install --no-git foundry-rs/forge-std@v1.16.2 OpenZeppelin/openzeppelin-contracts@v5.6.1` for the dependencies, then `arc-forge test --fork-url https://rpc.mainnet.arc.io --fork-block-number 22727600 -vv` for the tests.
+The contract tests need [Arc Foundry](https://github.com/circlefin/arc-foundry) (`arc-forge`), Arc's build of Foundry. Upstream `forge` cannot run Arc's CallFrom precompile, so Memo and Multicall3From tests fail or lie under it. Install it and put `arc-forge` on your PATH. On Windows, run from Git Bash, the scripts call Arc Foundry through WSL Ubuntu and expect `arc-forge` in `~/.local/bin` there. On Linux and macOS they call it directly, from `~/.local/bin` or anywhere on your PATH.
 
 ```bash
 bash packages/contracts/install-deps.sh
