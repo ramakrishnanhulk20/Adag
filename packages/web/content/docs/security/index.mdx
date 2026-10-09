@@ -73,7 +73,7 @@ These are named on purpose, so nobody assumes otherwise.
 - **A payer going above 40% by using Morpho directly,** or through the named residual of recording a loan. Adag's line applies to payments made through Adag.
 - **A malicious Safe owner.** That is a matter for the Safe's own threshold.
 - **Privacy of what is on chain.** Every bill, amount, reference, payer, rule and repayment is public.
-- **Front-running.** Adag's flows have no slippage to extract.
+- **Front-running.** Payments that do not convert have no slippage to extract. A conversion's buffer, at most 1.5% of the amount converted, can be taken by price movement or a front-runner, and MEV on Arc is unmeasured. See [paying from a loan in the other currency](/docs/how-it-works#paying-from-a-loan-in-the-other-currency).
 - **Availability** of the RPC, Telegram, Safe's service or the hosting.
 - **How other explorers display Memo data.**
 - **Due dates.** A due date is shown, not enforced.

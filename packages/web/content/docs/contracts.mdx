@@ -49,6 +49,8 @@ A second, smaller USDC/cirBTC market exists on Arc with a different oracle. Adag
 
 ## The live proofs
 
+Five proofs have run for real on mainnet against the current AdagBills and AdagGuard: a bill paid from a bitcoin-backed loan, the guard's first repayment, three bills in one signature with each currency from its own loan, a EURC loan closed with USDC, and a USDC bill paid from a EURC loan that Circle converted. The first two have their own scripts and are below with every step. The three from the live site follow them.
+
 ### A bill paid from bitcoin, and a loan recorded, on the current AdagBills
 
 ```bash
@@ -82,6 +84,18 @@ Run for real on 26 September 2026: the demo payer set a rule of 35% down to 30% 
 
 `quote` for that block said it would repay 0.464348 USDC, and `protect` repaid exactly that from the payer's own wallet. The payer's approval fell by exactly the repayment, AdagGuard held nothing before or after, and no bitcoin was sold.
 
+### From the live site: three bills at once, a close and a conversion
+
+The team paying itself, from 5 to 8 October 2026.
+
+| Step | Transaction | Block |
+| --- | --- | ---: |
+| 5 October: three bills in one signature, #3 for 0.30 USDC, #4 for 0.20 USDC and #5 for 0.10 EURC, each currency from its own cirBTC-backed Morpho loan | [`0xfb8f...62e6`](https://explorer.arc.io/tx/0xfb8fac03fd03c31758743003775555a93f2520da6ef8c11c3e5c1ebb0d8362e6) | 24,370,697 |
+| 8 October: a 0.10 EURC loan closed with USDC. Circle's swap turned 0.113385 USDC into 0.101315 EURC, the balance check ran, the loan was repaid in full and its 0.00000343 cirBTC came back, in one signature | [`0xaded...9ee9`](https://explorer.arc.io/tx/0xadedc7e1a32cd3e1aa64e90580d1ea1b8751005e3411b3f5813dda5bef609ee9) | 24,862,418 |
+| 8 October: bill #6, 0.20 USDC, paid from a EURC loan. 0.00000644 cirBTC pledged, 0.180149 EURC borrowed, converted by Circle to 0.201471 USDC, the balance check run, the bill paid and the 40% check run, in one signature | [`0x123b...dfa6`](https://explorer.arc.io/tx/0x123b1bbbacf3deeb8948887626b2cc5c03553414bdd4c87c1aa2479de927dfa6) | 24,862,777 |
+
+Bills #3 to #6 are on the live site at [/bill/3](/bill/3), [/bill/4](/bill/4), [/bill/5](/bill/5) and [/bill/6](/bill/6). After the close, Circle's adapter held 0 allowance in all three tokens.
+
 ### The first deployment, 25 September 2026
 
 | Step | Transaction | Gas | Fee |
@@ -90,7 +104,7 @@ Run for real on 26 September 2026: the demo payer set a rule of 35% down to 30% 
 | Supplier writes bill #1: 1.00 USDC, reference ADAG-PROOF-0001 | [`0x13fb...f888`](https://explorer.arc.io/tx/0x13fb435c909476dc6e1da618d43fc3f81b856e3d97c52cdb1f948904d20af888) | 196,734 | 0.004131 USDC |
 | Payer pledges 0.00003133 cirBTC, borrows 1.00 USDC and pays bill #1 through Memo, in one signature | [`0x6987...2292`](https://explorer.arc.io/tx/0x6987964bddd7f8a8fe2a59d6de9baaa6ac37b8a720aae5900d8cb9af0eaf2292) | 406,167 | 0.008530 USDC |
 
-The records of all three runs are in `packages/contracts/deployments/`: `prove-it-2026-09-26.md`, `guard-prove-2026-09-26.md` and `prove-it-2026-09-25.md`.
+The records of the three scripted runs are in `packages/contracts/deployments/`: `prove-it-2026-09-26.md`, `guard-prove-2026-09-26.md` and `prove-it-2026-09-25.md`.
 
 ## The attack suites
 

@@ -26,6 +26,7 @@ A Safe that already borrows on Morpho above 40% records its loan the same way a 
 ## What it does not cover
 
 - Safe payments are for bills on the current AdagBills. A bill on the first deployment is paid from an ordinary wallet.
+- A Safe pays in each bill's own currency and cannot use the convert option (paying from a loan in the other currency), because Circle's quotes last 10 minutes and a Safe's owners sign later.
 - The loan guard and Telegram alerts are set from an ordinary wallet's own loans; a Safe cannot sign the alerts link message.
 - Safe's Transaction Service is run by Safe. If it is down, a proposal waits; nothing about a payment's status ever depends on it.
 - A malicious owner is a matter for the Safe's own threshold.

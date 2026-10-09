@@ -39,6 +39,10 @@ cirBTC is Circle's wrapped bitcoin. Each cirBTC is backed 1:1 by bitcoin held by
 
 When you pay from bitcoin, your cirBTC is pledged as collateral in your own Morpho position. Morpho does not lend collateral out: it stays in your position until you repay and withdraw it, or until Morpho liquidates it if the loan ever reaches Morpho's line. Adag never holds it, not even for a moment inside the payment: the cirBTC moves from your wallet straight into your Morpho position.
 
+## How do I get cirBTC?
+
+Circle mints cirBTC for institutions, not for individuals. Anyone can swap USDC for cirBTC on Arc through [Arc Portal](https://portal.arc.io/swap), which uses Circle's swap. The app's set-up helper links there.
+
 ## Can Adag take my bitcoin?
 
 No. Your cirBTC is pledged to Morpho, in your own name, and only you can withdraw it. Morpho can take it only by liquidation, if the loan reaches its 86% line. Neither AdagBills nor AdagGuard has a function that moves cirBTC, an owner, an admin key or an upgrade path. The only token movement AdagBills can cause is the exact bill amount, from you, to that bill's supplier, inside the call that marks the bill paid. The only one AdagGuard can cause is a repayment of your own loan from your own USDC or EURC, within the approval you gave it and never past your target.

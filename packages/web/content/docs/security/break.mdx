@@ -5,7 +5,7 @@ description: Run 35 real attacks against the live contracts in one click, in thr
 
 Reading that a contract refuses something is one thing. Watching it refuse is better.
 
-[The break page](/break) runs 35 real attacks against the live AdagBills and AdagGuard, simulated on Arc mainnet's current state: the demo wallet's real loan, the real bills and the real bitcoin price. Nothing is signed or sent. Press **Run all 35 attacks**; a run takes about a minute, because each simulation waits its turn so the node is never flooded. For each attack the page shows what was tried, what should stop it, with its rule number in the [threat model](/docs/security/threat-model), and the chain's own answer.
+[The break page](/break) runs 35 real attacks against the live AdagBills and AdagGuard, simulated on Arc mainnet's current state: the demo wallet's real loan, the real bills and the real bitcoin price. Nothing is signed or sent. Press **Run all 35 attacks**; a run takes about a minute, because each simulation waits its turn so the node is never flooded. For each attack the page shows what was tried, what should stop it, and the chain's own answer. A row names its rule in the [threat model](/docs/security/threat-model) only where one applies, for example A4 names C10 and E5 names C32. Not every row has a rule number.
 
 The footer names the block the run was pinned to and where it was simulated: on QuickNode when the site is configured with its endpoint, otherwise on dRPC's public endpoint.
 
@@ -61,4 +61,4 @@ node packages/contracts/prove-it/attack.mjs
 node packages/contracts/prove-it/guard-attack.mjs
 ```
 
-They run the same attacks and two more that point the proof script at a lying RPC, and print each one, what should stop it and the decoded revert. The latest runs against the live contracts behaved as the threat model says in every row: 23 of 23 for AdagBills and 14 of 14 for AdagGuard. The rows are on [Audit status](/docs/security/audit-status#the-attack-suites-on-live-state).
+They run the same attacks and two more that point the proof script at a lying RPC, and print each one, what should stop it and the decoded revert. That is why the scripts total 37, 23 plus 14, while the page runs 35: the two extra checks need an RPC that lies, so they run only in the scripts, not on the page. The latest runs against the live contracts behaved as the threat model says in every row: 23 of 23 for AdagBills and 14 of 14 for AdagGuard. The rows are on [Audit status](/docs/security/audit-status#the-attack-suites-on-live-state).

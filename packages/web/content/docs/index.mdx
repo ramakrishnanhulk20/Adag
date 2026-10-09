@@ -7,7 +7,7 @@ Adag lets a company pay its suppliers in USDC or EURC from bitcoin it holds and 
 
 Adag refuses any payment that would push your loan past 40% of the bitcoin's value. Morpho, the lending market underneath, only liquidates at 86%, so a loan at Adag's cap would need bitcoin to fall about 53.5% before Morpho could liquidate it (0.40 / 0.86, before interest). The [landing page](/#safety) shows that price live. After the payment, the [loan guard](/docs/loan-guard) can repay part of the loan from your own USDC or EURC when it crosses a line you choose, and [Telegram alerts](/docs/alerts) tell you when a loan gets close.
 
-It runs on Arc mainnet today: two contracts, live and verified, that have already paid a real bill from a bitcoin-backed loan and made a real repayment for a borrower.
+It runs on Arc mainnet today: two contracts, live and verified, that have already paid a real bill from a bitcoin-backed loan and made a real repayment for a borrower. Later runs on mainnet include three bills in one signature, a bill paid from a loan that Circle converted and a loan closed in the other currency: see [Contracts and addresses](/docs/contracts#the-live-proofs).
 
 ## The name
 
@@ -21,7 +21,7 @@ Individuals who hold cirBTC are just as welcome. Paying rent or a single invoice
 
 Pledging bitcoin and borrowing exactly the bill means it is never sold, as long as the loan stays well clear of Morpho's line. Adag keeps the loan small at payment, and the guard can keep it small afterwards.
 
-It is also for the suppliers being paid. A supplier writes a bill on Arc and shares a link, then receives USDC or EURC with their own invoice number on the payment, whether the customer paid from a stablecoin balance, from bitcoin or from a Safe. The supplier never touches bitcoin.
+It is also for the suppliers being paid. A supplier writes a bill on Arc, with their own invoice number as its reference, and shares a link. They receive USDC or EURC, and the payment's `BillPaid` event names the bill, so the payment is matched to the invoice number whether the customer paid from a stablecoin balance, from bitcoin or from a Safe. A wallet's payment also attaches the number through Arc's Memo. A Safe pays through `MultiSendCallOnly` and has no Memo step. The supplier never touches bitcoin.
 
 ## What makes it different
 
@@ -47,7 +47,7 @@ Two contracts on Arc mainnet, plus this web app and a few server routes.
 The first AdagBills deployment, from 25 September 2026, stays live as history: it has no way to record an existing loan, and its bills open at `/bill/first/N`. Every address is on [Contracts and addresses](/docs/contracts).
 
 <Callout type="success" title="Proven on mainnet">
-  On 26 September 2026 a supplier billed 1.00 USDC on the current AdagBills, and a payer settled it from a cirBTC-backed Morpho loan in one signature, with the 40% check run: the supplier's balance rose by exactly 1.000000 USDC, no bitcoin was sold, and the loan sat at 39.07%. The same day a second wallet called the guard's `protect` on that loan and repaid 0.464348 USDC from the payer's own wallet, taking it from 39.07% to 30.00%; a repeat at the same price repaid nothing. The transactions are on [Contracts and addresses](/docs/contracts#the-live-proofs).
+  On 26 September 2026 a supplier billed 1.00 USDC on the current AdagBills, and a payer settled it from a cirBTC-backed Morpho loan in one signature, with the 40% check run: the supplier's balance rose by exactly 1.000000 USDC, no bitcoin was sold, and the loan sat at 39.07%. The same day a second wallet called the guard's `protect` on that loan and repaid 0.464348 USDC from the payer's own wallet, taking it from 39.07% to 30.00%; a repeat at the same price repaid nothing. Later runs: three bills in one signature on 5 October, and on 8 October the first conversion payment and a loan closed in the other currency. All the transactions are on [Contracts and addresses](/docs/contracts#the-live-proofs).
 </Callout>
 
 ## What's next

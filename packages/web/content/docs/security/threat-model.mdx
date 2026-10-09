@@ -5,6 +5,8 @@ description: Sections A, B and C of Adag's threat model, copied from docs/securi
 
 <Callout type="info" title="Source">
   This page is a faithful copy of sections A, B and C of `docs/security/threat-model.md`. Section C is the definition of done: each invariant names what must hold, and the contract and app were built and attacked against it.
+
+  This is the full working threat model, kept as it was written before each part of the code, so it also records options that were considered and not built (for example a link model, a fee sponsor and an owner option). What is live today: AdagBills and AdagGuard on Arc mainnet, the web app at adag.site, the loan guard's keeper, Telegram alerts, Safe payments, and paying or closing a loan in the other currency through Circle. Where an early section says there is no database, that was true for the first build; the keeper and alerts later added a small key-value store.
 </Callout>
 
 Written at the architecture gate on 25 September 2026, before any contract code, and kept current as the code lands. Method: a pre-implementation design review, run from a plain functional description of the system, with security deliberately left out of that description so the review had to reason from scratch. Section C is the definition of done: the implementation is complete only when every invariant in it is shown to hold, each with the file and function that upholds it and a test that attacks it.

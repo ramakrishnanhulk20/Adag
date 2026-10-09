@@ -15,6 +15,8 @@
   <a href="https://explorer.arc.io/address/0xaf6C47ae3e2ccD2Cd829Dd8a1DcCb7a7665c08cB">Contract on explorer.arc.io</a>
 </p>
 
+Judges: start with [The two-minute judge path](#the-two-minute-judge-path).
+
 ## Live deployment
 
 Three contracts are live on Arc mainnet (chain `5042`). Each is an exact source match on Sourcify and on explorer.arc.io, and each was compiled with solc 0.8.30, optimizer 200 runs, EVM prague.
@@ -29,11 +31,13 @@ The first deployment has no way to record an existing loan. It stays live and im
 
 | Live proof | Transactions | Record |
 | --- | --- | --- |
-| 26 September 2026: bill #1 on the current AdagBills, 1.00 USDC, paid from a cirBTC-backed Morpho loan in one signature, 40% check run | [`0x7dba...3ad0`](https://explorer.arc.io/tx/0x7dba4d03f85fd5c323c2172252e55a8d9ed00f0903a2a0ccf1313a84687e3ad0) | [prove-it-2026-09-26.md](packages/contracts/deployments/prove-it-2026-09-26.md) |
+| 26 September 2026: bill #1 on the current AdagBills, 1.00 USDC, paid in one signature from a Morpho loan backed by cirBTC (Circle's bitcoin token on Arc, backed 1:1 by bitcoin), 40% check run | [`0x7dba...3ad0`](https://explorer.arc.io/tx/0x7dba4d03f85fd5c323c2172252e55a8d9ed00f0903a2a0ccf1313a84687e3ad0) | [prove-it-2026-09-26.md](packages/contracts/deployments/prove-it-2026-09-26.md) |
 | 26 September 2026: the guard's first repayment. A second wallet called `protect` and repaid 0.464348 USDC of the payer's own loan from the payer's own wallet, 39.07% down to 30.00%; a repeat at the same price repaid 0 | [`0xb54f...9880`](https://explorer.arc.io/tx/0xb54f4242b994d30f62022ceb395122bc3a1a83ca63220a970c5448085b5c9880), repeat [`0x60f9...8a37`](https://explorer.arc.io/tx/0x60f9ad40a0b4ad6caacd71d81aed447b4e58c8f86a600f9f3e9271625b538a37) | [guard-prove-2026-09-26.md](packages/contracts/deployments/guard-prove-2026-09-26.md) |
 | 5 October 2026, on the live site: the team paying itself. Three bills in one signature, #3 for 0.30 USDC, #4 for 0.20 USDC and #5 for 0.10 EURC, each currency from its own cirBTC-backed Morpho loan | [`0xfb8f...62e6`](https://explorer.arc.io/tx/0xfb8fac03fd03c31758743003775555a93f2520da6ef8c11c3e5c1ebb0d8362e6), block 24,370,697 | [/bill/3](https://adag.site/bill/3), [/bill/4](https://adag.site/bill/4), [/bill/5](https://adag.site/bill/5) |
 | 8 October 2026, the team paying itself: a 0.10 EURC loan closed with USDC. Circle's swap turned 0.113385 USDC into 0.101315 EURC, the balance check ran, the loan was repaid in full and its 0.00000343 cirBTC came back, in one signature | [`0xaded...9ee9`](https://explorer.arc.io/tx/0xadedc7e1a32cd3e1aa64e90580d1ea1b8751005e3411b3f5813dda5bef609ee9), block 24,862,418 | Circle's adapter left with 0 allowance in all three tokens |
 | 8 October 2026, the team paying itself: bill #6, 0.20 USDC, paid from a EURC loan. 0.00000644 cirBTC pledged, 0.180149 EURC borrowed, converted by Circle to 0.201471 USDC, the balance check run, the bill paid and the 40% check run, in one signature | [`0x123b...dfa6`](https://explorer.arc.io/tx/0x123b1bbbacf3deeb8948887626b2cc5c03553414bdd4c87c1aa2479de927dfa6), block 24,862,777 | [/bill/6](https://adag.site/bill/6) |
+
+Arc's public RPC (rpc.mainnet.arc.io) no longer serves receipts from late September; check those transactions on explorer.arc.io or with https://rpc.drpc.mainnet.arc.io, which still has them.
 
 The web app is at [https://adag.site](https://adag.site), with the docs at [/docs](https://adag.site/docs).
 
@@ -65,7 +69,7 @@ Under the hood it is two contracts and this web app. AdagBills is a public bill 
 
 - **Pay a run of supplier bills in one signature.** Up to 10 bills, grouped by currency, each currency paid from the wallet's balance or from a loan against its cirBTC, in one batch that lands whole or not at all.
 - **Or from the company's Safe.** A bill or a basket becomes one proposal in the Safe's queue. Before any owner signs, the app checks on chain that the Safe is a Safe, that the signer is one of its owners and that the transaction hash matches. The other owners confirm, and it executes as one all-or-nothing batch. Safe payments are for bills on the current AdagBills.
-- **An invoice number on every payment.** Each bill carries the supplier's own reference, attached to its payment through Arc's Memo.
+- **An invoice number on every payment.** Each bill carries the supplier's own reference, and its `BillPaid` event names the bill, so the payment is matched to the invoice number. A wallet's payment also attaches the reference through Arc's Memo. A Safe pays through `MultiSendCallOnly`, which has no Memo step.
 - **Each bill paid exactly once.** The contract refuses a second payment, so a retried run or a duplicate link cannot pay a supplier twice.
 - **Paid status, live.** A bill's page turns Paid within seconds of the payment, for the payer and the supplier, with a link to the transaction.
 - **Pay from bitcoin without selling it.** Pledge cirBTC, borrow exactly the bills, and pay, as one all-or-nothing batch signed once.
@@ -83,13 +87,13 @@ Under the hood it is two contracts and this web app. AdagBills is a public bill 
 
 - **Write a bill in USDC or EURC** with your own reference (up to 140 bytes), payable to your wallet exactly once, and share its link.
 - **Get paid in full or not at all.** A bill is marked paid only if your balance rose by the full amount inside the same call.
-- **The invoice number travels with the money**, attached to the payment through Arc's Memo.
+- **The invoice number travels with the money.** It is in the bill, the payment's `BillPaid` event names the bill, and a wallet's payment also attaches it through Arc's Memo. A Safe's payment has no Memo step.
 - **Cancel an open bill** at any time; a cancelled bill can never be paid.
 
 ### For anyone checking
 
 - **Live numbers before any wallet connects.** The first screen reads Morpho's liquidity, the live borrow rate, the 40% cap and Morpho's 86% line from Arc. The total paid through Adag and the ledger of the newest 8 paid bills, across both deployments with the old ones marked "First deployment", come only from each contract's own `BillPaid` event. The home page shows no bill references, so nobody can put words on it. A read that fails shows "unavailable", never zero.
-- **Try to break it.** [/break](https://adag.site/break) runs 35 attacks against the live contracts in about a minute, simulated on current mainnet state, in three groups: paying bills (16), recording an existing loan (5) and the loan guard (14). Each row shows what should stop it and the chain's own answer, marked Refused (the call reverts), Held (it goes through and changes nothing it should not) or Allowed by design (a named residual).
+- **Try to break it.** [/break](https://adag.site/break) runs 35 attacks against the live contracts in about a minute, simulated on current mainnet state, in three groups: paying bills (16), recording an existing loan (5) and the loan guard (14). Each row shows what should stop it and the chain's own answer, marked Refused (the call reverts), Held (it goes through and changes nothing it should not) or Allowed by design (a named residual). The two scripts in the repository, `attack.mjs` (23) and `guard-attack.mjs` (14), total 37: two of those need an RPC that lies, so they run only in the scripts, not on the page.
 - **Run the proof yourself.** One command, no keys: see the judge path below.
 - **Everything is on the record.** Every bill, payment, loan and protection is public on Arc and linked to its transaction on the explorer.
 
@@ -276,13 +280,14 @@ Solid arrows are code dependencies. Dotted arrows are calls to deployed contract
 ## The two-minute judge path
 
 1. **Open [https://adag.site](https://adag.site).** Before you connect anything, the first screen shows live numbers read from Arc: the USDC Morpho has ready to lend, the live borrow rate, Adag's 40% cap next to Morpho's 86% line, and the total paid through Adag. Further down, the ledger lists the newest 8 paid bills from both deployments, each linked to its transaction.
-2. **Open [/bill/1](https://adag.site/bill/1).** Bill #1 on the current AdagBills: 1.00 USDC, reference `ADAG-PROOF-0001`, marked Paid, settled from a cirBTC-backed Morpho loan in one signature with the 40% check run. Its transaction is [`0x7dba...3ad0`](https://explorer.arc.io/tx/0x7dba4d03f85fd5c323c2172252e55a8d9ed00f0903a2a0ccf1313a84687e3ad0) on explorer.arc.io. The first deployment's bill #1, paid the day before, is at [/bill/first/1](https://adag.site/bill/first/1).
-3. **Open [/break](https://adag.site/break) and press "Run all 35 attacks".** In about a minute it runs 35 real attacks against the live contracts, simulated on current mainnet state, with nothing signed or sent: paying bills (16), recording an existing loan (5) and the loan guard (14). Every row ends Refused or Held, except the two named residuals, which are allowed by design, and the cash payment after a simulated price drop, which is allowed on purpose because it adds no debt. The guard rows start from a labelled simulated premise that puts the demo loan at 38.00%, above its 35% trigger.
+2. **Open [/bill/1](https://adag.site/bill/1).** Bill #1 on the current AdagBills: 1.00 USDC, reference `ADAG-PROOF-0001`, marked Paid, settled from a cirBTC-backed Morpho loan in one signature with the 40% check run. Its transaction is [`0x7dba...3ad0`](https://explorer.arc.io/tx/0x7dba4d03f85fd5c323c2172252e55a8d9ed00f0903a2a0ccf1313a84687e3ad0) on explorer.arc.io. The first deployment's bill #1, paid the day before, is at [/bill/first/1](https://adag.site/bill/first/1). Every bill on the live site is already paid, so to see the pay screen, write a bill on [/bill/new](https://adag.site/bill/new) with one wallet and open it with another.
+3. **Open [/break](https://adag.site/break) and press "Run all 35 attacks".** In about a minute it runs 35 real attacks against the live contracts, simulated on current mainnet state, with nothing signed or sent: paying bills (16), recording an existing loan (5) and the loan guard (14). Every row ends Refused or Held, except the two named residuals, which are allowed by design, and the cash payment after a simulated price drop, which is allowed on purpose because it adds no debt. The guard rows start from a labelled simulated premise that puts the demo loan at 38.00%, above its 35% trigger. The two attack scripts total 37 (23 plus 14), because two checks need an RPC that lies, so only the scripts run them.
 4. **Skim [/docs](https://adag.site/docs)**, especially [How it works](https://adag.site/docs/how-it-works), [The loan guard](https://adag.site/docs/loan-guard) and [Audit status](https://adag.site/docs/security/audit-status).
 5. **Run the proof yourself** (Node 20 or later, no keys, no `.env`):
 
 ```bash
-git clone https://github.com/ramakrishnanhulk20/Adag.git adag && cd adag
+# Skip this line if you already have the repo, and run the rest from its root folder.
+git clone https://github.com/ramakrishnanhulk20/Adag.git && cd Adag
 (cd packages/contracts/prove-it && npm ci)
 node packages/contracts/prove-it/prove-it.mjs
 ```
@@ -377,9 +382,10 @@ The proof is step 5 of the judge path above. The attack suites need the same one
 ```bash
 node packages/contracts/prove-it/attack.mjs
 node packages/contracts/prove-it/guard-attack.mjs
+node packages/contracts/prove-it/attack.mjs --target first
 ```
 
-Each simulates every attack from the latest block against the live contracts and the demo wallet's real Morpho loan, prints each attack, what should stop it and the decoded revert, and appends that table to a dated file in `packages/contracts/deployments/`. It exits 0 only if every row behaves as the threat model says. The latest runs against the live contracts on 26 September:
+The third command runs the first deployment's 18 attacks. Each of the three simulates every attack from the latest block against the live contracts and the demo wallet's real Morpho loan, prints each attack, what should stop it and the decoded revert, and appends that table to a dated file in `packages/contracts/deployments/`. It exits 0 only if every row behaves as the threat model says. The latest runs against the live contracts on 26 September:
 
 | Suite | Target | Block | Result | Record |
 | --- | --- | --- | --- | --- |
@@ -387,9 +393,11 @@ Each simulates every attack from the latest block against the live contracts and
 | `attack.mjs` | AdagBills, first deployment | 22,863,531 | 18 of 18 | [attacks-2026-09-26.md](packages/contracts/deployments/attacks-2026-09-26.md) |
 | `guard-attack.mjs` | AdagGuard | 22,863,638 | 14 of 14: nothing pulled beyond the approval, the balance, the rounded-down debt or the target | [attacks-2026-09-26-guard.md](packages/contracts/deployments/attacks-2026-09-26-guard.md) |
 
+Against the current contracts the two scripts run 37 attacks (23 plus 14). The `/break` page runs 35 of them: two need an RPC that lies, so they run only in the scripts, not on the page.
+
 ### Run the tests
 
-The contract tests need [Arc Foundry](https://github.com/circlefin/arc-foundry) (`arc-forge`), Arc's build of Foundry. Upstream `forge` cannot run Arc's CallFrom precompile, so Memo and Multicall3From tests fail or lie under it. Install it and put `arc-forge` on your PATH. On Windows the scripts hand themselves to WSL Ubuntu and expect `arc-forge` in `~/.local/bin` there.
+The contract tests need [Arc Foundry](https://github.com/circlefin/arc-foundry) (`arc-forge`), Arc's build of Foundry. Upstream `forge` cannot run Arc's CallFrom precompile, so Memo and Multicall3From tests fail or lie under it. Install it and put `arc-forge` on your PATH. On Windows the scripts call Arc Foundry through WSL Ubuntu and expect `arc-forge` in `~/.local/bin` there; on Linux they call it directly. On macOS the scripts do not work as written, because they send every system that is not Linux to `wsl.exe`. Install Arc Foundry natively and run, from `packages/contracts`, the commands the scripts run: `arc-forge install --no-git foundry-rs/forge-std@v1.16.2 OpenZeppelin/openzeppelin-contracts@v5.6.1` for the dependencies, then `arc-forge test --fork-url https://rpc.mainnet.arc.io --fork-block-number 22727600 -vv` for the tests.
 
 ```bash
 bash packages/contracts/install-deps.sh
@@ -399,6 +407,8 @@ bash packages/contracts/run-tests.sh
 `install-deps.sh` fetches forge-std v1.16.2 and OpenZeppelin Contracts v5.6.1 at pinned tags. `run-tests.sh` runs every suite, both contracts, on a fork of Arc mainnet pinned to block 22,727,600, just before the first deployment, because some tests spend the demo wallets' real balances. `FORK_BLOCK=N` or `--fork-block-number N` picks another block, and `FORK_BLOCK=latest` runs on the newest one. `run-guard-tests.sh` runs the AdagGuard suites alone.
 
 ## Reading Adag from your own code
+
+Save this as `read.mjs` inside `packages/contracts/prove-it` (after its `npm ci`) and run `node read.mjs`.
 
 ```js
 import { createPublicClient, http, parseAbi } from "viem";
@@ -640,7 +650,7 @@ Paying from bitcoin costs about 209,000 gas more than paying from a balance: tha
     │   ├── deploy.sh, deploy-guard.sh
     │   └── verify.sh, verify-guard.sh
     └── web/
-        ├── src/app/             the landing page, /pay, /bill, /app, /app/protect, /break, /docs and the API routes
+        ├── src/app/             the landing page, /pay, /bill, /app, /app/protect, /break, /docs, /terms, /lab (dev only, 404 in production) and the API routes
         ├── src/app/api/         keeper run, price webhook, Telegram, alerts, Safe, live figures, /break runner
         ├── src/components/      hero, landing, pledge, app, guard, break and docs components
         ├── src/lib/             chain reads, wallet, payment and guard builders, alerts, store, Safe, attack runner
@@ -675,7 +685,7 @@ Paying from bitcoin costs about 209,000 gas more than paying from a balance: tha
 Self-audited, not audited by a firm. The evidence is published so you can check each step:
 
 - The [threat model](docs/security/threat-model.md), C1 to C75, with its section C as the definition of done. Each part was written before the code it covers: C1 to C24 before the first contract, C25 to C30 for the app, C31 to C57 before AdagGuard, enrol, the keeper, alerts and Safe payments, C58 to C60 from the review of that code, C61 to C64 from running the live service, and C65 to C75 before paying from a loan in the other currency.
-- Attack runs against the live contracts: [AdagBills](packages/contracts/deployments/attacks-2026-09-26.md) (23 of 23) and [AdagGuard](packages/contracts/deployments/attacks-2026-09-26-guard.md) (14 of 14), every one behaving as the threat model says.
+- Attack runs against the live contracts: [AdagBills](packages/contracts/deployments/attacks-2026-09-26.md) (23 of 23) and [AdagGuard](packages/contracts/deployments/attacks-2026-09-26-guard.md) (14 of 14), every one behaving as the threat model says. The `/break` page runs 35 of these 37: two need an RPC that lies, so they run only in the scripts.
 - [Static analysis](packages/contracts/analysis/STATIC-ANALYSIS.md) of both contracts with slither, solhint and arc-forge lint: no real bugs, and a verdict for every finding.
 - 131 passing tests, including 8 fuzz tests and 12 invariants.
 - Separate reviews, each by a reviewer who did not write the code: the first contract's review found a bypass before deploy, since fixed and attacked on every run; the new contracts were reviewed at the backend gate and cleared; and two security passes over the web app and its server routes, with every finding fixed or closed with a reason. The full account is on the [audit status](https://adag.site/docs/security/audit-status) page.
@@ -690,7 +700,8 @@ Adag deliberately does not defend against:
 - liquidation itself: the guard does not guarantee against it. It cannot act with no balance, no approval or nobody calling `protect`, a single price jump past 86% outruns it, and interest can cross the trigger between price updates;
 - a payer going above 40% by using Morpho directly, or by recording a loan in one block and paying in the next (the named residual of `enrol`, which only affects that payer's own position);
 - privacy (every bill, amount, reference and payer is public on chain);
-- front-running (its flows have no slippage to extract), availability of the RPC, Telegram, Safe's service or the hosting, how other explorers display Memo data, and due dates (shown, not enforced).
+- front-running a conversion: a payment that does not convert has no slippage to extract, but a conversion's buffer (at most 1.5% of the amount converted) can be taken by price movement or a front-runner, and MEV on Arc is unmeasured, as set out in [how a conversion works](https://adag.site/docs/how-it-works#paying-from-a-loan-in-the-other-currency);
+- availability of the RPC, Telegram, Safe's service or the hosting, how other explorers display Memo data, and due dates (shown, not enforced).
 
 ## What's next
 

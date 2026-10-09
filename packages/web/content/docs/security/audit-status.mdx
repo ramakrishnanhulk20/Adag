@@ -11,7 +11,7 @@ description: Self-audited, with every result published. What was tested, what wa
 
 | Step | Result |
 | --- | --- |
-| Threat model before code | C1 to C75, each part written before the code it covers |
+| Threat model before code | C1 to C75, most of it written before the code it covers; the rest came from reviews and from running the live service |
 | Tests | 131 passing, in 13 suites, on a fork of Arc mainnet |
 | Fuzzing | 8 fuzz tests at 1,000 runs each |
 | Invariants | 12, each at 256 runs of 64 random calls: 7 for AdagBills, 5 for AdagGuard; plus 5 negative controls that show each detector firing when its protection is removed |
@@ -19,19 +19,21 @@ description: Self-audited, with every result published. What was tested, what wa
 | Separate reviews | Of the first contract: the threat model, then the code, which found a bypass fixed before deploy. Of the app: three issues, fixed before release. Of the new contracts: the threat model for them before code, then the code at the backend gate, cleared |
 | Web security passes | 2: the web app and its supply chain, then the keeper, alerts and Safe routes. Every finding fixed or closed with a reason |
 | Attack suites on live state | AdagBills 23 of 23, AdagGuard 14 of 14, the first deployment 18 of 18 |
-| Live proofs on mainnet | A bill paid from a bitcoin-backed loan on each AdagBills deployment, and the guard's first repayment |
+| Live proofs on mainnet | A bill paid from a bitcoin-backed loan on each AdagBills deployment, the guard's first repayment, three bills in one signature in USDC and EURC, a EURC loan closed with USDC, and a USDC bill paid from a EURC loan that Circle converted |
 | Source verification | Exact match on Sourcify and explorer.arc.io for all three contracts |
 
 ## Threat model first
 
 Before any contract code, the design was reviewed from a plain description of what Adag does, with security deliberately left out of that description so the review had to reason from scratch. The output is the [threat model](/docs/security/threat-model): what kind of system this is, who can attack it and how, and numbered invariants in section C that are the definition of done.
 
-It grew in four steps, each written before the code it covers:
+It grew in six steps, most of them written before the code they cover:
 
 - **C1 to C24**, before the first contract. Three cover features that were never built (a fee sponsor, delegated wallets, an admin).
 - **C25 to C30**, for the app, from the review of the finished app, each naming the file and function that upholds it.
 - **C31 to C57**, before a line of AdagGuard, recording a loan, the keeper, alerts or Safe payments was written, by a separate reviewer working from a plain description of them.
 - **C58 to C60**, from the code review of those components.
+- **C61 to C64**, from running the live service (rate-limit buckets, error text as output, run time inside the platform limit, the paid index never skipping a block).
+- **C65 to C75**, before paying from a loan in the other currency.
 
 ## Tests
 
@@ -156,7 +158,7 @@ The first deployment was attacked at block 22,863,531 as well, and all 18 of its
 
 ## Live proofs and verification
 
-All three contracts are verified with an exact match on Sourcify and on explorer.arc.io, so the code you read is the code that runs. The live runs, with every transaction, are on [Contracts and addresses](/docs/contracts#the-live-proofs): bill #1 on the current AdagBills paid from a bitcoin-backed loan with the 40% check run, the guard's first repayment from 39.07% to 30.00% with a repeat that repaid nothing, and bill #1 on the first deployment the day before. The promise of recording a loan was proven on a real borrower above 40%, simulated on live state because only that borrower could sign.
+All three contracts are verified with an exact match on Sourcify and on explorer.arc.io, so the code you read is the code that runs. The live runs, with every transaction, are on [Contracts and addresses](/docs/contracts#the-live-proofs): bill #1 on the current AdagBills paid from a bitcoin-backed loan with the 40% check run, the guard's first repayment from 39.07% to 30.00% with a repeat that repaid nothing, and bill #1 on the first deployment the day before. Since then the team has paid itself on the live site three more ways: [three bills in one signature](https://explorer.arc.io/tx/0xfb8fac03fd03c31758743003775555a93f2520da6ef8c11c3e5c1ebb0d8362e6) on 5 October (#3 for 0.30 USDC, #4 for 0.20 USDC and #5 for 0.10 EURC, each currency from its own loan), [a 0.10 EURC loan closed with USDC](https://explorer.arc.io/tx/0xadedc7e1a32cd3e1aa64e90580d1ea1b8751005e3411b3f5813dda5bef609ee9) through Circle on 8 October, and [bill #6](https://explorer.arc.io/tx/0x123b1bbbacf3deeb8948887626b2cc5c03553414bdd4c87c1aa2479de927dfa6) on 8 October, 0.20 USDC paid from a EURC loan that Circle converted. The promise of recording a loan was proven on a real borrower above 40%, simulated on live state because only that borrower could sign.
 
 The guard's proof reproduces its live repayment to the digit. Pinned to block 22,867,200, just before the real transactions, `node packages/contracts/prove-it/guard-prove.mjs --block 22867200` prints:
 
@@ -180,5 +182,5 @@ On today's state the live loan already sits at the target, so the same script fi
 
 - No outside firm has reviewed the contracts or the app.
 - The web app and its server routes are covered by the threat model's rules, their own tests, the app review and the two passes, not by an outside audit. A compromised page build is a named non-goal.
-- The live proofs paid one USDC bill on each deployment and made one guard repayment. The EURC market, multi-bill batches, Safe payments and the keeper's full path from a price update to `protect` are covered by tests on a mainnet fork, not by a live mainnet run.
+- Baskets, EURC bills, a conversion and a close have each run live on mainnet, once, with small amounts (0.10 to 0.30 USDC or EURC): [three bills in one signature](https://explorer.arc.io/tx/0xfb8fac03fd03c31758743003775555a93f2520da6ef8c11c3e5c1ebb0d8362e6), [a EURC loan closed with USDC](https://explorer.arc.io/tx/0xadedc7e1a32cd3e1aa64e90580d1ea1b8751005e3411b3f5813dda5bef609ee9) and [a bill paid from a loan that Circle converted](https://explorer.arc.io/tx/0x123b1bbbacf3deeb8948887626b2cc5c03553414bdd4c87c1aa2479de927dfa6). Safe payments and the keeper's full path from a price update to `protect` are covered by tests on a mainnet fork, not by a live mainnet run.
 - Adag relies on Morpho, the oracles, the token contracts, Telegram, Safe's service and the RPC being correct and available. It fails closed on their errors, and nothing more.

@@ -9,6 +9,7 @@ description: Pay a run of supplier bills from a company treasury or its Safe, pa
 - Arc mainnet in that wallet: chain id `5042`, RPC `https://rpc.mainnet.arc.io`, explorer `https://explorer.arc.io`. Arc's gas token is USDC.
 - A little USDC for fees. A bitcoin-backed payment costs about 0.008 USDC in gas.
 - To pay from bitcoin: cirBTC in your wallet. To pay from a balance: the bill's currency, USDC or EURC.
+- Need cirBTC? See [How do I get cirBTC?](/docs/faq#how-do-i-get-cirbtc).
 
 ## For a company treasury
 
@@ -18,7 +19,7 @@ The usual shape: a company holds bitcoin, owes several suppliers this week, and 
 2. **Collect the bills.** Each supplier writes a bill on Adag with their own invoice number as the reference, and sends you its link. Suppliers need nothing but a wallet.
 3. **Fill the basket.** On [Pay a bill](/pay), paste up to 10 bill numbers or links. Adag reads every bill from Arc and shows who it pays, how much and in which currency. Bills that are already paid, cancelled, unknown or written by your own wallet are set apart and not paid.
 4. **Choose how each currency is paid.** The bills are grouped by currency. For each group, pay from the wallet's USDC or EURC balance, from a loan against its cirBTC, or from a loan in the other currency (see below). The loan shows the pledge and where the loan will sit against Adag's 40% line and Morpho's 86%.
-5. **Sign once.** One transaction pays every bill in the basket, each with its own invoice number in its own Memo. If any step fails, nothing moves. From a Safe, this is the proposal your owners approve.
+5. **Sign once.** One transaction pays every bill in the basket, each with its own invoice number in its own Memo. If any step fails, nothing moves. From a Safe, this is the proposal your owners approve. It has no Memo step: each bill still carries its invoice number, and its own `BillPaid` event names the bill.
 6. **Check the result.** Each bill turns Paid with a link to the payment on explorer.arc.io, and a supplier with the bill's page open sees it turn Paid within seconds. [Your wallet](/app) lists the loan and the bills, and its export gives your accountant a CSV of every bill with its transaction link.
 7. **Protect the loan and turn on alerts**, if you want the loan watched from here on: see below.
 
@@ -49,7 +50,7 @@ Type up to ten bill numbers on [Pay a bill](/pay), separated by commas or spaces
 
 The rest are grouped by currency. For each group, choose your balance or a loan against your cirBTC; the loan shows the pledge and the loan-to-value it leaves. One signature then pays them all. If any step fails, nothing moves, and each bill still carries its own reference in its own Memo.
 
-A basket link carries only the bill numbers, like `/pay/basket?bills=12,13,14`, so you can send it on.
+A basket link carries only the bill numbers, so you can send it on. It takes your own bill numbers: `/pay/basket?bills=21,22,23` is only an example, so put the numbers of your own bills in its place.
 
 ### Record an existing loan
 
@@ -87,7 +88,7 @@ By hand, without this site: call `createBill(currency, amount, due, ref)` on [Ad
 
 ### After it is paid
 
-You receive the amount in USDC or EURC in the same transaction that marks the bill paid, and the contract checks your balance rose by exactly that amount. The payment carries your reference in its Memo.
+You receive the amount in USDC or EURC in the same transaction that marks the bill paid, and the contract checks your balance rose by exactly that amount. The payment's `BillPaid` event names your bill, so it is matched to your invoice number. A wallet's payment also carries your reference in its Memo. A Safe's payment has no Memo step.
 
 ### Cancelling
 
