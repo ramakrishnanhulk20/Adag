@@ -10,6 +10,7 @@
     "postinstall": "fumadocs-mdx"
   },
   "dependencies": {
+    "@formatjs/intl-localematcher": "0.9.0",
     "@reown/appkit": "2.0.0-wagmi-3.0",
     "@reown/appkit-adapter-wagmi": "2.0.0-wagmi-3.0",
     "@safe-global/api-kit": "5.0.3",
@@ -23,6 +24,7 @@
     "mermaid": "12.0.0",
     "motion": "13.4.4",
     "next": "16.4.0",
+    "next-intl": "4.14.9",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "viem": "2.56.9",

@@ -1,5 +1,6 @@
 import "./hero.css";
 import Link from "next/link";
+import { getTranslations } from "next-intl/server";
 import { Hallmark } from "@/components/Hallmark";
 import { ThemeImage } from "@/components/ThemeImage";
 import { images } from "@/lib/images";
@@ -13,7 +14,9 @@ import { LiveTicker } from "./LiveTicker";
 
 const HERO_ID = "top";
 
-export function Hero() {
+export async function Hero() {
+  const t = await getTranslations("hero");
+  const tc = await getTranslations("common");
   return (
     <LiveData>
       <section id={HERO_ID} className="relative isolate overflow-hidden bg-bg md:flex md:min-h-svh md:flex-col" aria-labelledby="hero-title">
@@ -48,40 +51,41 @@ export function Hero() {
           className="relative z-10 flex min-h-svh flex-col px-5 pt-[68px] md:min-h-0 md:flex-1 md:px-[6vw] md:pt-[max(96px,min(21.8svh,calc(100svh-662px)))]"
         >
           <div className="hero-in-1 hidden md:block">
-            <Hallmark>Live on Arc mainnet</Hallmark>
+            <Hallmark>{tc("liveOnArc")}</Hallmark>
           </div>
           <div className="hero-in-1 md:hidden">
             <LiveTicker className="tracking-[0.1em] sm:tracking-[0.14em]" />
           </div>
           <h1 id="hero-title" className="hero-headline type-hero mt-4 text-text md:mt-3">
-            <span className="hero-line-1 block">Pay the bill.</span>
+            <span className="hero-line-1 block">{t("line1")}</span>
             <span className="hero-line-2 block">
-              Keep the{" "}
-              <span className="hero-tail">
-                <em className="font-semibold text-gold italic">bitcoin</em>.
-              </span>
+              {t.rich("line2", {
+                tail: (chunks) => <span className="hero-tail">{chunks}</span>,
+                em: (chunks) => <em className="font-semibold text-gold italic">{chunks}</em>,
+              })}
             </span>
           </h1>
           <p className="hero-in-2 type-lead hero-lead mt-4 max-w-[620px] text-text/88 md:mt-8">
-            Pay your suppliers from the bitcoin your company holds. One signature, from your wallet{" "}
-            <em className="text-gold not-italic">or your company Safe</em>, pledges cirBTC on Morpho, borrows exactly the bills and pays them
-            in USDC or EURC, each matched to its invoice number.
+            {t.rich("lead", { em: (chunks) => <em className="text-gold not-italic">{chunks}</em> })}
           </p>
           <div className="hero-in-3 mt-5 flex gap-3 md:mt-8">
             <HeroAction href="/pay" variant="primary" className="flex w-full md:inline-flex md:w-auto">
-              Pay a bill
+              {tc("payABill")}
             </HeroAction>
             <HeroAction href="/bill/new" variant="secondary" className="hidden md:inline-flex">
-              Write a bill
+              {tc("writeABill")}
             </HeroAction>
           </div>
           {/* Phones have room for one button, so suppliers get a quiet line instead of losing the way in. It sits on the
               photo's brass scale, so a soft patch of the theme's ground sits behind this line alone to keep it readable. */}
           <p className="hero-in-3 type-micro mt-2 self-start rounded-[6px] bg-[rgb(var(--scrim-rgb)/0.84)] px-2.5 py-1.5 text-text/88 backdrop-blur-[3px] [text-shadow:0_0_10px_var(--bg),0_0_3px_var(--bg)] md:hidden">
-            Sending a bill?{" "}
-            <Link href="/bill/new" className="link-draw text-gold">
-              Write one
-            </Link>
+            {t.rich("sendingABill", {
+              link: (chunks) => (
+                <Link href="/bill/new" className="link-draw text-gold">
+                  {chunks}
+                </Link>
+              ),
+            })}
           </p>
         </div>
 

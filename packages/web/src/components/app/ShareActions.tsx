@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/Button";
 
 type ShareActionsProps = {
@@ -13,6 +14,8 @@ type ShareActionsProps = {
 
 // The phone's own share sheet where the browser has one (one tap to WhatsApp, Mail or Messages), and Copy link always.
 export function ShareActions({ url, title, text, size = "md", className = "" }: ShareActionsProps) {
+  const t = useTranslations("share");
+  const tc = useTranslations("common");
   const [canShare, setCanShare] = useState(false);
   const [copied, setCopied] = useState(false);
   useEffect(() => setCanShare(typeof navigator !== "undefined" && typeof navigator.share === "function"), []);
@@ -38,11 +41,11 @@ export function ShareActions({ url, title, text, size = "md", className = "" }: 
     <div className={`flex flex-col gap-3 md:flex-row ${className}`}>
       {canShare && (
         <Button variant="primary" size={size} onClick={() => void share()} className="w-full md:w-auto" data-action="share">
-          Send the bill
+          {t("sendTheBill")}
         </Button>
       )}
       <Button variant={canShare ? "secondary" : "primary"} size={size} onClick={() => void copy()} className="w-full md:w-auto" data-action="copy-link">
-        {copied ? "Copied" : "Copy link"}
+        {copied ? tc("copied") : tc("copyLink")}
       </Button>
     </div>
   );

@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { AnimatePresence, motion } from "motion/react";
 import { decodeEventLog, isAddressEqual, type Address, type Hex, type Log } from "viem";
 import { arc } from "viem/chains";
@@ -9,6 +10,7 @@ import { useReadContracts } from "wagmi";
 import { Button } from "@/components/Button";
 import { MorphoDisclaimer } from "@/components/app/MorphoDisclaimer";
 import { BusyLabel, TxMessage, type TxState } from "@/components/app/TxProgress";
+import { useLibText } from "@/i18n/useLibText";
 import { guardAbi } from "@/lib/guard/abi";
 import { buildProtectNow, buildSaveRule, type RuleInput } from "@/lib/guard/build";
 import { ADAG_GUARD } from "@/lib/guard/constants";
@@ -18,7 +20,7 @@ import { EXPLORER, MORPHO, type Currency } from "@/lib/pay/constants";
 import { formatPercentWad, formatUnitsExact } from "@/lib/pay/format";
 import { hasAcceptedMorphoDisclaimer, rememberMorphoDisclaimer } from "@/lib/wallet/consent";
 import { publicArc, simulateAndSend, type TxStep } from "@/lib/wallet/send";
-import { guardEvent, stopGuard } from "./guardTx";
+import { guardEvent, useStopGuard } from "./guardTx";
 import { GuardSummary } from "./GuardSummary";
 import { ProtectPanel } from "./ProtectPanel";
 
@@ -43,6 +45,10 @@ function protectedEvent(logs: readonly Log[], guard: Address) {
 // The loan guard for one loan: what it is set to, the approval standing beside it (C60), what it would do right now,
 // and the panel to set, change or stop it.
 export function GuardSection({ address, currency, position, canSign, blockedReason, onChanged }: Props) {
+  const t = useTranslations("guard.section");
+  const tc = useTranslations("common");
+  const tl = useLibText();
+  const stopGuard = useStopGuard();
   const guard = ADAG_GUARD;
   const m = currency.marketId;
   const reads = useReadContracts({
@@ -112,13 +118,13 @@ export function GuardSection({ address, currency, position, canSign, blockedReas
     try {
       now = (await client.getBlock()).timestamp;
     } catch {
-      return fail("Arc did not answer, so nothing was built. Try again.");
+      return fail(tc("arcNoAnswerNothingBuilt"));
     }
     let built;
     try {
       built = buildSaveRule(address, next, approval, currency.params.lltv, now);
     } catch (error) {
-      return fail(`${(error as Error).message} Nothing was sent.`);
+      return fail(`${tl((error as Error).message)} ${tc("nothingWasSent")}`);
     }
     // The approval moves no tokens, so nothing is counted against the fee balance here.
     const out = await simulateAndSend({ account: address, to: built.to, data: built.data, onStep: step, usdcOut: 0n });
@@ -139,8 +145,8 @@ export function GuardSection({ address, currency, position, canSign, blockedReas
       after.targetWad === next.targetWad &&
       after.expiry === next.expiry &&
       allowed === approval;
-    if (!proven) return fail("Arc confirmed the transaction, but AdagGuard does not read the rule as saved. Check the transaction.", out.hash);
-    setDone({ hash: out.hash, text: `Protected. It steps in at ${formatPercentWad(next.triggerWad)} and repays down to ${formatPercentWad(next.targetWad)}, using at most ${fmt(approval)} ${sym}.` });
+    if (!proven) return fail(t("saveNotAsExpected"), out.hash);
+    setDone({ hash: out.hash, text: t("protectedDone", { trigger: formatPercentWad(next.triggerWad), target: formatPercentWad(next.targetWad), amount: fmt(approval), symbol: sym }) });
     setTx({ kind: "idle" });
     setOpen(false);
     refresh();
@@ -163,7 +169,7 @@ export function GuardSection({ address, currency, position, canSign, blockedReas
     try {
       built = buildProtectNow(address, address, m);
     } catch (error) {
-      return fail(`${(error as Error).message} Nothing was sent.`);
+      return fail(`${tl((error as Error).message)} ${tc("nothingWasSent")}`);
     }
     const pulls = quote && quote[0] ? quote[1] : 0n;
     const out = await simulateAndSend({ account: address, to: built.to, data: built.data, onStep: step, usdcOut: sym === "USDC" ? pulls : 0n });
@@ -171,9 +177,9 @@ export function GuardSection({ address, currency, position, canSign, blockedReas
     // Proven by AdagGuard's own Protected for this wallet and this market, with something repaid.
     const hit = protectedEvent(out.receipt.logs, guard);
     if (!hit || !isAddressEqual(hit.borrower, address) || hit.marketId.toLowerCase() !== m.toLowerCase() || hit.repaid === 0n) {
-      return fail("Arc confirmed the transaction, but AdagGuard did not report a repayment for this loan. The price may have moved back. Check the transaction.", out.hash);
+      return fail(t("repayNotReported"), out.hash);
     }
-    setDone({ hash: out.hash, text: `The guard repaid ${fmt(hit.repaid)} ${sym} of this loan from your wallet.` });
+    setDone({ hash: out.hash, text: t("repaidDone", { amount: fmt(hit.repaid), symbol: sym }) });
     setTx({ kind: "idle" });
     refresh();
   };
@@ -181,27 +187,25 @@ export function GuardSection({ address, currency, position, canSign, blockedReas
   const canRepayNow = hasRule && quote !== null && quote[0] && quote[1] > 0n && balance !== null && balance > 0n && allowance !== null && allowance > 0n;
 
   return (
-    <section ref={landHere} id={`guard-${sym.toLowerCase()}`} className="mt-7 scroll-mt-28 border-t border-rule pt-6" data-guard={sym} aria-label={`Loan guard for the ${sym} loan`}>
+    <section ref={landHere} id={`guard-${sym.toLowerCase()}`} className="mt-7 scroll-mt-28 border-t border-rule pt-6" data-guard={sym} aria-label={t("ariaLabel", { symbol: sym })}>
       <div className="flex flex-wrap items-baseline justify-between gap-3">
-        <p className="type-label text-gold">Loan guard</p>
+        <p className="type-label text-gold">{tc("loanGuard")}</p>
         <Link href="/app/protect" className="link-draw type-micro text-muted hover:text-gold">
-          Telegram alerts
+          {tc("telegramAlerts")}
         </Link>
       </div>
 
       {reads.isPending ? (
-        <p className="type-body mt-3 text-muted">Reading AdagGuard on Arc.</p>
+        <p className="type-body mt-3 text-muted">{t("readingGuard")}</p>
       ) : rule === null || allowance === null ? (
-        <p className="type-body mt-3 text-muted">The guard&apos;s settings are unavailable right now: Arc did not answer.</p>
+        <p className="type-body mt-3 text-muted">{t("settingsUnavailable")}</p>
       ) : (
         <div className="mt-3" data-guard-summary={hasRule ? "" : undefined}>
           <GuardSummary currency={currency} rule={rule} allowance={allowance} balance={balance} />
           {/* The gauge above is the loan's one figure: this line reads on its own schedule, so it never states a second one. */}
           {hasRule && quote && (
             <p className={`type-body mt-2 ${quote[0] ? "text-pending" : "text-muted"}`} data-guard-quote data-guard-would-repay={quote[0] ? quote[1].toString() : "0"}>
-              {quote[0]
-                ? `Right now it would repay about ${fmt(quote[1])} ${sym}. Adag's keeper, a small program Adag runs, sends it within minutes.${canRepayNow && canSign ? " You can also repay now." : ""}`
-                : "It would not act right now."}
+              {quote[0] ? `${t("wouldRepay", { amount: fmt(quote[1]), symbol: sym })}${canRepayNow && canSign ? ` ${t("canRepayNow")}` : ""}` : t("wouldNotAct")}
             </p>
           )}
         </div>
@@ -212,11 +216,11 @@ export function GuardSection({ address, currency, position, canSign, blockedReas
       ) : !open && rule !== null && allowance !== null ? (
         <div className="mt-5 flex flex-col gap-3 md:flex-row">
           <Button variant={hasRule ? "secondary" : "primary"} disabled={Boolean(busy)} onClick={() => (setOpen(true), setDone(null), setTx({ kind: "idle" }))} data-action="protect-open" className="w-full md:w-auto">
-            {hasRule ? "Change" : "Protect this loan"}
+            {hasRule ? t("change") : t("protectThisLoan")}
           </Button>
           {canRepayNow && (
             <Button variant="primary" disabled={Boolean(busy)} onClick={() => (setActing("now"), setTx({ kind: "idle" }), setDone(null), void repayNow())} data-action="protect-now" className="w-full md:w-auto">
-              {busy && acting === "now" ? <BusyLabel step={busy.step} since={busy.since} /> : "Repay it now"}
+              {busy && acting === "now" ? <BusyLabel step={busy.step} since={busy.since} /> : t("repayItNow")}
             </Button>
           )}
           {(hasRule || allowance > 0n) && (
@@ -228,7 +232,7 @@ export function GuardSection({ address, currency, position, canSign, blockedReas
               data-action="protect-stop"
               className="w-full md:w-auto"
             >
-              {busy && acting === "stop" ? <BusyLabel step={busy.step} since={busy.since} /> : "Stop protecting"}
+              {busy && acting === "stop" ? <BusyLabel step={busy.step} since={busy.since} /> : tc("stopProtecting")}
             </Button>
           )}
         </div>
@@ -256,7 +260,7 @@ export function GuardSection({ address, currency, position, canSign, blockedReas
         <p className="type-body mt-4 text-success" data-guard-result>
           {done.text}{" "}
           <a href={`${EXPLORER}/tx/${done.hash}`} target="_blank" rel="noopener noreferrer" className="link-draw text-text hover:text-gold">
-            View the transaction
+            {tc("viewTheTransaction")}
           </a>
         </p>
       )}

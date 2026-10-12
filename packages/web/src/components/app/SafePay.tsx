@@ -2,12 +2,14 @@
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { motion } from "motion/react";
 import { useQuery } from "@tanstack/react-query";
 import { hexToBigInt, isAddressEqual, sliceHex, type Address, type Hex, type PublicClient } from "viem";
 import { getConnection, signTypedData } from "wagmi/actions";
 import { BillStamp } from "@/components/BillStamp";
 import { Button } from "@/components/Button";
+import { useLibText } from "@/i18n/useLibText";
 import { adagAbi, erc20Abi, morphoAbi, oracleAbi } from "@/lib/pay/abi";
 import { SAFE_CURRENT_ONLY, buildSafeBatch, buildSafeEnrol, suggestPledge, type BasketPlan, type Bill, type SafeBatch } from "@/lib/pay/build";
 import { blockers, type MarketInput } from "@/lib/pay/enrol";
@@ -32,21 +34,13 @@ import { SAFE_CONVERT_LINE } from "./fx/figures";
 import { forgetProposal, recallProposal, rememberProposal } from "./safeMemory";
 import { useSafeList } from "./safeList";
 import { useElapsed } from "./TxProgress";
-import { usdHint, useUsdPrice } from "./usdPrice";
+import { useUsdHint, useUsdPrice } from "./usdPrice";
 
 type Choice = "balance" | "bitcoin";
 type Group = { currency: Currency; total: bigint };
 type Step = "idle" | "checking" | "simulating" | "signing" | "proposing";
 // The bills are kept as proposed: the page around this may drop them from its own list once they are paid.
 type Proposed = { safe: Address; safeTxHash: Hex; threshold: number; bills: Bill[]; restored: boolean };
-
-const LABEL: Record<Step, string> = {
-  idle: "",
-  checking: "Checking the Safe and the bills on Arc",
-  simulating: "Running the payment as the Safe would, on live state",
-  signing: "Sign in your wallet",
-  proposing: "Sending the proposal to your Safe's queue",
-};
 
 const client = () => publicArc() as PublicClient;
 
@@ -78,7 +72,14 @@ function normaliseV(signature: Hex): Hex {
   return signature;
 }
 
+// The guard sentences lib/ writes name "your loan guard"; here the Safe is the owner, so its sentences say so.
+const SAFE_GUARD_RULE_UNREADABLE = GUARD_RULE_UNREADABLE.replace("your loan guard", "the Safe's loan guard");
+
 export function SafePay({ bills, onProposed }: { bills: Bill[]; onProposed?: () => void }) {
+  const t = useTranslations("safe.pay");
+  const tc = useTranslations("common");
+  const tl = useLibText();
+  const usdHint = useUsdHint();
   const router = useRouter();
   const refresh = useCallback(() => router.refresh(), [router]);
   const wallet = useWallet();
@@ -114,6 +115,8 @@ export function SafePay({ bills, onProposed }: { bills: Bill[]; onProposed?: () 
     setStep(s);
     setSince(s === "idle" ? null : Date.now());
   };
+  const stepLabel = (s: Step) => (s === "idle" ? "" : t(`steps.${s}`));
+  const busyLabel = `${stepLabel(step)}${seconds >= 2 ? ` · ${tc("seconds", { seconds: String(seconds) })}` : ""}`;
 
   const groups: Group[] = CURRENCIES.map((c) => ({
     currency: c,
@@ -199,12 +202,12 @@ export function SafePay({ bills, onProposed }: { bills: Bill[]; onProposed?: () 
     setProblem(null);
     setInfo(null);
     setChoices({});
-    if (!owner || !ready) return setProblem("Connect an ordinary wallet that owns the Safe, on Arc.");
+    if (!owner || !ready) return setProblem(t("connectOwner"));
     go("checking");
     try {
       setInfo(await verifySafe(client(), address, owner));
     } catch (error) {
-      setProblem((error as Error).message);
+      setProblem(tl((error as Error).message));
     } finally {
       go("idle");
     }
@@ -219,14 +222,14 @@ export function SafePay({ bills, onProposed }: { bills: Bill[]; onProposed?: () 
       go("checking");
       // Read everything again now: the bills, the prices and the Safe itself (C52: owner, version and nonce from the contract).
       const fresh = await verifySafe(c, safe, owner);
-      if (bills.some((b) => !isAddressEqual(b.contract, ADAG_BILLS))) throw new Error(SAFE_CURRENT_ONLY);
+      if (bills.some((b) => !isAddressEqual(b.contract, ADAG_BILLS))) throw new Error(tl(SAFE_CURRENT_ONLY));
       const records = await Promise.all(bills.map((b) => c.readContract({ address: b.contract, abi: adagAbi, functionName: "bill", args: [b.id] })));
       const changed = records.map((r, i) => ({ r, b: bills[i]! })).filter(({ r, b }) => r.status !== BILL_STATUS.Open || r.amount !== b.amount || !isAddressEqual(r.payee, b.payee));
-      if (changed.length) throw new Error(`Bill #${changed.map((x) => x.b.id).join(", #")} changed since this page loaded. Nothing was signed. Reload to pay the rest.`);
+      if (changed.length) throw new Error(t("problems.billsChanged", { ids: changed.map((x) => x.b.id).join(", #") }));
       const plan: BasketPlan = {};
       for (const g of groups) {
         const choice = choices[g.currency.symbol];
-        if (!choice) throw new Error(`Choose how the Safe pays the ${g.currency.symbol} bills.`);
+        if (!choice) throw new Error(t("problems.choose", { symbol: g.currency.symbol }));
         if (choice === "balance") {
           plan[g.currency.symbol] = { from: "balance" };
           continue;
@@ -236,19 +239,24 @@ export function SafePay({ bills, onProposed }: { bills: Bill[]; onProposed?: () 
           c.readContract({ address: ADAG_BILLS, abi: adagAbi, functionName: "collateralNeeded", args: [safe, g.currency.marketId, g.total] }),
           c.readContract({ address: MORPHO, abi: morphoAbi, functionName: "idToMarketParams", args: [g.currency.marketId] }),
         ]);
-        if (!status[0]) throw new Error(`New loans in ${g.currency.symbol} are paused until the bitcoin price updates. Choose the Safe's balance, or wait.`);
+        if (!status[0]) throw new Error(t("problems.paused", { symbol: g.currency.symbol }));
         plan[g.currency.symbol] = { from: "bitcoin", pledge: suggestPledge(needed), marketParams: paramsFromTuple(tuple) };
       }
       // C45: the Safe's own guard rules pull from the Safe, so that much is kept aside; a failed read stops here.
       const pendingNow = await pendingGuardOutflow(c, safe);
-      if (!pendingNow) throw new Error(GUARD_UNREADABLE);
+      if (!pendingNow) throw new Error(tl(GUARD_UNREADABLE));
       for (const g of groups) {
         if (choices[g.currency.symbol] !== "balance") continue;
         const pull = g.currency.symbol === "USDC" ? pendingNow.usdc : pendingNow.eurc;
         const held = await c.readContract({ address: g.currency.address, abi: erc20Abi, functionName: "balanceOf", args: [safe] });
         if (held < g.total + pull) {
           throw new Error(
-            `The Safe holds ${formatUnitsExact(held, g.currency.decimals)} ${g.currency.symbol} and needs ${formatUnitsExact(g.total + pull, g.currency.decimals)}${pull > 0n ? `, including ${formatUnitsExact(pull, g.currency.decimals)} its loan guard is about to repay` : ""}. Nothing was signed.`,
+            t("problems.safeHolds", {
+              held: formatUnitsExact(held, g.currency.decimals),
+              symbol: g.currency.symbol,
+              need: formatUnitsExact(g.total + pull, g.currency.decimals),
+              guard: pull > 0n ? t("problems.includingGuard", { amount: formatUnitsExact(pull, g.currency.decimals) }) : "",
+            }),
           );
         }
       }
@@ -259,7 +267,7 @@ export function SafePay({ bills, onProposed }: { bills: Bill[]; onProposed?: () 
         const p = plan[g.currency.symbol];
         if (!p || p.from !== "bitcoin") continue;
         const guard = await readOwnGuard(c, safe, g.currency.marketId, g.currency.address);
-        if (guard.state !== "ok") throw new Error(GUARD_RULE_UNREADABLE.replace("your loan guard", "the Safe's loan guard"));
+        if (guard.state !== "ok") throw new Error(tl(SAFE_GUARD_RULE_UNREADABLE));
         const [pos, mk, px, held] = await Promise.all([
           c.readContract({ address: MORPHO, abi: morphoAbi, functionName: "position", args: [g.currency.marketId, safe] }),
           c.readContract({ address: MORPHO, abi: morphoAbi, functionName: "market", args: [g.currency.marketId] }),
@@ -273,7 +281,7 @@ export function SafePay({ bills, onProposed }: { bills: Bill[]; onProposed?: () 
       }
       if (newTrips.length) {
         setSafeCaught((prev) => [...prev, ...newTrips]);
-        throw new Error("The Safe's loan guard changed since this page loaded: read the note above before proposing. Nothing was signed.");
+        throw new Error(t("problems.guardChanged"));
       }
       const batch = buildSafeBatch(safe, bills, plan);
 
@@ -282,11 +290,7 @@ export function SafePay({ bills, onProposed }: { bills: Bill[]; onProposed?: () 
       const sim = await simulateFromSafe(c, safe, batch);
       if (!sim.ok) {
         const why = decodeAdagError(sim.returnData);
-        throw new Error(
-          why.name === "unknown"
-            ? "Run from the Safe right now, this payment would fail. Check the Safe holds the balance or the cirBTC it needs. Nothing was signed."
-            : `Run from the Safe right now, this payment would fail: ${why.text}`,
-        );
+        throw new Error(why.name === "unknown" ? t("problems.wouldFailUnknown") : t("problems.wouldFail", { why: tl(why.text) }));
       }
 
       const sent = await signAndPropose(safe, batch, fresh.nonce);
@@ -295,7 +299,7 @@ export function SafePay({ bills, onProposed }: { bills: Bill[]; onProposed?: () 
       setProposed({ safe, safeTxHash: sent.hash, threshold, bills, restored: false });
       onProposed?.();
     } catch (error) {
-      setProblem((error as Error).message);
+      setProblem(tl((error as Error).message));
     } finally {
       go("idle");
     }
@@ -304,7 +308,7 @@ export function SafePay({ bills, onProposed }: { bills: Bill[]; onProposed?: () 
   // Hashes the Safe transaction, checks the hash against the Safe's own, has the connected owner sign it and hands it
   // to the server, which checks it all again before proposing (C51, C52).
   const signAndPropose = async (safe: Address, batch: SafeBatch, nonce: bigint): Promise<{ hash: Hex; threshold?: number }> => {
-    if (!owner) throw new Error("Connect an ordinary wallet that owns the Safe, on Arc.");
+    if (!owner) throw new Error(t("connectOwner"));
     const c = client();
     const tx = safeTxFor(batch, nonce);
     assertSafeTxShape(safe, tx);
@@ -313,14 +317,14 @@ export function SafePay({ bills, onProposed }: { bills: Bill[]; onProposed?: () 
     // C27 and C4: the account signing is the owner just checked, on Arc, at this very moment.
     const connection = getConnection(wagmiConfig);
     if (connection.status !== "connected" || connection.chainId !== 5042 || !connection.address || !isAddressEqual(connection.address, owner)) {
-      throw new Error("Your wallet changed account or network since the Safe was checked. Nothing was signed.");
+      throw new Error(t("problems.walletChanged"));
     }
     go("signing");
     let signature: Hex;
     try {
       signature = normaliseV(await signTypedData(wagmiConfig, { account: owner, ...safeTxTypedData(safe, tx) }));
     } catch {
-      throw new Error("You declined in your wallet. Nothing was signed.");
+      throw new Error(t("problems.declined"));
     }
 
     go("proposing");
@@ -331,7 +335,7 @@ export function SafePay({ bills, onProposed }: { bills: Bill[]; onProposed?: () 
       signal: AbortSignal.timeout(30_000),
     });
     const body = (await res.json()) as { ok?: boolean; error?: string; threshold?: number };
-    if (!res.ok || !body.ok) throw new Error(body.error ?? "The proposal was not accepted.");
+    if (!res.ok || !body.ok) throw new Error(body.error ?? t("problems.notAccepted"));
     return { hash, threshold: body.threshold };
   };
 
@@ -347,11 +351,11 @@ export function SafePay({ bills, onProposed }: { bills: Bill[]; onProposed?: () 
       const batch = buildSafeEnrol(safe);
       go("simulating");
       const sim = await simulateFromSafe(c, safe, batch);
-      if (!sim.ok) throw new Error(`Run from the Safe right now, recording its loan would fail: ${decodeAdagError(sim.returnData).text}`);
+      if (!sim.ok) throw new Error(t("problems.recordWouldFail", { why: tl(decodeAdagError(sim.returnData).text) }));
       const sent = await signAndPropose(safe, batch, fresh.nonce);
       setEnrolProposed({ safeTxHash: sent.hash, threshold: sent.threshold ?? fresh.threshold });
     } catch (error) {
-      setProblem((error as Error).message);
+      setProblem(tl((error as Error).message));
     } finally {
       go("idle");
     }
@@ -390,24 +394,21 @@ export function SafePay({ bills, onProposed }: { bills: Bill[]; onProposed?: () 
   const safePendingText = reads.data?.pending ? keptAsideText(reads.data.pending) : null;
   return (
     <div className="app-panel p-6 md:p-8" data-safe-pay>
-      <p className="type-label text-gold">Pay from a Safe</p>
-      <p className="type-body mt-3 text-muted">
-        Your wallet builds the payment and signs it once as one owner. Your other owners confirm it in Safe&apos;s own app. Nothing is paid until the Safe
-        executes it, and it is checked again then: if anything changed, the whole payment is refused and nothing moves.
-      </p>
+      <p className="type-label text-gold">{t("title")}</p>
+      <p className="type-body mt-3 text-muted">{t("intro")}</p>
 
       {!ready ? (
-        <p className="type-body mt-5 text-text">Connect an ordinary wallet that owns the Safe, on Arc.</p>
+        <p className="type-body mt-5 text-text">{t("connectOwner")}</p>
       ) : (
         <>
           <div className="mt-6">
-            <p className="type-micro text-muted">Your Safes</p>
+            <p className="type-micro text-muted">{t("yourSafes")}</p>
             <div className="mt-2 flex flex-wrap gap-2">
               {list.isPending ? (
-                <span className="type-body text-muted">Looking up your Safes…</span>
+                <span className="type-body text-muted">{t("lookingUp")}</span>
               ) : list.isError ? (
                 <span className="type-body text-muted" data-safe-list-error>
-                  {(list.error as Error).message} Paste the Safe&apos;s address below instead.
+                  {tl((list.error as Error).message)} {t("pasteInstead")}
                 </span>
               ) : list.data && list.data.length ? (
                 list.data.map((s) => (
@@ -425,14 +426,14 @@ export function SafePay({ bills, onProposed }: { bills: Bill[]; onProposed?: () 
                   </button>
                 ))
               ) : (
-                <span className="type-body text-muted">No Safes listed for this wallet. Paste the Safe&apos;s address below.</span>
+                <span className="type-body text-muted">{t("noneListed")}</span>
               )}
             </div>
-            <p className="type-micro mt-1 normal-case tracking-[0.04em] text-muted">The list is a hint from Safe&apos;s service; Adag checks the Safe on Arc before anything is signed.</p>
+            <p className="type-micro mt-1 normal-case tracking-[0.04em] text-muted">{t("listHint")}</p>
           </div>
 
           <label htmlFor={fieldId} className="type-micro mt-5 block text-muted">
-            Safe address
+            {t("safeAddress")}
           </label>
           <div className="mt-2 flex flex-col gap-3 md:flex-row">
             <input
@@ -446,31 +447,33 @@ export function SafePay({ bills, onProposed }: { bills: Bill[]; onProposed?: () 
               data-field="safe-address"
             />
             <Button variant="secondary" size="sm" disabled={busy || !pasted} onClick={() => void check(pasted)} data-action="safe-check" className="h-11">
-              Check this Safe
+              {t("checkThisSafe")}
             </Button>
           </div>
 
           {info && (
             <div className="mt-6 border-t border-rule pt-5" data-safe-verified>
               <p className="type-body text-text">
-                Safe <span className="type-address">{shortAddress(info.address)}</span> · version {info.version} · {info.threshold} of {info.owners.length} owners must
-                sign · you are an owner.
+                {t.rich("verified", {
+                  address: shortAddress(info.address),
+                  version: info.version,
+                  threshold: String(info.threshold),
+                  owners: String(info.owners.length),
+                  addr: (chunks) => <span className="type-address">{chunks}</span>,
+                })}
               </p>
               {safeBlockers.length > 0 && (
                 <div className="mt-4 rounded-[8px] border border-gold/50 p-4" data-safe-enrol>
-                  <p className="type-label text-gold">Record this Safe&apos;s existing loan first</p>
-                  <p className="type-body mt-2 text-text">
-                    This Safe already borrows on Morpho: its {safeBlockers[0]!.symbol} loan is at {formatPercentWad(safeBlockers[0]!.ltvWad)}. Adag checks the 40% line only on
-                    new borrowing, so the Safe records the loan it has first, in a Safe transaction of its own. No money moves.
-                  </p>
-                  <p className="type-body mt-2 text-muted">Recording does not change the loan or make it safer: it tells Adag to judge only what the Safe borrows from now on.</p>
+                  <p className="type-label text-gold">{t("enrol.label")}</p>
+                  <p className="type-body mt-2 text-text">{t("enrol.body", { symbol: safeBlockers[0]!.symbol, ltv: formatPercentWad(safeBlockers[0]!.ltvWad) })}</p>
+                  <p className="type-body mt-2 text-muted">{t("enrol.doesNotChange")}</p>
                   {enrolProposed ? (
                     <p className="type-body mt-3 text-text" data-safe-enrol-proposed>
-                      Proposed ({shortAddress(enrolProposed.safeTxHash)}). Once your other owners execute it in Safe&apos;s app, the payment can be proposed here.
+                      {t("enrol.proposed", { hash: shortAddress(enrolProposed.safeTxHash) })}
                     </p>
                   ) : (
                     <Button variant="primary" size="sm" disabled={busy} onClick={() => void proposeEnrol()} className="mt-3 h-auto min-h-10 w-full whitespace-normal py-2 text-center md:w-auto" data-action="safe-enrol">
-                      Propose: record this Safe&apos;s existing loan
+                      {t("enrol.button")}
                     </Button>
                   )}
                 </div>
@@ -504,12 +507,12 @@ export function SafePay({ bills, onProposed }: { bills: Bill[]; onProposed?: () 
                                 {opt === "bitcoin"
                                   ? p
                                     ? p.fresh
-                                      ? `From the Safe's bitcoin: it pledges ${formatUnitsExact(p.pledge, CIRBTC_DECIMALS)} cirBTC${usdHint(p.pledge, usd)} and keeps it.`
-                                      : "From the Safe's bitcoin: paused until the bitcoin price updates."
-                                    : "From the Safe's bitcoin"
+                                      ? t("options.bitcoinPledges", { amount: formatUnitsExact(p.pledge, CIRBTC_DECIMALS), usd: usdHint(p.pledge, usd) })
+                                      : t("options.bitcoinPaused")
+                                    : t("options.bitcoin")
                                   : p
-                                    ? `From the Safe's balance: it holds ${formatUnitsExact(p.balance, g.currency.decimals)} ${g.currency.symbol}.`
-                                    : "From the Safe's balance"}
+                                    ? t("options.balanceHolds", { amount: formatUnitsExact(p.balance, g.currency.decimals), symbol: g.currency.symbol })
+                                    : t("options.balance")}
                               </span>
                             </label>
                           );
@@ -518,7 +521,7 @@ export function SafePay({ bills, onProposed }: { bills: Bill[]; onProposed?: () 
                         <label className="type-body flex items-start gap-3 text-muted opacity-60" data-safe-convert={g.currency.symbol}>
                           <input type="radio" name={`safe-${g.currency.symbol}`} disabled className="mt-1.5 accent-[var(--gold-fill)]" />
                           <span>
-                            From the Safe&apos;s bitcoin, borrowing {loanCurrencyFor(g.currency.symbol).symbol}. {SAFE_CONVERT_LINE}
+                            {t("options.convert", { symbol: loanCurrencyFor(g.currency.symbol).symbol })} {tl(SAFE_CONVERT_LINE)}
                           </span>
                         </label>
                       </div>
@@ -526,14 +529,14 @@ export function SafePay({ bills, onProposed }: { bills: Bill[]; onProposed?: () 
                   );
                 })}
               </div>
-              {safeTrips.map((t) => (
-                <p key={t} className="type-body mt-4 text-text" data-guard-trigger>
-                  {t}
+              {safeTrips.map((trip) => (
+                <p key={trip} className="type-body mt-4 text-text" data-guard-trigger>
+                  {tl(trip)}
                 </p>
               ))}
               {safeGuardUnread && (
                 <p className="type-body mt-4 text-danger" data-guard-rule-unreadable>
-                  {GUARD_RULE_UNREADABLE.replace("your loan guard", "the Safe's loan guard")}
+                  {tl(SAFE_GUARD_RULE_UNREADABLE)}
                 </p>
               )}
               <Button
@@ -543,23 +546,23 @@ export function SafePay({ bills, onProposed }: { bills: Bill[]; onProposed?: () 
                 className="mt-5 w-full md:w-auto"
                 data-action="safe-propose"
               >
-                {busy ? `${LABEL[step]}${seconds >= 2 ? ` · ${seconds}s` : ""}` : "Propose to the Safe"}
+                {busy ? busyLabel : t("proposeButton")}
               </Button>
-              {!allChosen && !busy && <p className="type-body mt-2 text-muted">Choose how the Safe pays each currency.</p>}
-              {safeBlockers.length > 0 && <p className="type-body mt-2 text-muted">The payment can be proposed once the recording above has executed.</p>}
+              {!allChosen && !busy && <p className="type-body mt-2 text-muted">{t("chooseEach")}</p>}
+              {safeBlockers.length > 0 && <p className="type-body mt-2 text-muted">{t("afterRecording")}</p>}
               {safePendingText && (
                 <p className="type-body mt-2 text-muted" data-guard-pending>
-                  {safePendingText.replace("this wallet", "this Safe")}
+                  {tl(safePendingText.replace("this wallet", "this Safe"))}
                 </p>
               )}
               {guardUnread && (
                 <p className="type-body mt-2 text-danger" data-guard-unreadable>
-                  {GUARD_UNREADABLE}
+                  {tl(GUARD_UNREADABLE)}
                 </p>
               )}
             </div>
           )}
-          {busy && !info && <p className="type-body mt-4 text-muted">{LABEL[step]}{seconds >= 2 ? ` · ${seconds}s` : ""}</p>}
+          {busy && !info && <p className="type-body mt-4 text-muted">{busyLabel}</p>}
           {problem && (
             <p className="type-body mt-4 text-danger" data-safe-problem>
               {problem}
@@ -583,6 +586,8 @@ export function SafePay({ bills, onProposed }: { bills: Bill[]; onProposed?: () 
 
 // After the proposal: signatures so far from the service, and whether the bills are paid only from AdagBills (C53).
 function SafeStatus({ safe, proposal, onPaid, onStartOver }: { safe: Address; proposal: Proposed; onPaid: () => void; onStartOver: () => void }) {
+  const t = useTranslations("safe.status");
+  const tc = useTranslations("common");
   const bills = proposal.bills;
   const status = useQuery({
     queryKey: ["adag-safe-status", safe, proposal.safeTxHash],
@@ -620,10 +625,11 @@ function SafeStatus({ safe, proposal, onPaid, onStartOver }: { safe: Address; pr
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="app-panel app-stamp p-6 md:p-8" data-safe-paid>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="type-label text-success">Paid by your Safe</p>
-            <p className="type-h3 mt-3 text-text">{bills.length === 1 ? `Bill #${bills[0]!.id} is paid.` : `${bills.length} bills are paid.`}</p>
+            <p className="type-label text-success">{t("paidBySafe")}</p>
+            <p className="type-h3 mt-3 text-text">{bills.length === 1 ? tc("billIsPaid", { id: bills[0]!.id.toString() }) : t("billsArePaid", { n: String(bills.length) })}</p>
             <p className="type-body mt-2 text-muted">
-              {proposal.restored ? "The proposal this browser made has been executed. " : ""}Read from AdagBills: the Safe is the payer of record.
+              {proposal.restored ? `${t("restoredExecuted")} ` : ""}
+              {t("payerOfRecord")}
             </p>
           </div>
           <BillStamp status="paid" entrance="in-view" tilt={-9} />
@@ -635,43 +641,48 @@ function SafeStatus({ safe, proposal, onPaid, onStartOver }: { safe: Address; pr
   const byOther = paid.data?.byOther ?? [];
   return (
     <div className="app-panel p-6 md:p-8" data-safe-status>
-      <p className="type-label text-gold">{proposal.restored ? "Proposed to your Safe from this browser" : "Proposed to your Safe"}</p>
+      <p className="type-label text-gold">{proposal.restored ? t("proposedFromBrowser") : t("proposed")}</p>
       <p className="type-h3 mt-3 text-text">
         {s
           ? ready
-            ? `All ${s.threshold} signature${s.threshold === 1 ? " is" : "s are"} in`
-            : `${s.confirmations} of ${s.threshold} signatures`
+            ? t("allSignaturesIn", { count: s.threshold ?? 0, n: String(s.threshold) })
+            : t("signaturesOf", { have: String(s.confirmations), need: String(s.threshold) })
           : status.isError
-            ? "Signatures unavailable"
-            : "Reading the Safe's queue"}
+            ? t("signaturesUnavailable")
+            : t("readingQueue")}
       </p>
       {ready ? (
         <p className="type-body mt-3 text-text" data-safe-ready>
-          All signatures are in. One owner presses Execute in Safe&apos;s app (it costs a small fee).
+          {t("pressExecute")}
         </p>
       ) : (
-        <p className="type-body mt-3 text-text">Waiting for your other owners in Safe&apos;s app. Nothing is paid until the Safe executes it.</p>
+        <p className="type-body mt-3 text-text">{t("waitingForOwners")}</p>
       )}
       {byOther.length > 0 && (
         <p className="type-body mt-3 text-danger" data-safe-paid-by-other>
-          Bill #{byOther.join(", #")} was paid by someone else. If the Safe executes, the whole payment is refused and only the fee is spent: reject it in Safe&apos;s app.
+          {t("paidByOther", { ids: byOther.join(", #") })}
         </p>
       )}
       {s?.nonceUsed && (
         <div className="mt-3" data-safe-nonce-used>
-          <p className="type-body text-danger">
-            The Safe has moved past this proposal without paying: it was replaced, or it failed at execution and nothing moved.
-          </p>
+          <p className="type-body text-danger">{t("movedPast")}</p>
           <Button variant="secondary" size="sm" onClick={onStartOver} className="mt-3" data-action="safe-start-over">
-            Build the payment again
+            {t("buildAgain")}
           </Button>
         </div>
       )}
       <a href={queueUrl} target="_blank" rel="noopener noreferrer" className="link-draw type-body mt-5 inline-block text-gold hover:text-text">
-        Open the Safe&apos;s queue in Safe&apos;s app
+        {t("openQueue")}
       </a>
       <p className="type-micro mt-4 normal-case tracking-[0.04em] text-muted">
-        Proposal {shortAddress(proposal.safeTxHash)}. When it runs, the transaction appears on the <a href={`${EXPLORER}/address/${safe}`} target="_blank" rel="noopener noreferrer" className="link-draw text-gold">explorer</a>.
+        {t.rich("proposalNote", {
+          hash: shortAddress(proposal.safeTxHash),
+          link: (chunks) => (
+            <a href={`${EXPLORER}/address/${safe}`} target="_blank" rel="noopener noreferrer" className="link-draw text-gold">
+              {chunks}
+            </a>
+          ),
+        })}
       </p>
     </div>
   );

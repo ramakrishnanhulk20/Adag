@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { motion } from "motion/react";
 import { WAD } from "@/lib/pay/constants";
 import { formatPercentWad } from "@/lib/pay/format";
@@ -11,16 +12,14 @@ const pct = (wad: bigint) => (wad >= 2n ** 255n ? 100 : Math.min(100, Number((wa
 // One scale for the four numbers that matter: today's loan-to-value, where the guard steps in, where it repays down
 // to, and where Morpho liquidates.
 export function GuardGauge({ ltvWad, triggerWad, targetWad, lltv }: { ltvWad: bigint | null; triggerWad: bigint | null; targetWad: bigint | null; lltv: bigint }) {
+  const t = useTranslations("guard.gauge");
   const now = ltvWad === null ? null : pct(ltvWad);
   const lines = [
-    targetWad !== null && targetWad > 0n ? { at: pct(targetWad), label: `Target ${short(targetWad)}`, tone: "bg-gold", row: 0 } : null,
-    triggerWad !== null && triggerWad > 0n ? { at: pct(triggerWad), label: `Trigger ${short(triggerWad)}`, tone: "bg-pending", row: 1 } : null,
+    targetWad !== null && targetWad > 0n ? { at: pct(targetWad), label: t("target", { pct: short(targetWad) }), tone: "bg-gold", row: 0 } : null,
+    triggerWad !== null && triggerWad > 0n ? { at: pct(triggerWad), label: t("trigger", { pct: short(triggerWad) }), tone: "bg-pending", row: 1 } : null,
     { at: pct(lltv), label: `Morpho ${Number((lltv * 100n) / WAD)}%`, tone: "bg-danger", row: 0 },
   ].filter((l): l is NonNullable<typeof l> => l !== null);
-  const label = [
-    now === null ? "Loan-to-value unavailable" : `Loan-to-value ${now.toFixed(2)}%`,
-    ...lines.map((l) => l.label),
-  ].join(", ");
+  const label = [now === null ? t("ltvUnavailable") : t("ltv", { pct: now.toFixed(2) }), ...lines.map((l) => l.label)].join(", ");
   return (
     <div className="mt-10" data-guard-gauge>
       <div className="relative h-3 rounded-[2px] border border-rule bg-bg/40" role="img" aria-label={label}>

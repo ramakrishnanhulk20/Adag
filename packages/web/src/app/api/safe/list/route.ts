@@ -1,5 +1,6 @@
 import { isAddress, getAddress } from "viem";
 import { InputError, address } from "@/lib/safe/parse";
+import { jsonError } from "@/i18n/server";
 import { NOT_CONFIGURED, json, safeService, serviceError, withTimeout } from "@/lib/safe/service";
 import { STORE_MISSING, storeFromEnv } from "@/lib/store/env";
 import { TOO_MANY, limitRoute } from "@/lib/store/limit";
@@ -13,15 +14,15 @@ const MAX_SAFES = 50;
 // the chosen Safe on chain (verifySafe, C52), whatever this list says.
 export async function GET(request: Request) {
   const service = safeService();
-  if (!service) return json({ error: NOT_CONFIGURED }, 503);
+  if (!service) return jsonError(NOT_CONFIGURED, 503);
   const store = storeFromEnv();
-  if (!store) return json({ error: STORE_MISSING }, 503);
-  if (!(await limitRoute(store, request, "safe-list", 20, 300))) return json({ error: TOO_MANY }, 429);
+  if (!store) return jsonError(STORE_MISSING, 503);
+  if (!(await limitRoute(store, request, "safe-list", 20, 300))) return jsonError(TOO_MANY, 429);
   let owner;
   try {
     owner = address(new URL(request.url).searchParams.get("owner"), "The owner");
   } catch (error) {
-    return json({ error: error instanceof InputError ? error.message : "The request could not be read." }, 400);
+    return jsonError(error instanceof InputError ? error.message : "The request could not be read.", 400);
   }
   try {
     const answer = await withTimeout(service.getSafesByOwner(owner));
@@ -32,6 +33,6 @@ export async function GET(request: Request) {
     return json({ safes, hint: true });
   } catch (error) {
     const e = serviceError(error);
-    return json({ error: e.message }, e.status);
+    return jsonError(e.message, e.status);
   }
 }

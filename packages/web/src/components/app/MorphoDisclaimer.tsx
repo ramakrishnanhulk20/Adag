@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { AnimatePresence, motion } from "motion/react";
 import { Button } from "@/components/Button";
 
@@ -13,6 +14,7 @@ type MorphoDisclaimerProps = {
 
 // Morpho's borrow guide asks for this exact text, with a checkbox, before the first borrow through an app (ARCHITECTURE.md section 8).
 export function MorphoDisclaimer({ open, onAccept, onCancel }: MorphoDisclaimerProps) {
+  const t = useTranslations("disclaimer");
   const titleId = useId();
   const checkId = useId();
   const [checked, setChecked] = useState(false);
@@ -61,7 +63,7 @@ export function MorphoDisclaimer({ open, onAccept, onCancel }: MorphoDisclaimerP
           exit={{ opacity: 0 }}
           transition={{ duration: 0.25 }}
         >
-          <button type="button" aria-label="Close" onClick={onCancel} className="absolute inset-0 cursor-default bg-[rgb(var(--shade-rgb)/0.62)] backdrop-blur-[3px]" />
+          <button type="button" aria-label={t("close")} onClick={onCancel} className="absolute inset-0 cursor-default bg-[rgb(var(--shade-rgb)/0.62)] backdrop-blur-[3px]" />
           <motion.div
             ref={box}
             role="dialog"
@@ -73,20 +75,23 @@ export function MorphoDisclaimer({ open, onAccept, onCancel }: MorphoDisclaimerP
             exit={{ opacity: 0, y: 16 }}
             transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
           >
-            <p className="type-label text-gold">Before your first loan</p>
+            <p className="type-label text-gold">{t("label")}</p>
             <h2 id={titleId} className="type-h3 mt-3 text-text">
-              Borrowing through Morpho
+              {t("title")}
             </h2>
             <p className="type-body mt-5 text-text">
-              Accessing the Morpho Protocol through this app is governed by Adag&apos;s{" "}
-              <Link href="/terms" target="_blank" className="link-draw text-gold">
-                Terms of Use
-              </Link>{" "}
-              and{" "}
-              <a href="https://morpho.org/disclaimers/" target="_blank" rel="noopener noreferrer" className="link-draw text-gold">
-                Morpho&apos;s Disclaimer
-              </a>
-              . By using it, you acknowledge that you have read and understood these terms and the risks involved.
+              {t.rich("body", {
+                terms: (chunks) => (
+                  <Link href="/terms" target="_blank" className="link-draw text-gold">
+                    {chunks}
+                  </Link>
+                ),
+                morpho: (chunks) => (
+                  <a href="https://morpho.org/disclaimers/" target="_blank" rel="noopener noreferrer" className="link-draw text-gold">
+                    {chunks}
+                  </a>
+                ),
+              })}
             </p>
             <label htmlFor={checkId} className="mt-7 flex cursor-pointer items-start gap-3 rounded-[8px] border border-rule p-4 transition-colors duration-200 hover:border-gold">
               <input
@@ -96,14 +101,14 @@ export function MorphoDisclaimer({ open, onAccept, onCancel }: MorphoDisclaimerP
                 onChange={(e) => setChecked(e.target.checked)}
                 className="mt-1 h-4 w-4 shrink-0 accent-[var(--gold-fill)]"
               />
-              <span className="type-body text-text">I have read and understood these terms and the risks of borrowing against my cirBTC.</span>
+              <span className="type-body text-text">{t("checkbox")}</span>
             </label>
             <div className="mt-7 flex flex-col-reverse gap-3 md:flex-row md:justify-end">
               <Button variant="secondary" onClick={onCancel} className="w-full md:w-auto">
-                Not now
+                {t("notNow")}
               </Button>
               <Button variant="primary" disabled={!checked} onClick={onAccept} className="w-full md:w-auto">
-                Continue to payment
+                {t("continue")}
               </Button>
             </div>
           </motion.div>

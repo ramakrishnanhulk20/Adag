@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import type { EIP1193Provider } from "viem";
 import { useConnection } from "wagmi";
 import { switchToArc } from "@/lib/wallet/switchToArc";
@@ -25,7 +26,8 @@ function Ext({ href, children }: { href: string; children: React.ReactNode }) {
 }
 
 // Where a payer comes up short, one plain line per missing thing, so nobody meets a dead end.
-export function GetSetUp({ needs, className = "", title = "Need cirBTC or USDC on Arc?" }: { needs: readonly SetupNeed[]; className?: string; title?: string }) {
+export function GetSetUp({ needs, className = "", title }: { needs: readonly SetupNeed[]; className?: string; title?: string }) {
+  const t = useTranslations("setup");
   const wallet = useWallet();
   const { connector } = useConnection();
   const [note, setNote] = useState<string | null>(null);
@@ -38,37 +40,45 @@ export function GetSetUp({ needs, className = "", title = "Need cirBTC or USDC o
     try {
       await switchToArc((await connector.getProvider()) as EIP1193Provider);
     } catch {
-      setNote("Your wallet did not add Arc. Try again from the wallet's own network menu.");
+      setNote(t("didNotAdd"));
     }
   };
 
   return (
     <div className={`rounded-[8px] border border-rule bg-bg/30 p-4 md:p-5 ${className}`} data-setup>
-      <p className="type-label text-text">{title}</p>
+      <p className="type-label text-text">{title ?? t("title")}</p>
       <ul className="type-body mt-3 space-y-2 text-muted">
         {needs.includes("cirbtc") && (
           <li data-setup-need="cirbtc">
-            <span className="text-text">Get cirBTC:</span> swap USDC for it on <Ext href={SETUP_LINKS.portalSwap}>Arc Portal</Ext>, or see{" "}
-            <Ext href={SETUP_LINKS.appKitSwap}>Circle&apos;s App Kit Swap</Ext>.
+            {t.rich("cirbtc", {
+              strong: (chunks) => <span className="text-text">{chunks}</span>,
+              portal: (chunks) => <Ext href={SETUP_LINKS.portalSwap}>{chunks}</Ext>,
+              appkit: (chunks) => <Ext href={SETUP_LINKS.appKitSwap}>{chunks}</Ext>,
+            })}
           </li>
         )}
         {needs.includes("usdc") && (
           <li data-setup-need="usdc">
-            <span className="text-text">Bring USDC from another chain:</span> <Ext href={SETUP_LINKS.portalSwap}>Arc Portal</Ext> moves it across
-            chains, and <Ext href={SETUP_LINKS.cctp}>Circle&apos;s CCTP</Ext> is the native route. A little USDC also pays Arc&apos;s network fee.
+            {t.rich("usdc", {
+              strong: (chunks) => <span className="text-text">{chunks}</span>,
+              portal: (chunks) => <Ext href={SETUP_LINKS.portalSwap}>{chunks}</Ext>,
+              cctp: (chunks) => <Ext href={SETUP_LINKS.cctp}>{chunks}</Ext>,
+            })}
           </li>
         )}
         {needs.includes("arc") && (
           <li data-setup-need="arc">
-            <span className="text-text">Add Arc to your wallet:</span>{" "}
-            {wrongNetwork ? (
-              <button type="button" onClick={() => void addArc()} className="link-draw text-gold transition-colors duration-200 hover:text-text" data-action="add-arc">
-                Switch to Arc
-              </button>
-            ) : (
-              "Switch to Arc"
-            )}{" "}
-            adds it if your wallet does not have it yet.
+            {t.rich("arc", {
+              strong: (chunks) => <span className="text-text">{chunks}</span>,
+              switch: (chunks) =>
+                wrongNetwork ? (
+                  <button type="button" onClick={() => void addArc()} className="link-draw text-gold transition-colors duration-200 hover:text-text" data-action="add-arc">
+                    {chunks}
+                  </button>
+                ) : (
+                  <>{chunks}</>
+                ),
+            })}
           </li>
         )}
       </ul>

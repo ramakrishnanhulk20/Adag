@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import type { Address } from "viem";
 import { recallProposal } from "./safeMemory";
 import { useSafeList } from "./safeList";
@@ -31,6 +32,7 @@ export function usePayAsMode(owner: Address | null, contract: string, ids: reado
 }
 
 export function PayAsSwitch({ mode, onChoose, className = "" }: { mode: PayAsMode; onChoose: (m: PayAsMode) => void; className?: string }) {
+  const t = useTranslations("safe.payAs");
   const option = (m: PayAsMode, label: string, extra: Record<string, string>) => (
     <button
       type="button"
@@ -46,10 +48,10 @@ export function PayAsSwitch({ mode, onChoose, className = "" }: { mode: PayAsMod
   );
   return (
     <div className={`flex flex-wrap items-center gap-3 ${className}`} data-pay-as-switch={mode}>
-      <span className="type-label text-muted">Pay as</span>
-      <div role="radiogroup" aria-label="Pay as" className="inline-flex rounded-[8px] border border-rule p-1">
-        {option("wallet", "This wallet", {})}
-        {option("safe", "A Safe", { "data-action": "safe-open" })}
+      <span className="type-label text-muted">{t("label")}</span>
+      <div role="radiogroup" aria-label={t("label")} className="inline-flex rounded-[8px] border border-rule p-1">
+        {option("wallet", t("thisWallet"), {})}
+        {option("safe", t("aSafe"), { "data-action": "safe-open" })}
       </div>
     </div>
   );
@@ -57,9 +59,11 @@ export function PayAsSwitch({ mode, onChoose, className = "" }: { mode: PayAsMod
 
 // F11: a Safe cannot pay bills on the first contract. Name them, say what to do, and give the payer a line to send.
 export function FirstContractSafeNote({ ids, className = "" }: { ids: readonly bigint[]; className?: string }) {
+  const t = useTranslations("safe.firstContract");
+  const tc = useTranslations("common");
   const [copied, setCopied] = useState(false);
-  const which = ids.length === 1 ? `Bill #${ids[0]} was` : `Bills #${ids.join(", #")} were`;
-  const message = `Hello, could you write ${ids.length === 1 ? `bill #${ids[0]}` : `bills #${ids.join(", #")}`} again on Adag? ${ids.length === 1 ? "It is" : "They are"} on Adag's older contract, and our company Safe can only pay bills on the current one.`;
+  const list = ids.join(", #");
+  const message = t("message", { count: ids.length, list });
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(message);
@@ -71,10 +75,7 @@ export function FirstContractSafeNote({ ids, className = "" }: { ids: readonly b
   };
   return (
     <div className={`rounded-[8px] border border-rule p-4 ${className}`} data-safe-unavailable>
-      <p className="type-body text-text">
-        {which} written on Adag&apos;s older contract, which a Safe cannot pay. Pay {ids.length === 1 ? "it" : "them"} from a wallet, or ask the supplier to write{" "}
-        {ids.length === 1 ? "it" : "them"} again.
-      </p>
+      <p className="type-body text-text">{t("note", { count: ids.length, list })}</p>
       <p className="type-micro mt-3 normal-case tracking-[0.04em] text-muted">{message}</p>
       <button
         type="button"
@@ -82,7 +83,7 @@ export function FirstContractSafeNote({ ids, className = "" }: { ids: readonly b
         className="type-micro mt-3 rounded-[6px] border border-rule px-2.5 py-1.5 text-muted transition-colors duration-200 hover:border-gold hover:text-gold"
         data-action="copy-supplier-message"
       >
-        {copied ? "Copied" : "Copy the message to the supplier"}
+        {copied ? tc("copied") : t("copy")}
       </button>
     </div>
   );

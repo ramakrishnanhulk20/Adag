@@ -1,0 +1,2051 @@
+{
+  "common": {
+    "payABill": "Pay a bill",
+    "writeABill": "Write a bill",
+    "docs": "Docs",
+    "termsOfUse": "Terms of Use",
+    "liveOnArc": "Live on Arc mainnet",
+    "arcMainnet": "Arc mainnet",
+    "readingArc": "Reading Arc",
+    "readingArcSeconds": "Reading Arc · {seconds}s",
+    "unavailable": "unavailable",
+    "tryAgain": "Try again",
+    "copied": "Copied",
+    "copyLink": "Copy link",
+    "noBillPaidYet": "No bill has been paid on Arc yet.",
+    "billNumber": "Bill #{id}",
+    "billNo": "Bill No. {id}",
+    "no": "No. {id}",
+    "firstDeployment": "First deployment",
+    "firstDeploymentAddress": "AdagBills first deployment {address}",
+    "paymentOnArc": "Payment on Arc",
+    "contractNames": {
+      "bills": "AdagBills",
+      "guard": "AdagGuard",
+      "billsFirst": "AdagBills, first deployment"
+    },
+    "explorer": "Explorer",
+    "tryToBreakIt": "Try to break it",
+    "howItWorks": "How it works",
+    "backToAdag": "Back to Adag",
+    "couldNotReadFromArc": "Could not read this from Arc",
+    "refusesOver40": "Adag refuses anything over 40%",
+    "refusesOver": "Adag refuses anything over {pct}",
+    "yourWallet": "Your wallet",
+    "loanGuard": "Loan guard",
+    "telegramAlerts": "Telegram alerts",
+    "stopProtecting": "Stop protecting",
+    "viewTheTransaction": "View the transaction",
+    "viewTheTransactionLower": "view the transaction",
+    "transactionOnExplorer": "Transaction {hash} on the explorer",
+    "hashOnExplorer": "{hash} on the explorer",
+    "transaction": "Transaction",
+    "confirmedOnArc": "Confirmed on Arc",
+    "nothingWasSent": "Nothing was sent.",
+    "arcNoAnswerNothingBuilt": "Arc did not answer, so nothing was built. Try again.",
+    "noBalanceAnswer": "Arc did not answer with your balance. Nothing was sent. Try again.",
+    "notConfirmedTwoMinutes": "Arc has not confirmed it after two minutes. Do not pay again: check the transaction first.",
+    "guardChanged": "Your loan guard changed since this page loaded: read the note above before paying. Nothing was sent.",
+    "stalePrice": "New loans are paused until the bitcoin price updates. Paying from your balance still works.",
+    "stalePriceShort": "New loans are paused until the bitcoin price updates.",
+    "readingGuard": "Reading your loan guard on Arc.",
+    "lessCirbtcThanPledge": "Your wallet holds less cirBTC than this pledge.",
+    "readingEuroAndMarket": "Reading the euro price and the {symbol} market on Arc.",
+    "convertUnreadable": "Adag could not read what a conversion needs, so it is off. Reload to try again.",
+    "details": "Details",
+    "percentAYear": "{pct}% a year",
+    "liveVariable": "live, variable",
+    "ltvAfter": "Loan-to-value after",
+    "fortyCheck": "40% check",
+    "yourDebt": "Your debt",
+    "debtInCurrency": "In {symbol}. Its dollar cost moves with the euro.",
+    "circlesAdapter": "Circle's adapter",
+    "adapterNoAccess": "No access to your wallet is left.",
+    "adapterStillAccess": "It still has access to your wallet.",
+    "adapterUnreadable": "Its access could not be read.",
+    "effectsUnchecked": "Adag could not trace this conversion's transfers before you signed, so only the payment's own balance check guarded it.",
+    "bitcoinSold": "Bitcoin sold",
+    "leftInWallet": "Left in your wallet",
+    "became": "{from} became {to}",
+    "loanRecorded": "Loan recorded ·",
+    "alreadyPaidNothing": "Already paid. Nothing to pay here.",
+    "cancelledNever": "Cancelled. It can never be paid.",
+    "pays": "Pays",
+    "reference": "Reference",
+    "none": "None",
+    "noDueDate": "No due date",
+    "unknown": "unknown",
+    "connectWallet": "Connect wallet",
+    "switchToArc": "Switch to Arc",
+    "confirmInWallet": "Confirm in your wallet",
+    "amountIn": "Amount in {symbol}",
+    "aboutEstimated": "about {usd}, estimated",
+    "shareText": "Bill #{id}, payable on Arc.",
+    "shareTextAmount": "Bill #{id} for {amount} {symbol}, payable on Arc.",
+    "seconds": "{seconds}s",
+    "billIsPaid": "Bill #{id} is paid.",
+    "poweredByMorpho": "Powered by Morpho",
+    "cancel": "Cancel"
+  },
+  "nav": {
+    "main": "Main",
+    "app": "App",
+    "howItWorks": "How it works",
+    "safety": "Safety",
+    "proof": "Proof",
+    "docs": "Docs",
+    "openApp": "Open app",
+    "closeMenu": "Close menu",
+    "openMenu": "Open menu",
+    "writeABill": "Write a bill",
+    "payABill": "Pay a bill",
+    "yourWallet": "Your wallet",
+    "loanGuard": "Loan guard",
+    "menu": "Menu",
+    "close": "Close"
+  },
+  "switcher": {
+    "label": "Language"
+  },
+  "theme": {
+    "system": "System",
+    "light": "Light",
+    "dark": "Dark",
+    "lower": {
+      "light": "light",
+      "dark": "dark"
+    },
+    "systemNow": "System, now {resolved}",
+    "switchTo": "Theme: {state}. Switch to {next}",
+    "tooltip": "Theme: {state}",
+    "theme": "Theme",
+    "optionLabel": "{option} theme"
+  },
+  "stamp": {
+    "paid": "Paid",
+    "open": "Open",
+    "void": "Void",
+    "status": "Status: {word}"
+  },
+  "hero": {
+    "line1": "Pay the bill.",
+    "line2": "Keep the <tail><em>bitcoin</em>.</tail>",
+    "lead": "Pay your suppliers from the bitcoin your company holds. One signature, from your wallet <em>or your company Safe</em>, pledges cirBTC on Morpho, borrows exactly the bills and pays them in USDC or EURC, each matched to its invoice number.",
+    "sendingABill": "Sending a bill? <link>Write one</link>",
+    "ticker": "Live on Arc · {amount} ready to lend",
+    "cells": {
+      "labels": {
+        "ready": "Ready to lend on Morpho",
+        "rate": "Borrow rate",
+        "cap": "Loan cap",
+        "paid": "Paid through Adag"
+      },
+      "eurcUnavailable": "EURC market unavailable",
+      "eurcMarket": "{amount} in the EURC market",
+      "aYear": "a year",
+      "morphoLive": "Morpho Blue, live",
+      "lineUnavailable": "Morpho's line unavailable",
+      "morphoLiquidatesAt": "Morpho liquidates at {pct}",
+      "seeBillOneLabel": "See bill 1, the live proof payment",
+      "seeBillOne": "see bill #1",
+      "billsPaid": "{count, plural, =1 {{n} bill paid} other {{n} bills paid}}",
+      "couldNotRead": "Could not read this from Arc"
+    },
+    "credit": {
+      "arcMainnet": "Arc mainnet",
+      "usdcOrEurc": "USDC or EURC",
+      "morphoBlue": "Morpho Blue",
+      "cap": "40% cap",
+      "oneSignature": "One signature",
+      "noOwner": "No owner",
+      "btcPrice": "BTC price",
+      "btcPriceUnavailable": "BTC price unavailable",
+      "pausedWaiting": "New loans paused · waiting for a fresh BTC price",
+      "btcPriceFresh": "BTC price fresh",
+      "updated": "Updated",
+      "ageUnderMinute": "UNDER A MIN AGO",
+      "ageMinutes": "{minutes} MIN AGO",
+      "ageHours": "{hours} H AGO",
+      "ageHoursMinutes": "{hours} H {minutes} MIN AGO"
+    }
+  },
+  "landing": {
+    "pledged": {
+      "label": "02 · Pledged, not sold",
+      "title": "Pledged, <em>not sold.</em>",
+      "india": "In India, families pledge their gold for cash instead of selling it, and take it home again when the loan is repaid.",
+      "adagu": "Adag, from the Tamil word <em>adagu</em>, a pledge, does the same with bitcoin, on Arc.",
+      "whereIsTheBitcoin": "Where is the bitcoin?",
+      "cirbtc": "cirBTC is Circle's wrapped bitcoin, backed 1:1 and held by Circle, with <link>public reserves</link>. Pledged, it sits in your own Morpho position and is not lent out. Adag never holds it.",
+      "caption": "Gold pledged, not sold.",
+      "imageAlt": "Hands laying gold jewellery on a brass tray beside a handwritten pledge ticket"
+    },
+    "oneSignature": {
+      "label": "04 · One signature",
+      "title": "Five steps, <em>one signature.</em>",
+      "lead": "Paying a bill from bitcoin is five calls on Arc. You sign them once, as one batch, and they land together. A run of up to 10 supplier bills fits in the same one signature.",
+      "ifAnyFails": "If any step fails, none of it happened.",
+      "seeTheRealOne": "See the real one on Arc"
+    },
+    "receipt": {
+      "oneBatch": "Adag · one batch",
+      "calls": {
+        "approveBtc": "Let Morpho take the pledge, and nothing more.",
+        "supply": "Pledge the bitcoin. It stays pledged in your name, never sold.",
+        "borrow": "Borrow exactly the bill.",
+        "approveCurrency": "Let Adag move exactly that amount.",
+        "memo": "Pay the supplier, invoice number attached."
+      },
+      "signedOnce": "allowFailure false on every call · signed once, from your own wallet",
+      "legend": "P pledge · A bill amount · C USDC or EURC · N bill number · R invoice reference"
+    },
+    "forty": {
+      "label": "05 · The 40% line",
+      "title": "The 40% line",
+      "lead": "Adag never lets a payment push the loan past 40% of the bitcoin's value, however many bills it pays. Morpho's own line is far beyond it.",
+      "facts": {
+        "noOwner": {
+          "title": "No owner, no upgrade, no pause",
+          "body": "There is no admin key and no switch. The 40% line and every address Adag trusts were fixed when it was deployed."
+        },
+        "neverHolds": {
+          "title": "Never holds your money",
+          "body": "Each payment moves from the paying wallet to the supplier inside one transaction. Nothing of yours waits in Adag."
+        },
+        "verified": {
+          "title": "Source verified",
+          "body": "The code running on Arc matches the published source exactly, checked by Sourcify and by Arc's explorer, for every contract Adag uses."
+        },
+        "refuses": {
+          "title": "Refuses anything past 40%, even hand-built transactions",
+          "body": "The check lives in the contract, not the website. A payment that would push the loan past 40% reverts, whoever builds it."
+        }
+      },
+      "links": {
+        "contractOnArc": "The contract on Arc",
+        "tokenBalances": "Its token balances",
+        "onSourcify": "{name} on Sourcify",
+        "onExplorer": "{name} on explorer.arc.io"
+      }
+    },
+    "gauge": {
+      "unavailable": "{what} unavailable · could not read this from Arc",
+      "theLoanCap": "The loan cap",
+      "theBtcPrice": "The BTC price",
+      "ariaCapOnly": "Adag stops at {cap}%",
+      "ariaCapAndLine": "Adag stops at {cap}%; Morpho liquidates at {lltv}%",
+      "oneCirbtcNow": "1 cirBTC now",
+      "adagPaysUpTo": "Adag pays up to",
+      "liquidatesIfFallsTo": "Morpho liquidates a loan at Adag's cap if bitcoin falls to",
+      "aFall": "a {pct}% fall",
+      "perCirbtc": "Per 1 cirBTC, at the live price from the USDC market's oracle on Arc"
+    },
+    "checkIt": {
+      "proof": "Proof",
+      "title": "Check it <em>yourself.</em>",
+      "billOne": "Bill #1",
+      "billOnePaid": "Bill #1, paid",
+      "openBillOne": "Open bill #1",
+      "reading": "Reading bill #1 and its payment from Arc.",
+      "noAnswer": "Arc did not answer, so nothing is claimed about bill #1 here. Its own page reads it again.",
+      "notPaidYet": "A {amount} bill on the current contract, not paid yet.",
+      "txNotFound": "A real {amount} bill, marked paid on Arc. Its payment transaction was not found in range just now.",
+      "paidFromLoan": "A real {amount} bill, paid from a loan against bitcoin, with Adag's 40% check run on that loan.",
+      "paidNoLoan": "A real {amount} bill, paid in one signature; it added no new loan, so there was nothing for the 40% check to test.",
+      "itsTransaction": "Its transaction",
+      "tryToBreakIt": "Try to break it",
+      "attacks": "{n} attacks against the live contracts, simulated on Arc while you watch. Each shows what stops it.",
+      "runTheAttacks": "Run the attacks",
+      "auditStatus": "Audit status",
+      "auditBody": "Self-audited, not by an outside firm. What was tested, what was found, and what is not covered.",
+      "readTheRecord": "Read the record"
+    },
+    "after": {
+      "label": "06 · After you pay",
+      "title": "Paid. Then <em>looked after.</em>",
+      "lead": "Paying is where most tools stop. Adag keeps working on the loan your bitcoin backs: it repays part when the loan crosses your line, tells you on Telegram, and pays from the company Safe your treasury already lives in.",
+      "parts": {
+        "guard": {
+          "title": "The loan guard",
+          "body": "When a loan crosses a line you choose, the guard repays part of it from your own USDC or EURC, just enough to bring it back to your target.",
+          "keyLine": "The most this can ever take is your approval.",
+          "after": "Stop any time: the rule clears and the approval goes to 0.",
+          "link": "How the loan guard works"
+        },
+        "alerts": {
+          "title": "Telegram alerts",
+          "body": "A message when a loan gets close to a level you set, and one each time the guard repays. Adag never tells anyone else whether a wallet has alerts.",
+          "link": "How alerts work"
+        },
+        "safe": {
+          "title": "Pay from a company Safe",
+          "body": "One bill or up to ten, proposed to the Safe and signed by its owners the way they sign anything else. At execution it lands whole or not at all.",
+          "link": "Paying from a Safe"
+        },
+        "record": {
+          "title": "Already borrowing on Morpho",
+          "body": "Record the loan you have once. No money moves. From then on you can pay bills from cash, and Adag checks your loan against the one you recorded.",
+          "link": "Record an existing loan"
+        }
+      }
+    },
+    "suppliers": {
+      "label": "07 · For suppliers",
+      "title": "Send a bill. <em>Get paid.</em>",
+      "steps": {
+        "write": "Write a bill",
+        "share": "Share its link",
+        "getPaid": "Get paid in USDC or EURC, matched to your invoice number"
+      },
+      "latest": "The latest payment on Arc, read live"
+    },
+    "billCard": {
+      "unavailable": "The latest payment is unavailable: Arc did not answer. Nothing is shown in its place.",
+      "paidTo": "Paid to",
+      "paidBy": "Paid by",
+      "paid": "Paid",
+      "theBill": "The bill",
+      "openIt": "Open it, with its invoice reference"
+    },
+    "ledger": {
+      "label": "08 · The ledger",
+      "title": "Every payment, <em>on the record.</em>",
+      "fromTo": "<muted>from </muted>{from}<muted> to </muted>{to}",
+      "fromLoanChecked": "from a loan, 40% check ran",
+      "unavailable": "The ledger is unavailable: Arc did not answer.",
+      "note": "The newest payments through Adag on Arc, read from each contract's own payment record. Invoice references stay on each bill's own page. Nothing here is a mock.",
+      "showing": "Showing the latest {shown} of {total} paid."
+    },
+    "close": {
+      "title": "The bill is due. <em>The bitcoin stays pledged.</em>",
+      "tamil": "<word>adagu</word> · Tamil for a pledge",
+      "poweredBy": "Powered by Morpho · on Arc mainnet",
+      "footer": "Footer",
+      "contracts": "Contracts on Arc mainnet"
+    }
+  },
+  "pledge": {
+    "readingArc": "Reading Arc",
+    "chapters": {
+      "coin": "The coin",
+      "bills": "The bills",
+      "pledge": "The pledge",
+      "loan": "The loan",
+      "paid": "Paid",
+      "neverSold": "Never sold"
+    },
+    "replay": {
+      "twoBoth": "Replay of two real bills, one on each Adag contract",
+      "one": "Replay of one real bill, paid on Arc",
+      "oneFirst": "Replay of one real bill, on Adag's first contract, paid on Arc",
+      "many": "{count, plural, =2 {Replay of two real bills, paid on Arc} =3 {Replay of three real bills, paid on Arc} other {Replay of {n} real bills, paid on Arc}}",
+      "manyBoth": "{count, plural, =2 {Replay of two real bills across both Adag contracts, paid on Arc} =3 {Replay of three real bills across both Adag contracts, paid on Arc} other {Replay of {n} real bills across both Adag contracts, paid on Arc}}"
+    },
+    "honesty": "{replay}. Numbers read live.",
+    "honestyFailed": "Could not read Arc. Nothing is shown in its place.",
+    "honestyNone": "No bill has been paid on Arc yet. Nothing is invented to fill this.",
+    "captions": {
+      "pledgedHead": "Your bitcoin is pledged, not sold.",
+      "pledgedSub": "It sits on Morpho as collateral, in your name.",
+      "borrowsHead": "{count, plural, =1 {Adag borrows exactly the bill.} other {Adag borrows exactly the bills.}}",
+      "borrowsSub": "And refuses anything past {cap} of the bitcoin's value.",
+      "neverSoldHead": "Never sold.",
+      "neverSoldSub": "It stays pledged in your name. Repay any time to take it back.",
+      "readingHead": "Reading the latest bills from Arc.",
+      "failedHead": "The bills could not be read from Arc.",
+      "failedSub": "No bill is invented to fill the stage. Try again in a minute.",
+      "noneHead": "No bill paid on Arc yet.",
+      "noneSub": "The first payment on Arc will appear here.",
+      "dueHead": "{count, plural, =1 {One real bill is due.} =2 {Two real bills are due.} =3 {Three real bills are due.} other {{n} real bills are due.}}",
+      "dueSub": "{count, plural, =1 {It was really paid on Arc. The pledge is what a new wallet would put up today to pay it from bitcoin.} =2 {Both were really paid on Arc. The pledge is what a new wallet would put up today to pay them from bitcoin.} other {All were really paid on Arc. The pledge is what a new wallet would put up today to pay them from bitcoin.}}",
+      "paidHead": "{count, plural, =1 {The supplier is paid.} =2 {Two bills paid.} =3 {Three bills paid.} other {{n} bills paid.}}",
+      "paidSub": "{count, plural, =1 {Invoice number attached. One signature.} other {Invoice numbers attached. One signature.}}"
+    },
+    "srTitle": "Paying bills from pledged bitcoin, in six beats",
+    "imageAlt": "An open safe deposit drawer lined with blue velvet",
+    "arcBlock": "Arc block {block}",
+    "tagWallet": "{btc} cirBTC{usd} · in your wallet",
+    "tagYourCirbtc": "Your cirBTC",
+    "tagPledged": "Pledged on Morpho · still in your name",
+    "tagNeverSoldBtc": "{btc} cirBTC, pledged in your name, never sold. Repay any time to take it back.",
+    "tagNeverSold": "Pledged in your name, never sold. Repay any time to take it back.",
+    "borrowedLabel": "{amount} borrowed",
+    "billsPaidOnArc": "Bills paid on Arc",
+    "openBillsOnArc": "Open bills on Arc",
+    "yourPledge": "Your pledge",
+    "pledgeNote": "{usd}{perBtc} · 5% margin{markets}",
+    "valueUnavailable": "value unavailable",
+    "atPerBitcoin": " at {perBtc} a bitcoin",
+    "twoMarkets": " · 2 markets",
+    "pausedFeed": "New loans are paused until the price feed updates.",
+    "borrowed": "Borrowed",
+    "exactlyTheBills": "{count, plural, =1 {Exactly the bill, nothing more} other {Exactly the bills, nothing more}}",
+    "final": "Loan at {ltv} of the bitcoin. Morpho's line is {lltv}. Bitcoin would have to fall {fall}% to reach it.",
+    "replayButton": "Replay",
+    "card": {
+      "noDate": "NO DATE",
+      "titleFirst": "{title}, first deployment",
+      "to": "To",
+      "from": "From",
+      "paid": "Paid",
+      "on": "On",
+      "paidIn": "Paid in",
+      "txLabel": "The transaction that paid bill {id}, on the Arc explorer"
+    },
+    "gauge": {
+      "loanToValue": "Loan to value",
+      "aria": "Loan at {ltv}. Adag's cap is {cap}, Morpho liquidates at {lltv}.",
+      "adagCap": "{cap} Adag cap"
+    }
+  },
+  "meta": {
+    "site": {
+      "title": "Adag · Pay your bills with your bitcoin, without selling it.",
+      "description": "Pledge your bitcoin on Morpho, borrow exactly the bill, and pay your supplier in USDC or EURC in one signature on Arc. Adag refuses any payment that would push the loan past 40%.",
+      "template": "%s · Adag"
+    },
+    "home": {
+      "title": "Adag · Pay your bills with your bitcoin, without selling it",
+      "description": "Pay your suppliers from your company's bitcoin without selling it: up to 10 bills in one signature on Arc, invoice numbers attached, and a loan Adag caps at 40%."
+    },
+    "wallet": {
+      "title": "Your wallet",
+      "description": "The bills you wrote, the bills you paid, and your loans against cirBTC on Morpho, read live from Arc."
+    },
+    "protect": {
+      "title": "Loan guard and alerts",
+      "description": "Telegram alerts for your loans against cirBTC, and the loan guard that repays before Morpho's line."
+    },
+    "write": {
+      "title": "Write a bill",
+      "description": "Write a bill on Arc in USDC or EURC, payable to your wallet exactly once, and share its link."
+    },
+    "break": {
+      "title": "Try to break it",
+      "description": "Sixteen real attacks on Adag's live contract, simulated on Arc mainnet's current state. Nothing is signed or sent."
+    },
+    "pay": {
+      "title": "Pay a bill",
+      "description": "Open a bill on Arc by its number or link, and see exactly who it pays and how much."
+    },
+    "basket": {
+      "title": "Pay several bills",
+      "description": "Pay up to ten bills on Arc with one signature, from your balance or from a loan against your cirBTC."
+    },
+    "terms": {
+      "title": "Terms of Use",
+      "description": "The plain-English terms for using Adag, an interface to immutable bill contracts on Arc mainnet."
+    },
+    "bill": {
+      "title": "Bill #{id}",
+      "titleFirst": "Bill #{id} (first deployment)",
+      "fallback": "Bill"
+    }
+  },
+  "pay": {
+    "hallmark": "Pay a bill · Arc mainnet",
+    "title": "Which <em>bill</em>?",
+    "lead": "Type the number your supplier sent, or paste their link. Adag reads the bill straight from Arc: who it pays, how much, and whether it is still open. Several numbers, up to ten, are paid together with one signature.",
+    "countNote": "{count, plural, =1 {bill written on Arc so far: {current} on the current AdagBills and {first} on the first deployment, read just now.} other {bills written on Arc so far: {current} on the current AdagBills and {first} on the first deployment, read just now.}}",
+    "countUnknown": "Arc did not answer, so the bill count is unknown right now.",
+    "form": {
+      "label": "Bill numbers or links",
+      "placeholder": "For example 1, or paste a bill link",
+      "checkingArc": "Checking Arc",
+      "openTheBill": "Open the bill",
+      "typeANumber": "Type a bill number, like 12, or paste the bill link your supplier sent. Several numbers pay together.",
+      "notABillNumber": "\"{token}\" is not a bill number or a bill link. Fix it or take it out.",
+      "onFirstDeployment": "on the first AdagBills deployment",
+      "onArc": "on Arc",
+      "noBillYetNone": "No bill #{id} {where} yet. No bills have been written so far.",
+      "noBillYetNewest": "No bill #{id} {where} yet. The newest bill is #{newest}."
+    }
+  },
+  "bill": {
+    "missing": {
+      "bill": "Bill",
+      "mark": "Bill No. {id}",
+      "markFirst": "Bill No. {id} · First deployment",
+      "noneTitle": "No bill #{id} on Arc <em>yet</em>.",
+      "onFirstDeployment": "on the first AdagBills deployment",
+      "onArc": "on Arc",
+      "noRecord": "Adag has no record of this number. Check it with whoever sent you the link.",
+      "noneWritten": "No bills have been written {where} so far. Check the number with whoever sent it.",
+      "newestIs": "The newest bill {where} is #{count}. Check the number with whoever sent you the link.",
+      "refusedTitle": "Too many <em>bills</em>.",
+      "invalidTitle": "That is not a bill <em>number</em>.",
+      "invalidBody": "Bill numbers are whole numbers from 1 up, like /bill/12.",
+      "unavailableTitle": "Arc did not <em>answer</em>.",
+      "unavailableBody": "This bill's status is unavailable right now. Nothing on this page means paid or unpaid. Reload in a moment to try again.",
+      "findAnother": "Find another bill"
+    },
+    "sheet": {
+      "srTitle": "Bill number {id}: {amount} {currency}, status {status}",
+      "statusWord": {
+        "open": "open",
+        "paid": "paid",
+        "void": "void"
+      },
+      "headline": {
+        "open": "Amount due",
+        "paid": "Amount paid",
+        "void": "Cancelled amount"
+      },
+      "unknownTokenLower": "unknown token",
+      "unknownToken": "Unknown token",
+      "pays": "Pays",
+      "addressOnExplorer": "This address on the Arc explorer",
+      "openText": "Open. Anyone can pay it, once. Until then the supplier who wrote it can still cancel it.",
+      "paidText": "Paid in full on Arc. The supplier's balance rose by exactly this amount in the same transaction.",
+      "voidText": "The supplier cancelled this bill. It can never be paid.",
+      "details": "Bill details",
+      "due": "Due",
+      "written": "Written",
+      "currency": "Currency",
+      "contract": "Contract",
+      "paidBy": "Paid by",
+      "paidOn": "Paid on",
+      "txUnavailable": "Unavailable right now. The bill is still paid: that comes from Adag's own record.",
+      "txNotFound": "Not found in Adag's payment log yet.",
+      "checkPassed": "Passed. This payment borrowed against bitcoin, so Adag checked the loan stayed at or under 40%.",
+      "checkPassedOnBill": "Passed. This bill was paid in one transaction with bill #{id}, where Adag checked the loan stayed at or under 40%.",
+      "checkNotNeeded": "Not needed: no new debt."
+    },
+    "live": {
+      "titlePaid": "Paid · Bill #{id} · Adag",
+      "titleCancelled": "Cancelled · Bill #{id} · Adag"
+    },
+    "howPaid": {
+      "title": "How it was <em>paid</em>",
+      "pledged": "Pledged",
+      "keptNeverSold": "kept, never sold",
+      "borrowedOnMorpho": "Borrowed on Morpho",
+      "ltvAfter": "Loan-to-value after ({symbol})",
+      "bitcoinSold": "Bitcoin sold",
+      "keepsEverySatoshi": "the payer keeps every satoshi",
+      "convertedInto": "converted by Circle into {symbol} for the supplier",
+      "straightToSupplier": "sent straight to the supplier",
+      "paidOtherBills": "paid the other bills in this transaction",
+      "fromBalance": "From the payer's balance: nothing borrowed, nothing pledged, nothing sold.",
+      "unavailable": "The paying transaction could not be read right now. The bill is still paid: that comes from Adag's own record."
+    },
+    "void": {
+      "notConfirmed": "Arc has not confirmed it after two minutes. Check the transaction before trying again.",
+      "notCancelledYet": "Arc confirmed the transaction, but the bill does not read as cancelled yet. Reload to check.",
+      "cancelledTitle": "Bill #{id} is cancelled.",
+      "whatItMeans": "What it means",
+      "noOneCanPay": "No one can pay it, ever.",
+      "youWroteThis": "You wrote this bill",
+      "sendIt": "Send this bill to whoever owes it. You can cancel it until someone pays.",
+      "closed": "It is closed. Nothing more to do here.",
+      "shareThisBill": "Share this bill",
+      "voidThisBill": "Void this bill",
+      "confirm": "Cancel bill #{id} for good? No one can pay it after this, and it cannot be undone.",
+      "yesVoidIt": "Yes, void it",
+      "keepItOpen": "Keep it open"
+    }
+  },
+  "billWallet": {
+    "payThisBill": "Pay this bill",
+    "connectToPay": "Connect a wallet to pay this bill from your balance, or from a loan against your cirBTC, in one signature.",
+    "payInOneSignature": "Pay it in one signature.",
+    "yourPosition": "Your position on Arc.",
+    "thisBill": "This bill",
+    "inThisWallet": "In this wallet",
+    "morphoPositions": "Morpho positions",
+    "justNow": {
+      "label": "Paid just now",
+      "received": "You received {amount} {symbol}.",
+      "paidBy": "Paid by <addr>{address}</addr>",
+      "txOnExplorer": "The transaction on the explorer",
+      "txLinkLater": "The transaction link appears once Adag's payment log is read."
+    },
+    "market": {
+      "pledged": "Pledged",
+      "loan": "Loan",
+      "loanToValue": "Loan-to-value",
+      "btcCanFall": "BTC can fall",
+      "noLoan": "no loan",
+      "againstCirbtc": "{symbol} against cirBTC"
+    },
+    "price": {
+      "status": "Bitcoin price status:",
+      "fresh": "Bitcoin price fresh for the {symbol} market.",
+      "paused": "Bitcoin price paused: new loans wait for the next update.",
+      "updatedHoursAgo": "Chainlink BTC/USD updated {hours} hours ago."
+    }
+  },
+  "walletState": {
+    "connectToContinue": "Connect a wallet to continue.",
+    "connectToReceive": "Connect the wallet that should receive the money. Nothing is built until then.",
+    "otherNetwork": {
+      "continue": "Your wallet is on another network. Switch it to Arc to continue; nothing is built until then.",
+      "pay": "Your wallet is on another network. Switch it to Arc to continue; nothing is built until then.",
+      "changeLoan": "Your wallet is on another network. Switch it to Arc to change a loan; nothing is built until then.",
+      "sign": "Your wallet is on another network. Switch it to Arc; nothing is signed until then.",
+      "writeBill": "Your wallet is on another network. Switch it to Arc to write the bill."
+    },
+    "smartAccount": "Adag needs an ordinary wallet such as MetaMask or Rabby. Smart-account wallets cannot use Arc's one-signature batching.",
+    "kindUnavailable": "Could not check this wallet's type on Arc. Reload to try again.",
+    "cannotSignYet": "This wallet cannot sign here yet. See the note under the menu bar.",
+    "checkingWallet": "Checking your wallet on Arc.",
+    "notice": {
+      "otherNetwork": "Your wallet is on {network}. Adag works on Arc mainnet only: Switch to Arc adds Arc to your wallet if it is not there yet.",
+      "safe": "This is a Safe. Adag pays from a Safe through its owners: connect an owner's own wallet, then choose Pay as: a Safe on the bill.",
+      "delegated": "This wallet has an EIP-7702 delegation. Tested on a mainnet fork: it can pay here as long as it sends its own transaction.",
+      "kindUnavailable": "Could not check this wallet's type on Arc right now. Reload to try again."
+    }
+  },
+  "networks": {
+    "ethereum": "Ethereum mainnet",
+    "optimism": "OP Mainnet",
+    "bnb": "BNB Smart Chain",
+    "polygon": "Polygon",
+    "base": "Base",
+    "arbitrum": "Arbitrum One",
+    "avalanche": "Avalanche",
+    "sepolia": "the Sepolia testnet",
+    "arcTestnet": "the Arc testnet",
+    "unnamed": "a network it has not named yet",
+    "numbered": "network {id}"
+  },
+  "connect": {
+    "walletDidNotAnswer": "The wallet did not answer.",
+    "noWalletFound": "No wallet found in this browser. Open Adag in the browser inside MetaMask or Rabby, or add one to this browser.",
+    "closedRequest": "You closed the wallet request. Nothing was connected.",
+    "declinedSwitch": "You declined the switch. Adag only works on Arc.",
+    "checkYourWallet": "Check your wallet",
+    "connectedOn": "Connected on {network}",
+    "copyAddress": "Copy address",
+    "disconnect": "Disconnect"
+  },
+  "safe": {
+    "payAs": {
+      "label": "Pay as",
+      "thisWallet": "This wallet",
+      "aSafe": "A Safe"
+    },
+    "firstContract": {
+      "note": "{count, plural, =1 {Bill '#'{list} was written on Adag's older contract, which a Safe cannot pay. Pay it from a wallet, or ask the supplier to write it again.} other {Bills '#'{list} were written on Adag's older contract, which a Safe cannot pay. Pay them from a wallet, or ask the supplier to write them again.}}",
+      "message": "{count, plural, =1 {Hello, could you write bill '#'{list} again on Adag? It is on Adag's older contract, and our company Safe can only pay bills on the current one.} other {Hello, could you write bills '#'{list} again on Adag? They are on Adag's older contract, and our company Safe can only pay bills on the current one.}}",
+      "copy": "Copy the message to the supplier"
+    },
+    "pay": {
+      "title": "Pay from a Safe",
+      "intro": "Your wallet builds the payment and signs it once as one owner. Your other owners confirm it in Safe's own app. Nothing is paid until the Safe executes it, and it is checked again then: if anything changed, the whole payment is refused and nothing moves.",
+      "connectOwner": "Connect an ordinary wallet that owns the Safe, on Arc.",
+      "steps": {
+        "checking": "Checking the Safe and the bills on Arc",
+        "simulating": "Running the payment as the Safe would, on live state",
+        "signing": "Sign in your wallet",
+        "proposing": "Sending the proposal to your Safe's queue"
+      },
+      "yourSafes": "Your Safes",
+      "lookingUp": "Looking up your Safes…",
+      "pasteInstead": "Paste the Safe's address below instead.",
+      "noneListed": "No Safes listed for this wallet. Paste the Safe's address below.",
+      "listHint": "The list is a hint from Safe's service; Adag checks the Safe on Arc before anything is signed.",
+      "safeAddress": "Safe address",
+      "checkThisSafe": "Check this Safe",
+      "verified": "Safe <addr>{address}</addr> · version {version} · {threshold} of {owners} owners must sign · you are an owner.",
+      "enrol": {
+        "label": "Record this Safe's existing loan first",
+        "body": "This Safe already borrows on Morpho: its {symbol} loan is at {ltv}. Adag checks the 40% line only on new borrowing, so the Safe records the loan it has first, in a Safe transaction of its own. No money moves.",
+        "doesNotChange": "Recording does not change the loan or make it safer: it tells Adag to judge only what the Safe borrows from now on.",
+        "proposed": "Proposed ({hash}). Once your other owners execute it in Safe's app, the payment can be proposed here.",
+        "button": "Propose: record this Safe's existing loan"
+      },
+      "options": {
+        "bitcoinPledges": "From the Safe's bitcoin: it pledges {amount} cirBTC{usd} and keeps it.",
+        "bitcoinPaused": "From the Safe's bitcoin: paused until the bitcoin price updates.",
+        "bitcoin": "From the Safe's bitcoin",
+        "balanceHolds": "From the Safe's balance: it holds {amount} {symbol}.",
+        "balance": "From the Safe's balance",
+        "convert": "From the Safe's bitcoin, borrowing {symbol}."
+      },
+      "proposeButton": "Propose to the Safe",
+      "chooseEach": "Choose how the Safe pays each currency.",
+      "afterRecording": "The payment can be proposed once the recording above has executed.",
+      "problems": {
+        "billsChanged": "Bill #{ids} changed since this page loaded. Nothing was signed. Reload to pay the rest.",
+        "choose": "Choose how the Safe pays the {symbol} bills.",
+        "paused": "New loans in {symbol} are paused until the bitcoin price updates. Choose the Safe's balance, or wait.",
+        "safeHolds": "The Safe holds {held} {symbol} and needs {need}{guard}. Nothing was signed.",
+        "includingGuard": ", including {amount} its loan guard is about to repay",
+        "guardChanged": "The Safe's loan guard changed since this page loaded: read the note above before proposing. Nothing was signed.",
+        "wouldFailUnknown": "Run from the Safe right now, this payment would fail. Check the Safe holds the balance or the cirBTC it needs. Nothing was signed.",
+        "wouldFail": "Run from the Safe right now, this payment would fail: {why}",
+        "recordWouldFail": "Run from the Safe right now, recording its loan would fail: {why}",
+        "walletChanged": "Your wallet changed account or network since the Safe was checked. Nothing was signed.",
+        "declined": "You declined in your wallet. Nothing was signed.",
+        "notAccepted": "The proposal was not accepted."
+      }
+    },
+    "status": {
+      "paidBySafe": "Paid by your Safe",
+      "billsArePaid": "{n} bills are paid.",
+      "restoredExecuted": "The proposal this browser made has been executed.",
+      "payerOfRecord": "Read from AdagBills: the Safe is the payer of record.",
+      "proposedFromBrowser": "Proposed to your Safe from this browser",
+      "proposed": "Proposed to your Safe",
+      "allSignaturesIn": "{count, plural, =1 {All {n} signature is in} other {All {n} signatures are in}}",
+      "signaturesOf": "{have} of {need} signatures",
+      "signaturesUnavailable": "Signatures unavailable",
+      "readingQueue": "Reading the Safe's queue",
+      "pressExecute": "All signatures are in. One owner presses Execute in Safe's app (it costs a small fee).",
+      "waitingForOwners": "Waiting for your other owners in Safe's app. Nothing is paid until the Safe executes it.",
+      "paidByOther": "Bill #{ids} was paid by someone else. If the Safe executes, the whole payment is refused and only the fee is spent: reject it in Safe's app.",
+      "movedPast": "The Safe has moved past this proposal without paying: it was replaced, or it failed at execution and nothing moved.",
+      "buildAgain": "Build the payment again",
+      "openQueue": "Open the Safe's queue in Safe's app",
+      "proposalNote": "Proposal {hash}. When it runs, the transaction appears on the <link>explorer</link>."
+    }
+  },
+  "tx": {
+    "steps": {
+      "checking": "Checking with Arc",
+      "signing": "Confirm in your wallet",
+      "confirming": "Waiting for Arc to confirm",
+      "watching": "No receipt yet. Checking the bill on Arc",
+      "rereading": "Reading the bill again"
+    },
+    "withSeconds": "{label} · {seconds}s",
+    "nothingUntilApprove": "Nothing is sent until you approve it.",
+    "dryRunRefused": "Arc refused it in a dry run, so nothing was sent to your wallet.",
+    "viewTheTransaction": "View the transaction",
+    "networkFee": "Network fee",
+    "feeIdle": "The network fee shows once everything above is ready.",
+    "about": "about {amount} USDC",
+    "keepAtLeast": "keep at least {amount} USDC in the wallet for the fee",
+    "feeSentence": "Network fee {about}; {keep}. Arc sets aside the most it could cost and refunds the rest.",
+    "confirmedOnArc": "Confirmed on Arc",
+    "transaction": "Transaction",
+    "onTheExplorer": "{hash} on the explorer"
+  },
+  "setup": {
+    "title": "Need cirBTC or USDC on Arc?",
+    "didNotAdd": "Your wallet did not add Arc. Try again from the wallet's own network menu.",
+    "cirbtc": "<strong>Get cirBTC:</strong> swap USDC for it on <portal>Arc Portal</portal>, or see <appkit>Circle's App Kit Swap</appkit>.",
+    "usdc": "<strong>Bring USDC from another chain:</strong> <portal>Arc Portal</portal> moves it across chains, and <cctp>Circle's CCTP</cctp> is the native route. A little USDC also pays Arc's network fee.",
+    "arc": "<strong>Add Arc to your wallet:</strong> <switch>Switch to Arc</switch> adds it if your wallet does not have it yet."
+  },
+  "disclaimer": {
+    "close": "Close",
+    "label": "Before your first loan",
+    "title": "Borrowing through Morpho",
+    "body": "Accessing the Morpho Protocol through this app is governed by Adag's <terms>Terms of Use</terms> and <morpho>Morpho's Disclaimer</morpho>. By using it, you acknowledge that you have read and understood these terms and the risks involved.",
+    "checkbox": "I have read and understood these terms and the risks of borrowing against my cirBTC.",
+    "notNow": "Not now",
+    "continue": "Continue to payment"
+  },
+  "share": {
+    "sendTheBill": "Send the bill"
+  },
+  "enrol": {
+    "firstLabel": "Your existing loan",
+    "firstStale": "This bill is on Adag's first contract, which checks your whole Morpho loan the first time you pay there, and the bitcoin price is not fresh right now. Paying works once the price updates.",
+    "firstOver": "This bill is on Adag's first contract, which counts your whole Morpho loan the first time you pay there, and your loan is above 40%. Ask the supplier to write it again; new bills use the current contract, where you can record your loan first.",
+    "recordMismatch": "Arc confirmed the transaction, but Adag's record of your loan does not match Morpho's yet. Reload to check before paying.",
+    "noNextBlock": "Your loan is recorded, but Arc has not produced the next block yet. Reload in a moment to pay.",
+    "label": "Record your existing loan first",
+    "bodyStale": "You already borrow on Morpho, and the bitcoin price is not fresh right now, so Adag's check on your {symbol} loan would refuse the payment. Adag cannot tell your existing loan from new borrowing until you record it. Record it once, no money moves, and cash payments open.",
+    "bodyOver": "You already borrow on Morpho: your {symbol} loan is at {ltv}. Adag cannot tell your existing loan from new borrowing until you record it. Record it once, no money moves, and cash payments open.",
+    "opens": "Recording opens paying from your balance. Paying from bitcoin adds to a loan already over 40%, so the whole loan would have to end at 40% or under.",
+    "doesNotChange": "Recording does not change your loan or make it safer: it tells Adag to judge only what you borrow from now on.",
+    "waitingBlock": "Recorded. Waiting for Arc's next block, then the payment below opens.",
+    "recordButton": "Record my existing loan"
+  },
+  "wallet": {
+    "hallmark": "Your wallet · Arc mainnet",
+    "posterTitle": "Your bills. Your <em>bitcoin</em>.",
+    "posterLead": "Connect to see the bills you wrote, the bills you paid, and every loan against your cirBTC, straight from Arc. Add bitcoin or close a loan in one signature.",
+    "title": "Your <em>wallet</em>.",
+    "loansTitle": "Your loans on <em>Morpho</em>.",
+    "positionsUnavailable": "Some loan positions are unavailable right now: Arc did not answer. Reload to try again.",
+    "noLoansYet": "No loans from this wallet yet.",
+    "ghost": {
+      "against": "{symbol} <muted>against</muted> cirBTC",
+      "noLoan": "No loan.",
+      "opensOne": "Paying a {symbol} bill from bitcoin opens one here."
+    },
+    "lists": {
+      "copyLinkTo": "Copy the link to bill {id}",
+      "newer": "Newer",
+      "older": "Older",
+      "pageOf": "Page {page} of {pages}",
+      "unavailable": "This list is unavailable right now: Arc did not answer.",
+      "wroteTitle": "Bills you wrote",
+      "wroteSummary": "{total} written. Open: {open}{across}.{capped}",
+      "and": " and ",
+      "nothing": "nothing",
+      "acrossBills": "{count, plural, =1 { across {n} bill} other { across {n} bills}}",
+      "totalsCapped": " Totals cover the newest 1,000.",
+      "noneWritten": "No bills yet. Write your first one: it takes one signature, and you send the link.",
+      "noReference": "No reference",
+      "paidOnBy": "Paid {date} by {payer}",
+      "dueOn": "Due {date}",
+      "paidTitle": "Bills you paid",
+      "paidSummary": "{total} paid through Adag.",
+      "nonePaid": "You have not paid a bill through Adag yet. Open one from its link, or find it by number.",
+      "to": "To {payee}",
+      "paidOn": "Paid {date}"
+    },
+    "export": {
+      "notLoaded": "The list has not loaded yet. Try again in a moment.",
+      "finding": "Finding the transactions on Arc · {done} of {total}",
+      "exported": "{count, plural, =1 {{n} bill exported{capped}.} other {{n} bills exported{capped}.}}",
+      "cappedNote": ", the newest 1,000",
+      "title": "Export for your accountant",
+      "body": "Two spreadsheet files, made in your browser from the same records as the lists above: every bill with its status, dates in UTC, amounts, reference, transaction link and whether the 40% check ran.",
+      "written": "Bills you wrote (CSV)",
+      "paid": "Bills you paid (CSV)"
+    }
+  },
+  "csv": {
+    "header": {
+      "contractAddress": "contract address",
+      "billNumber": "bill number",
+      "status": "status",
+      "writtenAt": "written at",
+      "paidAt": "paid at",
+      "supplier": "supplier",
+      "payer": "payer",
+      "amount": "amount",
+      "currency": "currency",
+      "reference": "reference",
+      "transactionLink": "transaction link",
+      "fortyCheckRan": "40% check ran"
+    },
+    "words": {
+      "paid": "paid",
+      "void": "void",
+      "open": "open",
+      "unknown": "unknown",
+      "unavailable": "unavailable",
+      "notFound": "not found",
+      "yes": "yes",
+      "no": "no"
+    }
+  },
+  "loan": {
+    "borrowedAgainst": "{symbol} <muted>borrowed against</muted> cirBTC",
+    "morphoMarket": "Morpho market {id}",
+    "stats": {
+      "pledged": "Pledged",
+      "aboutEstimated": "about {usd}, estimated",
+      "youOwe": "You owe",
+      "exactRoundedUp": "exact, rounded up",
+      "bitcoinCanFall": "Bitcoin can fall",
+      "noLoan": "no loan",
+      "beforeLiquidate": "before Morpho may liquidate",
+      "borrowRate": "Borrow rate"
+    },
+    "priceFresh": "Bitcoin price fresh.",
+    "pricePaused": "Bitcoin price paused for new loans.",
+    "checksOnlyAtPay": "Adag checks the 40% line only at the moment you pay. After that, only the loan guard below watches it, if you turn it on.",
+    "tabs": {
+      "label": "Loan actions",
+      "add": "Add cirBTC",
+      "repay": "Repay some",
+      "close": "Close loan",
+      "takeBack": "Take your bitcoin back"
+    },
+    "add": {
+      "holdsOnly": "Your wallet holds {amount} cirBTC.",
+      "label": "cirBTC to add · you hold <held></held>",
+      "after": "Loan-to-value after: <ltv></ltv>. No new debt, so no price check is needed.",
+      "notAsExpected": "Arc confirmed the transaction, but Morpho's record does not show the pledge as expected. Check the transaction.",
+      "done": "Added {amount} cirBTC. Now pledged: {pledged} cirBTC."
+    },
+    "repay": {
+      "mostIs": "The most you can repay this way is {amount} {symbol}. To repay everything, use Close loan.",
+      "holdsOnly": "Your wallet holds {amount} {symbol}{fee}.",
+      "andFee": ", and a little USDC also pays the network fee",
+      "label": "{symbol} to repay · you owe <owed></owed>",
+      "max": "Max",
+      "button": "Repay",
+      "after": "After this, loan-to-value <ltv></ltv>, and bitcoin can fall <drop></drop> before Morpho may liquidate.",
+      "dust": "Max leaves a few units of dust, because this repays by amount; Close loan clears the rest and returns your cirBTC.",
+      "feeIdle": "The network fee shows once the amount is valid.",
+      "notAsExpected": "Arc confirmed the transaction, but Morpho's record does not show the repayment as expected. Check the transaction.",
+      "done": "Repaid {amount} {symbol}. You now owe {owed} {symbol}."
+    },
+    "close": {
+      "explain": "Repay <debt></debt> by your exact loan shares, then take all {collateral} cirBTC back. The approval is {approval} {symbol} to cover interest until the block, and it is reset to 0 in the same signature.",
+      "noDebt": "No debt here. Take all {collateral} cirBTC back to your wallet.",
+      "short": "Your wallet holds <held></held> {symbol}; closing needs {need}{fee}. Add {add} {symbol} first.",
+      "includingFee": " including a little for the fee",
+      "keepUsdc": "Keep a little USDC in this wallet for the network fee.",
+      "stopsGuard": "Closing also stops the loan guard for this loan: the rule is cleared and its approval set to 0.",
+      "reading": "Reading your loan and balance on Arc.",
+      "withOther": "Close with {symbol}",
+      "readingEuro": "Reading the euro price and your {symbol} on Arc.",
+      "notAsExpected": "Arc confirmed the transaction, but Morpho does not read the loan as closed. Check the transaction.",
+      "backInWallet": "{amount} cirBTC is back in your wallet.",
+      "doneLoan": "Loan closed. 0 owed, 0 pledged. {returned}",
+      "doneNoLoan": "Done. 0 pledged in this market, and {returned}",
+      "guardOff": "The loan guard for this loan is off: no rule, and its approval is 0.",
+      "notBuiltShort": "Arc did not answer, so the close was not built. Try again.",
+      "noLoanToConvert": "There is no loan here to close with a conversion.",
+      "guardNoAnswerShort": "Arc did not answer about your loan guard, so the close was not built. Try again.",
+      "leftInWallet": "{amount} {symbol} is left in your wallet.",
+      "adapterClear": "Circle's adapter has no access to your wallet.",
+      "adapterMaybe": "Circle's adapter may still have access to your wallet: check it before converting again.",
+      "effectsUnchecked": "Adag could not trace the swap's transfers before you signed.",
+      "circleTurned": "Circle turned {from} into {to}.",
+      "needs": "Closing needs {need} {symbol} and your wallet holds {held}. Add {add} {symbol}, then try again. Nothing was sent.",
+      "guardNoAnswer": "Arc did not answer about your loan guard, so the close was not built. Nothing was sent. Try again."
+    },
+    "gauge": {
+      "loanToValue": "Loan-to-value",
+      "aria": "Loan-to-value {pct}% of 100%, Adag's line at {adag}%, Morpho liquidates at {morpho}%"
+    }
+  },
+  "guard": {
+    "section": {
+      "saveNotAsExpected": "Arc confirmed the transaction, but AdagGuard does not read the rule as saved. Check the transaction.",
+      "protectedDone": "Protected. It steps in at {trigger} and repays down to {target}, using at most {amount} {symbol}.",
+      "repayNotReported": "Arc confirmed the transaction, but AdagGuard did not report a repayment for this loan. The price may have moved back. Check the transaction.",
+      "repaidDone": "The guard repaid {amount} {symbol} of this loan from your wallet.",
+      "ariaLabel": "Loan guard for the {symbol} loan",
+      "readingGuard": "Reading AdagGuard on Arc.",
+      "settingsUnavailable": "The guard's settings are unavailable right now: Arc did not answer.",
+      "wouldRepay": "Right now it would repay about {amount} {symbol}. Adag's keeper, a small program Adag runs, sends it within minutes.",
+      "canRepayNow": "You can also repay now.",
+      "wouldNotAct": "It would not act right now.",
+      "change": "Change",
+      "protectThisLoan": "Protect this loan",
+      "repayItNow": "Repay it now"
+    },
+    "stop": {
+      "notDeployed": "The loan guard is not deployed, so nothing was built.",
+      "notCleared": "Arc confirmed the transaction, but the rule or the approval does not read as cleared. Check the transaction.",
+      "stopped": "Protection stopped. No rule, and AdagGuard's approval for your {symbol} is 0."
+    },
+    "summary": {
+      "notProtected": "Not protected. The guard repays part of this loan from your own {symbol} if it crosses a line you choose, to keep it away from Morpho's 86% line.",
+      "leftover": "AdagGuard still holds an approval of {amount} {symbol} with no rule. Stop protecting sets it to 0.",
+      "protected": "Protected: repays at <strong>{trigger}</strong> down to <strong>{target}</strong>. May use up to <usableSpan>{usable}</usableSpan> (allowance now <allowanceSpan>{allowance}</allowanceSpan>).",
+      "ended": "Ended {date}.",
+      "until": "Until {date}.",
+      "cannotActZero": "It cannot act: its approval is 0. Change it to give it an amount, or stop protecting.",
+      "noBalance": "Your wallet holds no {symbol}, so the guard cannot act."
+    },
+    "list": {
+      "loanOf": "{symbol} loan",
+      "changeOnWallet": "Change it on your wallet page",
+      "closedLoan": "This loan is closed. Stop protecting sets the approval to 0.",
+      "title": "Your loan guards",
+      "reading": "Reading your loans and AdagGuard on Arc.",
+      "none": "This wallet has no loan and no guard. A loan appears here once you pay a bill from bitcoin.",
+      "someUnavailable": "Some loans are unavailable right now: Arc did not answer. They appear here once it does."
+    },
+    "gauge": {
+      "target": "Target {pct}",
+      "trigger": "Trigger {pct}",
+      "ltvUnavailable": "Loan-to-value unavailable",
+      "ltv": "Loan-to-value {pct}%"
+    },
+    "panel": {
+      "usePercentage": "Use a percentage like 55 or 55.5.",
+      "realEndDate": "Choose a real end date, or none.",
+      "stepInWhen": "Step in when the loan reaches",
+      "morphoLiquidatesAt": "Morpho liquidates at {pct}.",
+      "repayDownTo": "Repay it down to",
+      "onlyWhatBrings": "Only what brings it back here, each time.",
+      "mayUse": "{symbol} it may use, in total · you hold {held}",
+      "oneStep": "One step",
+      "oneStepRepays": "One protection starting at the trigger repays about {amount} {symbol}.",
+      "neverMore": "It never takes more than this, however many times it acts.",
+      "endDate": "End date · optional",
+      "noDateStaysOn": "With no date, it stays on until you stop it.",
+      "alreadyPast": "Your loan is already at {ltv}, past this trigger. Once saved, this will repay about <strong>{amount}</strong> within minutes{landing}.",
+      "bringingTo": ", bringing it to about {ltv}",
+      "wouldNotActToday": "It would not act at today's price.",
+      "stepsInIfFalls": "It steps in if bitcoin falls about {pct}% from here.",
+      "ceiling": "The most this can ever take is your approval{approval}. Each time it acts, it repays only what brings the loan back to your target, and the approval shrinks by that much.",
+      "onlyYourLoan": "It can only ever repay your own loan, from this approval. Once the loan passes your trigger, anyone may set it off, Adag included.",
+      "usdcGasWarning": "On Arc, USDC also pays the network fee. A USDC rule uses the same balance, so it can leave this wallet without enough USDC to send a transaction.",
+      "feeIdle": "The network fee shows once the rule and amount are valid.",
+      "saveNewRule": "Save the new rule",
+      "protectThisLoan": "Protect this loan",
+      "oneSignature": "One signature: the approval for exactly this amount, then the rule."
+    }
+  },
+  "protect": {
+    "hallmark": "Loan guard · alerts",
+    "title": "Know before <em>Morpho</em> does.",
+    "lead": "The loan guard repays part of a loan from your own USDC or EURC when it crosses a line you choose. Alerts tell you on Telegram when a loan gets close, and each time the guard acts. You set the guard on each loan in your wallet.",
+    "connectForAlerts": "Connect the wallet whose loans you want alerts for."
+  },
+  "alerts": {
+    "codeExpired": "The code expired before Start was pressed. Get a new one.",
+    "usePercentagesLike": "Use percentages like 60 or 72.5.",
+    "levelsSaved": "Alert levels saved: {levels}.",
+    "alertsOff": "Alerts are off for this wallet. Any chat it was linked to gets nothing more.",
+    "title": "A message when a loan gets close, and one whenever the guard repays.",
+    "plainText": "Plain text, numbers only: never a link to click except Adag's own address. Alerts are best effort; the guard does not depend on them.",
+    "linkedHereOn": "This browser linked alerts for this wallet on {date}.",
+    "gettingCode": "Getting a code",
+    "linkAnotherChat": "Link another chat",
+    "getAlerts": "Get Telegram alerts",
+    "openBotPressStart": "Open the bot and press Start. The code in the link is yours alone and works for ten minutes.",
+    "openTelegram": "Open Telegram",
+    "waitingForStart": "Waiting for Start in Telegram",
+    "chatPressedStart": "Chat <chat></chat> (id {id}) pressed Start. Sign a message in your wallet to link it to this wallet. Signing costs nothing and sends no transaction.",
+    "withoutUsername": "without a username",
+    "signAndLink": "Sign and link",
+    "linked": "Linked. Alerts for this wallet go to that chat. Send /stop there, or stop them here, at any time.",
+    "whatYouSign": {
+      "link": "The message you sign is in English and says: link this wallet to a Telegram chat, on this site, chain 5042, with this code and this chat id, and when it expires. The server checks the same text, so it is never translated.",
+      "levelsAndStop": "The messages you sign are in English and say: set the loan levels that send an alert, or stop alerts for this wallet, on this site, chain 5042, with a one-time nonce and an expiry. The server checks the same text, so it is never translated."
+    },
+    "levels": {
+      "title": "Alert levels",
+      "body": "A message when a loan's loan-to-value rises past each level, once, until it falls back below. Until you set your own, the levels are 60% and 75%.",
+      "saved": "Saved {date}: {levels}",
+      "level": "Level {n}",
+      "none": "none",
+      "signAndSave": "Sign and save levels",
+      "stopAlerts": "Stop alerts for this wallet",
+      "eachChange": "Each change is a message your wallet signs. Adag never tells anyone else whether a wallet has alerts."
+    }
+  },
+  "break": {
+    "stamps": {
+      "refused": "Refused",
+      "held": "Held",
+      "allowed": "Allowed",
+      "byDesign": "By design",
+      "broken": "Broken",
+      "error": "Not run",
+      "armed": "Armed",
+      "running": "Running",
+      "verdict": "Verdict: {word}"
+    },
+    "tally": {
+      "armed": "Attacks armed",
+      "soFar": "Of {total} as the threat model says, so far",
+      "brokeThrough": "Held. {n} broke through",
+      "allHeld": "Of {total} as the threat model says",
+      "couldNotRun": "As the threat model says. {n} could not run"
+    },
+    "simulatedDrop": "Simulated price drop · a mock oracle, 25% lower",
+    "simulatedCrash": "Simulated price crash · a mock oracle at zero",
+    "whatShouldStopIt": "What should stop it · <span>{stopper}</span>",
+    "simulatingOnArc": "Simulating on Arc",
+    "rawAnswer": "Raw answer from the chain",
+    "decoded": "Decoded",
+    "gas": "Gas",
+    "invariant": "Invariant",
+    "status": {
+      "idle": "About a minute. Each simulation waits its turn so Arc's public node is never flooded.",
+      "reading": "Reading Arc's live state · {seconds}s",
+      "simulating": "Simulating on Arc · {answered} of {total} · {seconds}s",
+      "cached": "Served from the run {age}s ago. A fresh run starts at most once a minute.",
+      "finished": "Finished in {seconds}s."
+    },
+    "nothingSigned": "Nothing is signed or sent",
+    "hallmark": "Attack suite · Arc mainnet",
+    "titleLine1": "Try to",
+    "titleLine2": "<em>break</em> it.",
+    "lead": "{total} real attacks on Adag's live contracts, AdagBills and the loan guard, simulated on Arc mainnet's current state: the real loan, the real bills, the real bitcoin price. Nothing is signed and nothing is sent.",
+    "attacking": "Attacking",
+    "runAgain": "Run them again",
+    "runAll": "Run all {total} attacks",
+    "legendLabel": "What the stamps mean, and where to go next",
+    "legend": {
+      "refused": {
+        "term": "Refused",
+        "means": "the chain said no."
+      },
+      "held": {
+        "term": "Held",
+        "means": "it ran, and nothing it protects moved."
+      },
+      "byDesign": {
+        "term": "Allowed by design",
+        "means": "a known, accepted gap that only affects the attacker's own loan."
+      },
+      "allowed": {
+        "term": "Allowed",
+        "means": "the chain allowed it, and the threat model says that is correct."
+      }
+    },
+    "next": "Next",
+    "threatModel": "Threat model",
+    "liveStateAt": "Live state at block {block}",
+    "simulatedOn": ", simulated on {provider}",
+    "theAttacks": "The attacks",
+    "groups": {
+      "bills": {
+        "name": "Paying bills",
+        "note": "Against the current AdagBills and the demo wallet's real Morpho loan."
+      },
+      "enrol": {
+        "name": "Recording an existing loan",
+        "note": "Recording (enrol) saves a loan the payer already had, so that payer's next payments are checked against it."
+      },
+      "guard": {
+        "name": "The loan guard",
+        "note": "Against the live AdagGuard. Every loan guard row starts from a simulated premise: the demo payer borrows on Morpho until the loan sits at 38.00%, above the 35% trigger. Nothing of AdagGuard, Morpho or the oracle is overwritten."
+      }
+    },
+    "footer": {
+      "simulatedAt": "Simulated on {providers} at Arc block {block} · {when}",
+      "and": " and ",
+      "pinned": "Every run is pinned to Arc's latest block",
+      "terminal": "The same suites run from the terminal: <attack>attack.mjs</attack> and <guard>guard-attack.mjs</guard>"
+    },
+    "residuals": {
+      "A4": "Allowed by design, caught on the next payment. The named residual under C10 in <link>the threat model</link>.",
+      "E5": "Allowed by design: enrol in one block and pay in the next, at the payer's own risk. The named residual under C32 in <link>the threat model</link>."
+    },
+    "checks": {
+      "A1": {
+        "attack": "A stranger with money pays an already-paid bill a second time.",
+        "stopper": "A bill can be paid once. Only an open bill can be paid."
+      },
+      "A2a": {
+        "attack": "Close the loan outside Adag, then re-borrow the same debt against a quarter of the bitcoin.",
+        "stopper": "Morpho's own 86% line stops it before Adag is reached."
+      },
+      "A2b": {
+        "attack": "Close the loan, then re-borrow the same debt against bitcoin worth 60%, which Morpho allows, and pay a bill.",
+        "stopper": "Adag sees the pledge shrank since its last check, so the 40% check runs."
+      },
+      "A3": {
+        "attack": "Borrow up to half the bitcoin's value and pay a new bill in the same signature.",
+        "stopper": "Adag sees new debt, so the 40% check runs."
+      },
+      "A4": {
+        "attack": "Pay a bill from cash, then borrow up to 60% after Adag's step in the same batch. Next block, pay another bill.",
+        "stopper": "Allowed by design, caught on the next payment."
+      },
+      "A5": {
+        "attack": "A supplier pays its own bill.",
+        "stopper": "The payer can never be the payee."
+      },
+      "A6_1": {
+        "attack": "A stranger writes a bill payable in cirBTC.",
+        "stopper": "Bills are in USDC or EURC only."
+      },
+      "A6_2": {
+        "attack": "A stranger writes a bill payable in WETH.",
+        "stopper": "Bills are in USDC or EURC only."
+      },
+      "A6_3": {
+        "attack": "A stranger writes a bill payable in a made-up token.",
+        "stopper": "Bills are in USDC or EURC only."
+      },
+      "A6_4": {
+        "attack": "A stranger writes a bill for zero.",
+        "stopper": "A bill must be for more than zero."
+      },
+      "A6_5": {
+        "attack": "A stranger writes a bill with a 141-byte invoice reference.",
+        "stopper": "References are 140 bytes at most."
+      },
+      "A7a": {
+        "attack": "A stranger cancels a supplier's open bill.",
+        "stopper": "Only the supplier who wrote a bill can cancel it."
+      },
+      "A7b": {
+        "attack": "The supplier cancels a bill after it was paid.",
+        "stopper": "Only an open bill can be cancelled."
+      },
+      "A8": {
+        "attack": "Pay a bill without approving Adag to move the USDC.",
+        "stopper": "The token refuses, and the whole batch undoes itself."
+      },
+      "A9a": {
+        "attack": "Bitcoin drops 25%. Pay a new bill from cash, with no new borrowing.",
+        "stopper": "Allowed on purpose: no new debt, so nothing to check. A price drop never blocks a cash payment."
+      },
+      "A9b": {
+        "attack": "Bitcoin drops 25%. Borrow one cent more and pay the same bill.",
+        "stopper": "New debt, so the 40% check runs."
+      },
+      "E1": {
+        "attack": "Record the loan with enrol and pay a bill from cash in the same batch.",
+        "stopper": "A payer who enrolled in this block is refused, so a loan cannot be recorded and spent at once."
+      },
+      "E2": {
+        "attack": "Borrow up to 60%, record that debt with enrol, and pay a bill, all in one batch.",
+        "stopper": "The same-block refusal: new debt cannot be enrolled and spent at once."
+      },
+      "E3": {
+        "attack": "A stranger calls enrol, hoping to overwrite the demo payer's recorded loan, then the payer pays.",
+        "stopper": "enrol takes no arguments and only ever writes the caller's own record."
+      },
+      "E4": {
+        "attack": "Enrol in one block; in the next, close the loan outside Adag, re-borrow it against bitcoin worth 60%, and pay.",
+        "stopper": "The pledge fell below the enrolled one, so the 40% check runs."
+      },
+      "E5": {
+        "attack": "Borrow up to 60% outside Adag and enrol it; in the next block, pay a bill from cash.",
+        "stopper": "Allowed by design: enrol accepts the loan as it stands, and only the payer's own position carries the risk."
+      },
+      "G6": {
+        "attack": "Call protect three times at the same price: twice in one block, once in the next.",
+        "stopper": "Each protect repays only what brings the loan back to the target, so a repeat finds nothing to do."
+      },
+      "G1": {
+        "attack": "Pull more than the payer approved: the loan needs more than the 0.10 USDC approval, and protect runs twice.",
+        "stopper": "The approval is the lifetime ceiling, and protect caps at it."
+      },
+      "G2a": {
+        "attack": "Protect the payer's loan through the other real USDC/cirBTC market on Morpho.",
+        "stopper": "AdagGuard accepts only its two fixed market ids, checked against Morpho."
+      },
+      "G2b": {
+        "attack": "Set a rule and call protect with a market id one hex digit away from Adag's.",
+        "stopper": "A near miss is a different id, and it is refused."
+      },
+      "G2c": {
+        "attack": "Protect the payer in the EURC market, where they have no loan and no rule.",
+        "stopper": "Each market repays only its own loan, and only for a real, triggered rule."
+      },
+      "G3": {
+        "attack": "A stranger calls protect while the loan sits under the payer's 50% trigger.",
+        "stopper": "Protect acts only at or above the trigger; otherwise nothing moves and nothing is emitted."
+      },
+      "G4": {
+        "attack": "The payer's rule expires 60 seconds after it is set; a stranger calls protect at that second.",
+        "stopper": "An expired rule is inert."
+      },
+      "G5a": {
+        "attack": "A stranger clears the payer's rule.",
+        "stopper": "Rules are keyed by the sender; nobody can name another wallet."
+      },
+      "G5b": {
+        "attack": "A stranger sets a rule (80% / 1%) hoping it lands on the payer.",
+        "stopper": "setRule writes only the sender's own rule."
+      },
+      "G7": {
+        "attack": "The payer's wallet holds only 0.05 USDC when the loan needs more.",
+        "stopper": "Protect never pulls more than the wallet holds, and does not revert."
+      },
+      "G8": {
+        "attack": "Bitcoin crashes to zero. Protect with a 2 USDC approval against the whole loan.",
+        "stopper": "The repay is capped at the debt rounded down, so Morpho's share maths cannot underflow."
+      },
+      "G9a": {
+        "attack": "Bitcoin crashes to zero. Protect a payer who approved 1 USDC but has no rule.",
+        "stopper": "No rule, no action, even at a zero price."
+      },
+      "G9b": {
+        "attack": "Protect a wallet with no loan and no rule.",
+        "stopper": "Nothing to repay, nothing moves."
+      },
+      "G10": {
+        "attack": "Call the admin functions a drain would need: transferOwnership, withdraw, rescue, pause and upgradeToAndCall.",
+        "stopper": "No owner, pause, rescue or upgrade exists; only setRule, clearRule and protect change state."
+      }
+    }
+  },
+  "terms": {
+    "hallmark": "Terms of Use · Adag",
+    "title": "The plain <em>terms</em>.",
+    "lead": "Short, because the contract does the talking. By using this website you accept the terms below.",
+    "englishApplies": "This is a translation for convenience. The English version of these terms is the one that applies.",
+    "and": " and ",
+    "sections": {
+      "whatAdagIs": {
+        "title": "What Adag is",
+        "body": "Adag is a website that talks to one smart contract, AdagBills, on Arc mainnet. The contract is immutable: it has no owner and no admin key, and no one, including the people who built it, can pause it, upgrade it or change its rules. The website is only an interface to it."
+      },
+      "youSign": {
+        "title": "You sign everything",
+        "body": "Every payment, loan and cancellation is a transaction you review and sign in your own wallet. Adag never holds your money, never holds your keys, and cannot move anything without your signature. The contract passes the exact bill amount from the payer to the supplier within the same transaction and keeps nothing."
+      },
+      "liquidation": {
+        "title": "Borrowing can end in liquidation",
+        "body": "Paying from bitcoin pledges your cirBTC on Morpho and borrows the bill amount against it. If bitcoin's price falls far enough, Morpho can liquidate the loan and sell part of your pledge. Adag refuses a payment that would leave the loan above 40% of your bitcoin's value, but it checks this only at the moment you pay. After that, interest and price keep moving, Adag does not watch the loan, and Morpho can liquidate once the loan reaches 86%. Watching and repaying the loan is up to you."
+      },
+      "tokens": {
+        "title": "Tokens carry their issuers' risks",
+        "body": "USDC, EURC and cirBTC are issued by third parties who can freeze addresses, pause transfers or change how their tokens behave. If they do, a payment can fail or funds can become stuck. Adag cannot override any of that."
+      },
+      "noAudit": {
+        "title": "No audit beyond our own review",
+        "body": "The contract has not had a paid third-party audit. What exists is published: a threat model, a self-review with an attack suite simulated against the deployed contract on live mainnet state, and static analysis. The source of every contract is verified on the Arc explorer: <contracts></contracts>."
+      },
+      "notAdvice": {
+        "title": "Not advice, not affiliated",
+        "body": "Nothing on this site is financial, legal or tax advice. Adag is an independent project. It is not affiliated with, endorsed by or operated by Circle, Arc or Morpho."
+      },
+      "ownRisk": {
+        "title": "Use at your own risk",
+        "body": "Adag is provided as it is, with no warranty of any kind. You use it at your own risk, and you are responsible for checking every bill, every address and every transaction before you sign."
+      }
+    },
+    "publishedReview": "The published review",
+    "docs": {
+      "threatModel": "Threat model and the standards the app is held to",
+      "attackSuite": "Attack suite simulated against the deployed contract",
+      "staticAnalysis": "Static analysis results"
+    }
+  },
+  "notFound": {
+    "label": "404 · NOT ON ADAG",
+    "title": "This page is <em>not on Adag</em>.",
+    "body": "The address may be mistyped, or the bill may live on a different contract.",
+    "backHome": "Back to the home page",
+    "readTheDocs": "Read the docs"
+  },
+  "appFooter": {
+    "tagline": "Bills on Arc mainnet, paid from balance or from a loan against pledged bitcoin.",
+    "poweredBy": "Powered by Morpho",
+    "firstDeployment": "First deployment {address}"
+  },
+  "docs": {
+    "theme": "Theme",
+    "englishOnly": "The documentation is written in English and is not translated."
+  },
+  "write": {
+    "hallmark": "Write a bill · Arc mainnet",
+    "title": "<w>W</w>rite a <em>bill</em>.",
+    "lead": "One signature puts it on Arc, payable to you, exactly once. Send the link to whoever owes it.",
+    "currency": "Currency",
+    "amount": "Amount",
+    "due": {
+      "label": "Due date",
+      "chooseOrNone": "Choose a due date, or No due date.",
+      "inThePast": "The due date is in the past.",
+      "choose": "Choose a due date.",
+      "shownNeverEnforced": "Shown to the payer, never enforced."
+    },
+    "ref": {
+      "bytes": "{used} / {max} bytes",
+      "placeholder": "Invoice 1042, September hosting",
+      "note": "Public on Arc: anyone can read it, forever. Accented letters and symbols take more than one byte.",
+      "tooLong": "The reference is {used} bytes; the limit is {max}. Shorten it."
+    },
+    "writeTheBill": "Write the bill",
+    "fixTheField": "Fix the field marked above to write the bill.",
+    "feeIdle": "The network fee shows once the bill is valid.",
+    "newToArc": "New to Arc?",
+    "notAsExpected": "Arc confirmed the transaction, but the bill it wrote does not read back as expected. Check the transaction.",
+    "writtenOnArc": "Written on Arc",
+    "readyToShare": "Bill #{id} is ready to share.",
+    "openTheBillPage": "Open the bill page",
+    "writeAnother": "Write another bill",
+    "preview": {
+      "label": "What the payer will see",
+      "draft": "Draft",
+      "yourConnectedWallet": "Your connected wallet",
+      "due": "Due",
+      "chooseADate": "Choose a date",
+      "tooLong": "Too long",
+      "billNo": "Bill No."
+    }
+  },
+  "payActions": {
+    "payThisBill": "Pay this bill",
+    "fail": {
+      "noRecord": "Arc confirmed the transaction, but Adag has no payment record for this bill in it. Check the link before trying again.",
+      "needsWithGuard": "This payment needs {need} {symbol}: the bill plus {guard} your loan guard is about to repay. Your wallet holds {held}. Nothing was sent.",
+      "notBuilt": "Arc did not answer, so the payment was not built. Nothing was sent. Try again.",
+      "pledgesMore": "This payment pledges {pledge} cirBTC and your wallet holds {held}. Nothing was sent.",
+      "billChanged": "This bill changed since the page loaded. Reload the page to see it as it is now.",
+      "notBuiltShort": "Arc did not answer, so the payment was not built. Try again.",
+      "pledgesMoreShort": "This payment pledges {pledge} cirBTC and your wallet holds {held}."
+    },
+    "receipt": {
+      "title": "Bill #{id} is paid.",
+      "supplierReceived": "Supplier received",
+      "paidFrom": "Paid from",
+      "fromBalance": "Your {symbol} balance",
+      "fromConverted": "A {loan} loan against your cirBTC, converted to {symbol} by Circle",
+      "fromLoan": "A loan against your cirBTC",
+      "borrowedAndConverted": "Borrowed and converted",
+      "pledgedNow": "Pledged now",
+      "cirbtcMore": "{amount} cirBTC more{usd}",
+      "ltvAfterSymbol": "{symbol} loan-to-value after",
+      "seeTheTransaction": "See the transaction",
+      "ranAndPassed": "Ran and passed",
+      "notNeeded": "Not needed",
+      "extraCheck": "Extra check",
+      "yourBitcoinBack": "Your bitcoin back",
+      "repayAnyTimeOther": "Repay any time from Your wallet: Close loan, or close it with the other currency.",
+      "repayAnyTime": "Repay any time from Your wallet: Close loan."
+    },
+    "closed": {
+      "progressPaid": "Arc already shows this bill as paid. Adag is reading your transaction to confirm the payment is yours.",
+      "progressCancelled": "This bill was cancelled while your payment was on its way. Adag is reading your transaction.",
+      "cannotBePaid": "This bill cannot be paid."
+    },
+    "blocked": {
+      "readingPriceStatus": "Reading the bitcoin price status on Arc.",
+      "readingPosition": "Reading your position on Arc.",
+      "positionUnreadable": "Your position could not be read. Try again below."
+    },
+    "sameBlock": "Your loan was recorded in Arc's latest block. The payment opens with the next one, in a moment.",
+    "fromYourBalance": "From your balance",
+    "balance": {
+      "unavailable": "Your {symbol} balance is unavailable right now.",
+      "youHold": "You hold {amount} {symbol}. One signature approves exactly the bill amount and pays it.",
+      "guardAboutToUse": "Your loan guard is about to use {amount} {symbol} from this wallet, so none is free for this bill.",
+      "needUsdc": "You need {amount} for the bill and a little USDC for the network fee{keep}. Your wallet holds {held} USDC, so paying from balance is not offered.",
+      "holdLess": "You hold less {symbol} than this bill, so paying from balance is not offered."
+    },
+    "payFromBalance": "Pay {amount} from balance",
+    "opensOnceRecorded": "Opens once your loan is recorded. The network fee shows then.",
+    "fromBitcoin": "From bitcoin",
+    "lendShort": "Morpho has <ready></ready> ready to lend right now, less than this bill. Paying from your balance still works, or check back later.",
+    "supplierGets": "The supplier gets <strong>{amount}</strong>.",
+    "pledgeNothingExtra": "You pledge <strong>no extra cirBTC</strong>: what you already pledged covers this. Nothing is sold.",
+    "pledgeAndKeep": "You pledge <pledge></pledge> and keep it. Nothing is sold.",
+    "canFall": "Bitcoin can fall <drop></drop> before Morpho may liquidate.",
+    "morphoReady": "Morpho has <ready></ready> ready to lend now.",
+    "figures": {
+      "borrowRate": "Morpho borrow rate",
+      "cirbtcInWallet": "cirBTC in your wallet",
+      "liquidationLine": "Liquidation line",
+      "morphosNotAdags": "Morpho's, not Adag's"
+    },
+    "pledgeNote": "The pledge is Adag's own figure plus 5% for price moves. Repay any time from Your wallet to take the bitcoin back.",
+    "wholeLoanOver": "Your whole {symbol} loan is above 40%, so a new loan must bring all of it back under the line. That is why the pledge is this large.",
+    "payFromBitcoin": "Pay from bitcoin",
+    "payFromBitcoinBorrowing": "Pay from bitcoin, borrowing {symbol}",
+    "recordFirstAbove": "Record your existing loan first, above."
+  },
+  "basket": {
+    "hallmark": "Basket · {n} bills",
+    "payable": "{n} payable",
+    "title": "{count, plural, =1 {One bill.} other {{n} bills.}} <em>One</em> signature.",
+    "titleNothing": "Nothing to pay.",
+    "titlePaidBySafe": "Paid by your <em>Safe</em>.",
+    "leftOut": "Left out because {count, plural, =1 {it is not a bill number} other {they are not bill numbers}}: {list}{more}.",
+    "andMore": " and {n} more",
+    "safePayerOfRecord": "Read from AdagBills: Safe {safe} is the payer of record for {count, plural, =1 {this bill} other {all {n} bills}}.",
+    "notInThisPayment": "Not in this payment",
+    "connectToSee": "Connect a wallet to see how each currency can be paid.",
+    "oneTransaction": "One transaction",
+    "totals": "{totals} across {count, plural, =1 {{n} bill} other {{n} bills}}. Every step succeeds together or nothing moves.",
+    "and": " and ",
+    "feeWithConversion": "With a conversion the network fee is checked when you press pay: {keep}.",
+    "feeIdle": "The network fee shows once each currency has a choice.",
+    "payButton": "Pay {count, plural, =1 {{n} bill} other {{n} bills}} with one signature",
+    "paidTitle": "{n} bills paid. <em>1</em> signature.",
+    "ltvAfterSymbol": "{symbol} loan-to-value after",
+    "ofAdagsCap": "of Adag's {cap}",
+    "convertedByCircle": "Converted by Circle",
+    "aside": {
+      "none": "No bill with this number on Arc yet.",
+      "unavailable": "Arc did not answer for this bill, so it is left out. Reload to try again.",
+      "paid": "Already paid.",
+      "void": "Cancelled by the supplier. It can never be paid.",
+      "notUsdcEurc": "Not in USDC or EURC.",
+      "yours": "You wrote this bill, so you cannot pay it."
+    },
+    "cleared": {
+      "paused": "New loans in {symbol} are paused until the bitcoin price updates, so paying these bills from bitcoin is off. Choose again.",
+      "noCash": "Morpho's {symbol} market no longer has enough cash to lend for these bills, so paying from bitcoin is off. Choose again.",
+      "balance": "Your {symbol} balance no longer covers these bills{fee}, so paying from balance is off. Choose again.",
+      "plusFee": " plus 0.01 USDC for the fee",
+      "chooseAgain": "{reason} Choose again."
+    },
+    "blocked": {
+      "connect": "Connect a wallet first.",
+      "switch": "Switch your wallet to Arc, or use an ordinary wallet, to pay.",
+      "readingBalances": "Reading your balances and the prices on Arc.",
+      "choose": "Choose how to pay the {symbol} bills.",
+      "readingEuro": "Reading the euro price and the loan market on Arc.",
+      "convertUnreadable": "Adag could not read what the conversion needs. Reload to try again.",
+      "shortOfBtc": "This basket pledges more cirBTC than your wallet holds. Pay a group from balance instead."
+    },
+    "fail": {
+      "billIsNow": "#{id} is now {state}",
+      "statePaid": "paid",
+      "stateCancelled": "cancelled",
+      "stateDifferent": "different",
+      "sinceLoaded": "Since this page loaded, bill {words}. Nothing was sent. Reload the basket to pay the rest.",
+      "includingGuard": ", including {amount} your loan guard is about to repay",
+      "balanceNeeds": "Paying the {symbol} bills from balance needs {need} {symbol}{why}; your wallet holds {held}. Nothing was sent.",
+      "pausedAtPay": "New loans in {symbol} are paused until the bitcoin price updates. Pay those bills from balance, or wait. Nothing was sent.",
+      "pledgesMore": "This basket pledges {pledge} cirBTC and your wallet holds {held}. Nothing was sent.",
+      "notPaidByYou": "Arc confirmed the transaction, but bill #{ids} does not read as paid by you. Check the transaction."
+    },
+    "group": {
+      "groupTitle": "{count, plural, =1 {{n} {symbol} bill} other {{n} {symbol} bills}}",
+      "payFrom": "Pay the {symbol} bills from",
+      "fromBitcoin": "From bitcoin",
+      "fromBalance": "From balance",
+      "lendShort": "Morpho has <ready></ready> ready to lend right now, less than {what}. Pay from your balance, or check back later.",
+      "theseBillsWithConversion": "these bills together with the conversion you chose",
+      "theseBills": "these bills",
+      "sharedMarket": "These bills are in the same Morpho market as the conversion chosen for the {other} bills, so one pledge covers both and is shown there. You pledge no extra cirBTC here. Morpho has <ready></ready> ready to lend now.",
+      "pledgeNothingExtra": "You pledge no extra cirBTC: what you already pledged covers this.",
+      "pledgeAndKeep": "You pledge <pledge></pledge> and keep it.",
+      "canFall": "Bitcoin can fall <drop></drop> before Morpho may liquidate.",
+      "morphoReady": "Morpho has <ready></ready> ready to lend now.",
+      "youHold": "You hold <balance></balance>.",
+      "oneApproval": "One exact approval, then each bill is paid.",
+      "notEnoughFee": "Not enough for these bills and the network fee.",
+      "notEnough": "Not enough for these bills.",
+      "details": "Loan-to-value after: <ltv></ltv> (Adag refuses anything over 40%). cirBTC in your wallet: <btc></btc>. The pledge includes 5% for price moves."
+    }
+  },
+  "convert": {
+    "title": "From bitcoin, borrowing {symbol}",
+    "youBorrow": "You borrow <num>{amount}</num> (about ${usd}) and Circle converts it into {bill} for the bill.",
+    "worstCase": "Worst case, {rate}. The swap must return at least {min}, or the whole payment is undone and nothing moves. Whatever it does not need stays in your wallet.",
+    "circleFee": "Circle's fee is 0.02%, about {fee}. {what} includes a {cushion} cushion over today's euro price.",
+    "amountBorrowed": "The amount borrowed",
+    "amountSold": "The amount sold",
+    "pledgeNothingExtra": "You pledge no extra cirBTC: what you already pledged covers this.",
+    "pledgeAndKeep": "You pledge <num>{amount}</num>{usd} and keep it.",
+    "sharedBorrow": "This includes the {amount} loan for your {loan} bills paid from bitcoin: both borrow in the same Morpho market, so one pledge covers them.",
+    "ltvAfter": "Loan-to-value after: <num>{ltv}</num> in Morpho's {loan} market (Adag refuses anything over {cap}). Bitcoin can fall {drop} before Morpho may liquidate.",
+    "networkFee": "Network fee: {keep}. Arc refunds what it does not use.",
+    "debtWillBeIn": "Your debt will be in {loan}. Its dollar cost moves with the euro.",
+    "checksOnlyNow": "Adag checks the 40% limit only now, when you pay.",
+    "guardRepaysFrom": "The loan guard can only repay this loan from {loan} in your wallet.",
+    "readAtBlock": "Read together at Arc block {block}.",
+    "youSell": "You sell <num>{amount}</num> (about ${usd}) through Circle for at least {min}, the amount this close needs.",
+    "worstCaseClose": "Worst case, {rate}. If the swap returns less, the whole close is undone and nothing moves. Whatever the loan does not need stays in your wallet.",
+    "thenRepays": "Then Adag repays your loan by its exact shares and takes all your cirBTC back, in the same signature.",
+    "reset": {
+      "button": "Set Circle's adapter access to 0",
+      "onlyTakesAway": "Nothing else changes: this only takes access away.",
+      "done": "Circle's adapter has no access to your wallet now."
+    }
+  },
+  "lib": {
+    "joiner": "space",
+    "words": {
+      "thisWallet": "this wallet",
+      "theSafe": "the Safe",
+      "thisSafe": "this Safe",
+      "noCollateral": "no collateral",
+      "underOneCent": "under $0.01",
+      "theWalletDidNotAnswer": "The wallet did not answer.",
+      "nothingWasSent": "Nothing was sent.",
+      "successLoanChecked": "success, loanChecked {flag}",
+      "unreadableLevel": "an unreadable level",
+      "paused": "paused",
+      "reverted": "reverted"
+    },
+    "errors": {
+      "insufficientCollateral": "Morpho refused the loan because it would pass Morpho's own 86% line.",
+      "pledgeMoreOrPayLess": "Pledge more cirBTC or pay less from bitcoin.",
+      "insufficientLiquidity": "Morpho's market does not have enough cash to lend this amount right now.",
+      "payFromBalanceOrLater": "Pay from your balance, or try again later.",
+      "zeroAssets": "Morpho refused an amount of zero.",
+      "reloadAndBuild": "Reload the page and build the payment again.",
+      "unauthorized": "Morpho refused to act for this wallet.",
+      "useOrdinaryWallet": "Use an ordinary wallet such as MetaMask or Rabby, sending its own transaction.",
+      "blocked": "The token's issuer has blocked one of the wallets in this payment.",
+      "blockedNext": "Nothing moved. The blocked wallet has to contact the issuer.",
+      "paused": "The token is paused by its issuer.",
+      "nothingMovedLater": "Nothing moved. Try again later.",
+      "insufficientBalance": "Your wallet does not hold enough of this token.",
+      "addFundsOrBitcoin": "Add funds, or pay from bitcoin instead.",
+      "insufficientAllowance": "The approval in this payment was smaller than the amount.",
+      "transferFailed": "A token transfer inside Morpho failed: your wallet held or approved less than Morpho needed to move.",
+      "transferFailedNext": "Nothing moved. Reload so the amounts are read fresh, then try again.",
+      "batchStepFailed": "One step of the payment failed, so nothing happened.",
+      "reloadAndTry": "Reload the page and try again.",
+      "unknown": "The payment was refused for a reason Adag could not read.",
+      "unknownNext": "Nothing moved. Check the transaction on the Arc explorer, or try again.",
+      "ltvAboveLimit": "This would take your loan past 40% of your bitcoin's value.",
+      "alreadyPaid": "This bill is already paid.",
+      "alreadyPaidNext": "Nothing was charged. The bill page shows who paid it.",
+      "supplierCancelled": "The supplier cancelled this bill.",
+      "askForNewOne": "Ask them for a new one if you still owe it.",
+      "noBillWithNumber": "There is no bill with this number.",
+      "checkWithSupplier": "Check the number with the supplier.",
+      "stalePrice": "New loans are paused until the bitcoin price updates.",
+      "balanceStillWorks": "Paying from your balance still works.",
+      "enrolledThisBlock": "Your loan was recorded in this same block, and Adag takes the payment only from the next one.",
+      "waitThenPay": "Wait a moment, then pay again.",
+      "zeroPrice": "The bitcoin price reads zero, so new loans are off.",
+      "badFeed": "The bitcoin price oracle names no price feed, so new loans are off.",
+      "badMarket": "Morpho reports this market differently from what Adag expects, so paying from bitcoin is off.",
+      "unknownBill": "There is no bill #{id} on Arc.",
+      "selfPayment": "You cannot pay a bill you wrote yourself.",
+      "payFromDifferentWallet": "Pay it from a different wallet.",
+      "notPayee": "Only the supplier who wrote this bill can cancel it.",
+      "connectWalletThatWrote": "Connect the wallet that wrote it.",
+      "payeeNotCredited": "The supplier's balance did not rise by the bill amount, so Adag undid the payment.",
+      "payeeNotCreditedNext": "Nothing moved. The token may be blocking this supplier; ask them to check.",
+      "zeroAmount": "This bill's amount is zero, so it cannot be paid.",
+      "askCorrectedBill": "Ask the supplier for a corrected bill.",
+      "referenceTooLong": "The reference is {n} bytes, over the 140-byte limit.",
+      "shortenIt": "Shorten it. Some characters take more than one byte.",
+      "unsupportedCurrency": "Adag bills are in USDC or EURC only.",
+      "chooseOneOfThose": "Choose one of those.",
+      "pageTooLarge": "The app asked Arc for too many bills at once.",
+      "reloadThePage": "Reload the page.",
+      "reentrancy": "The payment tried to call back into Adag, so it was refused.",
+      "nothingMovedReload": "Nothing moved. Reload the page and try again.",
+      "safeErc20": "The {symbol} contract refused the transfer.",
+      "safeErc20Next": "Nothing moved. Check that your wallet holds enough {symbol} and is not blocked by its issuer.",
+      "invalidAddress": "The token refused one of the addresses in this payment.",
+      "memoFailed": "The payment step failed without giving a reason.",
+      "panic": "The payment hit an arithmetic error and was refused."
+    },
+    "send": {
+      "effectsUnavailable": "We could not double-check this conversion just now. Nothing was sent. Try again in a minute.",
+      "ownCheckRefused": "Adag's own check of this payment's calls refused it.",
+      "startAgain": "Nothing was sent. Start the payment again.",
+      "noLatestBlock": "Arc did not answer with the latest block. Nothing was sent. Try again.",
+      "quoteExpired": "Circle's swap quote for this payment has expired or is about to.",
+      "quoteExpiredNext": "Nothing was sent. Start the payment again to get a fresh one.",
+      "feeMoved": "Arc's fee has risen past the ceiling this payment was built with.",
+      "feeMovedNext": "Nothing was sent. Start the payment again so the balance check is worked out from the current fee.",
+      "noBalanceAnswer": "Arc did not answer with your balance. Nothing was sent. Try again.",
+      "needsForFee": "Your wallet needs about {fee} USDC for the network fee and holds {held}. Nothing was sent.",
+      "needsForPaymentAndFee": "Your wallet needs about {need} USDC, {principal} for this payment plus about {fee} for the network fee, and holds {held}. Nothing was sent.",
+      "simulationEmpty": "Arc's simulation of this payment came back empty.",
+      "nothingSentTryAgain": "Nothing was sent. Try again.",
+      "tooMuchGas": "This conversion would use more gas than Adag allows for one signature.",
+      "tooMuchGasNext": "Nothing was sent. Pay a smaller amount, or pay in the bill's own currency.",
+      "quoteUsed": "This Circle quote was already used for a signature request.",
+      "walletOffArc": "Your wallet is not on Arc mainnet with this address any more. Nothing was sent.",
+      "resetDryRun": "Arc's dry run of the reset did not pass, so nothing was sent. Try again in a moment.",
+      "reachesAdapter": "This payment reaches Circle's swap adapter without saying what it converts, so Adag will not send it.",
+      "nothingSentReload": "Nothing was sent. Reload the page and try again.",
+      "noFeeAnswer": "Arc did not answer with the current fee. Nothing was sent. Try again.",
+      "declined": "You declined in your wallet. Nothing was sent.",
+      "couldNotSend": "The wallet could not send it: {line}",
+      "notConfirmedYet": "Arc has not confirmed it yet. Do not pay again: check the transaction link first.",
+      "reverted": "The transaction reverted on Arc, so nothing moved apart from the fee.",
+      "resetNotConfirmed": "Arc has not confirmed the reset yet. Check the transaction before trying again.",
+      "resetReverted": "The reset reverted on Arc, so nothing changed apart from the fee.",
+      "noEuroPrice": "Adag could not read the euro price from Arc. Nothing was sent. Try again.",
+      "resetViaMulticall": "A reset of Circle's adapter must go through Multicall3From.",
+      "resetNotOwnCalls": "This is not a batch of the reset's own calls.",
+      "resetDisallowedCall": "This batch holds a call that the adapter reset does not allow.",
+      "noArcClient": "No Arc client is configured."
+    },
+    "guard": {
+      "keptAside": "Your loan guard will repay about {parts} from {who} within minutes, so that is kept aside.",
+      "ruleUnreadable": "Adag could not read your loan guard, so it cannot tell you whether this payment trips it. Try again.",
+      "ruleUnreadableSafe": "Adag could not read the Safe's loan guard, so it cannot tell you whether this payment trips it. Try again.",
+      "unreadable": "Adag could not read your loan guard, so it cannot check this wallet can cover the payment. Try again.",
+      "trigger": "This payment takes the loan to {ltv}, at or past your guard's {trigger} trigger. The guard will then repay about {amount} {symbol} from {who} within minutes, back to {target}.",
+      "targetAboveZero": "Choose a target above 0%.",
+      "targetBelowTrigger": "The target must be below the trigger: the guard repays from the trigger down to the target.",
+      "triggerBelowLine": "The trigger must be below Morpho's liquidation line.",
+      "outOfRange": "Those percentages are out of range.",
+      "endDateFuture": "The end date must be in the future.",
+      "endDateNotStorable": "The end date is not a date Arc can store.",
+      "chooseAmount": "Choose how much it may use, more than zero.",
+      "approvalTooLarge": "That approval is larger than any amount this page will build.",
+      "onlyTwoMarkets": "Only Adag's USDC and EURC markets can be protected.",
+      "walletInvalid": "The wallet address is not valid.",
+      "notDeployed": "The loan guard is not deployed, so nothing was built.",
+      "ownLoanOnly": "This page only repays the connected wallet's own loan."
+    },
+    "fx": {
+      "safeConvertLine": "Converting is not available for Safe payments: Circle's quotes last 10 minutes and a Safe's owners sign later.",
+      "tooLarge": "This conversion is too large for one payment. Pay part from your balance or split the bill.",
+      "otherConverts": "The {other} bills in this basket are already paid by converting. One signature runs one conversion, and never one in each direction.",
+      "loanPaused": "New {loan} loans are paused until the bitcoin price updates, so borrowing {loan} is off. Paying in the bill's own currency still works.",
+      "loanUnknown": "Adag could not read whether new {loan} loans are open right now, so converting is off. Try again in a moment.",
+      "cash": "Morpho has {ready} ready to lend right now, less than the {need} this conversion borrows. Pay another way, or check back later.",
+      "closeShort": "You hold {held}, and closing this way needs {need}.",
+      "pledgeUnsized": "Adag could not size the pledge for this conversion, so it is off. Try again in a moment.",
+      "rate": "1 {sold} returns at least {rate} {bought}",
+      "loanCurrencyUnsupported": "The loan currency for this payment is not one Adag supports.",
+      "euroNotPositive": "The euro price Adag reads from Arc is not positive, so converting is off.",
+      "euroScale": "The euro price Adag reads from Arc has an unusable scale, so converting is off.",
+      "euroFuture": "The euro price Adag reads from Arc is dated in the future, so converting is off.",
+      "euroOld": "The euro price Adag reads from Arc is more than 96 hours old (the feed pauses over weekends), so converting between dollars and euros is off. Paying in the bill's own currency still works.",
+      "convertZero": "The amount to convert must be more than zero.",
+      "euroUnreadable": "Adag could not read the euro price from Arc, so converting is off. Try again in a moment.",
+      "circleNoRoute": "Circle found no swap that returns enough for this payment right now. Try again in a moment, or pay another way.",
+      "circleBusy": "Circle's swap service is busy. Wait a minute and try again.",
+      "circleUnavailable": "Circle's swap service did not answer. Nothing was sent. Try again in a moment, or pay another way.",
+      "circleBadAnswer": "Circle's swap service answered in a form Adag does not trust, so nothing from it was used. Try again, or pay another way.",
+      "circleBadRequest": "Adag could not form a swap request for this payment, so nothing was sent.",
+      "adapterUnreadable": "Adag could not read what Circle's swap adapter is allowed to do with your wallet, so it cannot offer a conversion. Try again in a moment.",
+      "adapterCanSpend": "Circle's swap adapter can already spend your {symbol}: an earlier approval is still open. A conversion waits until it is set to 0.",
+      "adapterAuthorised": "Circle's swap adapter is authorised to act on your Morpho loans. A conversion waits until that is withdrawn.",
+      "planNotBytes": "The swap plan is not readable bytes.",
+      "planOverBytes": "The swap plan is over {n} bytes.",
+      "planNotExecute": "The swap plan is not a call to the adapter's execute.",
+      "planUnreadable": "The swap plan could not be read.",
+      "planReshaped": "The swap plan has extra or reshaped bytes, so it is not the plan that was checked.",
+      "planOneToken": "The swap plan must pull exactly one token from your wallet.",
+      "planPermit": "The swap plan asks for a permit, which Adag never signs.",
+      "planPermitData": "The swap plan carries permit data.",
+      "planOtherCurrency": "The swap plan pulls a different currency than the one this payment sells.",
+      "planOtherAmount": "The swap plan pulls a different amount than this payment sells.",
+      "planSteps": "The swap plan has {n} steps; Adag accepts 1 to {max}.",
+      "planTokens": "The swap plan lists an unusable number of tokens to send back.",
+      "planOtherAddress": "The swap plan would send money to an address that is not your wallet.",
+      "planNoBought": "The swap plan does not send the bought currency to your wallet.",
+      "planNativeValue": "The swap plan forwards native value, which this payment never needs.",
+      "planNoGuarantee": "The swap plan does not guarantee at least the amount this payment needs.",
+      "planExpires": "The swap plan expires in under {n} seconds by Arc's clock.",
+      "effectsNotPlain": "Something other than a plain token amount would leave your wallet in this payment.",
+      "effectsUnexpected": "An unexpected transfer inside this payment would move money out of your wallet.",
+      "effectsMoreBtc": "More cirBTC than the pledge would leave your wallet in this payment.",
+      "effectsMoreSold": "More than the amount being converted would leave your wallet for the swap.",
+      "effectsMoreRepay": "More than the loan repayment would leave your wallet in this payment.",
+      "effectsNotBill": "A transfer that is not one of your bills would leave your wallet in this payment.",
+      "effectsNative": "Native value would leave your wallet in this payment without a matching USDC transfer.",
+      "effectsFloor": "The balance check at the end of the swap did not run as built.",
+      "effectsUnpaid": "A bill in this payment would not receive its amount.",
+      "effectsNoBillPaid": "Bill #{id} would not show a payment from your wallet on its own contract.",
+      "planTokenNotAddress": "A token address in the swap request is not a valid address.",
+      "planTwoCurrencies": "A swap needs two different currencies.",
+      "planAmountZero": "The amount to swap must be more than zero.",
+      "planMinZero": "The least the swap may return must be more than zero.",
+      "planNoChainTime": "The chain time for the swap check is missing.",
+      "planNoFeeCeiling": "The fee ceiling for the swap batch is missing.",
+      "bufferRange": "The buffer must be between 0 and {n} basis points.",
+      "rateTwoAmounts": "The rate needs two amounts above zero."
+    },
+    "build": {
+      "amountZero": "The amount must be more than zero.",
+      "dueNotStorable": "The due date is not a date Arc can store.",
+      "referenceTooLong": "The reference is {n} bytes; the limit is {max}. Some characters take more than one byte.",
+      "currencyOnly": "Bills can only be written in USDC or EURC.",
+      "addOneBill": "Add at least one bill to pay.",
+      "atMostBills": "One signature pays at most {n} bills.",
+      "chooseHowToPay": "Choose how to pay the {symbol} bills.",
+      "addZero": "The amount of cirBTC to add must be more than zero.",
+      "repayZero": "The amount to repay must be more than zero.",
+      "repayTooMuch": "That is more than this way of repaying can take. Use Close loan to repay everything.",
+      "nothingInMarket": "There is no loan and no pledged cirBTC in this market.",
+      "tooSmallForFloor": "This amount is too small for the balance check that protects a conversion, so it is not offered. Pay it from your balance.",
+      "convertTooMuchBills": "The amount to convert is more than these bills are worth at the euro price Adag reads, plus the 1.5% buffer. Nothing was built.",
+      "convertTooMuchClose": "The amount to convert is more than the close approval is worth at the euro price Adag reads, plus the 1.5% buffer. Nothing was built.",
+      "safeNoConversion": "Paying through a conversion between dollars and euros is not available from a Safe, because Circle's quote lasts 10 minutes and a Safe's signatures take longer. Pay in the bill's own currency, or pay from a wallet.",
+      "safeCurrentOnly": "Paying from a Safe works for bills on the current AdagBills contract. This bill is on the first deployment, so pay it from a wallet.",
+      "twiceInBasket": "Bill #{id} is in the basket twice; paying it twice would undo the whole batch.",
+      "twiceInPayment": "Bill #{id} is in the payment twice; paying it twice would undo the whole batch.",
+      "safeAtMostBills": "One Safe payment pays at most {n} bills.",
+      "safeChooseHowToPay": "Choose how the Safe pays the {symbol} bills.",
+      "selfPayment": "You cannot pay a bill you wrote yourself.",
+      "billNotOpen": "Bill #{id} is not open for payment.",
+      "billNoAmount": "Bill #{id} has no amount to pay.",
+      "billUnreadableRef": "Bill #{id} has an unreadable reference.",
+      "billNotUsdcEurc": "Bill #{id} is not in USDC or EURC.",
+      "pledgeNegative": "The pledge must be zero or more satoshis.",
+      "enrolFirstDeployment": "Only the current AdagBills contract can record an existing loan. This bill is on the first deployment.",
+      "noLoanToClose": "There is no loan in this market to close with a conversion.",
+      "repayApprovalZero": "The repay approval must be more than zero.",
+      "resetTokens": "Only USDC, EURC and cirBTC approvals to the swap adapter can be reset here.",
+      "resetOnce": "Each approval is reset once.",
+      "nothingToReset": "There is nothing to reset.",
+      "twoContracts": "These bills sit on two different AdagBills contracts. One signature pays bills of one contract.",
+      "guardNotDeployed": "The loan guard is not deployed, so its rule cannot be stopped.",
+      "billNumberWhole": "A bill number must be a whole number of 1 or more.",
+      "tooManyBills": "That is {n} bills. One signature pays at most {max}; split them into two baskets.",
+      "mixedContracts": "These bills sit on two different AdagBills contracts, and one signature pays bills of one contract. Pay the first-deployment bills separately.",
+      "marketMalformed": "Market params for {market} are malformed; refusing to sign with them.",
+      "marketHash": "Market params hash to {hash}, not {expected}; refusing to sign with them.",
+      "marketDiffer": "Market params for {market} differ from the fixed {symbol} market; refusing to sign with them.",
+      "payerNotAddress": "The paying wallet address is not a valid address.",
+      "convertDirection": "A {bill} bill is paid by converting a {loan} loan, never a {other} one.",
+      "oneDirection": "One signature converts in one direction only: two groups converting, in opposite directions, are never built together.",
+      "floorNegative": "The balance the conversion starts from reads as negative, so nothing was built.",
+      "positionNegative": "The loan position reads as negative, so nothing was built.",
+      "approvalNegative": "The loan guard's approval reads as negative, so nothing was built.",
+      "refuseStepMayFail": "Refusing a batch step that may fail on its own.",
+      "refuseApprovalUnreadable": "Refusing an approval that is not readable.",
+      "refuseNoSwapCall": "Refusing a conversion batch with no swap call.",
+      "refuseSwapCount": "Refusing a batch with {n} swap calls. One signature runs exactly one.",
+      "refuseAdapterNotExecute": "Refusing a call to the swap adapter other than execute.",
+      "refuseSwapPlan": "Refusing a swap whose plan is not the one this batch was built for.",
+      "refuseGasCeiling": "Refusing a conversion that is not set up to be sent with the fixed gas ceiling.",
+      "refuseBalanceCheckFloor": "Refusing a conversion whose balance check is not the balance it started from plus what it funds, less the gas slack on USDC.",
+      "refuseSwapNotFollowed": "Refusing a swap that is not followed by the balance check on the currency it buys.",
+      "refuseBalanceCheckBack": "Refusing a balance check that does not send the exact floor back to the payer.",
+      "refuseSwapNotPreceded": "Refusing a swap that is not preceded by an approval of exactly the amount being converted.",
+      "refuseAdapterApprovalCurrency": "Refusing an approval to the swap adapter for any currency but the one being converted.",
+      "refuseResetBeforeSwap": "Refusing a reset of the swap adapter's approval before the swap.",
+      "refuseAdapterApprovalAmount": "Refusing an approval to the swap adapter of more than the amount being converted, or one not set right before the swap.",
+      "refuseAdapterApprovalLeft": "Refusing a batch that leaves the swap adapter with an approval at the end.",
+      "refuseTokenCallConversion": "Refusing a token call in a conversion batch other than approvals and the balance check.",
+      "refuseBatchInConversion": "Refusing a batch inside a conversion batch.",
+      "refuseMorphoCall": "Refusing a Morpho call this app does not make.",
+      "refuseMorphoMarket": "Refusing a Morpho call on a market that is not one of Adag's two.",
+      "refuseMorphoPayer": "Refusing a Morpho call made for anyone but the payer.",
+      "refuseMorphoReceiver": "Refusing a Morpho call that sends money to anyone but the payer.",
+      "refuseBorrowFunding": "Refusing a conversion that is not funded by a borrow of exactly the amount being converted.",
+      "refuseDirectBillsConversion": "Refusing a direct call to AdagBills in a conversion batch. Bills are paid through Memo.",
+      "refusePaymentBeforeSwap": "Refusing a payment that comes before the swap.",
+      "refuseMemoNotPayment": "Refusing a Memo call that is not a bill payment.",
+      "refusePaymentNotBuilt": "Refusing a payment for a bill this batch was not built for, or one paid twice.",
+      "refuseConversionUnpaid": "Refusing a conversion batch that leaves a bill unpaid.",
+      "refuseBatchInBatch": "Refusing a batch inside the batch.",
+      "refuseTokenCallNotApproval": "Refusing a token call other than an approval.",
+      "refuseCirbtcApproval": "Refusing a cirBTC approval to AdagBills, or one to a contract no bill in this batch is on.",
+      "refuseApprovalTo": "Refusing an approval to {to}.",
+      "refuseMemoInSafe": "Refusing a Memo call in a Safe batch. A Safe pays AdagBills directly.",
+      "refuseMemoOtherId": "Refusing a Memo payment filed under another bill's memo id.",
+      "refuseMorphoCallback": "Refusing a Morpho call that asks Morpho to call back into the batch.",
+      "refuseDirectBills": "Refusing a direct call to AdagBills in a batch. Bills are paid through Memo.",
+      "refuseSafeBillsCall": "Refusing an AdagBills call from a Safe other than paying one of its bills, or recording its loan on its own.",
+      "refuseGuardCallExactStop": "Refusing a loan guard call other than exactly stopping this loan's rule.",
+      "refuseBatchCalls": "Refusing a batch that calls {target}.",
+      "refuseBatchUnpaid": "Refusing a batch that leaves a bill it was built for unpaid.",
+      "refuseAdapterIndirect": "Refusing a batch that reaches the swap adapter through another call.",
+      "refuseGuardCallStop": "Refusing a loan guard call other than stopping this loan's rule.",
+      "refuseStopOtherMarket": "Refusing to stop the guard of another market.",
+      "refuseGuardApproval": "Refusing an approval to the loan guard other than setting this loan's token to 0.",
+      "refuseNotMulticall": "Refusing a conversion that is not sent through Multicall3From.",
+      "refuseOtherWallet": "Refusing a conversion that was built for another wallet.",
+      "refuseNotPlainBatch": "Refusing a conversion whose bytes are not a plain batch of calls.",
+      "refuseResetNotZero": "Refusing a reset step that is not setting a swap approval to 0.",
+      "refuseResetNotAllowed": "Refusing a reset step that is not one of the two the reset allows.",
+      "refuseTokenNotApprovalGuard": "Refusing a token call that is not an approval.",
+      "refuseApprovalOtherAmount": "Refusing an approval other than the amount you chose.",
+      "refuseGuardCallNotRule": "Refusing a guard call other than setting or clearing a rule.",
+      "refuseRuleOtherMarket": "Refusing a rule for another market.",
+      "refuseRepaymentTarget": "Refusing a repayment sent to {to} instead of AdagGuard.",
+      "refuseRepaymentValue": "Refusing a repayment that sends value.",
+      "refuseGuardCallNotProtect": "Refusing a guard call other than protect.",
+      "refuseProtectLength": "Refusing protect calldata of the wrong length.",
+      "refuseOtherWalletGuard": "Refusing to set off another wallet's guard.",
+      "callOnlyTwoMarkets": "Only Adag's two markets can be protected.",
+      "callGuardNotDeployed": "The loan guard is not deployed yet.",
+      "callBorrowerNotAddress": "The borrower is not an address.",
+      "callNotToGuard": "The call is not to AdagGuard.",
+      "callCarriesValue": "The call carries value.",
+      "callNotProtect": "The call is not protect.",
+      "callExtraBytes": "The call carries extra bytes."
+    },
+    "amount": {
+      "enter": "Enter an amount.",
+      "oneDecimalMark": "Use one decimal mark and no thousands separators, like 1250.50.",
+      "digits": "Use digits and one decimal point, like 12.50.",
+      "decimals": "At most {n} decimal places.",
+      "moreThanZero": "The amount must be more than zero."
+    },
+    "alerts": {
+      "serverAnswered": "The server answered {status}.",
+      "serverNoAnswer": "The server did not answer. Try again.",
+      "declinedNothingChanged": "You declined in your wallet. Nothing was changed.",
+      "oneToThreeLevels": "Choose one to three alert levels.",
+      "levelWhole": "Each level must be a whole number.",
+      "levelRange": "Each level must be between 5% and 85%, in steps of 0.01%.",
+      "levelsRise": "Levels must rise.",
+      "siteNotUrl": "The site origin is not a URL.",
+      "siteNotHttps": "The site origin must be https.",
+      "expiryNotTime": "The expiry is not a time.",
+      "requestTooLarge": "The request is too large.",
+      "requestNotJson": "The request is not JSON.",
+      "requestNotObject": "The request is not a JSON object.",
+      "notWallet": "That is not a wallet address.",
+      "zeroAddress": "The zero address is not a wallet.",
+      "notChatId": "That is not a chat id.",
+      "notLinkCode": "That is not a link code.",
+      "notNonce": "That is not a nonce.",
+      "notMarket": "That is not a market.",
+      "notOneOfTwoMarkets": "That is not one of Adag's two markets.",
+      "notUpdateId": "That is not an update id.",
+      "signatureMismatch": "The signature does not match this wallet and message, or it has expired.",
+      "messageUsed": "This signed message was already used.",
+      "telegramMissing": "Telegram alerts are not configured on this server yet.",
+      "storeMissing": "Alerts and the loan guard need a key-value store, and none is configured on this server yet.",
+      "tooMany": "Too many requests. Try again in a few minutes.",
+      "tooManyCodes": "Too many codes. Try again in a few minutes.",
+      "botNoAnswer": "The Telegram bot did not answer. Try again in a minute.",
+      "tooManyAttempts": "Too many attempts. Try again in a few minutes.",
+      "tooManyWithCode": "Too many attempts with this code.",
+      "codeExpired": "This code has expired or was already used. Start again.",
+      "chatTaken": "That chat already gets Adag alerts for another wallet. Send /stop in that chat, then link again.",
+      "full": "Alerts are full right now. Try again later.",
+      "notAmount": "Not an amount.",
+      "siteMustBeHttps": "The site must be https.",
+      "notAdagMarket": "Not one of Adag's markets.",
+      "couldNotIssueCode": "Could not issue a code."
+    },
+    "safe": {
+      "requestUnreadable": "The request could not be read.",
+      "batchUnreadable": "The Safe batch could not be read, so nothing was proposed.",
+      "billsUnchecked": "Arc did not answer, so the bills in this Safe batch could not be checked. Nothing was proposed.",
+      "amountsMismatch": "The amounts in this Safe batch do not match the bills it pays, so nothing was proposed.",
+      "nonceNotCurrent": "The nonce is not the Safe's current one. Build the payment again.",
+      "hashMismatch": "The signed hash does not match this payment.",
+      "signatureNotOwner": "The signature is not from this owner.",
+      "safeUnchecked": "Arc did not answer, or the signature could not be read, so the Safe could not be checked. Nothing was proposed.",
+      "serviceCopyMismatch": "The Safe service's copy of the proposal does not match what was signed.",
+      "otherSafe": "That transaction belongs to another Safe.",
+      "notConfigured": "Safe proposals are not configured yet.",
+      "serviceTimeout": "The Safe service did not answer in time. Try again.",
+      "serviceUnknownTx": "The Safe service does not know this transaction yet.",
+      "serviceRateLimit": "The Safe service is rate-limiting requests. Try again in a minute.",
+      "serviceRefused": "The Safe service refused the proposal.",
+      "serviceUnreachable": "The Safe service could not be reached. Try again.",
+      "listUnavailable": "The Safe list is unavailable.",
+      "notAddress": "That is not an address.",
+      "accountNotAddress": "The connected account is not a valid address.",
+      "arcNoAnswerSafe": "Arc did not answer, so this Safe could not be checked. Nothing was proposed.",
+      "notArcMainnet": "Arc did not answer as Arc mainnet, so this Safe could not be checked.",
+      "noContract": "There is no contract at this address on Arc, so it is not a Safe.",
+      "notLikeSafe": "This address does not answer like a Safe, so Adag will not ask anyone to sign for it.",
+      "versionTooOld": "This Safe is version {version}. Adag needs Safe 1.3.0 or later.",
+      "notOwner": "Your connected wallet is not an owner of this Safe, so it cannot propose a payment from it. Nothing was signed.",
+      "noThreshold": "This Safe has no signing threshold set.",
+      "differentHash": "The Safe computes a different hash for this payment, so it was not signed.",
+      "noSimulation": "The Safe did not return a simulation result.",
+      "statusUnavailable": "Status unavailable.",
+      "notAnAddress": "{what} is not an address.",
+      "notHash": "{what} is not a 32-byte hash.",
+      "notWhole": "{what} is not a whole number.",
+      "dataNotHex": "The transaction data is not hex.",
+      "dataTooLarge": "The transaction data is too large.",
+      "txMissing": "The Safe transaction is missing.",
+      "operation": "The operation is not 0 or 1.",
+      "fieldTarget": "The transaction target",
+      "fieldGasToken": "The gas token",
+      "fieldRefund": "The refund receiver",
+      "fieldHash": "The Safe transaction hash",
+      "signatureBytes": "The signature is not 65 bytes.",
+      "bodyNotObject": "The request body is not an object.",
+      "noBody": "The request has no body.",
+      "bodyNotJson": "The request body is not JSON.",
+      "notMultiSend": "The Safe batch is not a MultiSend call.",
+      "cutShort": "The Safe batch is cut short.",
+      "empty": "The Safe batch is empty.",
+      "stepNotPlain": "Refusing a Safe batch step that is not a plain call.",
+      "stepValue": "Refusing a Safe batch step that sends value.",
+      "batchCalls": "Refusing a Safe batch that calls {target}.",
+      "enrolAlongside": "Refusing a Safe batch that records the loan alongside anything else.",
+      "billsCallOther": "Refusing an AdagBills call other than paying a bill or recording the Safe's loan.",
+      "morphoAccount": "Refusing a Morpho step whose account is not the Safe.",
+      "morphoMarket": "Refusing a Morpho step on a market that is not one of Adag's two.",
+      "canonicalMultiSend": "A Safe payment must go through the canonical MultiSendCallOnly.",
+      "delegatecallOnly": "A Safe payment reaches MultiSendCallOnly by delegatecall only.",
+      "noValueNoRefund": "A Safe payment carries no value and no gas refund.",
+      "noRefundReceiver": "A Safe payment pays no refund to anyone.",
+      "nonceInvalid": "The Safe nonce is not valid."
+    },
+    "arc": {
+      "noAnswerMoment": "Arc did not answer. Try again in a moment.",
+      "catchingUp": "Still catching up: counted through block {block}, and newer payments are added on the next reads.",
+      "newestBills": "In the newest {n} bills of each contract",
+      "indexNoAnswerAfter": "{note}. The index store did not answer.",
+      "indexNoAnswer": "The index store did not answer, so this is read straight from Arc."
+    },
+    "break": {
+      "providerDrpc": "dRPC's public endpoint",
+      "providerOwn": "the server's own RPC",
+      "unreadable": "the simulation service gave an answer this page cannot read, try again",
+      "timedOut": "the simulation service timed out, try again",
+      "couldNotRun": "could not run: {reason}",
+      "endedEarly": "the answer ended early",
+      "noAnswerForCheck": "no answer for this check",
+      "noAnswer150": "no answer within 150 seconds",
+      "lostConnection": "the page lost its connection to the server, try again",
+      "providerNoAnswer": "{provider} did not answer {method}, try again",
+      "providerRefused": "{provider} refused {method}, try again",
+      "providerFailedTwice": "{provider} {method} failed twice.",
+      "providerTooLarge": "{provider} sent an answer that was too large.",
+      "noLatestBlock": "The simulating node returned no latest block.",
+      "unexpectedShape": "eth_simulateV1 returned an unexpected shape.",
+      "wrongChain": "{provider} reports chain {chain}, not Arc mainnet {expected}.",
+      "summaryAll": "All {n} checks behaved as the threat model says: every attack was refused or held{clause}. The two known, accepted gaps, A4 and E5, behaved as the threat model says: each only affects the attacker's own loan.",
+      "allowedClauseOne": ", or, in {n} row, allowed by design",
+      "allowedClauseMany": ", or, in {n} rows, allowed by design",
+      "summaryBroken": "{n} of {total} checks did not behave as expected.",
+      "summaryNotRunOne": "{n} could not run this time; nothing is claimed for it.",
+      "summaryNotRunMany": "{n} could not run this time; nothing is claimed for them.",
+      "stateBills": "AdagBills {contract}. Demo wallet {payer}: loan {debt} against {btc} pledged, loan-to-value {ltv}.",
+      "stateSetup": "Before each attack, the simulation writes bill #{id} and pays it from cash, so Adag starts from today's loan.",
+      "stateCurrent": "Bill #{id} is paid by the demo wallet, and Adag's record of its loan is current.",
+      "stateSupplier": "Supplier {payee}. Simulated stranger {stranger}. Bitcoin at {price} USDC, from the USDC market's oracle.",
+      "simulatedBill": "Simulated bill #{id}",
+      "bill": "Bill #{id}",
+      "a1Pass": "Refused. {label} is already paid, and a paid bill can never be paid again.",
+      "notRefused": "Not refused as expected: {out}.",
+      "notRefusedBill": "Not refused as expected: {out}; bill {status}.",
+      "a2aPass": "Refused by Morpho before Adag was reached: re-borrowing against {btc} would put the loan near {pct}, past Morpho's 86% line. The bill stays open.",
+      "a2bPass": "Refused by Adag: the pledge fell to {btc} since its last check, so it checked, and {over}. The whole batch undid itself.",
+      "a3Pass": "Refused by Adag: borrowing {amount} more is new debt, so it checked, and {over}.",
+      "a4Pass": "The first payment went through, because the {amount} borrow came after Adag's step, leaving the loan at {ltv}. The next payment was refused: {over}.",
+      "a4Fail": "Did not behave as documented: first {first}; next {next}; bill {status}.",
+      "a5Pass": "Refused. A supplier cannot pay its own bill: no money would change hands, so nothing would prove it was paid.",
+      "a61Pass": "Refused. Bills are paid in USDC or EURC; cirBTC is the collateral, never the currency.",
+      "a62Pass": "Refused. WETH is not one of the two currencies Adag accepts.",
+      "a63Pass": "Refused. An address that is not USDC or EURC can never be a bill's currency.",
+      "a64Pass": "Refused. A bill for zero is not a bill.",
+      "a65Pass": "Refused. The reference is 141 bytes and the limit is 140, counted in bytes, not characters.",
+      "a7aPass": "Refused. Only the supplier who wrote a bill can cancel it; the bill stays open and payable.",
+      "a7bPass": "Refused. {label} is paid, and a paid bill can never be cancelled.",
+      "a8Pass": "Refused. The USDC token would not move money Adag was never approved to move, so the whole batch undid itself and the bill stays open.",
+      "a9aPass": "Paid, as promised. After the simulated drop the loan sits at {ltv}, but this payment adds no debt, so there is nothing to check.",
+      "a9aFail": "Did not behave as promised: {out}.",
+      "a9bPass": "Refused by Adag: one more cent is new debt, so it checked, and {over}.",
+      "e1Pass": "Refused. A payer who enrolled in this very block cannot pay in it, so the whole batch undid itself, the enrol included.",
+      "e1Fail": "Not refused as expected: {out}; bill {status}; enrol block {block}.",
+      "e2Pass": "Refused. Borrowing {amount}, enrolling it and paying in one batch hits the same-block refusal; Adag's record of the loan is unchanged.",
+      "e3Pass": "Held. The stranger's enrol went through but wrote only the stranger's own record; the demo payer's recorded loan did not change, and its payment went through.",
+      "e3Fail": "Did not behave as documented: stranger enrol {a}; demo record {b} before, {c} after; demo payment {d}.",
+      "e4Pass": "Refused by Adag: the pledge fell below the enrolled one, so it checked, and {over}.",
+      "e4Fail": "Not refused as expected: enrol {a}; then {b}; bill {status}.",
+      "e5Pass": "Allowed by design, as C32 names it: the {amount} borrowed outside Adag (loan at {ltv}) was enrolled, and the next block's cash payment went through unchecked. The risk sits only with the payer's own loan.",
+      "e5Fail": "Did not behave as documented: borrow {a}; enrol {b}; payment {c}; bill {status}.",
+      "overLimit": "the loan would be {debt} against a limit of {limit}, which is 40% of the bitcoin's value",
+      "liveStateWrong": "The live state is not the one these attacks were written for: {problems}.",
+      "problemNoLoan": "the demo wallet has no open USDC-market loan",
+      "problemMoved": "the demo loan has moved since Adag last recorded it",
+      "problemNotPaid": "bill #{id} is not Paid",
+      "problemStale": "the BTC/USD price is stale, so every loan check would stop at StalePrice first",
+      "problemAllowance": "the demo wallet still has a USDC allowance to Adag",
+      "problemBalance": "the demo wallet holds under 2 USDC, too little to repay and re-borrow in A2",
+      "guardStateChain": "AdagGuard {guard}. On chain: the payer's loan {debt} ({ltv}), its rule {rule}, its approval to AdagGuard {approval}.",
+      "guardRuleNone": "none",
+      "guardPremiseClears": "Simulated premise: the payer {what}, so every row starts with neither.",
+      "guardClearsRule": "clears its live guard rule ({trigger} / {target})",
+      "guardSetsApproval": "sets its {amount} approval to AdagGuard to 0",
+      "guardPremiseBorrows": "Simulated premise: the payer borrows {amount} more on Morpho, {range}.",
+      "guardPremiseRepays": "Simulated premise: the payer repays {amount} of the loan on Morpho, {range}.",
+      "guardRange": "taking the loan from {from} to {to}",
+      "guardFunding": "Simulated funding: a state override sets the payer's wallet to {start} before the premise, so it holds {least} after it.",
+      "guardPremiseLine": "Every loan guard row starts from a simulated premise: the demo payer borrows on Morpho until the loan sits at 38.00%, above the 35% trigger. In this run every row starts from a loan of {debt} at {ltv}, a wallet of {wallet}, no guard rule and no approval; unless a row says otherwise its rule acts at 35% and brings the loan back to 30%. Bitcoin at {price} USDC. Simulated stranger {stranger}.",
+      "guardNoteSentence": "Every loan guard row starts from a simulated premise: the demo payer borrows on Morpho until the loan sits at 38.00%, above the 35% trigger.",
+      "g6Pass": "Held. The first time, the guard repaid {amount}, exactly what brings the loan back to 30%; the two repeats found nothing to do and moved nothing.",
+      "g6Fail": "Did not behave as documented: repaid {shown}.",
+      "g1Pass": "Held. The loan needed {need}, but the payer approved only {cap}: the guard repaid exactly that, the approval fell to zero, and the second time it repaid nothing.",
+      "g1Fail": "Did not behave as documented: first {first}, pulled {pulled}, approval left {left}.",
+      "repaidAmount": "repaid {amount}",
+      "g2aPass": "Refused. The other real USDC/cirBTC market is not one of AdagGuard's two fixed markets.",
+      "g2bPass": "Refused twice. A market id one hex digit away is a different id: setRule and protect both reject it.",
+      "g2bFail": "Not refused as expected: setRule {a}; protect {b}.",
+      "g2cPass": "Held. In the EURC market the payer has no loan and no rule, so the guard repaid nothing and no USDC moved.",
+      "g2cFail": "Did not behave as documented: {repaid}; payer USDC moved {moved}.",
+      "g3Pass": "Held. The loan at {ltv} is under the payer's 50% trigger, so the guard repaid nothing, emitted nothing and moved nothing.",
+      "g3Fail": "Did not behave as documented: quote {act} ({amount}); protect {repaid}.",
+      "g4Pass": "Held. Before expiry the rule would have repaid {amount}; at the expiry second it is inert, and the guard repaid nothing.",
+      "g4Fail": "Did not behave as documented: before expiry {early}; at expiry {late}; protect {repaid}.",
+      "g5aPass": "Refused. clearRule only ever names the sender, and the stranger has no rule; the payer's rule is still {rule}.",
+      "g5aFail": "Not refused as expected: {out}; payer's rule {rule}.",
+      "g5bPass": "Held. The stranger's setRule went through and wrote only the stranger's own rule (80% / 1%); the payer's is still {rule}.",
+      "g5bFail": "Did not behave as documented: {out}; payer's rule {rule}.",
+      "g7Pass": "Held. The loan needed {need} but the wallet held {held}: the guard repaid exactly that, did not revert, and kept nothing.",
+      "g7Fail": "Did not behave as documented: {repaid}; wallet now {after}.",
+      "g8Pass": "Held. At a zero price the guard repaid {repaid}, the debt rounded down, so Morpho's share maths could not underflow; {left} of debt is left and AdagGuard kept nothing.",
+      "g8Fail": "Did not behave as documented: quote {act} {quoted}; protect {repaid} against {cap}.",
+      "g9aPass": "Held. Even at a zero price, a payer with an approval but no rule is left alone: the guard repaid nothing and no USDC moved.",
+      "g9aFail": "Did not behave as documented: quote {act} ({amount}); protect {repaid}; USDC moved {moved}.",
+      "g9bPass": "Held. A wallet with no loan and no rule ({wallet}) has nothing to repay; nothing moved.",
+      "g9bFail": "Did not behave as documented: {repaid}; quote {act}.",
+      "g10Pass": "Refused, all five. None of those functions exists on the deployed AdagGuard, so every call reverted; the only state-changing functions are clearRule, protect and setRule.",
+      "g10Fail": "Did not behave as documented: {prefix}writes {writes}.",
+      "g10Succeeded": "an admin call succeeded;",
+      "guardNoLoan": "The payer has no USDC-market loan, so these attacks have nothing to aim at.",
+      "guardHoldsLittle": "The payer holds {amount}; these attacks assume at least 1 USDC.",
+      "guardHoldsLittleAfter": "The payer holds {amount} after the premise; these attacks assume at least 1 USDC.",
+      "guardPremiseOff": "The simulated premise left the loan at {ltv}, not {expected}.",
+      "guardNotDeployed": "AdagGuard is not deployed on this build.",
+      "setupFailed": "setup block failed: {out}",
+      "baselineFailed": "baseline read {n} failed: {out}",
+      "guardBaselineFailed": "guard baseline read {n} failed: {out}",
+      "premiseFailed": "the premise block failed: {out}",
+      "createBillFailed": "setup createBill failed: {out}",
+      "noPremise": "The payer has no USDC-market loan with collateral behind it, so no premise can place it at a level.",
+      "paramsMismatch": "Morpho's USDC market params do not match the fixed market.",
+      "guardPremiseBoth": "clears its live guard rule ({trigger} / {target}) and sets its {amount} approval to AdagGuard to 0"
+    }
+  }
+}

@@ -5,6 +5,7 @@ import { adagAbi } from "@/lib/pay/abi";
 import { ADAG_BILLS } from "@/lib/pay/constants";
 import { AMOUNTS_MISMATCH, assertSafeAmounts, assertSafeTxShape, decodeMultiSend, payIds, type BillAmount } from "@/lib/safe/multisend";
 import { InputError, proposeBody, readCappedJson } from "@/lib/safe/parse";
+import { jsonError } from "@/i18n/server";
 import { NOT_CONFIGURED, json, safeService, serviceError, withTimeout } from "@/lib/safe/service";
 import { STORE_MISSING, storeFromEnv } from "@/lib/store/env";
 import { TOO_MANY, limitRoute } from "@/lib/store/limit";
@@ -21,23 +22,23 @@ export const dynamic = "force-dynamic";
 // afterwards it checks the service's echo of the same hash.
 export async function POST(request: Request) {
   const service = safeService();
-  if (!service) return json({ error: NOT_CONFIGURED }, 503);
+  if (!service) return jsonError(NOT_CONFIGURED, 503);
   const store = storeFromEnv();
-  if (!store) return json({ error: STORE_MISSING }, 503);
-  if (!(await limitRoute(store, request, "safe-propose", 10, 100))) return json({ error: TOO_MANY }, 429);
+  if (!store) return jsonError(STORE_MISSING, 503);
+  if (!(await limitRoute(store, request, "safe-propose", 10, 100))) return jsonError(TOO_MANY, 429);
 
   let body;
   try {
     body = proposeBody(await readCappedJson(request));
   } catch (error) {
-    return json({ error: error instanceof InputError ? error.message : "The request could not be read." }, 400);
+    return jsonError(error instanceof InputError ? error.message : "The request could not be read.", 400);
   }
   const { safe, owner, tx, signature } = body;
 
   try {
     assertSafeTxShape(safe, tx);
   } catch (error) {
-    return json({ error: publicMessage(error, "The Safe batch could not be read, so nothing was proposed.") }, 422);
+    return jsonError(publicMessage(error, "The Safe batch could not be read, so nothing was proposed."), 422);
   }
 
   const client = arcClient as PublicClient;
@@ -48,26 +49,26 @@ export async function POST(request: Request) {
     const records = await Promise.all(ids.map((id) => client.readContract({ address: ADAG_BILLS, abi: adagAbi, functionName: "bill", args: [id] })));
     ids.forEach((id, i) => bills.set(id, { currency: records[i]!.currency, amount: records[i]!.amount }));
   } catch {
-    return json({ error: "Arc did not answer, so the bills in this Safe batch could not be checked. Nothing was proposed." }, 502);
+    return jsonError("Arc did not answer, so the bills in this Safe batch could not be checked. Nothing was proposed.", 502);
   }
   try {
     assertSafeAmounts(inner, bills);
   } catch (error) {
-    return json({ error: publicMessage(error, AMOUNTS_MISMATCH) }, 422);
+    return jsonError(publicMessage(error, AMOUNTS_MISMATCH), 422);
   }
 
   try {
     const info = await verifySafe(client, safe, owner);
-    if (tx.nonce !== info.nonce) return json({ error: "The nonce is not the Safe's current one. Build the payment again." }, 422);
+    if (tx.nonce !== info.nonce) return jsonError("The nonce is not the Safe's current one. Build the payment again.", 422);
     const local = safeTxHash(safe, tx);
     const chain = await onChainSafeTxHash(client, safe, tx);
     if (local.toLowerCase() !== body.safeTxHash || chain.toLowerCase() !== body.safeTxHash) {
-      return json({ error: "The signed hash does not match this payment." }, 422);
+      return jsonError("The signed hash does not match this payment.", 422);
     }
     const signer = await recoverTypedDataAddress({ ...safeTxTypedData(safe, tx), signature });
-    if (!isAddressEqual(signer, owner)) return json({ error: "The signature is not from this owner." }, 422);
+    if (!isAddressEqual(signer, owner)) return jsonError("The signature is not from this owner.", 422);
   } catch (error) {
-    return json({ error: publicMessage(error, "Arc did not answer, or the signature could not be read, so the Safe could not be checked. Nothing was proposed.") }, 422);
+    return jsonError(publicMessage(error, "Arc did not answer, or the signature could not be read, so the Safe could not be checked. Nothing was proposed."), 422);
   }
 
   try {
@@ -85,11 +86,11 @@ export async function POST(request: Request) {
     const echo = await withTimeout(service.getTransaction(body.safeTxHash));
     // C52: the service must hold exactly what was signed.
     if (echo.safeTxHash.toLowerCase() !== body.safeTxHash || String(echo.nonce) !== fields.nonce || echo.data?.toLowerCase() !== tx.data.toLowerCase()) {
-      return json({ error: "The Safe service's copy of the proposal does not match what was signed." }, 502);
+      return jsonError("The Safe service's copy of the proposal does not match what was signed.", 502);
     }
     return json({ ok: true, safeTxHash: body.safeTxHash, confirmations: echo.confirmations?.length ?? 0, threshold: echo.confirmationsRequired });
   } catch (error) {
     const e = serviceError(error);
-    return json({ error: e.message }, e.status);
+    return jsonError(e.message, e.status);
   }
 }

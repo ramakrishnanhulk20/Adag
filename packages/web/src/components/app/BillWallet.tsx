@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import { motion } from "motion/react";
 import { isAddressEqual, type Address, type Hex } from "viem";
 import { arc } from "viem/chains";
@@ -30,7 +31,7 @@ import { formatPercentWad, formatUnitsExact } from "@/lib/pay/format";
 import { debtFromShares, liquidationDropWad } from "@/lib/pay/loan";
 import { currencyOf } from "@/lib/pay/market";
 import { keepsPayPanel } from "@/lib/pay/receipt";
-import { readyToSign, useWallet, type WalletState } from "@/lib/wallet/useWallet";
+import { useWallet, type WalletState } from "@/lib/wallet/useWallet";
 import { RetryContext, Value, rise, type Cell } from "./cells";
 import { ConnectButton } from "./ConnectButton";
 import { GetSetUp } from "./GetSetUp";
@@ -38,7 +39,7 @@ import { PayActions } from "./PayActions";
 import { FirstContractSafeNote, PayAsSwitch, usePayAsMode } from "./PayAs";
 import { SafePay } from "./SafePay";
 import { VoidAction } from "./VoidAction";
-import { SMART_ACCOUNT_SENTENCE } from "./WalletNotice";
+import { useBlockedReason } from "./WalletNotice";
 
 type Read = { status: "success"; result: unknown } | { status: "failure"; error: Error };
 type Position = readonly [bigint, bigint, bigint];
@@ -46,17 +47,8 @@ type MarketState = readonly [bigint, bigint, bigint, bigint, bigint, bigint];
 
 const SECONDS_PER_YEAR = 31_536_000;
 
-// Why this wallet cannot sign right now, in words. null means it can (C4 and the plain-wallet rule).
-function blockedReason(wallet: WalletState): string | null {
-  if (readyToSign(wallet)) return null;
-  if (wallet.status !== "connected") return "Connect a wallet to continue.";
-  if (!wallet.onArc) return "Your wallet is on another network. Switch it to Arc to continue; nothing is built until then.";
-  if (wallet.kind === "smart") return SMART_ACCOUNT_SENTENCE;
-  if (wallet.kind === "unavailable") return "Could not check this wallet's type on Arc. Reload to try again.";
-  return "Checking your wallet on Arc.";
-}
-
 export function BillWallet({ bill: json, paidTxUrl = null }: { bill: BillJson; paidTxUrl?: string | null }) {
+  const t = useTranslations("billWallet");
   const bill = useMemo(() => billFromJson(json), [json]);
   const wallet = useWallet();
   const open = bill.status === BILL_STATUS.Open;
@@ -66,12 +58,10 @@ export function BillWallet({ bill: json, paidTxUrl = null }: { bill: BillJson; p
   if (wallet.status !== "connected") {
     if (!open) return null;
     return (
-      <section className="px-5 pb-20 md:px-[6vw] md:pb-28" aria-label="Pay this bill">
+      <section className="px-5 pb-20 md:px-[6vw] md:pb-28" aria-label={t("payThisBill")}>
         <motion.div {...rise(0)} className="app-panel p-6 md:p-8">
           <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-            <p className="type-lead max-w-[36rem] text-text">
-              Connect a wallet to pay this bill from your balance, or from a loan against your cirBTC, in one signature.
-            </p>
+            <p className="type-lead max-w-[36rem] text-text">{t("connectToPay")}</p>
             <ConnectButton />
           </div>
           <GetSetUp needs={["arc", "cirbtc", "usdc"]} className="mt-6" />
@@ -86,11 +76,14 @@ export function BillWallet({ bill: json, paidTxUrl = null }: { bill: BillJson; p
 type ConnectedProps = { address: Address; bill: Bill; wallet: WalletState; justPaid: boolean; paidTxUrl: string | null };
 
 function ConnectedWallet({ address, bill, wallet, justPaid, paidTxUrl }: ConnectedProps) {
+  const t = useTranslations("billWallet");
+  const tc = useTranslations("common");
+  const blockedReason = useBlockedReason();
   const currency = currencyOf(bill.currency);
   const isPayee = isAddressEqual(address, bill.payee);
   const open = bill.status === BILL_STATUS.Open;
   const m = currency?.marketId ?? MARKET_USDC;
-  const reason = blockedReason(wallet);
+  const reason = blockedReason(wallet, "continue");
 
   const reads = useReadContracts({
     allowFailure: true,
@@ -228,10 +221,10 @@ function ConnectedWallet({ address, bill, wallet, justPaid, paidTxUrl }: Connect
     <RetryContext.Provider value={retry}>
     <section className="px-5 pb-20 md:px-[6vw] md:pb-28" aria-labelledby="wallet-title">
       <motion.div {...rise(0)} className="flex flex-wrap items-center gap-4 border-t border-rule pt-10">
-        <Hallmark tone="quiet">Your wallet</Hallmark>
+        <Hallmark tone="quiet">{tc("yourWallet")}</Hallmark>
         <span className="type-address break-all text-muted">{address}</span>
         <h2 id="wallet-title" className="type-h2 mt-2 w-full text-text">
-          {open && !isPayee ? "Pay it in one signature." : "Your position on Arc."}
+          {open && !isPayee ? t("payInOneSignature") : t("yourPosition")}
         </h2>
       </motion.div>
 
@@ -271,7 +264,7 @@ function ConnectedWallet({ address, bill, wallet, justPaid, paidTxUrl }: Connect
               </div>
             ) : (
               <div className="app-panel p-6 md:p-8" data-blocked="true">
-                <p className="type-label text-muted">Pay this bill</p>
+                <p className="type-label text-muted">{t("payThisBill")}</p>
                 <p className="type-lead mt-4 text-text">{reason}</p>
                 {wallet.status === "connected" && !wallet.onArc && (
                   <>
@@ -285,18 +278,17 @@ function ConnectedWallet({ address, bill, wallet, justPaid, paidTxUrl }: Connect
             )
           ) : (
             <div className="app-panel p-6 md:p-8">
-              <p className="type-label text-muted">This bill</p>
-              <p className="type-lead mt-4 text-text">
-                {bill.status === BILL_STATUS.Paid ? "Already paid. Nothing to pay here." : "Cancelled. It can never be paid."}
-              </p>
+              <p className="type-label text-muted">{t("thisBill")}</p>
+              <p className="type-lead mt-4 text-text">{bill.status === BILL_STATUS.Paid ? tc("alreadyPaidNothing") : tc("cancelledNever")}</p>
             </div>
           )}
         </motion.div>
 
         <div className="grid content-start gap-5 md:col-span-6 md:gap-6">
           <motion.div {...rise(2)} className="app-panel p-6 md:p-8">
-            <p className="type-label text-muted">In this wallet</p>
-            <dl className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-3">
+            <p className="type-label text-muted">{t("inThisWallet")}</p>
+            {/* Three across only where the column is wide enough for three display-size figures: not at md, where this panel is half the page. */}
+            <dl className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-3 md:grid-cols-1 lg:grid-cols-3">
               {(["USDC", "EURC", "cirBTC"] as const).map((symbol, i) => (
                 <div key={symbol}>
                   <dt className="type-micro text-muted">{symbol}</dt>
@@ -311,8 +303,8 @@ function ConnectedWallet({ address, bill, wallet, justPaid, paidTxUrl }: Connect
           {/* Nothing to show when this wallet has no loan in either market. */}
           {!noPositions && (
             <motion.div {...rise(3)} className="app-panel p-6 md:p-8" data-positions>
-              <p className="type-label text-muted">Morpho positions</p>
-              <div className="mt-5 grid gap-6 sm:grid-cols-2">
+              <p className="type-label text-muted">{t("morphoPositions")}</p>
+              <div className="mt-5 grid gap-6 sm:grid-cols-2 md:grid-cols-1 lg:grid-cols-2">
                 {markets.map((x) => (
                   <MarketCard key={x.currency.symbol} {...x} />
                 ))}
@@ -335,21 +327,18 @@ function ConnectedWallet({ address, bill, wallet, justPaid, paidTxUrl }: Connect
 
 // The supplier had this page open when someone paid: the stamp above has just landed, and this says so in words.
 function PaidJustNow({ bill, currencySymbol, decimals, txUrl }: { bill: Bill; currencySymbol: string; decimals: number; txUrl: string | null }) {
+  const t = useTranslations("billWallet.justNow");
   return (
     <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }} className="app-panel p-6 md:p-8" data-paid-just-now>
-      <p className="type-label text-success">Paid just now</p>
-      <p className="type-h3 mt-3 text-text">
-        You received {formatUnitsExact(bill.amount, decimals)} {currencySymbol}.
-      </p>
-      <p className="type-body mt-3 text-muted">
-        Paid by <span className="type-address break-all text-text">{bill.payer}</span>
-      </p>
+      <p className="type-label text-success">{t("label")}</p>
+      <p className="type-h3 mt-3 text-text">{t("received", { amount: formatUnitsExact(bill.amount, decimals), symbol: currencySymbol })}</p>
+      <p className="type-body mt-3 text-muted">{t.rich("paidBy", { address: bill.payer, addr: (chunks) => <span className="type-address break-all text-text">{chunks}</span> })}</p>
       {txUrl ? (
         <a href={txUrl} target="_blank" rel="noopener noreferrer" className="link-draw type-address mt-4 inline-block text-text hover:text-gold">
-          The transaction on the explorer
+          {t("txOnExplorer")}
         </a>
       ) : (
-        <p className="type-body mt-4 text-muted">The transaction link appears once Adag&apos;s payment log is read.</p>
+        <p className="type-body mt-4 text-muted">{t("txLinkLater")}</p>
       )}
     </motion.div>
   );
@@ -363,6 +352,7 @@ type MarketCardProps = {
 };
 
 function MarketCard({ currency, position, market, ltv }: MarketCardProps) {
+  const t = useTranslations("billWallet.market");
   const debt: Cell<bigint> =
     position.state === "ok" && market.state === "ok"
       ? { state: "ok", value: debtFromShares(position.value[1], market.value[2], market.value[3]) }
@@ -373,14 +363,14 @@ function MarketCard({ currency, position, market, ltv }: MarketCardProps) {
   const drop: Cell<bigint> = ltv.state === "ok" ? { state: "ok", value: liquidationDropWad(ltv.value, currency.params.lltv) } : ltv;
 
   const rows: [string, React.ReactNode][] = [
-    ["Pledged", <Value key="p" cell={pledged} render={(v) => `${formatUnitsExact(v, CIRBTC_DECIMALS)} cirBTC`} />],
-    ["Loan", <Value key="l" cell={debt} render={(v) => `${formatUnitsExact(v, currency.decimals)} ${currency.symbol}`} />],
-    ["Loan-to-value", <Value key="v" cell={ltv} render={(v) => formatPercentWad(v)} />],
-    ["BTC can fall", <Value key="f" cell={drop} render={(v) => (ltv.state === "ok" && ltv.value === 0n ? "no loan" : formatPercentWad(v))} />],
+    [t("pledged"), <Value key="p" cell={pledged} render={(v) => `${formatUnitsExact(v, CIRBTC_DECIMALS)} cirBTC`} />],
+    [t("loan"), <Value key="l" cell={debt} render={(v) => `${formatUnitsExact(v, currency.decimals)} ${currency.symbol}`} />],
+    [t("loanToValue"), <Value key="v" cell={ltv} render={(v) => formatPercentWad(v)} />],
+    [t("btcCanFall"), <Value key="f" cell={drop} render={(v) => (ltv.state === "ok" && ltv.value === 0n ? t("noLoan") : formatPercentWad(v))} />],
   ];
   return (
     <div className="border-l border-rule pl-4">
-      <p className="type-micro text-text">{currency.symbol} against cirBTC</p>
+      <p className="type-micro text-text">{t("againstCirbtc", { symbol: currency.symbol })}</p>
       <dl className="mt-3 space-y-2">
         {rows.map(([label, value]) => (
           <div key={label} className="flex items-baseline justify-between gap-3">
@@ -394,11 +384,12 @@ function MarketCard({ currency, position, market, ltv }: MarketCardProps) {
 }
 
 function PriceLine({ priceStatus, symbol, chainNow }: { priceStatus: Cell<readonly [boolean, bigint, bigint]>; symbol: string; chainNow: bigint | null }) {
+  const t = useTranslations("billWallet.price");
   if (priceStatus.state !== "ok") {
     return (
       <p className="type-body flex items-center gap-3 text-muted">
         <span aria-hidden="true" className="diamond !bg-rule-strong" />
-        Bitcoin price status: <Value cell={priceStatus} render={() => null} />
+        {t("status")} <Value cell={priceStatus} render={() => null} />
       </p>
     );
   }
@@ -408,8 +399,8 @@ function PriceLine({ priceStatus, symbol, chainNow }: { priceStatus: Cell<readon
   return (
     <p className="type-body flex flex-wrap items-center gap-x-3 gap-y-1 text-text" data-price={fresh ? "fresh" : "stale"}>
       <span aria-hidden="true" className={`diamond ${fresh ? "!bg-success" : "!bg-danger"}`} />
-      {fresh ? `Bitcoin price fresh for the ${symbol} market.` : "Bitcoin price paused: new loans wait for the next update."}
-      <span className={fresh ? "text-text" : "text-muted"}>Chainlink BTC/USD updated {hours.toFixed(1)} hours ago.</span>
+      {fresh ? t("fresh", { symbol }) : t("paused")}
+      <span className={fresh ? "text-text" : "text-muted"}>{t("updatedHoursAgo", { hours: hours.toFixed(1) })}</span>
     </p>
   );
 }

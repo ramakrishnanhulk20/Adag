@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { motion } from "motion/react";
 import { formatApy, formatMoney, formatWadPercent } from "@/lib/arc/present";
 import type { LiveSnapshot } from "@/lib/arc/types";
@@ -15,59 +16,49 @@ type Shown =
   | { kind: "unavailable" }
   | { kind: "ready"; number: string; suffix?: string; detail: React.ReactNode };
 
-type CellSpec = { label: string; read: (s: LiveSnapshot) => Shown };
-
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "S"}`;
+type T = ReturnType<typeof useTranslations<"hero.cells">>;
+type CellSpec = { key: "ready" | "rate" | "cap" | "paid"; read: (s: LiveSnapshot, t: T) => Shown };
 
 const CELLS: CellSpec[] = [
   {
-    label: "Ready to lend on Morpho",
-    read: ({ liquidity }) =>
+    key: "ready",
+    read: ({ liquidity }, t) =>
       liquidity.ok
         ? {
             kind: "ready",
             number: formatMoney(liquidity.value.usdcBaseUnits, "USD"),
-            detail:
-              liquidity.value.eurcBaseUnits === null
-                ? "EURC market unavailable"
-                : `${formatMoney(liquidity.value.eurcBaseUnits, "EUR")} in the EURC market`,
+            detail: liquidity.value.eurcBaseUnits === null ? t("eurcUnavailable") : t("eurcMarket", { amount: formatMoney(liquidity.value.eurcBaseUnits, "EUR") }),
           }
         : { kind: "unavailable" },
   },
   {
-    label: "Borrow rate",
-    read: ({ borrowRate }) =>
-      borrowRate.ok
-        ? { kind: "ready", number: formatApy(borrowRate.value.apy), suffix: "a year", detail: "Morpho Blue, live" }
-        : { kind: "unavailable" },
+    key: "rate",
+    read: ({ borrowRate }, t) =>
+      borrowRate.ok ? { kind: "ready", number: formatApy(borrowRate.value.apy), suffix: t("aYear"), detail: t("morphoLive") } : { kind: "unavailable" },
   },
   {
-    label: "Loan cap",
-    read: ({ loanCap }) =>
+    key: "cap",
+    read: ({ loanCap }, t) =>
       loanCap.ok
         ? {
             kind: "ready",
             number: formatWadPercent(loanCap.value.maxLtvWad),
-            detail:
-              loanCap.value.morphoLltvWad === null
-                ? "Morpho's line unavailable"
-                : `Morpho liquidates at ${formatWadPercent(loanCap.value.morphoLltvWad)}`,
+            detail: loanCap.value.morphoLltvWad === null ? t("lineUnavailable") : t("morphoLiquidatesAt", { pct: formatWadPercent(loanCap.value.morphoLltvWad) }),
           }
         : { kind: "unavailable" },
   },
   {
-    label: "Paid through Adag",
-    read: ({ paid }) => {
+    key: "paid",
+    read: ({ paid }, t) => {
       if (!paid.ok) return { kind: "unavailable" };
       const v = paid.value;
       const eurc = v.eurcBaseUnits !== "0" ? `+ ${formatMoney(v.eurcBaseUnits, "EUR")} · ` : "";
-      const count = plural(v.billsPaid, "bill");
       // The shortest path from the headline number to a real payment: bill #1, the live proof on the current contract.
       const tail = (
         <>
           {" · "}
-          <Link href={BILL_ONE} className="link-draw text-gold max-md:tap-target" aria-label="See bill 1, the live proof payment">
-            see bill #1
+          <Link href={BILL_ONE} className="link-draw text-gold max-md:tap-target" aria-label={t("seeBillOneLabel")}>
+            {t("seeBillOne")}
           </Link>
         </>
       );
@@ -77,7 +68,8 @@ const CELLS: CellSpec[] = [
         detail: (
           <>
             {eurc}
-            {count} paid{tail}
+            {t("billsPaid", { count: v.billsPaid, n: String(v.billsPaid) })}
+            {tail}
           </>
         ),
       };
@@ -86,18 +78,19 @@ const CELLS: CellSpec[] = [
 ];
 
 function Value({ shown }: { shown: Shown }) {
+  const tc = useTranslations("common");
   if (shown.kind === "loading") {
     return (
-      <div className="flex h-[clamp(2.25rem,1.5rem+1.8vw,3.125rem)] flex-col justify-center gap-2" aria-label="Reading Arc">
+      <div className="flex h-[clamp(2.25rem,1.5rem+1.8vw,3.125rem)] flex-col justify-center gap-2" aria-label={tc("readingArc")}>
         <span aria-hidden="true" className="live-shimmer block h-px w-3/5" />
-        <span className={`type-micro text-muted transition-opacity duration-300 ${shown.slow ? "opacity-100" : "opacity-0"}`}>Reading Arc</span>
+        <span className={`type-micro text-muted transition-opacity duration-300 ${shown.slow ? "opacity-100" : "opacity-0"}`}>{tc("readingArc")}</span>
       </div>
     );
   }
   if (shown.kind === "unavailable") {
     return (
       <p className="flex h-[clamp(2.25rem,1.5rem+1.8vw,3.125rem)] items-center font-display text-[clamp(1.25rem,1rem+0.8vw,1.625rem)] italic text-muted">
-        unavailable
+        {tc("unavailable")}
       </p>
     );
   }
@@ -117,6 +110,7 @@ function Value({ shown }: { shown: Shown }) {
 
 export function LiveCells() {
   const live = useLive();
+  const t = useTranslations("hero.cells");
   return (
     <dl className="grid grid-cols-2 gap-x-5 gap-y-8 border-t border-rule pt-5 md:grid-cols-4 md:gap-0 md:pt-4">
       {CELLS.map((cell, i) => {
@@ -125,20 +119,20 @@ export function LiveCells() {
             ? { kind: "loading", slow: live.slow }
             : live.status === "failed"
               ? { kind: "unavailable" }
-              : cell.read(live.snapshot);
+              : cell.read(live.snapshot, t);
         return (
           <div
-            key={cell.label}
+            key={cell.key}
             data-live-cell={i + 1}
             data-state={shown.kind}
             className={`flex min-w-0 flex-col gap-1.5 md:px-6 ${i === 0 ? "md:pl-0" : "md:border-l md:border-rule"}`}
           >
-            <dt className="type-label text-muted">{cell.label}</dt>
+            <dt className="type-label text-muted">{t(`labels.${cell.key}`)}</dt>
             <dd className="min-w-0">
               <Value shown={shown} />
             </dd>
             <dd className="type-micro min-h-[1.3em] text-muted">
-              {shown.kind === "ready" ? shown.detail : shown.kind === "unavailable" ? "Could not read this from Arc" : null}
+              {shown.kind === "ready" ? shown.detail : shown.kind === "unavailable" ? t("couldNotRead") : null}
             </dd>
           </div>
         );

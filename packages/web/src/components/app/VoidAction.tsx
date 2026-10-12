@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { AnimatePresence, motion } from "motion/react";
 import { useQuery } from "@tanstack/react-query";
 import type { Address, Hex } from "viem";
@@ -20,12 +21,15 @@ import { SuccessCard } from "./SuccessCard";
 import { BusyLabel, TxMessage, type TxState } from "./TxProgress";
 
 export function VoidAction({ bill, address, canSign, blockedReason }: { bill: Bill; address: Address; canSign: boolean; blockedReason: string | null }) {
+  const t = useTranslations("bill.void");
+  const tc = useTranslations("common");
   const router = useRouter();
   const [confirming, setConfirming] = useState(false);
   const [tx, setTx] = useState<TxState>({ kind: "idle" });
   const [done, setDone] = useState<Hex | null>(null);
   const [link, setLink] = useState("");
   const open = bill.status === BILL_STATUS.Open;
+  const id = bill.id.toString();
   const step = (s: TxStep) => setTx((prev) => ({ kind: "busy", step: s, since: prev.kind === "busy" && prev.step === s ? prev.since : Date.now() }));
   useEffect(() => setLink(`${window.location.origin}${billHref(bill.contract, bill.id)}`), [bill.contract, bill.id]);
 
@@ -53,7 +57,7 @@ export function VoidAction({ bill, address, canSign, blockedReason }: { bill: Bi
           router.refresh();
           return;
         }
-        setTx({ kind: "failed", message: "Arc has not confirmed it after two minutes. Check the transaction before trying again.", href: `${EXPLORER}/tx/${out.hash}` });
+        setTx({ kind: "failed", message: t("notConfirmed"), href: `${EXPLORER}/tx/${out.hash}` });
         return;
       }
       setTx(out.stage === "refused" ? { kind: "refused", error: out.error } : { kind: "failed", message: out.message, href: out.hash && `${EXPLORER}/tx/${out.hash}` });
@@ -63,7 +67,7 @@ export function VoidAction({ bill, address, canSign, blockedReason }: { bill: Bi
       .readContract({ address: bill.contract, abi: adagAbi, functionName: "bill", args: [bill.id] })
       .catch(() => null);
     if (!record || record.status !== BILL_STATUS.Void || !billVoidedIn(out.receipt.logs, bill.contract, bill.id)) {
-      setTx({ kind: "failed", message: "Arc confirmed the transaction, but the bill does not read as cancelled yet. Reload to check.", href: `${EXPLORER}/tx/${out.hash}` });
+      setTx({ kind: "failed", message: t("notCancelledYet"), href: `${EXPLORER}/tx/${out.hash}` });
       return;
     }
     setDone(out.hash);
@@ -72,25 +76,23 @@ export function VoidAction({ bill, address, canSign, blockedReason }: { bill: Bi
   };
 
   if (done) {
-    return <SuccessCard status="void" hash={done} title={`Bill #${bill.id} is cancelled.`} rows={[{ label: "What it means", value: "No one can pay it, ever." }]} />;
+    return <SuccessCard status="void" hash={done} title={t("cancelledTitle", { id })} rows={[{ label: t("whatItMeans"), value: t("noOneCanPay") }]} />;
   }
 
   const c = currencyOf(bill.currency);
   const busy = tx.kind === "busy" ? tx : null;
   return (
     <div className="app-panel h-full p-6 md:p-8">
-      <p className="type-label text-gold">You wrote this bill</p>
-      <p className="type-lead mt-4 text-text">
-        {open ? "Send this bill to whoever owes it. You can cancel it until someone pays." : "It is closed. Nothing more to do here."}
-      </p>
+      <p className="type-label text-gold">{t("youWroteThis")}</p>
+      <p className="type-lead mt-4 text-text">{open ? t("sendIt") : t("closed")}</p>
       {open && link && (
         <div className="mt-6" data-share-bill>
-          <p className="type-micro text-muted">Share this bill</p>
+          <p className="type-micro text-muted">{t("shareThisBill")}</p>
           <p className="type-address mt-2 break-all rounded-[6px] border border-rule bg-bg/40 p-3 text-text">{link}</p>
           <ShareActions
             url={link}
-            title={`Bill #${bill.id}`}
-            text={`Bill #${bill.id}${c ? ` for ${formatUnitsExact(bill.amount, c.decimals)} ${c.symbol}` : ""}, payable on Arc.`}
+            title={tc("billNumber", { id })}
+            text={c ? tc("shareTextAmount", { id, amount: formatUnitsExact(bill.amount, c.decimals), symbol: c.symbol }) : tc("shareText", { id })}
             size="sm"
             className="mt-3"
           />
@@ -105,19 +107,19 @@ export function VoidAction({ bill, address, canSign, blockedReason }: { bill: Bi
               {!confirming ? (
                 <motion.div key="ask" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                   <Button variant="secondary" onClick={() => setConfirming(true)} className="w-full md:w-auto" data-action="void">
-                    Void this bill
+                    {t("voidThisBill")}
                   </Button>
                 </motion.div>
               ) : (
                 <motion.div key="confirm" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="rounded-[8px] border border-danger/60 p-5">
-                  <p className="type-body text-text">Cancel bill #{bill.id.toString()} for good? No one can pay it after this, and it cannot be undone.</p>
+                  <p className="type-body text-text">{t("confirm", { id })}</p>
                   <FeeLine query={fee} className="mt-3" />
                   <div className="mt-5 flex flex-col gap-3 md:flex-row">
                     <Button variant="primary" disabled={!!busy} onClick={() => void voidIt()} className="w-full md:w-auto" data-action="void-confirm">
-                      {busy ? <BusyLabel step={busy.step} since={busy.since} /> : "Yes, void it"}
+                      {busy ? <BusyLabel step={busy.step} since={busy.since} /> : t("yesVoidIt")}
                     </Button>
                     <Button variant="secondary" disabled={!!busy} onClick={() => setConfirming(false)} className="w-full md:w-auto">
-                      Keep it open
+                      {t("keepItOpen")}
                     </Button>
                   </div>
                 </motion.div>

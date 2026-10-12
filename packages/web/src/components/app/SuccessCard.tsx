@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { motion } from "motion/react";
 import { BillStamp } from "@/components/BillStamp";
 import { EXPLORER } from "@/lib/pay/constants";
@@ -13,6 +14,7 @@ type SuccessCardProps = {
 };
 
 export function SuccessCard({ status, hash, title, rows }: SuccessCardProps) {
+  const t = useTranslations("tx");
   return (
     <motion.div
       data-tx-result={status}
@@ -23,17 +25,17 @@ export function SuccessCard({ status, hash, title, rows }: SuccessCardProps) {
     >
       <div className="flex flex-wrap items-start justify-between gap-6">
         <div>
-          <p className={`type-label ${status === "paid" ? "text-success" : "text-danger"}`}>Confirmed on Arc</p>
+          <p className={`type-label ${status === "paid" ? "text-success" : "text-danger"}`}>{t("confirmedOnArc")}</p>
           <p className="type-h3 mt-3 max-w-[18ch] text-text">{title}</p>
         </div>
         <BillStamp status={status} entrance="in-view" tilt={status === "paid" ? -9 : -11} />
       </div>
       <dl className="mt-8 grid gap-x-8 gap-y-4 border-t border-rule pt-6 sm:grid-cols-2">
         <div>
-          <dt className="type-micro text-muted">Transaction</dt>
+          <dt className="type-micro text-muted">{t("transaction")}</dt>
           <dd className="mt-1">
             <a href={`${EXPLORER}/tx/${hash}`} target="_blank" rel="noopener noreferrer" className="link-draw type-address text-text hover:text-gold">
-              {shortAddress(hash)} on the explorer
+              {t("onTheExplorer", { hash: shortAddress(hash) })}
             </a>
           </dd>
         </div>

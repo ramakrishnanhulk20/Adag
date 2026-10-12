@@ -2,9 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import { isAddressEqual, type Address, type Hex } from "viem";
 import { Button } from "@/components/Button";
+import { useLibText } from "@/i18n/useLibText";
 import { adagAbi, erc20Abi, morphoAbi, oracleAbi } from "@/lib/pay/abi";
 import { buildPayConverted, buildPayFromBalance, buildPayFromBitcoin, suggestPledge, type Bill } from "@/lib/pay/build";
 import { loanCurrencyFor, readLoanPriceFresh } from "@/lib/fx/estimate";
@@ -33,17 +35,17 @@ import { hasAcceptedMorphoDisclaimer, rememberMorphoDisclaimer } from "@/lib/wal
 import { estimateFee, publicArc, simulateAndSend, watchBills, type TxOutcome, type TxStep } from "@/lib/wallet/send";
 import { Reading, Value, type Cell } from "./cells";
 import { e2ePledge } from "./e2eHook";
-import { keepText } from "./fee";
+import { useFeeWords } from "./fee";
 import { FeeLine } from "./FeeLine";
 import { GetSetUp, type SetupNeed } from "./GetSetUp";
 import { MorphoDisclaimer } from "./MorphoDisclaimer";
-import { ConvertEstimate, ConvertReset, convertTitle } from "./fx/ConvertParts";
+import { ConvertEstimate, ConvertReset, useConvertTitle } from "./fx/ConvertParts";
 import { EFFECTS_UNAVAILABLE, billConvertView, reasons, type ConvertView, type Estimate } from "./fx/figures";
 import { adapterReadBack, askCircle, conversionFailure, effectsCanBeChecked } from "./fx/press";
 import { useBillConvert } from "./fx/useConvert";
 import { SuccessCard } from "./SuccessCard";
 import { BusyLabel, TxMessage, type TxState } from "./TxProgress";
-import { usdHint, useUsdPrice } from "./usdPrice";
+import { useUsdHint, useUsdPrice } from "./usdPrice";
 
 type Position = readonly [bigint, bigint, bigint];
 type MarketState = readonly [bigint, bigint, bigint, bigint, bigint, bigint];
@@ -93,6 +95,12 @@ type ConvertState = { kind: "loading" } | { kind: "unavailable" } | ConvertView;
 
 export function PayActions(props: PayActionsProps) {
   const { bill, address, currency, balance, cirBtc, position, market, price, priceStatus, needed, borrowApy, onSettled, enrol, onRecorded, onBusy } = props;
+  const t = useTranslations("payActions");
+  const tc = useTranslations("common");
+  const tl = useLibText();
+  const { keepText } = useFeeWords();
+  const usdHint = useUsdHint();
+  const convertTitle = useConvertTitle();
   const open = bill.status === BILL_STATUS.Open;
   const [enrolling, setEnrolling] = useState(false);
   const balanceBlockers = enrol.balance ?? [];
@@ -248,7 +256,7 @@ export function PayActions(props: PayActionsProps) {
     // record naming this payer.
     const proven = record !== null && record.status === BILL_STATUS.Paid && (proof !== null || (logs === null && isAddressEqual(record.payer, address)));
     if (!proven) {
-      setTx({ kind: "failed", message: "Arc confirmed the transaction, but Adag has no payment record for this bill in it. Check the link before trying again.", href: `${EXPLORER}/tx/${hash}` });
+      setTx({ kind: "failed", message: t("fail.noRecord"), href: `${EXPLORER}/tx/${hash}` });
       return;
     }
     const more = await extra().catch(() => ({}));
@@ -270,7 +278,7 @@ export function PayActions(props: PayActionsProps) {
     if (out.stage === "unconfirmed") {
       step("watching");
       if (await watchBills(bill.contract, [bill.id], BILL_STATUS.Paid, address)) return settle(method, out.hash, null, extra);
-      return setTx({ kind: "failed", message: "Arc has not confirmed it after two minutes. Do not pay again: check the transaction first.", href: `${EXPLORER}/tx/${out.hash}` });
+      return setTx({ kind: "failed", message: tc("notConfirmedTwoMinutes"), href: `${EXPLORER}/tx/${out.hash}` });
     }
     setTx(method === "convert" ? conversionFailure(out) : { kind: "failed", message: out.message, href: out.hash && `${EXPLORER}/tx/${out.hash}` });
   };
@@ -293,11 +301,16 @@ export function PayActions(props: PayActionsProps) {
       const held = await publicArc()
         .readContract({ address: currency.address, abi: erc20Abi, functionName: "balanceOf", args: [address] })
         .catch(() => null);
-      if (held === null) return setTx({ kind: "failed", message: "Arc did not answer with your balance. Nothing was sent. Try again." });
+      if (held === null) return setTx({ kind: "failed", message: tc("noBalanceAnswer") });
       if (held < cover.needInToken) {
         return setTx({
           kind: "failed",
-          message: `This payment needs ${formatUnitsExact(cover.needInToken, currency.decimals)} ${currency.symbol}: the bill plus ${formatUnitsExact(fresh.eurc, currency.decimals)} your loan guard is about to repay. Your wallet holds ${formatUnitsExact(held, currency.decimals)}. Nothing was sent.`,
+          message: t("fail.needsWithGuard", {
+            need: formatUnitsExact(cover.needInToken, currency.decimals),
+            symbol: currency.symbol,
+            guard: formatUnitsExact(fresh.eurc, currency.decimals),
+            held: formatUnitsExact(held, currency.decimals),
+          }),
         });
       }
     }
@@ -326,16 +339,16 @@ export function PayActions(props: PayActionsProps) {
         client.readContract({ address: MORPHO, abi: morphoAbi, functionName: "position", args: [m, address] }),
       ]);
     } catch {
-      setTx({ kind: "failed", message: "Arc did not answer, so the payment was not built. Nothing was sent. Try again." });
+      setTx({ kind: "failed", message: t("fail.notBuilt") });
       return;
     }
     if (!status[0]) {
-      setTx({ kind: "failed", message: "New loans are paused until the bitcoin price updates. Paying from your balance still works." });
+      setTx({ kind: "failed", message: tc("stalePrice") });
       return;
     }
     const chosen = e2ePledge(suggestPledge(freshNeeded));
     if (held < chosen) {
-      setTx({ kind: "failed", message: `This payment pledges ${formatUnitsExact(chosen, CIRBTC_DECIMALS)} cirBTC and your wallet holds ${formatUnitsExact(held, CIRBTC_DECIMALS)}. Nothing was sent.` });
+      setTx({ kind: "failed", message: t("fail.pledgesMore", { pledge: formatUnitsExact(chosen, CIRBTC_DECIMALS), held: formatUnitsExact(held, CIRBTC_DECIMALS) }) });
       return;
     }
     let built;
@@ -343,7 +356,7 @@ export function PayActions(props: PayActionsProps) {
       // Morpho's answer is proven by hash against the fixed market id inside the builder (C3).
       built = buildPayFromBitcoin(bill, address, chosen, paramsFromTuple(tuple));
     } catch (error) {
-      setTx({ kind: "failed", message: `${(error as Error).message} Nothing was sent.` });
+      setTx({ kind: "failed", message: `${(error as Error).message} ${tc("nothingWasSent")}` });
       return;
     }
     const pendingNow = await pendingGuardOutflow(client, address);
@@ -377,7 +390,7 @@ export function PayActions(props: PayActionsProps) {
     }
     if (tripNow && !guardAfter && caught === null) {
       setCaught(tripNow);
-      return setTx({ kind: "failed", message: "Your loan guard changed since this page loaded: read the note above before paying. Nothing was sent." });
+      return setTx({ kind: "failed", message: tc("guardChanged") });
     }
     const out = await simulateAndSend({ account: address, to: built.to, data: built.data, onStep: step, usdcOut: coverNeeds({ symbol: currency.symbol, from: "bitcoin", amount: bill.amount, pending: pendingNow }).usdcOut });
     await conclude(out, "bitcoin", async () => {
@@ -401,15 +414,15 @@ export function PayActions(props: PayActionsProps) {
     step("checking");
     const client = publicArc();
     const sold = est.loan;
-    const failed = (message: string) => setTx({ kind: "failed", message: `${message} Nothing was sent.` });
+    const failed = (message: string) => setTx({ kind: "failed", message: `${message} ${tc("nothingWasSent")}` });
     try {
       // The bill is read again: the figures on screen were sized for exactly this amount.
       const record = await client.readContract({ address: bill.contract, abi: adagAbi, functionName: "bill", args: [bill.id] });
       if (record.status !== BILL_STATUS.Open || record.amount !== bill.amount || !isAddressEqual(record.payee, bill.payee) || !isAddressEqual(record.currency, bill.currency) || record.ref !== bill.ref) {
-        return failed("This bill changed since the page loaded. Reload the page to see it as it is now.");
+        return failed(t("fail.billChanged"));
       }
     } catch {
-      return failed("Arc did not answer, so the payment was not built. Try again.");
+      return failed(t("fail.notBuiltShort"));
     }
     const pendingNow = await pendingGuardOutflow(client, address);
     if (!pendingNow) return setTx({ kind: "failed", message: GUARD_UNREADABLE });
@@ -427,10 +440,10 @@ export function PayActions(props: PayActionsProps) {
       if (pre.state !== "clear") return failed(pre.state === "blocked" ? pre.blockers.join(" ") : pre.text);
       const cash = readyToLend(mk);
       if (!lendCovers(cash, est.amountIn)) return failed(reasons.cash(cash, est.amountIn, sold.symbol));
-      if (held < est.pledge) return failed(`This payment pledges ${formatUnitsExact(est.pledge, CIRBTC_DECIMALS)} cirBTC and your wallet holds ${formatUnitsExact(held, CIRBTC_DECIMALS)}.`);
+      if (held < est.pledge) return failed(t("fail.pledgesMoreShort", { pledge: formatUnitsExact(est.pledge, CIRBTC_DECIMALS), held: formatUnitsExact(held, CIRBTC_DECIMALS) }));
       tuple = params;
     } catch {
-      return failed("Arc did not answer, so the payment was not built. Try again.");
+      return failed(t("fail.notBuiltShort"));
     }
 
     // C58, read again at the moment of signing, in the loan market: a trip the page had not shown stops here.
@@ -463,7 +476,7 @@ export function PayActions(props: PayActionsProps) {
     }
     if (tripNow && !convertGuardAfter && convertCaught === null) {
       setConvertCaught(tripNow);
-      return setTx({ kind: "failed", message: "Your loan guard changed since this page loaded: read the note above before paying. Nothing was sent." });
+      return setTx({ kind: "failed", message: tc("guardChanged") });
     }
 
     // C73: Circle is asked here, for exactly the frozen amount (the identical request is repeated at most twice for "no
@@ -536,62 +549,63 @@ export function PayActions(props: PayActionsProps) {
   };
 
   const panel = payPanelFor({ status: bill.status, paid: paid !== null, busy });
+  const id = bill.id.toString();
+  const unavailable = tc("unavailable");
+  const fortyCheck = (checked: boolean | null) => (checked === null ? t("receipt.seeTheTransaction") : checked ? t("receipt.ranAndPassed") : t("receipt.notNeeded"));
   if (paid) {
     return (
       <SuccessCard
         status="paid"
         hash={paid.hash}
-        title={`Bill #${bill.id} is paid.`}
+        title={t("receipt.title", { id })}
         rows={[
-          { label: "Supplier received", value: amountText },
+          { label: t("receipt.supplierReceived"), value: amountText },
           {
-            label: "Paid from",
+            label: t("receipt.paidFrom"),
             value:
               paid.method === "balance"
-                ? `Your ${currency.symbol} balance`
+                ? t("receipt.fromBalance", { symbol: currency.symbol })
                 : paid.method === "convert"
-                  ? `A ${loan.symbol} loan against your cirBTC, converted to ${currency.symbol} by Circle`
-                  : "A loan against your cirBTC",
+                  ? t("receipt.fromConverted", { loan: loan.symbol, symbol: currency.symbol })
+                  : t("receipt.fromLoan"),
           },
           ...(paid.method === "convert"
             ? [
                 {
-                  label: "Borrowed and converted",
+                  label: t("receipt.borrowedAndConverted"),
                   value:
                     paid.borrowed !== undefined && paid.converted !== undefined
-                      ? `${formatUnitsExact(paid.borrowed, 6)} ${loan.symbol} became ${formatUnitsExact(paid.converted, 6)} ${currency.symbol}`
-                      : "unavailable",
+                      ? tc("became", { from: `${formatUnitsExact(paid.borrowed, 6)} ${loan.symbol}`, to: `${formatUnitsExact(paid.converted, 6)} ${currency.symbol}` })
+                      : unavailable,
                 },
-                { label: "Left in your wallet", value: paid.surplus !== undefined ? `${formatUnitsExact(paid.surplus, 6)} ${currency.symbol}` : "unavailable" },
-                { label: "Pledged now", value: paid.pledged !== undefined ? `${formatUnitsExact(paid.pledged, CIRBTC_DECIMALS)} cirBTC more${usdHint(paid.pledged, usd)}` : "unavailable" },
-                { label: `${loan.symbol} loan-to-value after`, value: paid.ltvAfter !== undefined ? formatPercentWad(paid.ltvAfter) : "unavailable" },
-                { label: "40% check", value: paid.loanChecked === null ? "See the transaction" : paid.loanChecked ? "Ran and passed" : "Not needed" },
-                { label: "Your debt", value: `In ${loan.symbol}. Its dollar cost moves with the euro.` },
+                { label: tc("leftInWallet"), value: paid.surplus !== undefined ? `${formatUnitsExact(paid.surplus, 6)} ${currency.symbol}` : unavailable },
+                { label: t("receipt.pledgedNow"), value: paid.pledged !== undefined ? t("receipt.cirbtcMore", { amount: formatUnitsExact(paid.pledged, CIRBTC_DECIMALS), usd: usdHint(paid.pledged, usd) }) : unavailable },
+                { label: t("receipt.ltvAfterSymbol", { symbol: loan.symbol }), value: paid.ltvAfter !== undefined ? formatPercentWad(paid.ltvAfter) : unavailable },
+                { label: tc("fortyCheck"), value: fortyCheck(paid.loanChecked) },
+                { label: tc("yourDebt"), value: tc("debtInCurrency", { symbol: loan.symbol }) },
                 {
-                  label: "Circle's adapter",
+                  label: tc("circlesAdapter"),
                   value: (
                     <span data-adapter-clear={String(paid.adapterClear ?? null)}>
-                      {paid.adapterClear === true ? "No access to your wallet is left." : paid.adapterClear === false ? "It still has access to your wallet." : "Its access could not be read."}
+                      {paid.adapterClear === true ? tc("adapterNoAccess") : paid.adapterClear === false ? tc("adapterStillAccess") : tc("adapterUnreadable")}
                       {paid.adapterClear !== true && <ConvertReset account={address} loanToken={loan.address} canSign onDone={() => setPaid((p) => (p ? { ...p, adapterClear: true } : p))} className="mt-2" />}
                     </span>
                   ),
                 },
-                ...(paid.effectsUnchecked
-                  ? [{ label: "Extra check", value: "Adag could not trace this conversion's transfers before you signed, so only the payment's own balance check guarded it." }]
-                  : []),
-                { label: "Your bitcoin back", value: "Repay any time from Your wallet: Close loan, or close it with the other currency." },
+                ...(paid.effectsUnchecked ? [{ label: t("receipt.extraCheck"), value: tc("effectsUnchecked") }] : []),
+                { label: t("receipt.yourBitcoinBack"), value: t("receipt.repayAnyTimeOther") },
               ]
             : []),
           ...(paid.method === "bitcoin"
             ? [
-                { label: "Bitcoin sold", value: paid.sold !== undefined ? `${paid.sold === 0n ? "0" : formatUnitsExact(paid.sold, CIRBTC_DECIMALS)} cirBTC` : "unavailable" },
+                { label: tc("bitcoinSold"), value: paid.sold !== undefined ? `${paid.sold === 0n ? "0" : formatUnitsExact(paid.sold, CIRBTC_DECIMALS)} cirBTC` : unavailable },
                 {
-                  label: "Pledged now",
-                  value: paid.pledged !== undefined ? `${formatUnitsExact(paid.pledged, CIRBTC_DECIMALS)} cirBTC more${usdHint(paid.pledged, usd)}` : "unavailable",
+                  label: t("receipt.pledgedNow"),
+                  value: paid.pledged !== undefined ? t("receipt.cirbtcMore", { amount: formatUnitsExact(paid.pledged, CIRBTC_DECIMALS), usd: usdHint(paid.pledged, usd) }) : unavailable,
                 },
-                { label: "Loan-to-value after", value: paid.ltvAfter !== undefined ? formatPercentWad(paid.ltvAfter) : "unavailable" },
-                { label: "40% check", value: paid.loanChecked === null ? "See the transaction" : paid.loanChecked ? "Ran and passed" : "Not needed" },
-                { label: "Your bitcoin back", value: "Repay any time from Your wallet: Close loan." },
+                { label: tc("ltvAfter"), value: paid.ltvAfter !== undefined ? formatPercentWad(paid.ltvAfter) : unavailable },
+                { label: tc("fortyCheck"), value: fortyCheck(paid.loanChecked) },
+                { label: t("receipt.yourBitcoinBack"), value: t("receipt.repayAnyTime") },
               ]
             : []),
         ]}
@@ -602,8 +616,8 @@ export function PayActions(props: PayActionsProps) {
   if (panel !== "options") {
     return (
       <div className="app-panel flex h-full flex-col p-6 md:p-8" data-pay-closed={panel}>
-        <p className="type-label text-muted">Pay this bill</p>
-        <p className="type-lead mt-4 text-text">{closedText(bill.status, panel)}</p>
+        <p className="type-label text-muted">{t("payThisBill")}</p>
+        <p className="type-lead mt-4 text-text">{closedText(t, tc, bill.status, panel)}</p>
         <div className="mt-5">
           <TxMessage state={tx} />
         </div>
@@ -619,17 +633,17 @@ export function PayActions(props: PayActionsProps) {
   const bitcoinBlocked: string | null = busy
     ? null
     : guardView.state === "unreadable"
-      ? GUARD_RULE_UNREADABLE
+      ? tl(GUARD_RULE_UNREADABLE)
       : guardView.state === "pending"
-        ? "Reading your loan guard on Arc."
+        ? tc("readingGuard")
         : fresh === null
-      ? "Reading the bitcoin price status on Arc."
+      ? t("blocked.readingPriceStatus")
       : pledge.state === "loading" || cirBtc.state === "loading"
-        ? "Reading your position on Arc."
+        ? t("blocked.readingPosition")
         : pledge.state === "unavailable" || cirBtc.state === "unavailable"
-          ? "Your position could not be read. Try again below."
+          ? t("blocked.positionUnreadable")
           : shortOfBtc
-            ? "Your wallet holds less cirBTC than this pledge."
+            ? tc("lessCirbtcThanPledge")
             : null;
 
   const busyStep = tx.kind === "busy" ? tx : null;
@@ -670,14 +684,14 @@ export function PayActions(props: PayActionsProps) {
 
   return (
     <div className="app-panel flex h-full flex-col p-6 md:p-8">
-      <p className="type-label text-muted">Pay this bill</p>
+      <p className="type-label text-muted">{t("payThisBill")}</p>
 
       {recorded && !showEnrol && (
         <p className="type-body mt-5 flex items-center gap-3 text-text" data-enrol-recorded>
           <span aria-hidden="true" className="diamond !bg-success" />
-          Loan recorded ·{" "}
+          {tc("loanRecorded")}{" "}
           <a href={`${EXPLORER}/tx/${recorded}`} target="_blank" rel="noopener noreferrer" className="link-draw text-gold hover:text-text">
-            view the transaction
+            {tc("viewTheTransactionLower")}
           </a>
         </p>
       )}
@@ -699,33 +713,33 @@ export function PayActions(props: PayActionsProps) {
       )}
       {enrol.sameBlock && !showEnrol && (
         <p className="type-body mt-5 text-muted" data-enrol-state="same-block">
-          Your loan was recorded in Arc&apos;s latest block. The payment opens with the next one, in a moment.
+          {t("sameBlock")}
         </p>
       )}
       {guardBlocked && (
         <p className="type-body mt-5 text-danger" data-guard-unreadable>
-          {GUARD_UNREADABLE}
+          {tl(GUARD_UNREADABLE)}
         </p>
       )}
 
       <div className="mt-5 border-b border-rule pb-6">
-        <p className="type-h4 text-text">From your balance</p>
+        <p className="type-h4 text-text">{t("fromYourBalance")}</p>
         <p className="type-body mt-2 text-muted">
           {enough === null ? (
             balance.state === "unavailable" ? (
-              `Your ${currency.symbol} balance is unavailable right now.`
+              t("balance.unavailable", { symbol: currency.symbol })
             ) : (
               <Reading />
             )
           ) : enough ? (
-            `You hold ${formatUnitsExact((balance as { value: bigint }).value, currency.decimals)} ${currency.symbol}. One signature approves exactly the bill amount and pays it.`
+            t("balance.youHold", { amount: formatUnitsExact((balance as { value: bigint }).value, currency.decimals), symbol: currency.symbol })
           ) : keptAside > 0n && balance.state === "ok" && balance.value >= bill.amount + reserve ? (
             // The reason first: without the guard's repayment the wallet would cover this.
-            `Your loan guard is about to use ${formatUnitsExact(keptAside, currency.decimals)} ${currency.symbol} from this wallet, so none is free for this bill.`
+            t("balance.guardAboutToUse", { amount: formatUnitsExact(keptAside, currency.decimals), symbol: currency.symbol })
           ) : isUsdc ? (
-            `You need ${amountText} for the bill and a little USDC for the network fee${balanceFee.data ? `: ${keepText(balanceFee.data.keepUpTo)}` : ""}. Your wallet holds ${formatUnitsExact((balance as { value: bigint }).value, currency.decimals)} USDC, so paying from balance is not offered.`
+            t("balance.needUsdc", { amount: amountText, keep: balanceFee.data ? `: ${keepText(balanceFee.data.keepUpTo)}` : "", held: formatUnitsExact((balance as { value: bigint }).value, currency.decimals) })
           ) : (
-            `You hold less ${currency.symbol} than this bill, so paying from balance is not offered.`
+            t("balance.holdLess", { symbol: currency.symbol })
           )}
         </p>
         {enough && (
@@ -737,11 +751,11 @@ export function PayActions(props: PayActionsProps) {
               className="mt-5 w-full md:w-auto"
               data-action="pay-balance"
             >
-              {busyStep && active === "balance" ? <BusyLabel step={busyStep.step} since={busyStep.since} /> : `Pay ${amountText} from balance`}
+              {busyStep && active === "balance" ? <BusyLabel step={busyStep.step} since={busyStep.since} /> : t("payFromBalance", { amount: amountText })}
             </Button>
             {balanceBlockers.length > 0 ? (
               <p className="type-body mt-3 text-muted" data-fee-waits>
-                Opens once your loan is recorded. The network fee shows then.
+                {t("opensOnceRecorded")}
               </p>
             ) : (
               <FeeLine query={balanceFee} className="mt-3" />
@@ -750,79 +764,68 @@ export function PayActions(props: PayActionsProps) {
         )}
         {pendingText && (
           <p className="type-body mt-2 text-muted" data-guard-pending>
-            {pendingText}
+            {tl(pendingText)}
           </p>
         )}
       </div>
 
       <div className="pt-6">
-        <p className="type-h4 text-text">From bitcoin</p>
+        <p className="type-h4 text-text">{t("fromBitcoin")}</p>
         {fresh === false ? (
           // C24: no bitcoin path while the price is stale.
           <p className="type-body mt-2 text-text" data-price="stale">
-            New loans are paused until the bitcoin price updates. Paying from your balance still works.
+            {tc("stalePrice")}
           </p>
         ) : lendShort ? (
           <p className="type-body mt-2 text-text" data-lend="short">
-            Morpho has <Value cell={ready} render={readyText} className="font-semibold" /> ready to lend right now, less than this bill. Paying from your balance still works, or check
-            back later.
+            {t.rich("lendShort", { ready: () => <Value cell={ready} render={readyText} className="font-semibold" /> })}
           </p>
         ) : (
           <>
             <ul className="mt-4 space-y-3" data-plain-lead>
+              <li className="type-lead text-text">{t.rich("supplierGets", { amount: amountText, strong: (chunks) => <span className="font-semibold">{chunks}</span> })}</li>
               <li className="type-lead text-text">
-                The supplier gets <span className="font-semibold">{amountText}</span>.
+                {pledge.state === "ok" && pledge.value === 0n
+                  ? t.rich("pledgeNothingExtra", { strong: (chunks) => <span className="font-semibold">{chunks}</span> })
+                  : t.rich("pledgeAndKeep", {
+                      pledge: () => <Value cell={pledge} render={(v) => `${formatUnitsExact(v, CIRBTC_DECIMALS)} cirBTC${usdHint(v, usd)}`} className="font-semibold" />,
+                    })}
               </li>
-              <li className="type-lead text-text">
-                {pledge.state === "ok" && pledge.value === 0n ? (
-                  <>
-                    You pledge <span className="font-semibold">no extra cirBTC</span>: what you already pledged covers this. Nothing is sold.
-                  </>
-                ) : (
-                  <>
-                    You pledge{" "}
-                    <Value cell={pledge} render={(v) => `${formatUnitsExact(v, CIRBTC_DECIMALS)} cirBTC${usdHint(v, usd)}`} className="font-semibold" /> and keep it. Nothing is
-                    sold.
-                  </>
-                )}
-              </li>
-              <li className="type-lead text-text">
-                Bitcoin can fall <Value cell={after} render={(v) => formatPercentWad(v.drop)} className="font-semibold" /> before Morpho may liquidate.
-              </li>
+              <li className="type-lead text-text">{t.rich("canFall", { drop: () => <Value cell={after} render={(v) => formatPercentWad(v.drop)} className="font-semibold" /> })}</li>
             </ul>
-            <p className="type-body mt-3 text-muted">
-              Morpho has <Value cell={ready} render={readyText} className="text-text" /> ready to lend now.
-            </p>
+            <p className="type-body mt-3 text-muted">{t.rich("morphoReady", { ready: () => <Value cell={ready} render={readyText} className="text-text" /> })}</p>
 
             <details className="group mt-5 rounded-[8px] border border-rule">
               <summary className="type-label flex cursor-pointer list-none items-center justify-between px-4 py-3 text-muted transition-colors duration-200 hover:text-text">
-                Details
+                {tc("details")}
                 <span aria-hidden="true" className="transition-transform duration-200 group-open:rotate-45">
                   +
                 </span>
               </summary>
               <dl className="grid grid-cols-2 gap-x-6 gap-y-5 border-t border-rule px-4 py-4">
-                <Figure label="Loan-to-value after" cell={after} render={(v) => formatPercentWad(v.ltv)} note={`Adag refuses anything over ${formatPercentWad(MAX_LTV_WAD)}`} />
-                <Figure label="Morpho borrow rate" cell={borrowApy} render={(v) => `${(v * 100).toFixed(2)}% a year`} note="live, variable" />
-                <Figure label="cirBTC in your wallet" cell={cirBtc} render={(v) => `${formatUnitsExact(v, CIRBTC_DECIMALS)} cirBTC`} note={cirBtc.state === "ok" ? usdHint(cirBtc.value, usd).replace(/^ \(|\)$/g, "") : undefined} />
-                <Figure label="Liquidation line" cell={{ state: "ok", value: currency.params.lltv }} render={(v) => formatPercentWad(v)} note="Morpho's, not Adag's" />
+                <Figure label={tc("ltvAfter")} cell={after} render={(v) => formatPercentWad(v.ltv)} note={tc("refusesOver", { pct: formatPercentWad(MAX_LTV_WAD) })} />
+                <Figure label={t("figures.borrowRate")} cell={borrowApy} render={(v) => tc("percentAYear", { pct: (v * 100).toFixed(2) })} note={tc("liveVariable")} />
+                <Figure label={t("figures.cirbtcInWallet")} cell={cirBtc} render={(v) => `${formatUnitsExact(v, CIRBTC_DECIMALS)} cirBTC`} note={cirBtc.state === "ok" ? usdHint(cirBtc.value, usd).replace(/^ \(|\)$/g, "") : undefined} />
+                <Figure label={t("figures.liquidationLine")} cell={{ state: "ok", value: currency.params.lltv }} render={(v) => formatPercentWad(v)} note={t("figures.morphosNotAdags")} />
               </dl>
               <div className="border-t border-rule px-4 py-4">
                 <FeeLine query={bitcoinFee} />
-                <p className="type-body mt-2 text-muted">The pledge is Adag&apos;s own figure plus 5% for price moves. Repay any time from Your wallet to take the bitcoin back.</p>
+                <p className="type-body mt-2 text-muted">{t("pledgeNote")}</p>
               </div>
             </details>
 
             {wholeLoanOver && (
               <p className="type-body mt-4 text-muted" data-whole-loan-over>
-                Your whole {currency.symbol} loan is above 40%, so a new loan must bring all of it back under the line. That is why the pledge is this large.
+                {t("wholeLoanOver", { symbol: currency.symbol })}
               </p>
             )}
             {(guardAfter || caught) && (
               <p className="type-body mt-5 text-text" data-guard-trigger>
-                {guardAfter && after.state === "ok"
-                  ? triggerSentence({ ltvAfterWad: after.value.ltv, amount: guardAfter.amount, triggerWad: guardAfter.triggerWad, targetWad: guardAfter.targetWad, symbol: currency.symbol })
-                  : caught}
+                {tl(
+                  guardAfter && after.state === "ok"
+                    ? triggerSentence({ ltvAfterWad: after.value.ltv, amount: guardAfter.amount, triggerWad: guardAfter.triggerWad, targetWad: guardAfter.targetWad, symbol: currency.symbol })
+                    : (caught ?? ""),
+                )}
               </p>
             )}
             <Button
@@ -832,7 +835,7 @@ export function PayActions(props: PayActionsProps) {
               className="mt-6 w-full md:w-auto"
               data-action="pay-bitcoin"
             >
-              {busyStep && active === "bitcoin" ? <BusyLabel step={busyStep.step} since={busyStep.since} /> : "Pay from bitcoin"}
+              {busyStep && active === "bitcoin" ? <BusyLabel step={busyStep.step} since={busyStep.since} /> : t("payFromBitcoin")}
             </Button>
             {bitcoinBlocked && (
               <p className={`type-body mt-2 ${shortOfBtc ? "text-danger" : "text-muted"}`} data-blocked-reason>
@@ -847,14 +850,14 @@ export function PayActions(props: PayActionsProps) {
         <p className="type-h4 text-text">{convertTitle(loan)}</p>
         {convertState.kind === "loading" ? (
           <p className="type-body mt-2 text-muted">
-            Reading the euro price and the {loan.symbol} market on Arc. <Reading />
+            {tc("readingEuroAndMarket", { symbol: loan.symbol })} <Reading />
           </p>
         ) : convertState.kind === "unavailable" ? (
-          <p className="type-body mt-2 text-muted">Adag could not read what a conversion needs, so it is off. Reload to try again.</p>
+          <p className="type-body mt-2 text-muted">{tc("convertUnreadable")}</p>
         ) : convertState.kind === "off" ? (
           <>
             <p className="type-body mt-2 text-text" data-convert-off>
-              {convertState.reason}
+              {tl(convertState.reason)}
             </p>
             {convertState.reset && <ConvertReset account={address} loanToken={loan.address} canSign={!busy} onDone={() => void convertRead.refetch()} className="mt-4" />}
           </>
@@ -865,9 +868,11 @@ export function PayActions(props: PayActionsProps) {
             </div>
             {(convertGuardAfter || convertCaught) && (
               <p className="type-body mt-5 text-text" data-guard-trigger>
-                {convertGuardAfter
-                  ? triggerSentence({ ltvAfterWad: convertState.estimate.ltvAfter, amount: convertGuardAfter.amount, triggerWad: convertGuardAfter.triggerWad, targetWad: convertGuardAfter.targetWad, symbol: loan.symbol })
-                  : convertCaught}
+                {tl(
+                  convertGuardAfter
+                    ? triggerSentence({ ltvAfterWad: convertState.estimate.ltvAfter, amount: convertGuardAfter.amount, triggerWad: convertGuardAfter.triggerWad, targetWad: convertGuardAfter.targetWad, symbol: loan.symbol })
+                    : (convertCaught ?? ""),
+                )}
               </p>
             )}
             <Button
@@ -877,17 +882,17 @@ export function PayActions(props: PayActionsProps) {
               className="mt-6 w-full md:w-auto"
               data-action="pay-convert"
             >
-              {busyStep && active === "convert" ? <BusyLabel step={busyStep.step} since={busyStep.since} /> : `Pay from bitcoin, borrowing ${loan.symbol}`}
+              {busyStep && active === "convert" ? <BusyLabel step={busyStep.step} since={busyStep.since} /> : t("payFromBitcoinBorrowing", { symbol: loan.symbol })}
             </Button>
             {!busy && (convertShortOfBtc || convertBlockers.length > 0 || loanGuardView.state !== "ok") && (
               <p className={`type-body mt-2 ${convertShortOfBtc ? "text-danger" : "text-muted"}`} data-convert-blocked>
                 {convertShortOfBtc
-                  ? "Your wallet holds less cirBTC than this pledge."
+                  ? tc("lessCirbtcThanPledge")
                   : convertBlockers.length > 0
-                    ? "Record your existing loan first, above."
+                    ? t("recordFirstAbove")
                     : loanGuardView.state === "unreadable"
-                      ? GUARD_RULE_UNREADABLE
-                      : "Reading your loan guard on Arc."}
+                      ? tl(GUARD_RULE_UNREADABLE)
+                      : tc("readingGuard")}
               </p>
             )}
           </>
@@ -914,13 +919,12 @@ export function PayActions(props: PayActionsProps) {
   );
 }
 
-function closedText(status: number, panel: PayPanel): string {
-  if (panel === "progress") {
-    return status === BILL_STATUS.Paid
-      ? "Arc already shows this bill as paid. Adag is reading your transaction to confirm the payment is yours."
-      : "This bill was cancelled while your payment was on its way. Adag is reading your transaction.";
-  }
-  return status === BILL_STATUS.Paid ? "Already paid. Nothing to pay here." : status === BILL_STATUS.Void ? "Cancelled. It can never be paid." : "This bill cannot be paid.";
+type T = ReturnType<typeof useTranslations<"payActions">>;
+type Tc = ReturnType<typeof useTranslations<"common">>;
+
+function closedText(t: T, tc: Tc, status: number, panel: PayPanel): string {
+  if (panel === "progress") return status === BILL_STATUS.Paid ? t("closed.progressPaid") : t("closed.progressCancelled");
+  return status === BILL_STATUS.Paid ? tc("alreadyPaidNothing") : status === BILL_STATUS.Void ? tc("cancelledNever") : t("closed.cannotBePaid");
 }
 
 function Figure<T>({ label, cell, render, note }: { label: string; cell: Cell<T>; render: (v: T) => React.ReactNode; note?: string }) {

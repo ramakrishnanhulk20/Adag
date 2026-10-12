@@ -1,11 +1,15 @@
 "use client";
 
 import Link from "next/link";
+import { useLocale, useTranslations } from "next-intl";
 import { motion } from "motion/react";
 import { BillStamp } from "@/components/BillStamp";
 import { Hallmark } from "@/components/Hallmark";
 import { useLive } from "@/components/hero/LiveData";
-import { formatAmount, formatDate } from "@/lib/arc/present";
+import { dateIn } from "@/i18n/dates";
+import { localeOf, type Locale } from "@/i18n/locales";
+import { useLibText } from "@/i18n/useLibText";
+import { formatAmount } from "@/lib/arc/present";
 import type { PaidEntry } from "@/lib/arc/types";
 import { billHref } from "@/lib/pay/billId";
 import { Reveal } from "./Reveal";
@@ -21,7 +25,9 @@ function hrefOf(entry: PaidEntry): string | null {
   }
 }
 
-function Row({ entry, index }: { entry: PaidEntry; index: number }) {
+function Row({ entry, index, locale }: { entry: PaidEntry; index: number; locale: Locale }) {
+  const t = useTranslations("landing.ledger");
+  const tc = useTranslations("common");
   const href = hrefOf(entry);
   return (
     <motion.li
@@ -35,24 +41,25 @@ function Row({ entry, index }: { entry: PaidEntry; index: number }) {
       <span className="flex flex-col items-start gap-1.5">
         {href ? (
           <Link href={href} className="link-draw tap-target type-label text-gold">
-            Bill #{entry.id}
+            {tc("billNumber", { id: entry.id })}
           </Link>
         ) : (
-          <span className="type-label text-gold">Bill #{entry.id}</span>
+          <span className="type-label text-gold">{tc("billNumber", { id: entry.id })}</span>
         )}
-        {entry.first && <span className="type-micro text-muted">First deployment</span>}
+        {entry.first && <span className="type-micro text-muted">{tc("firstDeployment")}</span>}
       </span>
       <span className="type-h4">{formatAmount(entry.amountBaseUnits, entry.currency)}</span>
       <span className="col-span-2 flex min-w-0 flex-col gap-1 lg:col-span-1">
         <span className="type-address text-text">
-          <span className="text-muted">from </span>
-          {short(entry.payer)}
-          <span className="text-muted"> to </span>
-          {short(entry.payee)}
+          {t.rich("fromTo", {
+            from: short(entry.payer),
+            to: short(entry.payee),
+            muted: (chunks) => <span className="text-muted">{chunks}</span>,
+          })}
         </span>
         <span className="type-micro text-muted">
-          {formatDate(entry.paidAt)}
-          {entry.loanChecked ? " · from a loan, 40% check ran" : null}
+          {entry.paidAt > 0 ? dateIn(locale, entry.paidAt) : ""}
+          {entry.loanChecked ? ` · ${t("fromLoanChecked")}` : null}
         </span>
       </span>
       <span className="origin-left scale-[0.8]">
@@ -60,7 +67,7 @@ function Row({ entry, index }: { entry: PaidEntry; index: number }) {
       </span>
       <span className="lg:text-right">
         <a href={entry.explorerUrl} target="_blank" rel="noopener noreferrer" className="link-draw tap-target type-label text-gold">
-          Payment on Arc
+          {tc("paymentOnArc")}
         </a>
       </span>
     </motion.li>
@@ -71,24 +78,28 @@ function Row({ entry, index }: { entry: PaidEntry; index: number }) {
 // a bill's reference, so nobody can write words onto this page or crowd it out with junk bills (security pass 1, M2).
 export function Ledger() {
   const live = useLive();
+  const t = useTranslations("landing.ledger");
+  const tc = useTranslations("common");
+  const tl = useLibText();
+  const locale = localeOf(useLocale());
 
   let body: React.ReactNode;
   if (live.status === "loading") {
     body = (
-      <div className="flex flex-col gap-3 border-t border-rule py-8" aria-label="Reading Arc">
+      <div className="flex flex-col gap-3 border-t border-rule py-8" aria-label={tc("readingArc")}>
         <span aria-hidden="true" className="live-shimmer block h-px w-full" />
-        {live.slow && <span className="type-micro text-muted">Reading Arc</span>}
+        {live.slow && <span className="type-micro text-muted">{tc("readingArc")}</span>}
       </div>
     );
   } else if (live.status === "failed" || !live.snapshot.latestBills.ok) {
-    body = <p className="type-body border-t border-rule py-8 text-muted">The ledger is unavailable: Arc did not answer.</p>;
+    body = <p className="type-body border-t border-rule py-8 text-muted">{t("unavailable")}</p>;
   } else if (live.snapshot.latestBills.value.bills.length === 0) {
-    body = <p className="type-body border-t border-rule py-8 text-muted">No bill has been paid on Arc yet.</p>;
+    body = <p className="type-body border-t border-rule py-8 text-muted">{tc("noBillPaidYet")}</p>;
   } else {
     body = (
       <ol>
         {live.snapshot.latestBills.value.bills.map((entry, i) => (
-          <Row key={`${entry.contract}:${entry.id}`} entry={entry} index={i} />
+          <Row key={`${entry.contract}:${entry.id}`} entry={entry} index={i} locale={locale} />
         ))}
       </ol>
     );
@@ -100,19 +111,18 @@ export function Ledger() {
   return (
     <section aria-labelledby="ledger-title" className="landing-section border-t border-rule bg-bg px-5 py-24 md:px-[6vw] md:py-36">
       <Reveal>
-        <Hallmark>08 · The ledger</Hallmark>
+        <Hallmark>{t("label")}</Hallmark>
       </Reveal>
       <Reveal delay={0.08}>
         <h2 id="ledger-title" className="type-h2 mt-8 max-w-[14ch]">
-          Every payment, <em className="text-gold italic">on the record.</em>
+          {t.rich("title", { em: (chunks) => <em className="text-gold italic">{chunks}</em> })}
         </h2>
       </Reveal>
       <div className="mt-14 border-b border-rule">{body}</div>
       <p className="type-micro mt-6 max-w-[70ch] text-muted">
-        The newest payments through Adag on Arc, read from each contract&apos;s own payment record. Invoice references stay on each bill&apos;s own
-        page. Nothing here is a mock.
-        {shown && shown.billsPaid > shown.bills.length ? ` Showing the latest ${shown.bills.length} of ${shown.billsPaid} paid.` : null}
-        {paid?.note ? ` ${paid.note}` : null}
+        {t("note")}
+        {shown && shown.billsPaid > shown.bills.length ? ` ${t("showing", { shown: String(shown.bills.length), total: String(shown.billsPaid) })}` : null}
+        {paid?.note ? ` ${tl(paid.note)}` : null}
       </p>
     </section>
   );

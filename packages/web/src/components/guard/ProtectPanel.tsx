@@ -1,11 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import { formatUnits, parseUnits, type Address } from "viem";
 import { Button } from "@/components/Button";
 import { FeeLine } from "@/components/app/FeeLine";
 import { BusyLabel } from "@/components/app/TxProgress";
+import { useLibText } from "@/i18n/useLibText";
 import { buildSaveRule, ruleProblem, type RuleInput } from "@/lib/guard/build";
 import { ltvAfter, planRepay, type LoanState } from "@/lib/guard/plan";
 import { parseAmountInput } from "@/lib/pay/amount";
@@ -49,6 +51,9 @@ function dateOf(expiry: bigint): string {
 }
 
 export function ProtectPanel({ address, currency, loan, ltvWad, balance, initial, busy, onSave, onCancel }: Props) {
+  const t = useTranslations("guard.panel");
+  const tc = useTranslations("common");
+  const tl = useLibText();
   const lltv = currency.params.lltv;
   const sym = currency.symbol;
   const [triggerText, setTriggerText] = useState(initial ? percentText(initial.triggerWad) : "65");
@@ -63,13 +68,9 @@ export function ProtectPanel({ address, currency, loan, ltvWad, balance, initial
   const nowSeconds = BigInt(Math.floor(Date.now() / 1000));
 
   const rule: RuleInput | null = triggerWad !== null && targetWad !== null && expiry !== null ? { market: currency.marketId, triggerWad, targetWad, expiry } : null;
-  const problem =
-    triggerWad === null || targetWad === null
-      ? "Use a percentage like 55 or 55.5."
-      : expiry === null
-        ? "Choose a real end date, or none."
-        : ruleProblem(rule!, lltv, nowSeconds);
-  const amountProblem = amountText === "" ? null : amount.ok ? null : amount.message;
+  const ruleWords = rule ? ruleProblem(rule, lltv, nowSeconds) : null;
+  const problem = triggerWad === null || targetWad === null ? t("usePercentage") : expiry === null ? t("realEndDate") : ruleWords === null ? null : tl(ruleWords);
+  const amountProblem = amountText === "" ? null : amount.ok ? null : tl(amount.message);
   const ready = rule !== null && problem === null && amount.ok;
 
   // What this rule would do at today's price if it were saved now (C41), from the guard's own arithmetic.
@@ -99,26 +100,24 @@ export function ProtectPanel({ address, currency, loan, ltvWad, balance, initial
 
       <div className="grid gap-5 md:grid-cols-2">
         <PercentField
-          label="Step in when the loan reaches"
+          label={t("stepInWhen")}
           value={triggerText}
           onChange={setTriggerText}
           max={Number((lltv * 100n) / 10n ** 18n) - 1}
           field="guard-trigger"
-          hint={`Morpho liquidates at ${formatPercentWad(lltv)}.`}
+          hint={t("morphoLiquidatesAt", { pct: formatPercentWad(lltv) })}
         />
-        <PercentField label="Repay it down to" value={targetText} onChange={setTargetText} max={Number((lltv * 100n) / 10n ** 18n) - 2} field="guard-target" hint="Only what brings it back here, each time." />
+        <PercentField label={t("repayDownTo")} value={targetText} onChange={setTargetText} max={Number((lltv * 100n) / 10n ** 18n) - 2} field="guard-target" hint={t("onlyWhatBrings")} />
       </div>
 
       <div className="mt-5 grid gap-5 md:grid-cols-2">
         <label className="block">
-          <span className="type-micro text-muted">
-            {sym} it may use, in total · you hold {balance === null ? "…" : formatUnitsExact(balance, currency.decimals)}
-          </span>
+          <span className="type-micro text-muted">{t("mayUse", { symbol: sym, held: balance === null ? "…" : formatUnitsExact(balance, currency.decimals) })}</span>
           <span className="mt-1 flex items-end gap-3">
             <input
               inputMode="decimal"
               autoComplete="off"
-              placeholder={`Amount in ${sym}`}
+              placeholder={tc("amountIn", { symbol: sym })}
               value={amountText}
               onChange={(e) => setAmountText(e.target.value)}
               className="app-input !text-[1.6rem]"
@@ -131,20 +130,18 @@ export function ProtectPanel({ address, currency, loan, ltvWad, balance, initial
                 className="type-micro mb-2 shrink-0 rounded-[6px] border border-rule-strong px-3 py-2 text-text transition-colors duration-200 hover:border-gold hover:text-gold"
                 data-action="guard-one-step"
               >
-                One step
+                {t("oneStep")}
               </button>
             )}
           </span>
           <span className="type-micro mt-2 block normal-case tracking-[0.04em] text-muted">
-            {perStep !== null && perStep > 0n
-              ? `One protection starting at the trigger repays about ${formatUnitsExact(perStep, currency.decimals)} ${sym}.`
-              : "It never takes more than this, however many times it acts."}
+            {perStep !== null && perStep > 0n ? t("oneStepRepays", { amount: formatUnitsExact(perStep, currency.decimals), symbol: sym }) : t("neverMore")}
           </span>
         </label>
         <label className="block">
-          <span className="type-micro text-muted">End date · optional</span>
+          <span className="type-micro text-muted">{t("endDate")}</span>
           <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="app-input mt-1 !text-[1.25rem]" data-field="guard-expiry" />
-          <span className="type-micro mt-2 block normal-case tracking-[0.04em] text-muted">With no date, it stays on until you stop it.</span>
+          <span className="type-micro mt-2 block normal-case tracking-[0.04em] text-muted">{t("noDateStaysOn")}</span>
         </label>
       </div>
 
@@ -158,45 +155,42 @@ export function ProtectPanel({ address, currency, loan, ltvWad, balance, initial
         <div className="mt-5 rounded-[8px] border border-rule p-4" data-guard-preview>
           {plan.amount > 0n ? (
             <p className="type-body text-pending" data-guard-act-now={plan.amount.toString()}>
-              Your loan is already at {formatPercentWad(plan.ltvWad)}, past this trigger. Once saved, this will repay about{" "}
-              <span className="font-semibold text-text">
-                {formatUnitsExact(plan.amount, currency.decimals)} {sym}
-              </span>{" "}
-              within minutes{landing !== null ? `, bringing it to about ${formatPercentWad(landing)}` : ""}.
+              {t.rich("alreadyPast", {
+                ltv: formatPercentWad(plan.ltvWad),
+                amount: `${formatUnitsExact(plan.amount, currency.decimals)} ${sym}`,
+                landing: landing !== null ? t("bringingTo", { ltv: formatPercentWad(landing) }) : "",
+                strong: (chunks) => <span className="font-semibold text-text">{chunks}</span>,
+              })}
             </p>
           ) : (
             <p className="type-body text-text">
-              It would not act at today&apos;s price.{" "}
-              {fall !== null ? `It steps in if bitcoin falls about ${(Number(fall) / 100).toFixed(2)}% from here.` : ""}
+              {t("wouldNotActToday")} {fall !== null ? t("stepsInIfFalls", { pct: (Number(fall) / 100).toFixed(2) }) : ""}
             </p>
           )}
         </div>
       )}
 
       <div className="mt-5 flex flex-col gap-2" data-guard-ceiling>
-        <p className="type-body text-text">
-          The most this can ever take is your approval{approval !== null ? `: ${formatUnitsExact(approval, currency.decimals)} ${sym}` : ""}. Each time it acts, it repays only what brings the
-          loan back to your target, and the approval shrinks by that much.
-        </p>
-        <p className="type-body text-muted">It can only ever repay your own loan, from this approval. Once the loan passes your trigger, anyone may set it off, Adag included.</p>
+        <p className="type-body text-text">{t("ceiling", { approval: approval !== null ? `: ${formatUnitsExact(approval, currency.decimals)} ${sym}` : "" })}</p>
+        <p className="type-body text-muted">{t("onlyYourLoan")}</p>
         {isUsdc && (
           <p className="type-body text-muted" data-guard-gas-warning>
-            On Arc, USDC also pays the network fee. A USDC rule uses the same balance, so it can leave this wallet without enough USDC to send a transaction.
+            {t("usdcGasWarning")}
           </p>
         )}
       </div>
 
-      <FeeLine query={fee} className="mt-4" idle="The network fee shows once the rule and amount are valid." />
+      <FeeLine query={fee} className="mt-4" idle={t("feeIdle")} />
 
       <div className="mt-5 flex flex-col gap-3 md:flex-row">
         <Button variant="primary" disabled={!ready || Boolean(busy)} onClick={() => ready && onSave(rule!, amount.value)} data-action="protect-save" className="w-full md:w-auto">
-          {busy ? <BusyLabel step={busy.step} since={busy.since} /> : initial ? "Save the new rule" : "Protect this loan"}
+          {busy ? <BusyLabel step={busy.step} since={busy.since} /> : initial ? t("saveNewRule") : t("protectThisLoan")}
         </Button>
         <Button variant="secondary" disabled={Boolean(busy)} onClick={onCancel} className="w-full md:w-auto">
-          Cancel
+          {tc("cancel")}
         </Button>
       </div>
-      <p className="type-micro mt-3 normal-case tracking-[0.04em] text-muted">One signature: the approval for exactly this amount, then the rule.</p>
+      <p className="type-micro mt-3 normal-case tracking-[0.04em] text-muted">{t("oneSignature")}</p>
     </div>
   );
 }

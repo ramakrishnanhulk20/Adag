@@ -1,0 +1,2051 @@
+{
+  "common": {
+    "payABill": "請求書を支払う",
+    "writeABill": "請求書を作成する",
+    "docs": "ドキュメント",
+    "termsOfUse": "利用規約",
+    "liveOnArc": "Arc メインネットで稼働中",
+    "arcMainnet": "Arc メインネット",
+    "readingArc": "Arc を読み取り中",
+    "readingArcSeconds": "Arc を読み取り中 · {seconds}s",
+    "unavailable": "取得できません",
+    "tryAgain": "再試行",
+    "copied": "コピー済み",
+    "copyLink": "リンクをコピー",
+    "noBillPaidYet": "Arc ではまだ支払われた請求書がありません。",
+    "billNumber": "請求書 #{id}",
+    "billNo": "請求書番号 {id}",
+    "no": "番号 {id}",
+    "firstDeployment": "初回デプロイ",
+    "firstDeploymentAddress": "AdagBills 初回デプロイ {address}",
+    "paymentOnArc": "Arc での支払い",
+    "contractNames": {
+      "bills": "AdagBills",
+      "guard": "AdagGuard",
+      "billsFirst": "AdagBills、初回デプロイ"
+    },
+    "explorer": "エクスプローラー",
+    "tryToBreakIt": "破ってみる",
+    "howItWorks": "仕組み",
+    "backToAdag": "Adag に戻る",
+    "couldNotReadFromArc": "Arc からこの値を読み取れませんでした",
+    "refusesOver40": "40% を超えるものは Adag がすべて拒否します",
+    "refusesOver": "{pct} を超えるものは Adag がすべて拒否します",
+    "yourWallet": "あなたのウォレット",
+    "loanGuard": "ローンガード",
+    "telegramAlerts": "Telegram 通知",
+    "stopProtecting": "保護を停止",
+    "viewTheTransaction": "トランザクションを見る",
+    "viewTheTransactionLower": "トランザクションを見る",
+    "transactionOnExplorer": "エクスプローラーでトランザクション {hash} を見る",
+    "hashOnExplorer": "エクスプローラーで {hash} を見る",
+    "transaction": "トランザクション",
+    "confirmedOnArc": "Arc で確定しました",
+    "nothingWasSent": "何も送信されていません。",
+    "arcNoAnswerNothingBuilt": "Arc が応答しなかったため、何も作成していません。もう一度お試しください。",
+    "noBalanceAnswer": "Arc が残高を返しませんでした。何も送信されていません。もう一度お試しください。",
+    "notConfirmedTwoMinutes": "2 分経っても Arc が確定していません。もう一度支払わないでください。先にトランザクションを確認してください。",
+    "guardChanged": "このページを開いてからローンガードが変わりました。支払う前に上の注記をお読みください。何も送信されていません。",
+    "stalePrice": "ビットコイン価格が更新されるまで、新しい借入は一時停止です。残高からの支払いは引き続き使えます。",
+    "stalePriceShort": "ビットコイン価格が更新されるまで、新しい借入は一時停止です。",
+    "readingGuard": "Arc からローンガードを読み取っています。",
+    "lessCirbtcThanPledge": "ウォレットの cirBTC がこの預け入れに必要な量より少ないです。",
+    "readingEuroAndMarket": "Arc からユーロ価格と {symbol} マーケットを読み取っています。",
+    "convertUnreadable": "Adag が両替に必要な情報を読み取れなかったため、両替は利用できません。再読み込みしてもう一度お試しください。",
+    "details": "詳細",
+    "percentAYear": "年 {pct}%",
+    "liveVariable": "リアルタイム、変動",
+    "ltvAfter": "支払い後の LTV",
+    "fortyCheck": "40% チェック",
+    "yourDebt": "あなたの借入残高",
+    "debtInCurrency": "{symbol} 建て。ドル換算のコストはユーロに連動します。",
+    "circlesAdapter": "Circle のアダプター",
+    "adapterNoAccess": "ウォレットへのアクセス権は残っていません。",
+    "adapterStillAccess": "まだウォレットへのアクセス権があります。",
+    "adapterUnreadable": "アクセス権を読み取れませんでした。",
+    "effectsUnchecked": "署名前に Adag がこの両替の送金を追跡できなかったため、支払い自身の残高チェックだけが保護していました。",
+    "bitcoinSold": "売却したビットコイン",
+    "leftInWallet": "ウォレットに残る額",
+    "became": "{from} が {to} になりました",
+    "loanRecorded": "借入を登録済み ·",
+    "alreadyPaidNothing": "すでに支払済みです。ここで支払うものはありません。",
+    "cancelledNever": "取消済みです。二度と支払えません。",
+    "pays": "支払先",
+    "reference": "備考",
+    "none": "なし",
+    "noDueDate": "支払期日なし",
+    "unknown": "不明",
+    "connectWallet": "ウォレットを接続",
+    "switchToArc": "Arc に切り替える",
+    "confirmInWallet": "ウォレットで確認してください",
+    "amountIn": "{symbol} 建ての金額",
+    "aboutEstimated": "約 {usd}、概算",
+    "shareText": "請求書 #{id}、Arc で支払い可能。",
+    "shareTextAmount": "請求書 #{id}、{amount} {symbol}、Arc で支払い可能。",
+    "seconds": "{seconds}s",
+    "billIsPaid": "請求書 #{id} は支払済みです。",
+    "poweredByMorpho": "Powered by Morpho",
+    "cancel": "キャンセル"
+  },
+  "nav": {
+    "main": "メイン",
+    "app": "アプリ",
+    "howItWorks": "仕組み",
+    "safety": "安全性",
+    "proof": "証明",
+    "docs": "ドキュメント",
+    "openApp": "アプリを開く",
+    "closeMenu": "メニューを閉じる",
+    "openMenu": "メニューを開く",
+    "writeABill": "請求書を作成する",
+    "payABill": "請求書を支払う",
+    "yourWallet": "あなたのウォレット",
+    "loanGuard": "ローンガード",
+    "menu": "メニュー",
+    "close": "閉じる"
+  },
+  "switcher": {
+    "label": "言語"
+  },
+  "theme": {
+    "system": "システム",
+    "light": "ライト",
+    "dark": "ダーク",
+    "lower": {
+      "light": "ライト",
+      "dark": "ダーク"
+    },
+    "systemNow": "システム、現在は{resolved}",
+    "switchTo": "テーマ：{state}。{next}に切り替える",
+    "tooltip": "テーマ：{state}",
+    "theme": "テーマ",
+    "optionLabel": "{option}テーマ"
+  },
+  "stamp": {
+    "paid": "支払済み",
+    "open": "未払い",
+    "void": "取消済み",
+    "status": "状態：{word}"
+  },
+  "hero": {
+    "line1": "請求書は支払う。",
+    "line2": "<tail><em>ビットコイン</em>は手元に。</tail>",
+    "lead": "会社が保有するビットコインで取引先に支払いましょう。ウォレット<em>または会社の Safe</em>からの 1 回の署名で、cirBTC を Morpho に預け入れ、請求書の金額だけを借りて USDC か EURC で支払います。各支払いには請求書番号が紐づきます。",
+    "sendingABill": "請求書を送る側ですか？<link>作成する</link>",
+    "ticker": "Arc リアルタイム · 貸出可能額 {amount}",
+    "cells": {
+      "labels": {
+        "ready": "Morpho の貸出可能額",
+        "rate": "借入金利",
+        "cap": "借入上限",
+        "paid": "Adag 経由で支払われた額"
+      },
+      "eurcUnavailable": "EURC マーケットを取得できません",
+      "eurcMarket": "EURC マーケットに {amount}",
+      "aYear": "年率",
+      "morphoLive": "Morpho Blue、リアルタイム",
+      "lineUnavailable": "Morpho の清算ラインを取得できません",
+      "morphoLiquidatesAt": "Morpho は {pct} で清算",
+      "seeBillOneLabel": "メインネットでの実際の証明支払いである請求書 1 を見る",
+      "seeBillOne": "請求書 #1 を見る",
+      "billsPaid": "{count, plural, =1 {{n} 件の請求書を支払い} other {{n} 件の請求書を支払い}}",
+      "couldNotRead": "Arc からこの値を読み取れませんでした"
+    },
+    "credit": {
+      "arcMainnet": "Arc メインネット",
+      "usdcOrEurc": "USDC または EURC",
+      "morphoBlue": "Morpho Blue",
+      "cap": "40% 上限",
+      "oneSignature": "1 回の署名",
+      "noOwner": "オーナーなし",
+      "btcPrice": "BTC 価格",
+      "btcPriceUnavailable": "BTC 価格を取得できません",
+      "pausedWaiting": "新規借入は一時停止 · 最新の BTC 価格を待っています",
+      "btcPriceFresh": "BTC 価格は最新",
+      "updated": "更新",
+      "ageUnderMinute": "一分以内",
+      "ageMinutes": "{minutes} 分前",
+      "ageHours": "{hours} 時間前",
+      "ageHoursMinutes": "{hours} 時間 {minutes} 分前"
+    }
+  },
+  "landing": {
+    "pledged": {
+      "label": "02 · 売らずに預ける",
+      "title": "売らずに、<em>預ける。</em>",
+      "india": "インドでは、家族が金を売る代わりに預けて現金を借り、返済が終わればまた家に持ち帰ります。",
+      "adagu": "質（担保）を意味するタミル語 <em>adagu</em> から名付けられた Adag は、Arc の上でビットコインに同じことをします。",
+      "whereIsTheBitcoin": "ビットコインはどこにあるのか",
+      "cirbtc": "cirBTC は Circle が発行するラップドビットコインで、1:1 で裏付けられ Circle が保管し、<link>準備金は公開</link>されています。預け入れ後はあなた自身の Morpho ポジションに留まり、誰にも貸し出されません。Adag が保管することはありません。",
+      "caption": "金は売らずに預ける。",
+      "imageAlt": "手書きの預かり証の横で、真鍮の盆に金の装飾品を置く手"
+    },
+    "oneSignature": {
+      "label": "04 · 1 回の署名",
+      "title": "5 つのステップ、<em>1 回の署名。</em>",
+      "lead": "ビットコインで請求書を支払うのは、Arc 上の 5 回の呼び出しです。1 つのバッチとして一度署名すれば、まとめて実行されます。取引先の請求書は最大 10 件まで同じ 1 回の署名に収まります。",
+      "ifAnyFails": "どのステップが失敗しても、何も起こりません。",
+      "seeTheRealOne": "Arc で実際の例を見る"
+    },
+    "receipt": {
+      "oneBatch": "Adag · 1 つのバッチ",
+      "calls": {
+        "approveBtc": "Morpho が担保を受け取ることだけを許可します。それ以上はありません。",
+        "supply": "ビットコインを預け入れます。あなたの名義で預けたまま、売却されません。",
+        "borrow": "請求書の金額だけを借ります。",
+        "approveCurrency": "Adag がちょうどその金額だけを動かせるようにします。",
+        "memo": "請求書番号を添えて取引先に支払います。"
+      },
+      "signedOnce": "すべての呼び出しで allowFailure false · あなた自身のウォレットから一度署名",
+      "legend": "P 預け入れ · A 請求金額 · C USDC または EURC · N 請求書番号 · R 請求書の備考"
+    },
+    "forty": {
+      "label": "05 · 40% ライン",
+      "title": "40% ライン",
+      "lead": "何件の請求書を支払っても、Adag は借入がビットコイン価値の 40% を超えることを許しません。Morpho 自身の清算ラインははるかに上にあります。",
+      "facts": {
+        "noOwner": {
+          "title": "オーナーなし、アップグレードなし、一時停止なし",
+          "body": "管理者キーもスイッチもありません。40% ラインと Adag が信頼するすべてのアドレスは、デプロイ時に固定されています。"
+        },
+        "neverHolds": {
+          "title": "あなたの資金を保管しない",
+          "body": "各支払いは 1 つのトランザクション内で支払いウォレットから取引先へ直接移ります。あなたの資産が Adag に留まることはありません。"
+        },
+        "verified": {
+          "title": "ソースコード検証済み",
+          "body": "Arc 上で動くコードは公開されたソースと完全に一致し、Adag が使うすべてのコントラクトが Sourcify と Arc のエクスプローラーで確認されています。"
+        },
+        "refuses": {
+          "title": "手動で組み立てたトランザクションでも、40% を超えれば拒否",
+          "body": "このチェックはウェブサイトではなくコントラクトの中にあります。借入が 40% を超える支払いは、誰が組み立てても実行されず取り消されます。"
+        }
+      },
+      "links": {
+        "contractOnArc": "Arc 上のコントラクト",
+        "tokenBalances": "トークン残高",
+        "onSourcify": "Sourcify の {name}",
+        "onExplorer": "explorer.arc.io の {name}"
+      }
+    },
+    "gauge": {
+      "unavailable": "{what}を取得できません · Arc からこの値を読み取れませんでした",
+      "theLoanCap": "借入上限",
+      "theBtcPrice": "BTC 価格",
+      "ariaCapOnly": "Adag は {cap}% で止まります",
+      "ariaCapAndLine": "Adag は {cap}% で止まり、Morpho は {lltv}% で清算します",
+      "oneCirbtcNow": "現在の 1 cirBTC",
+      "adagPaysUpTo": "Adag が支払う上限",
+      "liquidatesIfFallsTo": "Adag の上限にある借入を Morpho が清算するビットコイン価格",
+      "aFall": "{pct}% の下落",
+      "perCirbtc": "1 cirBTC あたり、Arc の USDC マーケットのオラクルによるリアルタイム価格"
+    },
+    "checkIt": {
+      "proof": "証明",
+      "title": "<em>ご自身で</em>確かめてください。",
+      "billOne": "請求書 #1",
+      "billOnePaid": "請求書 #1、支払済み",
+      "openBillOne": "請求書 #1 を開く",
+      "reading": "Arc から請求書 #1 とその支払いを読み取っています。",
+      "noAnswer": "Arc が応答しなかったため、ここでは請求書 #1 について何も表示していません。請求書のページで再度読み取ります。",
+      "notPaidYet": "現在のコントラクト上の {amount} の請求書で、まだ支払われていません。",
+      "txNotFound": "Arc 上で支払済みと記録された実際の {amount} の請求書です。支払いトランザクションは今の範囲では見つかりませんでした。",
+      "paidFromLoan": "ビットコイン担保の借入で支払われた実際の {amount} の請求書で、その借入には Adag の 40% チェックが実行されました。",
+      "paidNoLoan": "1 回の署名で支払われた実際の {amount} の請求書です。新しい借入がなかったため、40% チェックには検証するものがありませんでした。",
+      "itsTransaction": "トランザクション",
+      "tryToBreakIt": "破ってみる",
+      "attacks": "稼働中のコントラクトへの {n} 件の攻撃を、見ている間に Arc 上でシミュレーションします。それぞれ何が止めるかを示します。",
+      "runTheAttacks": "攻撃を実行",
+      "auditStatus": "監査の状況",
+      "auditBody": "外部企業ではなく自己監査です。何をテストし、何を見つけ、何がカバーされていないか。",
+      "readTheRecord": "記録を読む"
+    },
+    "after": {
+      "label": "06 · 支払った後",
+      "title": "支払い完了。そのあとも<em>支え続ける。</em>",
+      "lead": "多くのツールは支払いで終わります。Adag は、ビットコインを担保にした借入への対応を支払い後も続けます。借入があなたのラインを越えれば一部を返済し、Telegram で知らせ、財務がすでに置かれている会社の Safe から支払います。",
+      "parts": {
+        "guard": {
+          "title": "ローンガード",
+          "body": "借入があなたの決めたラインを越えると、ガードがあなた自身の USDC か EURC で一部を返済し、目標ラインまで戻すのに必要な分だけ使います。",
+          "keyLine": "使える最大額は、あなたが承認した枠です。",
+          "after": "いつでも停止できます。ルールは消え、承認枠は 0 になります。",
+          "link": "ローンガードの仕組み"
+        },
+        "alerts": {
+          "title": "Telegram 通知",
+          "body": "借入が設定した水準に近づいたときにメッセージが 1 通、ガードが返済するごとにもう 1 通。Adag はどのウォレットに通知があるかを誰にも明かしません。",
+          "link": "通知の仕組み"
+        },
+        "safe": {
+          "title": "会社の Safe から支払う",
+          "body": "請求書 1 件でも最大 10 件でも、Safe に提案し、オーナーがいつもと同じように署名します。実行時に全部が成立するか、何も起こらないかのどちらかです。",
+          "link": "Safe から支払う"
+        },
+        "record": {
+          "title": "すでに Morpho で借りている場合",
+          "body": "今ある借入を一度だけ登録します。資金は動きません。それ以降は残高から請求書を支払え、Adag は登録した借入と照らして確認します。",
+          "link": "既存の借入を登録"
+        }
+      }
+    },
+    "suppliers": {
+      "label": "07 · 取引先の方へ",
+      "title": "請求書を送る。<em>支払いを受ける。</em>",
+      "steps": {
+        "write": "請求書を作成する",
+        "share": "リンクを共有する",
+        "getPaid": "請求書番号に紐づいた USDC か EURC を受け取る"
+      },
+      "latest": "Arc 上の最新の支払い、リアルタイムで読み取り"
+    },
+    "billCard": {
+      "unavailable": "最新の支払いを取得できません。Arc が応答しませんでした。代わりに表示するものはありません。",
+      "paidTo": "支払先",
+      "paidBy": "支払者",
+      "paid": "支払い",
+      "theBill": "請求書",
+      "openIt": "請求書の備考とともに開く"
+    },
+    "ledger": {
+      "label": "08 · 台帳",
+      "title": "すべての支払いが、<em>記録に残る。</em>",
+      "fromTo": "{from}<muted> から </muted>{to}<muted> へ</muted>",
+      "fromLoanChecked": "借入から、40% チェック実行",
+      "unavailable": "台帳を取得できません。Arc が応答しませんでした。",
+      "note": "Arc 上で Adag を通じて行われた最新の支払いを、各コントラクト自身の支払い記録から読み取っています。請求書の備考は各請求書のページにのみあります。ここに模擬データはありません。",
+      "showing": "支払済み {total} 件のうち最新 {shown} 件を表示。"
+    },
+    "close": {
+      "title": "請求書の期日は来る。<em>ビットコインは預けたまま。</em>",
+      "tamil": "<word>adagu</word> · タミル語で質（担保）",
+      "poweredBy": "Powered by Morpho · Arc メインネット",
+      "footer": "フッター",
+      "contracts": "Arc メインネット上のコントラクト"
+    }
+  },
+  "pledge": {
+    "readingArc": "Arc を読み取り中",
+    "chapters": {
+      "coin": "コイン",
+      "bills": "請求書",
+      "pledge": "預け入れ",
+      "loan": "借入",
+      "paid": "支払済み",
+      "neverSold": "売らない"
+    },
+    "replay": {
+      "twoBoth": "Adag の 2 つのコントラクトにそれぞれ 1 件ずつある、実際の請求書 2 件の再現",
+      "one": "Arc で支払われた実際の請求書 1 件の再現",
+      "oneFirst": "Adag の最初のコントラクトで Arc 上で支払われた実際の請求書 1 件の再現",
+      "many": "{count, plural, =2 {Arc で支払われた実際の請求書 2 件の再現} =3 {Arc で支払われた実際の請求書 3 件の再現} other {Arc で支払われた実際の請求書 {n} 件の再現}}",
+      "manyBoth": "{count, plural, =2 {Adag の両コントラクトにわたり Arc で支払われた実際の請求書 2 件の再現} =3 {Adag の両コントラクトにわたり Arc で支払われた実際の請求書 3 件の再現} other {Adag の両コントラクトにわたり Arc で支払われた実際の請求書 {n} 件の再現}}"
+    },
+    "honesty": "{replay}。数値はリアルタイムで読み取っています。",
+    "honestyFailed": "Arc を読み取れませんでした。代わりに表示するものはありません。",
+    "honestyNone": "Arc ではまだ支払われた請求書がありません。埋めるために作り上げたものはありません。",
+    "captions": {
+      "pledgedHead": "あなたのビットコインは売却されず、預け入れられています。",
+      "pledgedSub": "あなたの名義で、担保として Morpho にあります。",
+      "borrowsHead": "{count, plural, =1 {Adag は請求書の金額だけを借ります。} other {Adag は請求書の金額だけを借ります。}}",
+      "borrowsSub": "ビットコイン価値の {cap} を超えるものは拒否します。",
+      "neverSoldHead": "売りません。",
+      "neverSoldSub": "あなたの名義で預けたままです。いつでも返済して引き出せます。",
+      "readingHead": "Arc から最新の請求書を読み取っています。",
+      "failedHead": "Arc から請求書を読み取れませんでした。",
+      "failedSub": "舞台を埋めるために作り上げた請求書はありません。一分後にもう一度お試しください。",
+      "noneHead": "Arc ではまだ支払われた請求書がありません。",
+      "noneSub": "Arc での最初の支払いがここに表示されます。",
+      "dueHead": "{count, plural, =1 {実際の請求書 1 件が期日です。} =2 {実際の請求書 2 件が期日です。} =3 {実際の請求書 3 件が期日です。} other {実際の請求書 {n} 件が期日です。}}",
+      "dueSub": "{count, plural, =1 {Arc で実際に支払われました。預け入れ額は、新しいウォレットが今日ビットコインでこれを支払うために差し入れる量です。} =2 {二件とも Arc で実際に支払われました。預け入れ額は、新しいウォレットが今日ビットコインでこれらを支払うために差し入れる量です。} other {すべて Arc で実際に支払われました。預け入れ額は、新しいウォレットが今日ビットコインでこれらを支払うために差し入れる量です。}}",
+      "paidHead": "{count, plural, =1 {取引先に支払われました。} =2 {請求書 2 件を支払いました。} =3 {請求書 3 件を支払いました。} other {請求書 {n} 件を支払いました。}}",
+      "paidSub": "{count, plural, =1 {請求書番号を添付。1 回の署名。} other {各請求書番号を添付。1 回の署名。}}"
+    },
+    "srTitle": "預けたビットコインで請求書を支払う、6 つの場面",
+    "imageAlt": "青いベルベットが敷かれた、開いた貸金庫の引き出し",
+    "arcBlock": "Arc ブロック {block}",
+    "tagWallet": "{btc} cirBTC{usd} · あなたのウォレット内",
+    "tagYourCirbtc": "あなたの cirBTC",
+    "tagPledged": "Morpho に預け入れ · 名義はあなたのまま",
+    "tagNeverSoldBtc": "{btc} cirBTC、あなたの名義で預け入れ、売却なし。いつでも返済して引き出せます。",
+    "tagNeverSold": "あなたの名義で預け入れ、売却なし。いつでも返済して引き出せます。",
+    "borrowedLabel": "{amount} を借入",
+    "billsPaidOnArc": "Arc で支払われた請求書",
+    "openBillsOnArc": "Arc の未払い請求書",
+    "yourPledge": "あなたの預け入れ",
+    "pledgeNote": "{usd}{perBtc} · 5% の余裕{markets}",
+    "valueUnavailable": "価値を取得できません",
+    "atPerBitcoin": "、ビットコイン一枚 {perBtc} 換算",
+    "twoMarkets": " · 2 マーケット",
+    "pausedFeed": "価格フィードが更新されるまで、新しい借入は一時停止です。",
+    "borrowed": "借入額",
+    "exactlyTheBills": "{count, plural, =1 {請求書の金額ちょうど、それ以上はなし} other {請求書の金額ちょうど、それ以上はなし}}",
+    "final": "借入はビットコインの {ltv}。Morpho の清算ラインは {lltv}。そこに届くにはビットコインが {fall}% 下落する必要があります。",
+    "replayButton": "再生",
+    "card": {
+      "noDate": "日付なし",
+      "titleFirst": "{title}、初回デプロイ",
+      "to": "宛先",
+      "from": "支払元",
+      "paid": "支払い",
+      "on": "日付",
+      "paidIn": "支払通貨",
+      "txLabel": "請求書 {id} を支払ったトランザクション、Arc エクスプローラーで見る"
+    },
+    "gauge": {
+      "loanToValue": "LTV",
+      "aria": "借入は {ltv}。Adag の上限は {cap}、Morpho は {lltv} で清算します。",
+      "adagCap": "{cap} Adag 上限"
+    }
+  },
+  "meta": {
+    "site": {
+      "title": "Adag · ビットコインを売らずに、請求書を支払う。",
+      "description": "Morpho にビットコインを預け入れ、請求書の金額だけを借りて、Arc 上の 1 回の署名で取引先に USDC か EURC で支払います。借入が 40% を超える支払いは Adag が拒否します。",
+      "template": "%s · Adag"
+    },
+    "home": {
+      "title": "Adag · ビットコインを売らずに、請求書を支払う",
+      "description": "会社のビットコインを売らずに取引先へ支払い。Arc 上の 1 回の署名で最大 10 件の請求書、請求書番号を添付、借入は Adag が 40% に制限します。"
+    },
+    "wallet": {
+      "title": "あなたのウォレット",
+      "description": "作成した請求書、支払った請求書、Morpho での cirBTC 担保の借入を、Arc からリアルタイムで読み取ります。"
+    },
+    "protect": {
+      "title": "ローンガードと通知",
+      "description": "cirBTC 担保の借入のための Telegram 通知と、Morpho の清算ラインの前に返済するローンガード。"
+    },
+    "write": {
+      "title": "請求書を作成する",
+      "description": "Arc 上で USDC か EURC 建ての、あなたのウォレットへちょうど一度だけ支払われる請求書を作成し、リンクを共有します。"
+    },
+    "break": {
+      "title": "破ってみる",
+      "description": "Adag の稼働中コントラクトへの十六件の実際の攻撃を、Arc メインネットの現在の状態でシミュレーションします。署名も送信も行われません。"
+    },
+    "pay": {
+      "title": "請求書を支払う",
+      "description": "番号かリンクで Arc 上の請求書を開き、誰にいくら支払うのかを正確に確認します。"
+    },
+    "basket": {
+      "title": "複数の請求書を支払う",
+      "description": "Arc 上の 1 回の署名で最大 10 件の請求書を、残高または cirBTC 担保の借入から支払います。"
+    },
+    "terms": {
+      "title": "利用規約",
+      "description": "Arc メインネット上の変更不能な請求書コントラクトへのインターフェースである Adag を使うための、平易な規約。"
+    },
+    "bill": {
+      "title": "請求書 #{id}",
+      "titleFirst": "請求書 #{id}（初回デプロイ）",
+      "fallback": "請求書"
+    }
+  },
+  "pay": {
+    "hallmark": "請求書を支払う · Arc メインネット",
+    "title": "どの<em>請求書</em>ですか？",
+    "lead": "取引先から届いた番号を入力するか、リンクを貼り付けてください。Adag は請求書を Arc から直接読み取ります。支払先、金額、まだ未払いかどうか。複数の番号は 10 件まで、1 回の署名でまとめて支払えます。",
+    "countNote": "{count, plural, =1 {件がこれまでに Arc で作成された請求書です。現在の AdagBills に {current} 件、初回デプロイに {first} 件、今読み取りました。} other {件がこれまでに Arc で作成された請求書です。現在の AdagBills に {current} 件、初回デプロイに {first} 件、今読み取りました。}}",
+    "countUnknown": "Arc が応答しなかったため、今は請求書の件数が分かりません。",
+    "form": {
+      "label": "請求書番号またはリンク",
+      "placeholder": "例：1、または請求書リンクを貼り付け",
+      "checkingArc": "Arc を確認中",
+      "openTheBill": "請求書を開く",
+      "typeANumber": "12 のように請求書番号を入力するか、取引先が送った請求書リンクを貼り付けてください。複数の番号はまとめて支払われます。",
+      "notABillNumber": "「{token}」は請求書番号でも請求書リンクでもありません。修正するか削除してください。",
+      "onFirstDeployment": "初回の AdagBills デプロイ上",
+      "onArc": "Arc 上",
+      "noBillYetNone": "{where}に請求書 #{id} はまだありません。これまでに作成された請求書はありません。",
+      "noBillYetNewest": "{where}に請求書 #{id} はまだありません。最新の請求書は #{newest} です。"
+    }
+  },
+  "bill": {
+    "missing": {
+      "bill": "請求書",
+      "mark": "請求書番号 {id}",
+      "markFirst": "請求書番号 {id} · 初回デプロイ",
+      "noneTitle": "Arc に請求書 #{id} は<em>まだ</em>ありません。",
+      "onFirstDeployment": "初回の AdagBills デプロイ上",
+      "onArc": "Arc 上",
+      "noRecord": "Adag にこの番号の記録はありません。リンクを送った相手に確認してください。",
+      "noneWritten": "{where}にはこれまでに作成された請求書がありません。送った相手に番号を確認してください。",
+      "newestIs": "{where}の最新の請求書は #{count} です。リンクを送った相手に番号を確認してください。",
+      "refusedTitle": "<em>請求書</em>が多すぎます。",
+      "invalidTitle": "これは請求書<em>番号</em>ではありません。",
+      "invalidBody": "請求書番号は /bill/12 のような、1 以上の整数です。",
+      "unavailableTitle": "Arc が<em>応答しませんでした</em>。",
+      "unavailableBody": "この請求書の状態は今取得できません。このページの表示を、支払済み・未払いのどちらの意味にも受け取らないでください。しばらくしてから再読み込みしてください。",
+      "findAnother": "別の請求書を探す"
+    },
+    "sheet": {
+      "srTitle": "請求書番号 {id}：{amount} {currency}、状態は{status}",
+      "statusWord": {
+        "open": "未払い",
+        "paid": "支払済み",
+        "void": "取消済み"
+      },
+      "headline": {
+        "open": "支払額",
+        "paid": "支払われた額",
+        "void": "取り消された額"
+      },
+      "unknownTokenLower": "不明なトークン",
+      "unknownToken": "不明なトークン",
+      "pays": "支払先",
+      "addressOnExplorer": "Arc エクスプローラーでこのアドレスを見る",
+      "openText": "未払い。誰でも一度だけ支払えます。それまでは、作成した取引先が取り消すことができます。",
+      "paidText": "Arc で全額支払われました。同じトランザクション内で取引先の残高がちょうどこの額だけ増えました。",
+      "voidText": "取引先がこの請求書を取り消しました。二度と支払えません。",
+      "details": "請求書の詳細",
+      "due": "支払期日",
+      "written": "作成日",
+      "currency": "通貨",
+      "contract": "コントラクト",
+      "paidBy": "支払者",
+      "paidOn": "支払日",
+      "txUnavailable": "今は取得できません。請求書は支払済みのままです。これは Adag 自身の記録によるものです。",
+      "txNotFound": "Adag の支払いログにまだ見つかりません。",
+      "checkPassed": "合格。この支払いはビットコインを担保に借りたため、Adag は借入が 40% 以下に収まることを確認しました。",
+      "checkPassedOnBill": "合格。この請求書は請求書 #{id} と同じトランザクションで支払われ、そこで Adag は借入が 40% 以下に収まることを確認しました。",
+      "checkNotNeeded": "不要：新規借入なし。"
+    },
+    "live": {
+      "titlePaid": "支払済み · 請求書 #{id} · Adag",
+      "titleCancelled": "取消済み · 請求書 #{id} · Adag"
+    },
+    "howPaid": {
+      "title": "どう<em>支払われた</em>か",
+      "pledged": "預け入れ",
+      "keptNeverSold": "保持、売却なし",
+      "borrowedOnMorpho": "Morpho で借入",
+      "ltvAfter": "支払い後の LTV（{symbol}）",
+      "bitcoinSold": "売却したビットコイン",
+      "keepsEverySatoshi": "支払者はすべてのサトシを保持",
+      "convertedInto": "Circle が取引先向けに {symbol} へ両替",
+      "straightToSupplier": "取引先へ直接送金",
+      "paidOtherBills": "このトランザクション内の他の請求書を支払い",
+      "fromBalance": "支払者の残高から：借入なし、預け入れなし、売却なし。",
+      "unavailable": "支払いトランザクションを今読み取れませんでした。請求書は支払済みのままです。これは Adag 自身の記録によるものです。"
+    },
+    "void": {
+      "notConfirmed": "2 分経っても Arc が確定していません。再試行する前にトランザクションを確認してください。",
+      "notCancelledYet": "Arc はトランザクションを確定しましたが、請求書はまだ取消済みと表示されません。再読み込みして確認してください。",
+      "cancelledTitle": "請求書 #{id} は取り消されました。",
+      "whatItMeans": "意味すること",
+      "noOneCanPay": "誰も、二度と支払えません。",
+      "youWroteThis": "あなたが作成した請求書です",
+      "sendIt": "支払うべき相手にこの請求書を送ってください。誰かが支払うまでは取り消せます。",
+      "closed": "終了しています。ここでできることはもうありません。",
+      "shareThisBill": "この請求書を共有",
+      "voidThisBill": "この請求書を取り消す",
+      "confirm": "請求書 #{id} を永久に取り消しますか？この後は誰も支払えず、元に戻せません。",
+      "yesVoidIt": "はい、取り消します",
+      "keepItOpen": "そのままにする"
+    }
+  },
+  "billWallet": {
+    "payThisBill": "この請求書を支払う",
+    "connectToPay": "ウォレットを接続し、残高または cirBTC 担保の借入から、1 回の署名でこの請求書を支払いましょう。",
+    "payInOneSignature": "1 回の署名で支払う。",
+    "yourPosition": "Arc でのあなたのポジション。",
+    "thisBill": "この請求書",
+    "inThisWallet": "このウォレット内",
+    "morphoPositions": "Morpho ポジション",
+    "justNow": {
+      "label": "今支払われました",
+      "received": "{amount} {symbol} を受け取りました。",
+      "paidBy": "支払者 <addr>{address}</addr>",
+      "txOnExplorer": "エクスプローラーでトランザクションを見る",
+      "txLinkLater": "Adag の支払いログを読み取るとトランザクションのリンクが表示されます。"
+    },
+    "market": {
+      "pledged": "預け入れ",
+      "loan": "借入",
+      "loanToValue": "LTV",
+      "btcCanFall": "BTC の下落余地",
+      "noLoan": "借入なし",
+      "againstCirbtc": "cirBTC 担保の {symbol}"
+    },
+    "price": {
+      "status": "ビットコイン価格の状態：",
+      "fresh": "{symbol} マーケットのビットコイン価格は最新です。",
+      "paused": "ビットコイン価格は一時停止中：新しい借入は次の更新を待ちます。",
+      "updatedHoursAgo": "Chainlink BTC/USD は {hours} 時間前に更新されました。"
+    }
+  },
+  "walletState": {
+    "connectToContinue": "続けるにはウォレットを接続してください。",
+    "connectToReceive": "資金を受け取るウォレットを接続してください。それまで何も作成されません。",
+    "otherNetwork": {
+      "continue": "ウォレットが別のネットワークにあります。続けるには Arc に切り替えてください。それまで何も作成されません。",
+      "pay": "ウォレットが別のネットワークにあります。続けるには Arc に切り替えてください。それまで何も作成されません。",
+      "changeLoan": "ウォレットが別のネットワークにあります。借入を変更するには Arc に切り替えてください。それまで何も作成されません。",
+      "sign": "ウォレットが別のネットワークにあります。Arc に切り替えてください。それまで何も署名されません。",
+      "writeBill": "ウォレットが別のネットワークにあります。請求書を作成するには Arc に切り替えてください。"
+    },
+    "smartAccount": "Adag には MetaMask や Rabby のような通常のウォレットが必要です。スマートアカウント型のウォレットは Arc の 1 回署名バッチを使えません。",
+    "kindUnavailable": "Arc でこのウォレットの種類を確認できませんでした。再読み込みしてもう一度お試しください。",
+    "cannotSignYet": "このウォレットはまだここで署名できません。メニューバーの下の注記をご覧ください。",
+    "checkingWallet": "Arc でウォレットを確認しています。",
+    "notice": {
+      "otherNetwork": "ウォレットは{network}にあります。Adag は Arc メインネットでのみ動作します。ウォレットに Arc がなければ「Arc に切り替える」が追加します。",
+      "safe": "これは Safe です。Adag はオーナーを通じて Safe から支払います。オーナー自身のウォレットを接続し、請求書で「支払元：Safe」を選んでください。",
+      "delegated": "このウォレットには EIP-7702 の委任があります。メインネットのフォークでテスト済み：自身のトランザクションを送る限り、ここで支払えます。",
+      "kindUnavailable": "今 Arc でこのウォレットの種類を確認できません。再読み込みしてもう一度お試しください。"
+    }
+  },
+  "networks": {
+    "ethereum": "Ethereum メインネット",
+    "optimism": "OP メインネット",
+    "bnb": "BNB Smart Chain",
+    "polygon": "Polygon",
+    "base": "Base",
+    "arbitrum": "Arbitrum One",
+    "avalanche": "Avalanche",
+    "sepolia": "Sepolia テストネット",
+    "arcTestnet": "Arc テストネット",
+    "unnamed": "まだ名前のないネットワーク",
+    "numbered": "ネットワーク {id}"
+  },
+  "connect": {
+    "walletDidNotAnswer": "ウォレットが応答しませんでした。",
+    "noWalletFound": "このブラウザでウォレットが見つかりません。MetaMask か Rabby 内のブラウザで Adag を開くか、このブラウザにウォレットを追加してください。",
+    "closedRequest": "ウォレットの要求を閉じました。何も接続されていません。",
+    "declinedSwitch": "切り替えを拒否しました。Adag は Arc でのみ動作します。",
+    "checkYourWallet": "ウォレットを確認してください",
+    "connectedOn": "{network}に接続中",
+    "copyAddress": "アドレスをコピー",
+    "disconnect": "接続を解除"
+  },
+  "safe": {
+    "payAs": {
+      "label": "支払元",
+      "thisWallet": "このウォレット",
+      "aSafe": "Safe"
+    },
+    "firstContract": {
+      "note": "{count, plural, =1 {請求書 '#'{list} は Adag の旧コントラクトで作成されており、Safe では支払えません。ウォレットから支払うか、取引先に再作成を依頼してください。} other {請求書 '#'{list} は Adag の旧コントラクトで作成されており、Safe では支払えません。ウォレットから支払うか、取引先に再作成を依頼してください。}}",
+      "message": "{count, plural, =1 {お世話になっております。Adag で請求書 '#'{list} を再作成していただけますか？Adag の旧コントラクト上にあり、当社の Safe は現在のコントラクト上の請求書しか支払えません。} other {お世話になっております。Adag で請求書 '#'{list} を再作成していただけますか？Adag の旧コントラクト上にあり、当社の Safe は現在のコントラクト上の請求書しか支払えません。}}",
+      "copy": "取引先へのメッセージをコピー"
+    },
+    "pay": {
+      "title": "Safe から支払う",
+      "intro": "あなたのウォレットが支払いを組み立て、1 人のオーナーとして一度署名します。他のオーナーは Safe 自身のアプリで確認します。Safe が実行するまで何も支払われず、実行時に再度確認されます。何かが変わっていれば支払い全体が拒否され、何も動きません。",
+      "connectOwner": "Arc 上で、Safe を所有する通常のウォレットを接続してください。",
+      "steps": {
+        "checking": "Arc で Safe と請求書を確認中",
+        "simulating": "現在の状態で、Safe として支払いをシミュレーション中",
+        "signing": "ウォレットで署名してください",
+        "proposing": "Safe のキューに提案を送信中"
+      },
+      "yourSafes": "あなたの Safe",
+      "lookingUp": "Safe を検索中…",
+      "pasteInstead": "代わりに下へ Safe のアドレスを貼り付けてください。",
+      "noneListed": "このウォレットに Safe は登録されていません。下へ Safe のアドレスを貼り付けてください。",
+      "listHint": "この一覧は Safe のサービスからの参考情報です。Adag は署名前に Arc で Safe を確認します。",
+      "safeAddress": "Safe のアドレス",
+      "checkThisSafe": "この Safe を確認",
+      "verified": "Safe <addr>{address}</addr> · バージョン {version} · オーナー {owners} 人のうち {threshold} 人の署名が必要 · あなたはオーナーです。",
+      "enrol": {
+        "label": "まずこの Safe の既存の借入を登録してください",
+        "body": "この Safe はすでに Morpho で借りています。{symbol} の借入は {ltv} です。Adag は新しい借入にだけ 40% ラインを確認するため、Safe はまず自身の Safe トランザクションで既存の借入を登録します。資金は動きません。",
+        "doesNotChange": "登録しても借入は変わらず、より安全にもなりません。今後 Safe が借りる分だけを Adag が判断するようになるだけです。",
+        "proposed": "提案済み（{hash}）。他のオーナーが Safe アプリで実行すると、ここで支払いを提案できます。",
+        "button": "提案：この Safe の既存の借入を登録"
+      },
+      "options": {
+        "bitcoinPledges": "Safe のビットコインから：{amount} cirBTC{usd} を預け入れ、保持します。",
+        "bitcoinPaused": "Safe のビットコインから：ビットコイン価格が更新されるまで一時停止。",
+        "bitcoin": "Safe のビットコインから",
+        "balanceHolds": "Safe の残高から：{amount} {symbol} を保有しています。",
+        "balance": "Safe の残高から",
+        "convert": "Safe のビットコインから、{symbol} を借りて。"
+      },
+      "proposeButton": "Safe に提案",
+      "chooseEach": "Safe が各通貨をどう支払うか選んでください。",
+      "afterRecording": "上の登録が実行されると支払いを提案できます。",
+      "problems": {
+        "billsChanged": "このページを開いてから請求書 #{ids} が変わりました。何も署名していません。再読み込みして残りを支払ってください。",
+        "choose": "Safe が {symbol} の請求書をどう支払うか選んでください。",
+        "paused": "ビットコイン価格が更新されるまで、{symbol} の新しい借入は一時停止です。Safe の残高を選ぶか、お待ちください。",
+        "safeHolds": "Safe は {held} {symbol} を保有し、{need} が必要です{guard}。何も署名していません。",
+        "includingGuard": "。ローンガードがまもなく返済する {amount} を含みます",
+        "guardChanged": "このページを開いてから Safe のローンガードが変わりました。提案する前に上の注記をお読みください。何も署名していません。",
+        "wouldFailUnknown": "今 Safe から実行すると、この支払いは失敗します。Safe が必要な残高か cirBTC を保有しているか確認してください。何も署名していません。",
+        "wouldFail": "今 Safe から実行すると、この支払いは失敗します：{why}",
+        "recordWouldFail": "今 Safe から実行すると、借入の登録は失敗します：{why}",
+        "walletChanged": "Safe を確認してからウォレットのアカウントかネットワークが変わりました。何も署名していません。",
+        "declined": "ウォレットで拒否しました。何も署名していません。",
+        "notAccepted": "提案は受け付けられませんでした。"
+      }
+    },
+    "status": {
+      "paidBySafe": "あなたの Safe が支払いました",
+      "billsArePaid": "{n} 件の請求書が支払われました。",
+      "restoredExecuted": "このブラウザが作成した提案は実行されました。",
+      "payerOfRecord": "AdagBills から読み取り：Safe が記録上の支払者です。",
+      "proposedFromBrowser": "このブラウザから Safe に提案済み",
+      "proposed": "Safe に提案済み",
+      "allSignaturesIn": "{count, plural, =1 {{n} 件の署名がすべて揃いました} other {{n} 件の署名がすべて揃いました}}",
+      "signaturesOf": "署名 {need} 件のうち {have} 件",
+      "signaturesUnavailable": "署名を取得できません",
+      "readingQueue": "Safe のキューを読み取り中",
+      "pressExecute": "署名がすべて揃いました。オーナーの 1 人が Safe アプリで Execute を押します（少額の手数料がかかります）。",
+      "waitingForOwners": "Safe アプリで他のオーナーを待っています。Safe が実行するまで何も支払われません。",
+      "paidByOther": "請求書 #{ids} は他の誰かが支払いました。Safe が実行すると支払い全体が拒否され、手数料だけが消費されます。Safe アプリで却下してください。",
+      "movedPast": "Safe はこの提案を支払わないまま先に進みました。置き換えられたか、実行時に失敗して何も動かなかったかのどちらかです。",
+      "buildAgain": "支払いをもう一度組み立てる",
+      "openQueue": "Safe アプリで Safe のキューを開く",
+      "proposalNote": "提案 {hash}。実行されると、トランザクションは<link>エクスプローラー</link>に表示されます。"
+    }
+  },
+  "tx": {
+    "steps": {
+      "checking": "Arc と照合中",
+      "signing": "ウォレットで確認してください",
+      "confirming": "Arc の確定を待っています",
+      "watching": "確定情報がまだありません。Arc で請求書を確認中",
+      "rereading": "請求書を再読み取り中"
+    },
+    "withSeconds": "{label} · {seconds}s",
+    "nothingUntilApprove": "承認するまで何も送信されません。",
+    "dryRunRefused": "Arc が事前実行で拒否したため、ウォレットには何も送られていません。",
+    "viewTheTransaction": "トランザクションを見る",
+    "networkFee": "ネットワーク手数料",
+    "feeIdle": "上の項目がすべて揃うとネットワーク手数料が表示されます。",
+    "about": "約 {amount} USDC",
+    "keepAtLeast": "手数料のためにウォレットへ少なくとも {amount} USDC を残してください",
+    "feeSentence": "ネットワーク手数料は{about}。{keep}。Arc はかかり得る最大額を確保し、残りを返金します。",
+    "confirmedOnArc": "Arc で確定しました",
+    "transaction": "トランザクション",
+    "onTheExplorer": "エクスプローラーで {hash} を見る"
+  },
+  "setup": {
+    "title": "Arc の cirBTC か USDC が必要ですか？",
+    "didNotAdd": "ウォレットが Arc を追加しませんでした。ウォレット自身のネットワークメニューからもう一度お試しください。",
+    "cirbtc": "<strong>cirBTC を入手：</strong><portal>Arc Portal</portal> で USDC と交換するか、<appkit>Circle の App Kit Swap</appkit> をご覧ください。",
+    "usdc": "<strong>他のチェーンから USDC を持ち込む：</strong><portal>Arc Portal</portal> がチェーン間で移動し、<cctp>Circle の CCTP</cctp> がネイティブな経路です。Arc のネットワーク手数料も少量の USDC で支払います。",
+    "arc": "<strong>ウォレットに Arc を追加：</strong>ウォレットに Arc がまだなければ、<switch>Arc に切り替える</switch>が追加します。"
+  },
+  "disclaimer": {
+    "close": "閉じる",
+    "label": "初めての借入の前に",
+    "title": "Morpho を通じた借入",
+    "body": "このアプリを通じた Morpho プロトコルの利用は、Adag の<terms>利用規約</terms>と <morpho>Morpho の免責事項</morpho>に従います。利用することで、これらの規約と伴うリスクを読み、理解したことを確認したものとみなされます。",
+    "checkbox": "これらの規約と、cirBTC を担保に借りるリスクを読み、理解しました。",
+    "notNow": "あとで",
+    "continue": "支払いへ進む"
+  },
+  "share": {
+    "sendTheBill": "請求書を送る"
+  },
+  "enrol": {
+    "firstLabel": "あなたの既存の借入",
+    "firstStale": "この請求書は Adag の最初のコントラクト上にあり、そこで初めて支払うときに Morpho の借入全体を確認します。今はビットコイン価格が最新ではありません。価格が更新されれば支払えます。",
+    "firstOver": "この請求書は Adag の最初のコントラクト上にあり、そこで初めて支払うときに Morpho の借入全体を数えます。あなたの借入は 40% を超えています。取引先に再作成を依頼してください。新しい請求書は現在のコントラクトを使い、そこでは先に借入を登録できます。",
+    "recordMismatch": "Arc はトランザクションを確定しましたが、Adag の借入記録がまだ Morpho と一致しません。支払う前に再読み込みして確認してください。",
+    "noNextBlock": "借入は登録されましたが、Arc がまだ次のブロックを生成していません。しばらくしてから再読み込みして支払ってください。",
+    "label": "まず既存の借入を登録してください",
+    "bodyStale": "すでに Morpho で借りており、今はビットコイン価格が最新ではないため、Adag の {symbol} 借入チェックは支払いを拒否します。登録するまで Adag は既存の借入と新しい借入を区別できません。一度登録すれば、資金は動かず、残高からの支払いが使えるようになります。",
+    "bodyOver": "すでに Morpho で借りています。{symbol} の借入は {ltv} です。登録するまで Adag は既存の借入と新しい借入を区別できません。一度登録すれば、資金は動かず、残高からの支払いが使えるようになります。",
+    "opens": "登録すると残高からの支払いが使えるようになります。ビットコインからの支払いはすでに 40% を超えた借入に加わるため、借入全体が 40% 以下で終わる必要があります。",
+    "doesNotChange": "登録しても借入は変わらず、より安全にもなりません。今後あなたが借りる分だけを Adag が判断するようになるだけです。",
+    "waitingBlock": "登録しました。Arc の次のブロックを待つと、下の支払いが使えるようになります。",
+    "recordButton": "既存の借入を登録する"
+  },
+  "wallet": {
+    "hallmark": "あなたのウォレット · Arc メインネット",
+    "posterTitle": "あなたの請求書。あなたの<em>ビットコイン</em>。",
+    "posterLead": "接続すると、作成した請求書、支払った請求書、cirBTC 担保のすべての借入を Arc から直接確認できます。1 回の署名でビットコインを追加するか、借入を完済できます。",
+    "title": "あなたの<em>ウォレット</em>。",
+    "loansTitle": "<em>Morpho</em> でのあなたの借入。",
+    "positionsUnavailable": "一部の借入ポジションを今取得できません。Arc が応答しませんでした。再読み込みしてもう一度お試しください。",
+    "noLoansYet": "このウォレットからの借入はまだありません。",
+    "ghost": {
+      "against": "cirBTC <muted>担保の</muted> {symbol}",
+      "noLoan": "借入なし。",
+      "opensOne": "{symbol} の請求書をビットコインで支払うと、ここに借入が表示されます。"
+    },
+    "lists": {
+      "copyLinkTo": "請求書 {id} のリンクをコピー",
+      "newer": "新しい方",
+      "older": "古い方",
+      "pageOf": "{pages} ページ中 {page} ページ",
+      "unavailable": "この一覧を今取得できません。Arc が応答しませんでした。",
+      "wroteTitle": "作成した請求書",
+      "wroteSummary": "{total} 件作成。未払い：{open}{across}。{capped}",
+      "and": " と ",
+      "nothing": "なし",
+      "acrossBills": "{count, plural, =1 {（請求書 {n} 件）} other {（請求書 {n} 件）}}",
+      "totalsCapped": "合計は最新 1,000 件が対象です。",
+      "noneWritten": "請求書はまだありません。最初の請求書を作成しましょう。署名 1 回で済み、リンクはあなたが送ります。",
+      "noReference": "備考なし",
+      "paidOnBy": "{date} に {payer} が支払い",
+      "dueOn": "期日 {date}",
+      "paidTitle": "支払った請求書",
+      "paidSummary": "Adag 経由で {total} 件支払い。",
+      "nonePaid": "Adag 経由で支払った請求書はまだありません。リンクから開くか、番号で探してください。",
+      "to": "宛先 {payee}",
+      "paidOn": "{date} に支払い"
+    },
+    "export": {
+      "notLoaded": "一覧がまだ読み込まれていません。しばらくしてからもう一度お試しください。",
+      "finding": "Arc でトランザクションを検索中 · {total} 件中 {done} 件",
+      "exported": "{count, plural, =1 {請求書 {n} 件をエクスポートしました{capped}。} other {請求書 {n} 件をエクスポートしました{capped}。}}",
+      "cappedNote": "（最新 1,000 件）",
+      "title": "会計担当向けにエクスポート",
+      "body": "上の一覧と同じ記録からブラウザ内で作る 2 つのスプレッドシートファイルです。すべての請求書の状態、UTC の日付、金額、備考、トランザクションのリンク、40% チェックが実行されたかどうかが含まれます。",
+      "written": "作成した請求書（CSV）",
+      "paid": "支払った請求書（CSV）"
+    }
+  },
+  "csv": {
+    "header": {
+      "contractAddress": "コントラクトアドレス",
+      "billNumber": "請求書番号",
+      "status": "状態",
+      "writtenAt": "作成日時",
+      "paidAt": "支払日時",
+      "supplier": "取引先",
+      "payer": "支払者",
+      "amount": "金額",
+      "currency": "通貨",
+      "reference": "備考",
+      "transactionLink": "トランザクションリンク",
+      "fortyCheckRan": "40% チェック実行"
+    },
+    "words": {
+      "paid": "支払済み",
+      "void": "取消済み",
+      "open": "未払い",
+      "unknown": "不明",
+      "unavailable": "取得できません",
+      "notFound": "見つかりません",
+      "yes": "はい",
+      "no": "いいえ"
+    }
+  },
+  "loan": {
+    "borrowedAgainst": "cirBTC <muted>を担保に借りた</muted> {symbol}",
+    "morphoMarket": "Morpho マーケット {id}",
+    "stats": {
+      "pledged": "預け入れ",
+      "aboutEstimated": "約 {usd}、概算",
+      "youOwe": "返済額",
+      "exactRoundedUp": "正確な値、切り上げ",
+      "bitcoinCanFall": "ビットコインの下落余地",
+      "noLoan": "借入なし",
+      "beforeLiquidate": "Morpho が清算できるようになるまで",
+      "borrowRate": "借入金利"
+    },
+    "priceFresh": "ビットコイン価格は最新です。",
+    "pricePaused": "新しい借入に対してビットコイン価格は一時停止中です。",
+    "checksOnlyAtPay": "Adag は支払う瞬間にだけ 40% ラインを確認します。その後は、オンにしていれば下のローンガードだけが見守ります。",
+    "tabs": {
+      "label": "借入の操作",
+      "add": "cirBTC を追加",
+      "repay": "一部を返済",
+      "close": "借入を完済",
+      "takeBack": "ビットコインを引き出す"
+    },
+    "add": {
+      "holdsOnly": "ウォレットには {amount} cirBTC があります。",
+      "label": "追加する cirBTC · 保有 <held></held>",
+      "after": "追加後の LTV：<ltv></ltv>。新規借入がないため価格チェックは不要です。",
+      "notAsExpected": "Arc はトランザクションを確定しましたが、Morpho の記録に預け入れが期待どおりに反映されていません。トランザクションを確認してください。",
+      "done": "{amount} cirBTC を追加しました。現在の預け入れ：{pledged} cirBTC。"
+    },
+    "repay": {
+      "mostIs": "この方法で返済できる最大額は {amount} {symbol} です。全額返済するには「借入を完済」を使ってください。",
+      "holdsOnly": "ウォレットには {amount} {symbol} があります{fee}。",
+      "andFee": "。ネットワーク手数料にも少量の USDC がかかります",
+      "label": "返済する {symbol} · 返済額 <owed></owed>",
+      "max": "最大",
+      "button": "返済",
+      "after": "この後、LTV は <ltv></ltv> になり、Morpho が清算できるようになるまでビットコインは <drop></drop> 下落できます。",
+      "dust": "「最大」は金額で返済するため、ごくわずかな端数が残ります。「借入を完済」なら残りを返済し、cirBTC も戻ります。",
+      "feeIdle": "金額が有効になるとネットワーク手数料が表示されます。",
+      "notAsExpected": "Arc はトランザクションを確定しましたが、Morpho の記録に返済が期待どおりに反映されていません。トランザクションを確認してください。",
+      "done": "{amount} {symbol} を返済しました。残りの返済額は {owed} {symbol} です。"
+    },
+    "close": {
+      "explain": "正確な借入シェアで <debt></debt> を返済し、{collateral} cirBTC をすべて引き出します。承認枠はブロック時点までの利息を賄う {approval} {symbol} で、同じ署名内で 0 に戻します。",
+      "noDebt": "ここに借入残高はありません。{collateral} cirBTC をすべてウォレットに引き出します。",
+      "short": "ウォレットには <held></held> {symbol} があります。完済には {need} が必要です{fee}。まず {add} {symbol} を追加してください。",
+      "includingFee": "。手数料分の少額を含みます",
+      "keepUsdc": "ネットワーク手数料のため、このウォレットに少量の USDC を残してください。",
+      "stopsGuard": "完済するとこの借入のローンガードも停止します。ルールは消え、承認枠は 0 になります。",
+      "reading": "Arc で借入と残高を読み取っています。",
+      "withOther": "{symbol} で完済",
+      "readingEuro": "Arc でユーロ価格とあなたの {symbol} を読み取っています。",
+      "notAsExpected": "Arc はトランザクションを確定しましたが、Morpho の記録ではまだ完済になっていません。トランザクションを確認してください。",
+      "backInWallet": "{amount} cirBTC がウォレットに戻りました。",
+      "doneLoan": "借入を完済しました。返済額 0、預け入れ 0。{returned}",
+      "doneNoLoan": "完了。このマーケットの預け入れは 0 で、{returned}",
+      "guardOff": "この借入のローンガードはオフです。ルールなし、承認枠 0。",
+      "notBuiltShort": "Arc が応答しなかったため、完済を作成していません。もう一度お試しください。",
+      "noLoanToConvert": "ここには両替で完済する借入がありません。",
+      "guardNoAnswerShort": "Arc がローンガードについて応答しなかったため、完済を作成していません。もう一度お試しください。",
+      "leftInWallet": "{amount} {symbol} がウォレットに残っています。",
+      "adapterClear": "Circle のアダプターはウォレットにアクセスできません。",
+      "adapterMaybe": "Circle のアダプターはまだウォレットにアクセスできる可能性があります。再度両替する前に確認してください。",
+      "effectsUnchecked": "署名前に Adag がスワップの送金を追跡できませんでした。",
+      "circleTurned": "Circle が {from} を {to} に両替しました。",
+      "needs": "完済には {need} {symbol} が必要で、ウォレットには {held} があります。{add} {symbol} を追加してからもう一度お試しください。何も送信されていません。",
+      "guardNoAnswer": "Arc がローンガードについて応答しなかったため、完済を作成していません。何も送信されていません。もう一度お試しください。"
+    },
+    "gauge": {
+      "loanToValue": "LTV",
+      "aria": "LTV {pct}%（最大 100%）、Adag のラインは {adag}%、Morpho は {morpho}% で清算"
+    }
+  },
+  "guard": {
+    "section": {
+      "saveNotAsExpected": "Arc はトランザクションを確定しましたが、AdagGuard の記録にルールが保存されていません。トランザクションを確認してください。",
+      "protectedDone": "保護中です。{trigger} で介入し {target} まで返済し、最大 {amount} {symbol} を使います。",
+      "repayNotReported": "Arc はトランザクションを確定しましたが、AdagGuard はこの借入の返済を報告しませんでした。価格が戻った可能性があります。トランザクションを確認してください。",
+      "repaidDone": "ガードがウォレットからこの借入の {amount} {symbol} を返済しました。",
+      "ariaLabel": "{symbol} 借入のローンガード",
+      "readingGuard": "Arc で AdagGuard を読み取っています。",
+      "settingsUnavailable": "ガードの設定を今取得できません。Arc が応答しませんでした。",
+      "wouldRepay": "今なら約 {amount} {symbol} を返済します。Adag が運用する小さなプログラムであるキーパーが数分以内に送ります。",
+      "canRepayNow": "今すぐ自分で返済することもできます。",
+      "wouldNotAct": "今は発動しません。",
+      "change": "変更",
+      "protectThisLoan": "この借入を保護",
+      "repayItNow": "今返済する"
+    },
+    "stop": {
+      "notDeployed": "ローンガードがデプロイされていないため、何も作成していません。",
+      "notCleared": "Arc はトランザクションを確定しましたが、ルールか承認枠がまだ消去されていません。トランザクションを確認してください。",
+      "stopped": "保護を停止しました。ルールはなく、AdagGuard のあなたの {symbol} に対する承認枠は 0 です。"
+    },
+    "summary": {
+      "notProtected": "未保護。この借入があなたの決めたラインを越えると、ガードがあなた自身の {symbol} で一部を返済します。Morpho の 86% の清算ラインに近づけないためです。",
+      "leftover": "AdagGuard にはルールなしで {amount} {symbol} の承認枠が残っています。「保護を停止」で 0 になります。",
+      "protected": "保護中：<strong>{trigger}</strong> で <strong>{target}</strong> まで返済。最大 <usableSpan>{usable}</usableSpan> を使用可（現在の枠 <allowanceSpan>{allowance}</allowanceSpan>）。",
+      "ended": "{date} に終了。",
+      "until": "{date} まで。",
+      "cannotActZero": "発動できません。承認枠が 0 です。変更して金額を与えるか、保護を停止してください。",
+      "noBalance": "ウォレットに {symbol} がないため、ガードは発動できません。"
+    },
+    "list": {
+      "loanOf": "{symbol} 借入",
+      "changeOnWallet": "ウォレットページで変更",
+      "closedLoan": "この借入は完済されています。「保護を停止」で承認枠が 0 になります。",
+      "title": "あなたのローンガード",
+      "reading": "Arc で借入と AdagGuard を読み取っています。",
+      "none": "このウォレットには借入もガードもありません。ビットコインで請求書を支払うと、ここに借入が表示されます。",
+      "someUnavailable": "一部の借入を今取得できません。Arc が応答しませんでした。応答すればここに表示されます。"
+    },
+    "gauge": {
+      "target": "目標ライン {pct}",
+      "trigger": "発動ライン {pct}",
+      "ltvUnavailable": "LTV を取得できません",
+      "ltv": "LTV {pct}%"
+    },
+    "panel": {
+      "usePercentage": "55 や 55.5 のようなパーセントを使ってください。",
+      "realEndDate": "実在する終了日を選ぶか、なしにしてください。",
+      "stepInWhen": "借入がこの水準に達したら介入",
+      "morphoLiquidatesAt": "Morpho は {pct} で清算します。",
+      "repayDownTo": "ここまで返済",
+      "onlyWhatBrings": "毎回、ここへ戻すのに必要な分だけ。",
+      "mayUse": "使用できる {symbol} の総額 · 保有 {held}",
+      "oneStep": "1 回分",
+      "oneStepRepays": "発動ラインから始まる 1 回の保護は約 {amount} {symbol} を返済します。",
+      "neverMore": "何度発動しても、これ以上は使いません。",
+      "endDate": "終了日 · 任意",
+      "noDateStaysOn": "日付がなければ、停止するまでオンのままです。",
+      "alreadyPast": "借入はすでに {ltv} で、この発動ラインを越えています。保存すると、数分以内に約 <strong>{amount}</strong> を返済します{landing}。",
+      "bringingTo": "。約 {ltv} まで戻します",
+      "wouldNotActToday": "今日の価格では発動しません。",
+      "stepsInIfFalls": "ビットコインがここから約 {pct}% 下落すると介入します。",
+      "ceiling": "使える最大額は承認枠{approval}です。発動するごとに借入を目標へ戻す分だけ返済し、承認枠はその分だけ減ります。",
+      "onlyYourLoan": "この承認枠から返済できるのはあなた自身の借入だけです。借入が発動ラインを越えれば、Adag を含め誰でも発動させることができます。",
+      "usdcGasWarning": "Arc では USDC がネットワーク手数料も支払います。USDC のルールは同じ残高を使うため、このウォレットにトランザクションを送るだけの USDC が残らなくなることがあります。",
+      "feeIdle": "ルールと金額が有効になるとネットワーク手数料が表示されます。",
+      "saveNewRule": "新しいルールを保存",
+      "protectThisLoan": "この借入を保護",
+      "oneSignature": "1 回の署名：ちょうどこの金額の承認、その後にルール。"
+    }
+  },
+  "protect": {
+    "hallmark": "ローンガード · 通知",
+    "title": "<em>Morpho</em> より先に知る。",
+    "lead": "ローンガードは、借入があなたの決めたラインを越えたときに、あなた自身の USDC か EURC で一部を返済します。通知は借入が近づいたとき、そしてガードが発動するごとに Telegram で知らせます。ガードはウォレット内の各借入で設定します。",
+    "connectForAlerts": "通知を受けたい借入のあるウォレットを接続してください。"
+  },
+  "alerts": {
+    "codeExpired": "Start が押される前にコードが期限切れになりました。新しいコードを取得してください。",
+    "usePercentagesLike": "60 や 72.5 のようなパーセントを使ってください。",
+    "levelsSaved": "通知ラインを保存しました：{levels}。",
+    "alertsOff": "このウォレットの通知はオフです。連携していたチャットには何も届きません。",
+    "title": "借入が近づいたときにメッセージを 1 通、ガードが返済するごとにもう 1 通。",
+    "plainText": "プレーンテキストで数字のみ。Adag 自身のアドレス以外にクリックするリンクはありません。通知はベストエフォートで、ガードは通知に依存しません。",
+    "linkedHereOn": "このブラウザは {date} にこのウォレットの通知を連携しました。",
+    "gettingCode": "コードを取得中",
+    "linkAnotherChat": "別のチャットを連携",
+    "getAlerts": "Telegram 通知を受け取る",
+    "openBotPressStart": "ボットを開いて Start を押してください。リンク内のコードはあなただけのもので、10 分間有効です。",
+    "openTelegram": "Telegram を開く",
+    "waitingForStart": "Telegram での Start を待っています",
+    "chatPressedStart": "チャット <chat></chat>（id {id}）が Start を押しました。ウォレットでメッセージに署名してこのウォレットに連携してください。署名は無料で、トランザクションも送りません。",
+    "withoutUsername": "ユーザー名なし",
+    "signAndLink": "署名して連携",
+    "linked": "連携しました。このウォレットの通知はそのチャットに届きます。いつでもそこで /stop を送るか、ここで停止できます。",
+    "whatYouSign": {
+      "link": "署名するメッセージは英語で、内容はこうです：このサイト、チェーン 5042 で、このコードとこのチャット id を使ってこのウォレットを Telegram チャットに連携する。有効期限も記されています。サーバーが同じ文面を検証するため、翻訳されることはありません。",
+      "levelsAndStop": "署名するメッセージは英語で、内容はこうです：このサイト、チェーン 5042 で、通知を送る借入水準を設定する、またはこのウォレットの通知を停止する、使い捨ての nonce と期限付きで。サーバーが同じ文面を検証するため、翻訳されることはありません。"
+    },
+    "levels": {
+      "title": "通知ライン",
+      "body": "借入の LTV が各ラインを上回ったときに一度だけメッセージが届き、再び下回るまで繰り返しません。自分で設定するまで、ラインは 60% と 75% です。",
+      "saved": "{date} に保存：{levels}",
+      "level": "ライン {n}",
+      "none": "なし",
+      "signAndSave": "署名してラインを保存",
+      "stopAlerts": "このウォレットの通知を停止",
+      "eachChange": "変更はすべてウォレットが署名するメッセージです。Adag はどのウォレットに通知があるかを誰にも明かしません。"
+    }
+  },
+  "break": {
+    "stamps": {
+      "refused": "拒否",
+      "held": "防御",
+      "allowed": "許可",
+      "byDesign": "設計上許可",
+      "broken": "突破",
+      "error": "未実行",
+      "armed": "待機",
+      "running": "実行中",
+      "verdict": "判定：{word}"
+    },
+    "tally": {
+      "armed": "攻撃を待機中",
+      "soFar": "{total} 件中、ここまで脅威モデルどおり",
+      "brokeThrough": "防御。{n} 件が突破",
+      "allHeld": "{total} 件すべて脅威モデルどおり",
+      "couldNotRun": "脅威モデルどおり。{n} 件は実行できませんでした"
+    },
+    "simulatedDrop": "価格下落のシミュレーション · 25% 低いモックオラクル",
+    "simulatedCrash": "価格暴落のシミュレーション · ゼロのモックオラクル",
+    "whatShouldStopIt": "何が止めるべきか · <span>{stopper}</span>",
+    "simulatingOnArc": "Arc でシミュレーション中",
+    "rawAnswer": "チェーンからの生の応答",
+    "decoded": "デコード結果",
+    "gas": "ガス",
+    "invariant": "不変条件",
+    "status": {
+      "idle": "約一分。Arc の公開ノードに負荷をかけないよう、各シミュレーションは順番を待ちます。",
+      "reading": "Arc のリアルタイム状態を読み取り中 · {seconds}s",
+      "simulating": "Arc でシミュレーション中 · {total} 件中 {answered} 件 · {seconds}s",
+      "cached": "{age}s 前の実行結果です。新しい実行は一分に一度までです。",
+      "finished": "{seconds}s で完了。"
+    },
+    "nothingSigned": "署名も送信も行われません",
+    "hallmark": "攻撃スイート · Arc メインネット",
+    "titleLine1": "ぜひ",
+    "titleLine2": "<em>破って</em>みてください。",
+    "lead": "Adag の稼働中コントラクトである AdagBills とローンガードへの {total} 件の実際の攻撃を、Arc メインネットの現在の状態でシミュレーションします。実際の借入、実際の請求書、実際のビットコイン価格。署名も送信も行われません。",
+    "attacking": "攻撃中",
+    "runAgain": "もう一度実行",
+    "runAll": "{total} 件の攻撃をすべて実行",
+    "legendLabel": "スタンプの意味と、次に見る場所",
+    "legend": {
+      "refused": {
+        "term": "拒否",
+        "means": "チェーンが拒否しました。"
+      },
+      "held": {
+        "term": "防御",
+        "means": "実行されましたが、保護対象は何も動きませんでした。"
+      },
+      "byDesign": {
+        "term": "設計上許可",
+        "means": "既知で受け入れ済みの隙で、攻撃者自身の借入にしか影響しません。"
+      },
+      "allowed": {
+        "term": "許可",
+        "means": "チェーンが許可し、脅威モデルもそれが正しいとしています。"
+      }
+    },
+    "next": "次へ",
+    "threatModel": "脅威モデル",
+    "liveStateAt": "ブロック {block} のリアルタイム状態",
+    "simulatedOn": "、{provider}でシミュレーション",
+    "theAttacks": "攻撃一覧",
+    "groups": {
+      "bills": {
+        "name": "請求書の支払い",
+        "note": "現在の AdagBills と、デモウォレットの実際の Morpho 借入に対して。"
+      },
+      "enrol": {
+        "name": "既存の借入の登録",
+        "note": "登録（enrol）は支払者がすでに持っている借入を保存し、以降の支払いをそれと照らして確認させます。"
+      },
+      "guard": {
+        "name": "ローンガード",
+        "note": "稼働中の AdagGuard に対して。ローンガードの各行はシミュレーション上の前提から始まります。デモ支払者が Morpho で借入が 38.00% になるまで借り、借入は 35% の発動ラインを上回ります。AdagGuard、Morpho、オラクルのいずれも上書きされません。"
+      }
+    },
+    "footer": {
+      "simulatedAt": "{providers}で Arc ブロック {block} 時点のシミュレーション · {when}",
+      "and": " と ",
+      "pinned": "すべての実行は Arc の最新ブロックに固定されます",
+      "terminal": "同じスイートはターミナルからも実行できます：<attack>attack.mjs</attack> と <guard>guard-attack.mjs</guard>"
+    },
+    "residuals": {
+      "A4": "設計上許可、次の支払いで捕捉。<link>脅威モデル</link>の C10 に記された残存リスクです。",
+      "E5": "設計上許可：あるブロックで登録し次のブロックで支払う、支払者自身のリスク。<link>脅威モデル</link>の C32 に記された残存リスクです。"
+    },
+    "checks": {
+      "A1": {
+        "attack": "資金を持つ第三者が、支払済みの請求書をもう一度支払う。",
+        "stopper": "請求書は一度だけ支払えます。未払いの請求書だけが支払えます。"
+      },
+      "A2a": {
+        "attack": "Adag の外で借入を完済し、ビットコインの四分の一を担保に同じ額を再び借りる。",
+        "stopper": "Adag に届く前に Morpho 自身の 86% ラインが止めます。"
+      },
+      "A2b": {
+        "attack": "借入を完済し、Morpho が許す価値 60% のビットコインを担保に同じ額を再び借りて、請求書を支払う。",
+        "stopper": "Adag は前回の確認以降に預け入れが縮んだことを見て、40% チェックを実行します。"
+      },
+      "A3": {
+        "attack": "ビットコイン価値の半分まで借り、同じ署名で新しい請求書を支払う。",
+        "stopper": "Adag は新規借入を検知して、40% チェックを実行します。"
+      },
+      "A4": {
+        "attack": "残高から請求書を支払い、同じバッチ内で Adag のステップの後に 60% まで借りる。次のブロックで別の請求書を支払う。",
+        "stopper": "設計上許可、次の支払いで捕捉。"
+      },
+      "A5": {
+        "attack": "取引先が自分の請求書を支払う。",
+        "stopper": "支払者が受取人になることは決してありません。"
+      },
+      "A6_1": {
+        "attack": "第三者が cirBTC 建ての請求書を作成する。",
+        "stopper": "請求書は USDC か EURC 建てのみです。"
+      },
+      "A6_2": {
+        "attack": "第三者が WETH 建ての請求書を作成する。",
+        "stopper": "請求書は USDC か EURC 建てのみです。"
+      },
+      "A6_3": {
+        "attack": "第三者が架空のトークン建ての請求書を作成する。",
+        "stopper": "請求書は USDC か EURC 建てのみです。"
+      },
+      "A6_4": {
+        "attack": "第三者が金額ゼロの請求書を作成する。",
+        "stopper": "請求書はゼロより大きい金額でなければなりません。"
+      },
+      "A6_5": {
+        "attack": "第三者が 141 バイトの備考付きの請求書を作成する。",
+        "stopper": "備考は最大 140 バイトです。"
+      },
+      "A7a": {
+        "attack": "第三者が取引先の未払い請求書を取り消す。",
+        "stopper": "請求書を作成した取引先だけが取り消せます。"
+      },
+      "A7b": {
+        "attack": "取引先が支払済みの請求書を取り消す。",
+        "stopper": "未払いの請求書だけが取り消せます。"
+      },
+      "A8": {
+        "attack": "Adag に USDC を動かす承認を与えずに請求書を支払う。",
+        "stopper": "トークンが拒否し、バッチ全体が自ら巻き戻ります。"
+      },
+      "A9a": {
+        "attack": "ビットコインが 25% 下落。新たに借りずに残高から新しい請求書を支払う。",
+        "stopper": "意図的に許可：新規借入がないため確認するものがありません。価格下落が残高からの支払いを止めることはありません。"
+      },
+      "A9b": {
+        "attack": "ビットコインが 25% 下落。1 セント多く借りて同じ請求書を支払う。",
+        "stopper": "新規借入なので、40% チェックが実行されます。"
+      },
+      "E1": {
+        "attack": "enrol で借入を登録し、同じバッチで残高から請求書を支払う。",
+        "stopper": "このブロックで登録した支払者は拒否されるため、借入を登録しながら同時に使うことはできません。"
+      },
+      "E2": {
+        "attack": "60% まで借り、その借入を enrol で登録し、請求書を支払う。すべて 1 つのバッチで。",
+        "stopper": "同一ブロック拒否：新規借入を登録しながら同時に使うことはできません。"
+      },
+      "E3": {
+        "attack": "第三者がデモ支払者の登録済み借入を上書きしようと enrol を呼び、その後支払者が支払う。",
+        "stopper": "enrol は引数を取らず、呼び出し元自身の記録だけを書きます。"
+      },
+      "E4": {
+        "attack": "あるブロックで登録し、次のブロックで Adag の外で借入を完済し、価値 60% のビットコインを担保に再び借りて支払う。",
+        "stopper": "預け入れが登録時より下がったため、40% チェックが実行されます。"
+      },
+      "E5": {
+        "attack": "Adag の外で 60% まで借りて登録し、次のブロックで残高から請求書を支払う。",
+        "stopper": "設計上許可：enrol は借入をそのまま受け入れ、リスクは支払者自身のポジションだけが負います。"
+      },
+      "G6": {
+        "attack": "同じ価格で protect を三回呼ぶ。一つのブロックで二回、次のブロックで一回。",
+        "stopper": "各 protect は借入を目標へ戻す分だけ返済するため、繰り返しには何もすることがありません。"
+      },
+      "G1": {
+        "attack": "支払者が承認した以上を引き出す。借入には 0.10 USDC の承認枠以上が必要で、protect を二回実行する。",
+        "stopper": "承認枠は通算の上限で、protect はそこで止まります。"
+      },
+      "G2a": {
+        "attack": "Morpho 上のもう一つの実際の USDC/cirBTC マーケット経由で支払者の借入を保護する。",
+        "stopper": "AdagGuard は Morpho と照合した固定の 2 つのマーケット id しか受け付けません。"
+      },
+      "G2b": {
+        "attack": "ルールを設定し、Adag のものと十六進数 1 桁だけ違うマーケット id で protect を呼ぶ。",
+        "stopper": "一桁違いは別の id であり、拒否されます。"
+      },
+      "G2c": {
+        "attack": "借入もルールもない EURC マーケットで支払者を保護する。",
+        "stopper": "各マーケットは自身の借入だけを、しかも実在し発動したルールに対してだけ返済します。"
+      },
+      "G3": {
+        "attack": "借入が支払者の 50% の発動ラインを下回る間に、第三者が protect を呼ぶ。",
+        "stopper": "protect は発動ライン以上でのみ働きます。そうでなければ何も動かず、何も発火しません。"
+      },
+      "G4": {
+        "attack": "支払者のルールが設定から 60 秒後に期限切れになる。第三者がちょうどその秒に protect を呼ぶ。",
+        "stopper": "期限切れのルールは働きません。"
+      },
+      "G5a": {
+        "attack": "第三者が支払者のルールを消す。",
+        "stopper": "ルールは送信者をキーとします。誰も他のウォレットを指定できません。"
+      },
+      "G5b": {
+        "attack": "第三者が支払者に当たることを期待してルール（80% / 1%）を設定する。",
+        "stopper": "setRule は送信者自身のルールだけを書きます。"
+      },
+      "G7": {
+        "attack": "借入にもっと必要なときに、支払者のウォレットには 0.05 USDC しかない。",
+        "stopper": "protect はウォレットの保有以上を引き出さず、巻き戻りもしません。"
+      },
+      "G8": {
+        "attack": "ビットコインがゼロに暴落。借入全体に対し 2 USDC の承認枠で protect する。",
+        "stopper": "返済は切り捨てた借入残高を上限とするため、Morpho のシェア計算がアンダーフローすることはありません。"
+      },
+      "G9a": {
+        "attack": "ビットコインがゼロに暴落。1 USDC を承認したがルールのない支払者を保護する。",
+        "stopper": "ルールがなければ、価格がゼロでも何も発動しません。"
+      },
+      "G9b": {
+        "attack": "借入もルールもないウォレットを保護する。",
+        "stopper": "返済するものがなく、何も動きません。"
+      },
+      "G10": {
+        "attack": "資金流出に必要な管理者関数を呼ぶ：transferOwnership、withdraw、rescue、pause、upgradeToAndCall。",
+        "stopper": "オーナー、一時停止、救出、アップグレードは存在しません。状態を変えるのは setRule、clearRule、protect だけです。"
+      }
+    }
+  },
+  "terms": {
+    "hallmark": "利用規約 · Adag",
+    "title": "平易な<em>規約</em>。",
+    "lead": "短いのは、コントラクトが語るからです。このウェブサイトを使うことで、以下の規約に同意したものとみなされます。",
+    "englishApplies": "これは便宜上の翻訳です。適用されるのはこの規約の英語版です。",
+    "and": " と ",
+    "sections": {
+      "whatAdagIs": {
+        "title": "Adag とは",
+        "body": "Adag は、Arc メインネット上の 1 つのスマートコントラクト AdagBills と通信するウェブサイトです。このコントラクトは変更不能です。オーナーも管理者キーもなく、作った人を含め誰も一時停止、アップグレード、ルール変更ができません。ウェブサイトはそのインターフェースにすぎません。"
+      },
+      "youSign": {
+        "title": "すべてあなたが署名します",
+        "body": "すべての支払い、借入、取消は、あなた自身のウォレットで確認して署名するトランザクションです。Adag はあなたの資金を保管せず、鍵も保管せず、署名なしに何も動かせません。コントラクトは同じトランザクション内で請求書の正確な金額を支払者から取引先に渡し、何も保持しません。"
+      },
+      "liquidation": {
+        "title": "借入は清算で終わることがあります",
+        "body": "ビットコインからの支払いは、cirBTC を Morpho に預け入れ、それを担保に請求書の金額を借ります。ビットコイン価格が十分に下落すると、Morpho は借入を清算し預け入れの一部を売却できます。Adag は借入をビットコイン価値の 40% より上に残す支払いを拒否しますが、確認するのは支払う瞬間だけです。その後は利息と価格が動き続け、Adag は借入を見守らず、借入が 86% に達すれば Morpho は清算できます。借入を見守り、返済するのはあなた自身です。"
+      },
+      "tokens": {
+        "title": "トークンには発行者のリスクが伴います",
+        "body": "USDC、EURC、cirBTC は第三者が発行しており、発行者はアドレスの凍結、送金の停止、トークンの挙動の変更ができます。その場合、支払いが失敗したり資金が動かなくなったりすることがあります。Adag はそのどれも覆せません。"
+      },
+      "noAudit": {
+        "title": "自己レビュー以外の監査はありません",
+        "body": "このコントラクトは有償の第三者監査を受けていません。あるものは公開されています。脅威モデル、メインネットのリアルタイム状態でデプロイ済みコントラクトに対してシミュレーションした攻撃スイートを含む自己レビュー、そして静的解析です。各コントラクトのソースは Arc エクスプローラーで検証済みです：<contracts></contracts>。"
+      },
+      "notAdvice": {
+        "title": "助言ではなく、提携もありません",
+        "body": "このサイトのいかなる内容も、金融、法律、税務の助言ではありません。Adag は独立したプロジェクトです。Circle、Arc、Morpho と提携しておらず、これらの企業に承認・運営されているものでもありません。"
+      },
+      "ownRisk": {
+        "title": "自己責任でご利用ください",
+        "body": "Adag はいかなる保証もなく、現状のまま提供されます。ご利用は自己責任であり、署名する前にすべての請求書、アドレス、トランザクションを確認する責任はあなたにあります。"
+      }
+    },
+    "publishedReview": "公開されたレビュー",
+    "docs": {
+      "threatModel": "脅威モデルと、アプリが準拠する基準",
+      "attackSuite": "デプロイ済みコントラクトに対してシミュレーションした攻撃スイート",
+      "staticAnalysis": "静的解析の結果"
+    }
+  },
+  "notFound": {
+    "label": "404 · ADAG にはありません",
+    "title": "このページは <em>Adag にありません</em>。",
+    "body": "アドレスの入力ミスか、請求書が別のコントラクト上にあるのかもしれません。",
+    "backHome": "ホームページに戻る",
+    "readTheDocs": "ドキュメントを読む"
+  },
+  "appFooter": {
+    "tagline": "Arc メインネット上の請求書を、残高または預けたビットコイン担保の借入から支払います。",
+    "poweredBy": "Powered by Morpho",
+    "firstDeployment": "初回デプロイ {address}"
+  },
+  "docs": {
+    "theme": "テーマ",
+    "englishOnly": "ドキュメントは英語で書かれており、翻訳されていません。"
+  },
+  "write": {
+    "hallmark": "請求書を作成する · Arc メインネット",
+    "title": "<em>請求書</em>を<w>作</w>成する。",
+    "lead": "1 回の署名で Arc に載り、あなたへちょうど一度だけ支払われます。支払うべき相手にリンクを送ってください。",
+    "currency": "通貨",
+    "amount": "金額",
+    "due": {
+      "label": "支払期日",
+      "chooseOrNone": "支払期日を選ぶか、「支払期日なし」を選んでください。",
+      "inThePast": "支払期日が過去です。",
+      "choose": "支払期日を選んでください。",
+      "shownNeverEnforced": "支払者に表示されるだけで、強制はされません。"
+    },
+    "ref": {
+      "bytes": "{used} / {max} バイト",
+      "placeholder": "請求書 1042、先月分ホスティング",
+      "note": "Arc 上で公開され、誰でも永久に読めます。アクセント付きの文字や記号は 1 バイトより多く使います。日本語の文字は 1 文字で数バイトを使うため、入力できる文字数は上限のバイト数より少なくなります。",
+      "tooLong": "備考は {used} バイトで、上限は {max} です。短くしてください。日本語の文字はそれぞれ数バイトを使います。"
+    },
+    "writeTheBill": "請求書を作成",
+    "fixTheField": "請求書を作成するには、上で示された項目を直してください。",
+    "feeIdle": "請求書が有効になるとネットワーク手数料が表示されます。",
+    "newToArc": "Arc は初めてですか？",
+    "notAsExpected": "Arc はトランザクションを確定しましたが、作成された請求書を期待どおりに確認できません。トランザクションを確認してください。",
+    "writtenOnArc": "Arc に作成しました",
+    "readyToShare": "請求書 #{id} を共有できます。",
+    "openTheBillPage": "請求書ページを開く",
+    "writeAnother": "別の請求書を作成",
+    "preview": {
+      "label": "支払者に見える画面",
+      "draft": "下書き",
+      "yourConnectedWallet": "接続中のウォレット",
+      "due": "期日",
+      "chooseADate": "日付を選択",
+      "tooLong": "長すぎます",
+      "billNo": "請求書番号"
+    }
+  },
+  "payActions": {
+    "payThisBill": "この請求書を支払う",
+    "fail": {
+      "noRecord": "Arc はトランザクションを確定しましたが、その中にこの請求書の支払い記録がありません。再試行する前にリンクを確認してください。",
+      "needsWithGuard": "この支払いには {need} {symbol} が必要です。請求額に、ローンガードがまもなく返済する {guard} を加えた額です。ウォレットには {held} があります。何も送信されていません。",
+      "notBuilt": "Arc が応答しなかったため、支払いを作成していません。何も送信されていません。もう一度お試しください。",
+      "pledgesMore": "この支払いは {pledge} cirBTC を預け入れますが、ウォレットには {held} があります。何も送信されていません。",
+      "billChanged": "ページを開いてからこの請求書が変わりました。現在の状態を見るにはページを再読み込みしてください。",
+      "notBuiltShort": "Arc が応答しなかったため、支払いを作成していません。もう一度お試しください。",
+      "pledgesMoreShort": "この支払いは {pledge} cirBTC を預け入れますが、ウォレットには {held} があります。"
+    },
+    "receipt": {
+      "title": "請求書 #{id} は支払済みです。",
+      "supplierReceived": "取引先が受け取った額",
+      "paidFrom": "支払元",
+      "fromBalance": "あなたの {symbol} 残高",
+      "fromConverted": "cirBTC 担保の {loan} 借入、Circle が {symbol} へ両替",
+      "fromLoan": "cirBTC 担保の借入",
+      "borrowedAndConverted": "借入して両替",
+      "pledgedNow": "現在の預け入れ",
+      "cirbtcMore": "{amount} cirBTC 追加{usd}",
+      "ltvAfterSymbol": "支払い後の {symbol} LTV",
+      "seeTheTransaction": "トランザクションを見る",
+      "ranAndPassed": "実行して合格",
+      "notNeeded": "不要",
+      "extraCheck": "追加チェック",
+      "yourBitcoinBack": "ビットコインの引き出し",
+      "repayAnyTimeOther": "「あなたのウォレット」からいつでも返済：借入を完済、または別の通貨で完済。",
+      "repayAnyTime": "「あなたのウォレット」からいつでも返済：借入を完済。"
+    },
+    "closed": {
+      "progressPaid": "Arc ではこの請求書はすでに支払済みです。Adag はこの支払いがあなたのものか確認するため、トランザクションを読み取っています。",
+      "progressCancelled": "支払いの途中でこの請求書が取り消されました。Adag はトランザクションを読み取っています。",
+      "cannotBePaid": "この請求書は支払えません。"
+    },
+    "blocked": {
+      "readingPriceStatus": "Arc でビットコイン価格の状態を読み取っています。",
+      "readingPosition": "Arc であなたのポジションを読み取っています。",
+      "positionUnreadable": "ポジションを読み取れませんでした。下でもう一度お試しください。"
+    },
+    "sameBlock": "借入は Arc の最新ブロックで登録されました。支払いは次のブロックで、まもなく可能になります。",
+    "fromYourBalance": "残高から",
+    "balance": {
+      "unavailable": "{symbol} の残高を今取得できません。",
+      "youHold": "{amount} {symbol} を保有しています。1 回の署名で請求額ちょうどを承認して支払います。",
+      "guardAboutToUse": "ローンガードがこのウォレットから {amount} {symbol} をまもなく使うため、この請求書に使える分はありません。",
+      "needUsdc": "請求書に {amount}、ネットワーク手数料に少量の USDC が必要です{keep}。ウォレットには {held} USDC があるため、残高からの支払いは選べません。",
+      "holdLess": "保有する {symbol} がこの請求書より少ないため、残高からの支払いは選べません。"
+    },
+    "payFromBalance": "残高から {amount} を支払う",
+    "opensOnceRecorded": "借入が登録されると使えるようになります。ネットワーク手数料はそのとき表示されます。",
+    "fromBitcoin": "ビットコインから",
+    "lendShort": "Morpho の現在の貸出可能額は <ready></ready> で、この請求書より少ないです。残高からの支払いは引き続き使えます。または後で確認してください。",
+    "supplierGets": "取引先は <strong>{amount}</strong> を受け取ります。",
+    "pledgeNothingExtra": "<strong>追加の cirBTC は預け入れません</strong>。すでに預けた分で足ります。何も売却されません。",
+    "pledgeAndKeep": "<pledge></pledge> を預け入れ、保持します。何も売却されません。",
+    "canFall": "Morpho が清算できるようになるまで、ビットコインは <drop></drop> 下落できます。",
+    "morphoReady": "Morpho の現在の貸出可能額は <ready></ready> です。",
+    "figures": {
+      "borrowRate": "Morpho の借入金利",
+      "cirbtcInWallet": "ウォレット内の cirBTC",
+      "liquidationLine": "清算ライン",
+      "morphosNotAdags": "Adag ではなく Morpho のもの"
+    },
+    "pledgeNote": "預け入れ額は Adag 自身の数値に価格変動分の 5% を加えたものです。「あなたのウォレット」からいつでも返済してビットコインを引き出せます。",
+    "wholeLoanOver": "あなたの {symbol} 借入全体が 40% を超えているため、新しい借入は全体をラインの下に戻す必要があります。預け入れがこれだけ大きいのはそのためです。",
+    "payFromBitcoin": "ビットコインから支払う",
+    "payFromBitcoinBorrowing": "ビットコインから支払い、{symbol} を借りる",
+    "recordFirstAbove": "まず上で既存の借入を登録してください。"
+  },
+  "basket": {
+    "hallmark": "まとめ払い · 請求書 {n} 件",
+    "payable": "{n} 件支払い可能",
+    "title": "{count, plural, =1 {請求書 1 件。} other {請求書 {n} 件。}}署名は<em>1 回</em>。",
+    "titleNothing": "支払うものはありません。",
+    "titlePaidBySafe": "あなたの <em>Safe</em> が支払いました。",
+    "leftOut": "{count, plural, =1 {請求書番号ではないため} other {請求書番号ではないため}}除外：{list}{more}。",
+    "andMore": "、他 {n} 件",
+    "safePayerOfRecord": "AdagBills から読み取り：Safe {safe} が{count, plural, =1 {この請求書} other {{n} 件すべての請求書}}の記録上の支払者です。",
+    "notInThisPayment": "この支払いに含まれないもの",
+    "connectToSee": "ウォレットを接続すると、各通貨の支払い方法が表示されます。",
+    "oneTransaction": "1 つのトランザクション",
+    "totals": "請求書 {count, plural, =1 {{n} 件} other {{n} 件}}で {totals}。すべてのステップが一緒に成功するか、何も動きません。",
+    "and": " と ",
+    "feeWithConversion": "両替がある場合、ネットワーク手数料は「支払う」ボタンを押したときに確認します：{keep}。",
+    "feeIdle": "各通貨で選択が済むとネットワーク手数料が表示されます。",
+    "payButton": "1 回の署名で請求書 {count, plural, =1 {{n} 件} other {{n} 件}}を支払う",
+    "paidTitle": "請求書 {n} 件を支払い。署名 <em>1</em> 回。",
+    "ltvAfterSymbol": "支払い後の {symbol} LTV",
+    "ofAdagsCap": "Adag の上限 {cap} に対して",
+    "convertedByCircle": "Circle が両替",
+    "aside": {
+      "none": "Arc にこの番号の請求書はまだありません。",
+      "unavailable": "この請求書について Arc が応答しなかったため、除外しました。再読み込みしてもう一度お試しください。",
+      "paid": "すでに支払済みです。",
+      "void": "取引先が取り消しました。二度と支払えません。",
+      "notUsdcEurc": "USDC でも EURC でもありません。",
+      "yours": "あなたが作成した請求書なので支払えません。"
+    },
+    "cleared": {
+      "paused": "ビットコイン価格が更新されるまで {symbol} の新しい借入は一時停止のため、これらの請求書をビットコインから支払うことはできません。もう一度選んでください。",
+      "noCash": "Morpho の {symbol} マーケットにこれらの請求書の分を貸し出せる資金が足りなくなったため、ビットコインからの支払いは利用できません。もう一度選んでください。",
+      "balance": "{symbol} の残高がこれらの請求書{fee}を賄えなくなったため、残高からの支払いは利用できません。もう一度選んでください。",
+      "plusFee": "と手数料 0.01 USDC",
+      "chooseAgain": "{reason}もう一度選んでください。"
+    },
+    "blocked": {
+      "connect": "まずウォレットを接続してください。",
+      "switch": "支払うには、ウォレットを Arc に切り替えるか、通常のウォレットを使ってください。",
+      "readingBalances": "Arc で残高と価格を読み取っています。",
+      "choose": "{symbol} の請求書をどう支払うか選んでください。",
+      "readingEuro": "Arc でユーロ価格と借入マーケットを読み取っています。",
+      "convertUnreadable": "Adag が両替に必要な情報を読み取れませんでした。再読み込みしてもう一度お試しください。",
+      "shortOfBtc": "このまとめ払いはウォレットの保有以上の cirBTC を預け入れます。一つのグループは残高から支払ってください。"
+    },
+    "fail": {
+      "billIsNow": "#{id} は今{state}",
+      "statePaid": "支払済み",
+      "stateCancelled": "取消済み",
+      "stateDifferent": "変更済み",
+      "sinceLoaded": "このページを開いてから、請求書 {words}。何も送信されていません。残りを支払うにはまとめ払いを再読み込みしてください。",
+      "includingGuard": "。ローンガードがまもなく返済する {amount} を含みます",
+      "balanceNeeds": "{symbol} の請求書を残高から支払うには {need} {symbol} が必要です{why}。ウォレットには {held} があります。何も送信されていません。",
+      "pausedAtPay": "ビットコイン価格が更新されるまで、{symbol} の新しい借入は一時停止です。それらの請求書は残高から支払うか、お待ちください。何も送信されていません。",
+      "pledgesMore": "このまとめ払いは {pledge} cirBTC を預け入れますが、ウォレットには {held} があります。何も送信されていません。",
+      "notPaidByYou": "Arc はトランザクションを確定しましたが、請求書 #{ids} があなたの支払いとして記録されていません。トランザクションを確認してください。"
+    },
+    "group": {
+      "groupTitle": "{count, plural, =1 {{symbol} の請求書 {n} 件} other {{symbol} の請求書 {n} 件}}",
+      "payFrom": "{symbol} の請求書の支払元",
+      "fromBitcoin": "ビットコインから",
+      "fromBalance": "残高から",
+      "lendShort": "Morpho の現在の貸出可能額は <ready></ready> で、{what}より少ないです。残高から支払うか、後で確認してください。",
+      "theseBillsWithConversion": "選んだ両替を含むこれらの請求書",
+      "theseBills": "これらの請求書",
+      "sharedMarket": "これらの請求書は、{other} の請求書に選んだ両替と同じ Morpho マーケットにあるため、1 つの預け入れが両方を賄い、そちらに表示されます。ここでは追加の cirBTC を預け入れません。Morpho の現在の貸出可能額は <ready></ready> です。",
+      "pledgeNothingExtra": "追加の cirBTC は預け入れません。すでに預けた分で足ります。",
+      "pledgeAndKeep": "<pledge></pledge> を預け入れ、保持します。",
+      "canFall": "Morpho が清算できるようになるまで、ビットコインは <drop></drop> 下落できます。",
+      "morphoReady": "Morpho の現在の貸出可能額は <ready></ready> です。",
+      "youHold": "<balance></balance> を保有しています。",
+      "oneApproval": "正確な承認を 1 回、その後に各請求書を支払います。",
+      "notEnoughFee": "これらの請求書とネットワーク手数料には足りません。",
+      "notEnough": "これらの請求書には足りません。",
+      "details": "支払い後の LTV：<ltv></ltv>（40% を超えるものは Adag が拒否します）。ウォレット内の cirBTC：<btc></btc>。預け入れには価格変動分の 5% が含まれます。"
+    }
+  },
+  "convert": {
+    "title": "ビットコインから、{symbol} を借りて",
+    "youBorrow": "<num>{amount}</num>（約 ${usd}）を借り、Circle が請求書のために {bill} へ両替します。",
+    "worstCase": "最悪の場合、{rate}。スワップは少なくとも {min} を返す必要があり、そうでなければ支払い全体が巻き戻り、何も動きません。不要な分はウォレットに残ります。",
+    "circleFee": "Circle の手数料は 0.02%、約 {fee} です。{what}には今日のユーロ価格に対する {cushion} の余裕が含まれます。",
+    "amountBorrowed": "借入額",
+    "amountSold": "両替額",
+    "pledgeNothingExtra": "追加の cirBTC は預け入れません。すでに預けた分で足ります。",
+    "pledgeAndKeep": "<num>{amount}</num>{usd} を預け入れ、保持します。",
+    "sharedBorrow": "ビットコインから支払う {loan} の請求書のための {amount} の借入が含まれます。両方が同じ Morpho マーケットで借りるため、1 つの預け入れが両方を賄います。",
+    "ltvAfter": "支払い後の LTV：Morpho の {loan} マーケットで <num>{ltv}</num>（{cap} を超えるものは Adag が拒否します）。Morpho が清算できるようになるまで、ビットコインは {drop} 下落できます。",
+    "networkFee": "ネットワーク手数料：{keep}。Arc は使わなかった分を返金します。",
+    "debtWillBeIn": "借入は {loan} 建てになります。ドル換算のコストはユーロに連動します。",
+    "checksOnlyNow": "Adag が 40% の上限を確認するのは今、支払うときだけです。",
+    "guardRepaysFrom": "ローンガードはウォレット内の {loan} からのみこの借入を返済できます。",
+    "readAtBlock": "Arc ブロック {block} で一括読み取り。",
+    "youSell": "Circle を通じて <num>{amount}</num>（約 ${usd}）を両替し、この完済に必要な額である少なくとも {min} を受け取ります。",
+    "worstCaseClose": "最悪の場合、{rate}。スワップがそれより少なく返せば、完済全体が巻き戻り、何も動きません。借入に不要な分はウォレットに残ります。",
+    "thenRepays": "その後 Adag は同じ署名内で、正確なシェアで借入を返済し、cirBTC をすべて引き出します。",
+    "reset": {
+      "button": "Circle のアダプターのアクセス権を 0 にする",
+      "onlyTakesAway": "他は何も変わりません。アクセス権を取り消すだけです。",
+      "done": "Circle のアダプターはウォレットにアクセスできなくなりました。"
+    }
+  },
+  "lib": {
+    "joiner": "none",
+    "words": {
+      "thisWallet": "このウォレット",
+      "theSafe": "Safe",
+      "thisSafe": "この Safe",
+      "noCollateral": "担保なし",
+      "underOneCent": "$0.01 未満",
+      "theWalletDidNotAnswer": "ウォレットが応答しませんでした。",
+      "nothingWasSent": "何も送信されていません。",
+      "successLoanChecked": "成功、loanChecked {flag}",
+      "unreadableLevel": "読み取れない水準",
+      "paused": "一時停止",
+      "reverted": "巻き戻り"
+    },
+    "errors": {
+      "insufficientCollateral": "Morpho 自身の 86% ラインを超えるため、Morpho が借入を拒否しました。",
+      "pledgeMoreOrPayLess": "cirBTC をもっと預け入れるか、ビットコインから支払う額を減らしてください。",
+      "insufficientLiquidity": "Morpho のマーケットには今、この金額を貸し出せる資金が足りません。",
+      "payFromBalanceOrLater": "残高から支払うか、後でもう一度お試しください。",
+      "zeroAssets": "Morpho がゼロの金額を拒否しました。",
+      "reloadAndBuild": "ページを再読み込みして、支払いをもう一度組み立ててください。",
+      "unauthorized": "Morpho がこのウォレットの代理で実行することを拒否しました。",
+      "useOrdinaryWallet": "自身のトランザクションを送る MetaMask や Rabby のような通常のウォレットを使ってください。",
+      "blocked": "トークンの発行者が、この支払いに関わるウォレットの 1 つをブロックしています。",
+      "blockedNext": "何も動いていません。ブロックされたウォレットは発行者に連絡する必要があります。",
+      "paused": "トークンは発行者により一時停止中です。",
+      "nothingMovedLater": "何も動いていません。後でもう一度お試しください。",
+      "insufficientBalance": "ウォレットにこのトークンが足りません。",
+      "addFundsOrBitcoin": "資金を追加するか、代わりにビットコインから支払ってください。",
+      "insufficientAllowance": "この支払いの承認額が金額に足りませんでした。",
+      "transferFailed": "Morpho 内のトークン送金が失敗しました。ウォレットの保有または承認が、Morpho が動かす必要のある額に足りませんでした。",
+      "transferFailedNext": "何も動いていません。金額を新しく読み直すために再読み込みしてから、もう一度お試しください。",
+      "batchStepFailed": "支払いの 1 つのステップが失敗したため、何も起こりませんでした。",
+      "reloadAndTry": "ページを再読み込みしてもう一度お試しください。",
+      "unknown": "Adag が読み取れない理由で支払いが拒否されました。",
+      "unknownNext": "何も動いていません。Arc エクスプローラーでトランザクションを確認するか、もう一度お試しください。",
+      "ltvAboveLimit": "この支払いでは、借入がビットコイン価値の 40% を超えてしまいます。",
+      "alreadyPaid": "この請求書はすでに支払済みです。",
+      "alreadyPaidNext": "何も請求されていません。請求書ページに誰が支払ったかが表示されます。",
+      "supplierCancelled": "取引先がこの請求書を取り消しました。",
+      "askForNewOne": "まだ支払いが必要なら、新しい請求書を依頼してください。",
+      "noBillWithNumber": "この番号の請求書はありません。",
+      "checkWithSupplier": "取引先に番号を確認してください。",
+      "stalePrice": "ビットコイン価格が更新されるまで、新しい借入は一時停止です。",
+      "balanceStillWorks": "残高からの支払いは引き続き使えます。",
+      "enrolledThisBlock": "借入がこの同じブロックで登録され、Adag は次のブロックからしか支払いを受け付けません。",
+      "waitThenPay": "少し待ってから、もう一度支払ってください。",
+      "zeroPrice": "ビットコイン価格がゼロになっているため、新しい借入は利用できません。",
+      "badFeed": "ビットコイン価格のオラクルが価格フィードを指していないため、新しい借入は利用できません。",
+      "badMarket": "Morpho がこのマーケットを Adag の想定と異なる形で報告しているため、ビットコインからの支払いは利用できません。",
+      "unknownBill": "Arc に請求書 #{id} はありません。",
+      "selfPayment": "自分で作成した請求書は支払えません。",
+      "payFromDifferentWallet": "別のウォレットから支払ってください。",
+      "notPayee": "この請求書を作成した取引先だけが取り消せます。",
+      "connectWalletThatWrote": "作成したウォレットを接続してください。",
+      "payeeNotCredited": "取引先の残高が請求額分増えなかったため、Adag は支払いを巻き戻しました。",
+      "payeeNotCreditedNext": "何も動いていません。トークンがこの取引先をブロックしている可能性があります。確認を依頼してください。",
+      "zeroAmount": "この請求書の金額がゼロのため、支払えません。",
+      "askCorrectedBill": "取引先に修正した請求書を依頼してください。",
+      "referenceTooLong": "備考は {n} バイトで、140 バイトの上限を超えています。",
+      "shortenIt": "短くしてください。日本語の文字を含め、一部の文字は 1 文字で複数のバイトを使います。",
+      "unsupportedCurrency": "Adag の請求書は USDC か EURC 建てのみです。",
+      "chooseOneOfThose": "そのどちらかを選んでください。",
+      "pageTooLarge": "アプリが Arc に一度に多すぎる請求書を要求しました。",
+      "reloadThePage": "ページを再読み込みしてください。",
+      "reentrancy": "支払いの処理中に Adag が再び呼び出されそうになったため、拒否されました。",
+      "nothingMovedReload": "何も動いていません。ページを再読み込みしてもう一度お試しください。",
+      "safeErc20": "{symbol} のコントラクトが送金を拒否しました。",
+      "safeErc20Next": "何も動いていません。ウォレットに十分な {symbol} があり、発行者にブロックされていないか確認してください。",
+      "invalidAddress": "トークンがこの支払いのアドレスの 1 つを拒否しました。",
+      "memoFailed": "支払いステップが理由を示さずに失敗しました。",
+      "panic": "支払いが算術エラーに達し、拒否されました。"
+    },
+    "send": {
+      "effectsUnavailable": "今この両替を再確認できませんでした。何も送信されていません。一分後にもう一度お試しください。",
+      "ownCheckRefused": "この支払いの呼び出しに対する Adag 自身のチェックが拒否しました。",
+      "startAgain": "何も送信されていません。支払いを最初からやり直してください。",
+      "noLatestBlock": "Arc が最新ブロックを返しませんでした。何も送信されていません。もう一度お試しください。",
+      "quoteExpired": "この支払いのための Circle のスワップ見積もりが期限切れか、まもなく切れます。",
+      "quoteExpiredNext": "何も送信されていません。新しい見積もりを得るために支払いをやり直してください。",
+      "feeMoved": "Arc の手数料が、この支払いを組み立てたときの上限を超えて上がりました。",
+      "feeMovedNext": "何も送信されていません。現在の手数料で残高チェックを計算し直すため、支払いをやり直してください。",
+      "noBalanceAnswer": "Arc が残高を返しませんでした。何も送信されていません。もう一度お試しください。",
+      "needsForFee": "ネットワーク手数料に約 {fee} USDC が必要ですが、ウォレットには {held} があります。何も送信されていません。",
+      "needsForPaymentAndFee": "約 {need} USDC が必要です。この支払いに {principal}、ネットワーク手数料に約 {fee} ですが、ウォレットには {held} があります。何も送信されていません。",
+      "simulationEmpty": "この支払いの Arc のシミュレーションが空で返ってきました。",
+      "nothingSentTryAgain": "何も送信されていません。もう一度お試しください。",
+      "tooMuchGas": "この両替は、Adag が 1 回の署名に許すより多くのガスを使います。",
+      "tooMuchGasNext": "何も送信されていません。少ない金額を支払うか、請求書の通貨で支払ってください。",
+      "quoteUsed": "この Circle の見積もりはすでに署名要求に使われました。",
+      "walletOffArc": "ウォレットはもうこのアドレスで Arc メインネットにありません。何も送信されていません。",
+      "resetDryRun": "Arc のリセットの事前実行が通らなかったため、何も送信されていません。しばらくしてからもう一度お試しください。",
+      "reachesAdapter": "この支払いは何を両替するかを示さずに Circle のスワップアダプターに届くため、Adag は送信しません。",
+      "nothingSentReload": "何も送信されていません。ページを再読み込みしてもう一度お試しください。",
+      "noFeeAnswer": "Arc が現在の手数料を返しませんでした。何も送信されていません。もう一度お試しください。",
+      "declined": "ウォレットで拒否しました。何も送信されていません。",
+      "couldNotSend": "ウォレットが送信できませんでした：{line}",
+      "notConfirmedYet": "Arc はまだ確定していません。もう一度支払わないでください。先にトランザクションのリンクを確認してください。",
+      "reverted": "トランザクションは Arc で巻き戻り、手数料以外は何も動いていません。",
+      "resetNotConfirmed": "Arc はまだリセットを確定していません。再試行する前にトランザクションを確認してください。",
+      "resetReverted": "リセットは Arc で巻き戻り、手数料以外は何も変わっていません。",
+      "noEuroPrice": "Adag は Arc からユーロ価格を読み取れませんでした。何も送信されていません。もう一度お試しください。",
+      "resetViaMulticall": "Circle のアダプターのリセットは Multicall3From を通す必要があります。",
+      "resetNotOwnCalls": "これはリセット自身の呼び出しのバッチではありません。",
+      "resetDisallowedCall": "このバッチには、アダプターのリセットが許可しない呼び出しが含まれています。",
+      "noArcClient": "Arc クライアントが設定されていません。"
+    },
+    "guard": {
+      "keptAside": "ローンガードが数分以内に{who}から約 {parts} を返済するため、その分は取り置かれています。",
+      "ruleUnreadable": "Adag がローンガードを読み取れなかったため、この支払いがガードを発動させるかお伝えできません。もう一度お試しください。",
+      "ruleUnreadableSafe": "Adag が Safe のローンガードを読み取れなかったため、この支払いがガードを発動させるかお伝えできません。もう一度お試しください。",
+      "unreadable": "Adag がローンガードを読み取れなかったため、このウォレットが支払いを賄えるか確認できません。もう一度お試しください。",
+      "trigger": "この支払いは借入を {ltv} にし、ガードの {trigger} の発動ラインに達するか越えます。ガードはその後、数分以内に{who}から約 {amount} {symbol} を返済し、{target} まで戻します。",
+      "targetAboveZero": "0% より上の目標を選んでください。",
+      "targetBelowTrigger": "目標は発動ラインより下でなければなりません。ガードは発動ラインから目標まで返済します。",
+      "triggerBelowLine": "発動ラインは Morpho の清算ラインより下でなければなりません。",
+      "outOfRange": "そのパーセントは範囲外です。",
+      "endDateFuture": "終了日は未来でなければなりません。",
+      "endDateNotStorable": "終了日は Arc が保存できる日付ではありません。",
+      "chooseAmount": "使用できる額をゼロより大きく選んでください。",
+      "approvalTooLarge": "その承認枠は、このページが組み立てるどの金額よりも大きいです。",
+      "onlyTwoMarkets": "保護できるのは Adag の USDC と EURC のマーケットだけです。",
+      "walletInvalid": "ウォレットアドレスが無効です。",
+      "notDeployed": "ローンガードがデプロイされていないため、何も作成していません。",
+      "ownLoanOnly": "このページは接続中のウォレット自身の借入だけを返済します。"
+    },
+    "fx": {
+      "safeConvertLine": "Safe の支払いでは両替は使えません。Circle の見積もりは 10 分しか有効でなく、Safe のオーナーは後から署名するためです。",
+      "tooLarge": "この両替は 1 回の支払いには大きすぎます。一部を残高から支払うか、請求書を分けてください。",
+      "otherConverts": "このまとめ払いの {other} の請求書はすでに両替で支払われます。1 回の署名は 1 つの両替だけを実行し、双方向に 1 つずつ実行することはありません。",
+      "loanPaused": "ビットコイン価格が更新されるまで {loan} の新しい借入は一時停止のため、{loan} を借りることはできません。請求書の通貨での支払いは引き続き使えます。",
+      "loanUnknown": "Adag が今 {loan} の新しい借入を受け付けているか読み取れないため、両替は利用できません。しばらくしてからもう一度お試しください。",
+      "cash": "Morpho の現在の貸出可能額は {ready} で、この両替が借りる {need} より少ないです。別の方法で支払うか、後で確認してください。",
+      "closeShort": "保有は {held} で、この方法での完済には {need} が必要です。",
+      "pledgeUnsized": "Adag がこの両替の預け入れ額を算出できなかったため、両替は利用できません。しばらくしてからもう一度お試しください。",
+      "rate": "1 {sold} あたり少なくとも {rate} {bought}",
+      "loanCurrencyUnsupported": "この支払いの借入通貨は Adag が対応していないものです。",
+      "euroNotPositive": "Adag が Arc から読み取ったユーロ価格が正の値でないため、両替は利用できません。",
+      "euroScale": "Adag が Arc から読み取ったユーロ価格のスケールが使えないため、両替は利用できません。",
+      "euroFuture": "Adag が Arc から読み取ったユーロ価格の日付が未来のため、両替は利用できません。",
+      "euroOld": "Adag が Arc から読み取ったユーロ価格が 96 時間より古いため（フィードは週末に止まります）、ドルとユーロの間の両替は利用できません。請求書の通貨での支払いは引き続き使えます。",
+      "convertZero": "両替する金額はゼロより大きくなければなりません。",
+      "euroUnreadable": "Adag が Arc からユーロ価格を読み取れなかったため、両替は利用できません。しばらくしてからもう一度お試しください。",
+      "circleNoRoute": "Circle は今、この支払いに十分な額を返すスワップを見つけられませんでした。しばらくしてからもう一度お試しいただくか、別の方法で支払ってください。",
+      "circleBusy": "Circle のスワップサービスが混雑しています。一分待ってからもう一度お試しください。",
+      "circleUnavailable": "Circle のスワップサービスが応答しませんでした。何も送信されていません。しばらくしてからもう一度お試しいただくか、別の方法で支払ってください。",
+      "circleBadAnswer": "Circle のスワップサービスが Adag の信頼しない形式で応答したため、そこからは何も使っていません。もう一度お試しいただくか、別の方法で支払ってください。",
+      "circleBadRequest": "Adag がこの支払いのスワップ要求を組み立てられなかったため、何も送信されていません。",
+      "adapterUnreadable": "Adag が Circle のスワップアダプターにウォレットへ何が許されているか読み取れないため、両替を提供できません。しばらくしてからもう一度お試しください。",
+      "adapterCanSpend": "Circle のスワップアダプターはすでにあなたの {symbol} を使えます。以前の承認がまだ有効です。それが 0 に設定されるまで両替は待ちます。",
+      "adapterAuthorised": "Circle のスワップアダプターはあなたの Morpho 借入を操作する権限を持っています。それが取り消されるまで両替は待ちます。",
+      "planNotBytes": "スワップ計画が読み取り可能なバイトではありません。",
+      "planOverBytes": "スワップ計画が {n} バイトを超えています。",
+      "planNotExecute": "スワップ計画がアダプターの execute 呼び出しではありません。",
+      "planUnreadable": "スワップ計画を読み取れませんでした。",
+      "planReshaped": "スワップ計画に余分な、または形を変えられたバイトがあるため、確認した計画ではありません。",
+      "planOneToken": "スワップ計画はウォレットからちょうど 1 つのトークンを引き出す必要があります。",
+      "planPermit": "スワップ計画が permit を求めていますが、Adag は決して署名しません。",
+      "planPermitData": "スワップ計画に permit データが含まれています。",
+      "planOtherCurrency": "スワップ計画はこの支払いが売るのと別の通貨を引き出します。",
+      "planOtherAmount": "スワップ計画はこの支払いが売るのと別の金額を引き出します。",
+      "planSteps": "スワップ計画には {n} ステップあります。Adag は 1 から {max} までを受け付けます。",
+      "planTokens": "スワップ計画に記された返却トークンの数が使えません。",
+      "planOtherAddress": "スワップ計画はあなたのウォレットではないアドレスに資金を送ります。",
+      "planNoBought": "スワップ計画は買った通貨をあなたのウォレットに送りません。",
+      "planNativeValue": "スワップ計画はネイティブの値を転送しますが、この支払いには決して必要ありません。",
+      "planNoGuarantee": "スワップ計画はこの支払いに必要な最低額を保証していません。",
+      "planExpires": "スワップ計画は Arc の時計で {n} 秒未満で期限切れになります。",
+      "effectsNotPlain": "この支払いでは、単純なトークン金額ではないものがウォレットから出ていきます。",
+      "effectsUnexpected": "この支払い内の予期しない送金が、ウォレットから資金を出していきます。",
+      "effectsMoreBtc": "この支払いでは、預け入れ分より多い cirBTC がウォレットから出ていきます。",
+      "effectsMoreSold": "両替する金額より多くがスワップのためにウォレットから出ていきます。",
+      "effectsMoreRepay": "この支払いでは、借入の返済額より多くがウォレットから出ていきます。",
+      "effectsNotBill": "この支払いでは、あなたの請求書のどれでもない送金がウォレットから出ていきます。",
+      "effectsNative": "この支払いでは、対応する USDC 送金なしにネイティブの値がウォレットから出ていきます。",
+      "effectsFloor": "スワップ終了時の残高チェックが組み立てどおりに実行されませんでした。",
+      "effectsUnpaid": "この支払いの請求書の一つが金額を受け取りません。",
+      "effectsNoBillPaid": "請求書 #{id} は、その自身のコントラクト上であなたのウォレットからの支払いを示しません。",
+      "planTokenNotAddress": "スワップ要求のトークンアドレスが有効なアドレスではありません。",
+      "planTwoCurrencies": "スワップには異なる 2 つの通貨が必要です。",
+      "planAmountZero": "スワップする金額はゼロより大きくなければなりません。",
+      "planMinZero": "スワップが返す最低額はゼロより大きくなければなりません。",
+      "planNoChainTime": "スワップ確認のためのチェーン時刻がありません。",
+      "planNoFeeCeiling": "スワップバッチの手数料上限がありません。",
+      "bufferRange": "バッファは 0 から {n} ベーシスポイントの間でなければなりません。",
+      "rateTwoAmounts": "レートにはゼロより大きい 2 つの金額が必要です。"
+    },
+    "build": {
+      "amountZero": "金額はゼロより大きくなければなりません。",
+      "dueNotStorable": "支払期日は Arc が保存できる日付ではありません。",
+      "referenceTooLong": "備考は {n} バイトで、上限は {max} です。日本語の文字を含め、一部の文字は 1 文字で複数のバイトを使います。",
+      "currencyOnly": "請求書は USDC か EURC 建てでのみ作成できます。",
+      "addOneBill": "支払う請求書を少なくとも 1 つ追加してください。",
+      "atMostBills": "1 回の署名で支払えるのは最大 {n} 件です。",
+      "chooseHowToPay": "{symbol} の請求書をどう支払うか選んでください。",
+      "addZero": "追加する cirBTC の量はゼロより大きくなければなりません。",
+      "repayZero": "返済する金額はゼロより大きくなければなりません。",
+      "repayTooMuch": "この返済方法で受け付けられる額を超えています。全額返済するには「借入を完済」を使ってください。",
+      "nothingInMarket": "このマーケットには借入も預け入れた cirBTC もありません。",
+      "tooSmallForFloor": "この金額は両替を保護する残高チェックには小さすぎるため、選べません。残高から支払ってください。",
+      "convertTooMuchBills": "両替する金額が、Adag が読み取るユーロ価格に 1.5% のバッファを加えたこれらの請求書の価値を超えています。何も作成していません。",
+      "convertTooMuchClose": "両替する金額が、Adag が読み取るユーロ価格に 1.5% のバッファを加えた完済承認の価値を超えています。何も作成していません。",
+      "safeNoConversion": "Safe からはドルとユーロの間の両替で支払うことはできません。Circle の見積もりは 10 分しか有効でなく、Safe の署名にはそれ以上かかるためです。請求書の通貨で支払うか、ウォレットから支払ってください。",
+      "safeCurrentOnly": "Safe からの支払いは現在の AdagBills コントラクト上の請求書で使えます。この請求書は初回デプロイ上にあるため、ウォレットから支払ってください。",
+      "twiceInBasket": "請求書 #{id} がまとめ払いに二回入っています。二回支払うとバッチ全体が巻き戻ります。",
+      "twiceInPayment": "請求書 #{id} が支払いに二回入っています。二回支払うとバッチ全体が巻き戻ります。",
+      "safeAtMostBills": "1 回の Safe の支払いで支払えるのは最大 {n} 件です。",
+      "safeChooseHowToPay": "Safe が {symbol} の請求書をどう支払うか選んでください。",
+      "selfPayment": "自分で作成した請求書は支払えません。",
+      "billNotOpen": "請求書 #{id} は支払い可能な状態ではありません。",
+      "billNoAmount": "請求書 #{id} には支払う金額がありません。",
+      "billUnreadableRef": "請求書 #{id} の備考が読み取れません。",
+      "billNotUsdcEurc": "請求書 #{id} は USDC でも EURC でもありません。",
+      "pledgeNegative": "預け入れはゼロサトシ以上でなければなりません。",
+      "enrolFirstDeployment": "既存の借入を登録できるのは現在の AdagBills コントラクトだけです。この請求書は初回デプロイ上にあります。",
+      "noLoanToClose": "このマーケットには両替で完済する借入がありません。",
+      "repayApprovalZero": "返済の承認はゼロより大きくなければなりません。",
+      "resetTokens": "ここでリセットできるのはスワップアダプターへの USDC、EURC、cirBTC の承認だけです。",
+      "resetOnce": "各承認は一度だけリセットされます。",
+      "nothingToReset": "リセットするものがありません。",
+      "twoContracts": "これらの請求書は 2 つの異なる AdagBills コントラクト上にあります。1 回の署名は 1 つのコントラクトの請求書だけを支払います。",
+      "guardNotDeployed": "ローンガードがデプロイされていないため、そのルールを停止できません。",
+      "billNumberWhole": "請求書番号は 1 以上の整数でなければなりません。",
+      "tooManyBills": "請求書が {n} 件あります。1 回の署名で支払えるのは最大 {max} 件です。2 つのまとめ払いに分けてください。",
+      "mixedContracts": "これらの請求書は 2 つの異なる AdagBills コントラクト上にあり、1 回の署名は 1 つのコントラクトの請求書だけを支払います。初回デプロイの請求書は別に支払ってください。",
+      "marketMalformed": "{market} のマーケットパラメータが不正です。これで署名することを拒否します。",
+      "marketHash": "マーケットパラメータのハッシュが {expected} ではなく {hash} です。これで署名することを拒否します。",
+      "marketDiffer": "{market} のマーケットパラメータが固定の {symbol} マーケットと異なります。これで署名することを拒否します。",
+      "payerNotAddress": "支払いウォレットのアドレスが有効なアドレスではありません。",
+      "convertDirection": "{bill} の請求書は {loan} の借入を両替して支払い、{other} の借入は決して使いません。",
+      "oneDirection": "1 回の署名は一方向にしか両替しません。逆方向に両替する 2 つのグループを一緒に組み立てることはありません。",
+      "floorNegative": "両替の開始残高が負の値になっているため、何も作成していません。",
+      "positionNegative": "借入ポジションが負の値になっているため、何も作成していません。",
+      "approvalNegative": "ローンガードの承認枠が負の値になっているため、何も作成していません。",
+      "refuseStepMayFail": "単独で失敗し得るバッチステップを拒否します。",
+      "refuseApprovalUnreadable": "読み取れない承認を拒否します。",
+      "refuseNoSwapCall": "スワップ呼び出しのない両替バッチを拒否します。",
+      "refuseSwapCount": "スワップ呼び出しが {n} 個あるバッチを拒否します。1 回の署名はちょうど 1 つだけ実行します。",
+      "refuseAdapterNotExecute": "スワップアダプターへの execute 以外の呼び出しを拒否します。",
+      "refuseSwapPlan": "このバッチを組み立てた計画と異なるスワップを拒否します。",
+      "refuseGasCeiling": "固定のガス上限で送るよう設定されていない両替を拒否します。",
+      "refuseBalanceCheckFloor": "残高チェックが開始残高に調達額を加え USDC のガス余裕を引いたものでない両替を拒否します。",
+      "refuseSwapNotFollowed": "買う通貨の残高チェックが後に続かないスワップを拒否します。",
+      "refuseBalanceCheckBack": "正確な下限額を支払者に送り返さない残高チェックを拒否します。",
+      "refuseSwapNotPreceded": "両替額ちょうどの承認が先行しないスワップを拒否します。",
+      "refuseAdapterApprovalCurrency": "両替する通貨以外に対するスワップアダプターへの承認を拒否します。",
+      "refuseResetBeforeSwap": "スワップ前にスワップアダプターの承認をリセットすることを拒否します。",
+      "refuseAdapterApprovalAmount": "両替額を超えるスワップアダプターへの承認、またはスワップ直前に設定されていない承認を拒否します。",
+      "refuseAdapterApprovalLeft": "最後にスワップアダプターへ承認を残すバッチを拒否します。",
+      "refuseTokenCallConversion": "両替バッチ内の、承認と残高チェック以外のトークン呼び出しを拒否します。",
+      "refuseBatchInConversion": "両替バッチ内のバッチを拒否します。",
+      "refuseMorphoCall": "このアプリが行わない Morpho 呼び出しを拒否します。",
+      "refuseMorphoMarket": "Adag の 2 つのマーケット以外に対する Morpho 呼び出しを拒否します。",
+      "refuseMorphoPayer": "支払者以外のために行われる Morpho 呼び出しを拒否します。",
+      "refuseMorphoReceiver": "支払者以外に資金を送る Morpho 呼び出しを拒否します。",
+      "refuseBorrowFunding": "両替額ちょうどの借入で調達されない両替を拒否します。",
+      "refuseDirectBillsConversion": "両替バッチ内の AdagBills への直接呼び出しを拒否します。請求書は Memo を通じて支払います。",
+      "refusePaymentBeforeSwap": "スワップより前に来る支払いを拒否します。",
+      "refuseMemoNotPayment": "請求書の支払いではない Memo 呼び出しを拒否します。",
+      "refusePaymentNotBuilt": "このバッチが組み立てられていない請求書の支払い、または二回支払われるものを拒否します。",
+      "refuseConversionUnpaid": "請求書を未払いのまま残す両替バッチを拒否します。",
+      "refuseBatchInBatch": "バッチ内のバッチを拒否します。",
+      "refuseTokenCallNotApproval": "承認以外のトークン呼び出しを拒否します。",
+      "refuseCirbtcApproval": "AdagBills への cirBTC の承認、またはこのバッチのどの請求書も載っていないコントラクトへの承認を拒否します。",
+      "refuseApprovalTo": "{to} への承認を拒否します。",
+      "refuseMemoInSafe": "Safe バッチ内の Memo 呼び出しを拒否します。Safe は AdagBills に直接支払います。",
+      "refuseMemoOtherId": "別の請求書の memo id の下に記録された Memo の支払いを拒否します。",
+      "refuseMorphoCallback": "Morpho にバッチへのコールバックを求める Morpho 呼び出しを拒否します。",
+      "refuseDirectBills": "バッチ内の AdagBills への直接呼び出しを拒否します。請求書は Memo を通じて支払います。",
+      "refuseSafeBillsCall": "Safe からの、その請求書の支払いまたは自身の借入の単独登録以外の AdagBills 呼び出しを拒否します。",
+      "refuseGuardCallExactStop": "この借入のルールをちょうど停止する以外のローンガード呼び出しを拒否します。",
+      "refuseBatchCalls": "{target} を呼び出すバッチを拒否します。",
+      "refuseBatchUnpaid": "組み立てられた請求書を未払いのまま残すバッチを拒否します。",
+      "refuseAdapterIndirect": "別の呼び出しを通じてスワップアダプターに届くバッチを拒否します。",
+      "refuseGuardCallStop": "この借入のルールを停止する以外のローンガード呼び出しを拒否します。",
+      "refuseStopOtherMarket": "別のマーケットのガードを停止することを拒否します。",
+      "refuseGuardApproval": "この借入のトークンを 0 に設定する以外のローンガードへの承認を拒否します。",
+      "refuseNotMulticall": "Multicall3From を通じて送られない両替を拒否します。",
+      "refuseOtherWallet": "別のウォレットのために組み立てられた両替を拒否します。",
+      "refuseNotPlainBatch": "バイトが呼び出しの単純なバッチではない両替を拒否します。",
+      "refuseResetNotZero": "スワップの承認を 0 に設定しないリセットステップを拒否します。",
+      "refuseResetNotAllowed": "リセットが許可する 2 つのいずれでもないリセットステップを拒否します。",
+      "refuseTokenNotApprovalGuard": "承認ではないトークン呼び出しを拒否します。",
+      "refuseApprovalOtherAmount": "選んだ金額以外の承認を拒否します。",
+      "refuseGuardCallNotRule": "ルールの設定または消去以外のガード呼び出しを拒否します。",
+      "refuseRuleOtherMarket": "別のマーケットに対するルールを拒否します。",
+      "refuseRepaymentTarget": "AdagGuard ではなく {to} に送られる返済を拒否します。",
+      "refuseRepaymentValue": "値を送る返済を拒否します。",
+      "refuseGuardCallNotProtect": "protect 以外のガード呼び出しを拒否します。",
+      "refuseProtectLength": "長さの誤った protect の呼び出しデータを拒否します。",
+      "refuseOtherWalletGuard": "別のウォレットのガードを発動させることを拒否します。",
+      "callOnlyTwoMarkets": "保護できるのは Adag の 2 つのマーケットだけです。",
+      "callGuardNotDeployed": "ローンガードはまだデプロイされていません。",
+      "callBorrowerNotAddress": "借り手がアドレスではありません。",
+      "callNotToGuard": "呼び出しが AdagGuard 宛てではありません。",
+      "callCarriesValue": "呼び出しが値を運んでいます。",
+      "callNotProtect": "呼び出しが protect ではありません。",
+      "callExtraBytes": "呼び出しに余分なバイトがあります。"
+    },
+    "amount": {
+      "enter": "金額を入力してください。",
+      "oneDecimalMark": "1250.50 のように、小数点は 1 つだけで桁区切りは使わないでください。",
+      "digits": "12.50 のように、数字と 1 つの小数点を使ってください。",
+      "decimals": "小数点以下は最大 {n} 桁です。",
+      "moreThanZero": "金額はゼロより大きくなければなりません。"
+    },
+    "alerts": {
+      "serverAnswered": "サーバーが {status} を返しました。",
+      "serverNoAnswer": "サーバーが応答しませんでした。もう一度お試しください。",
+      "declinedNothingChanged": "ウォレットで拒否しました。何も変わっていません。",
+      "oneToThreeLevels": "通知ラインを 1 つから 3 つ選んでください。",
+      "levelWhole": "各ラインは整数でなければなりません。",
+      "levelRange": "各ラインは 5% から 85% の間で、0.01% 刻みでなければなりません。",
+      "levelsRise": "ラインは昇順でなければなりません。",
+      "siteNotUrl": "サイトのオリジンが URL ではありません。",
+      "siteNotHttps": "サイトのオリジンは https でなければなりません。",
+      "expiryNotTime": "期限が時刻ではありません。",
+      "requestTooLarge": "リクエストが大きすぎます。",
+      "requestNotJson": "リクエストが JSON ではありません。",
+      "requestNotObject": "リクエストが JSON オブジェクトではありません。",
+      "notWallet": "それはウォレットアドレスではありません。",
+      "zeroAddress": "ゼロアドレスはウォレットではありません。",
+      "notChatId": "それはチャット id ではありません。",
+      "notLinkCode": "それは連携コードではありません。",
+      "notNonce": "それは nonce ではありません。",
+      "notMarket": "それはマーケットではありません。",
+      "notOneOfTwoMarkets": "それは Adag の 2 つのマーケットのどちらでもありません。",
+      "notUpdateId": "それは更新 id ではありません。",
+      "signatureMismatch": "署名がこのウォレットとメッセージに一致しないか、期限切れです。",
+      "messageUsed": "この署名済みメッセージはすでに使われました。",
+      "telegramMissing": "このサーバーでは Telegram 通知がまだ設定されていません。",
+      "storeMissing": "通知とローンガードにはキーバリューストアが必要ですが、このサーバーにはまだ設定されていません。",
+      "tooMany": "リクエストが多すぎます。数分後にもう一度お試しください。",
+      "tooManyCodes": "コードが多すぎます。数分後にもう一度お試しください。",
+      "botNoAnswer": "Telegram ボットが応答しませんでした。一分後にもう一度お試しください。",
+      "tooManyAttempts": "試行が多すぎます。数分後にもう一度お試しください。",
+      "tooManyWithCode": "このコードでの試行が多すぎます。",
+      "codeExpired": "このコードは期限切れか、すでに使われています。最初からやり直してください。",
+      "chatTaken": "そのチャットはすでに別のウォレットの Adag 通知を受け取っています。そのチャットで /stop を送ってから、もう一度連携してください。",
+      "full": "通知は今満杯です。後でもう一度お試しください。",
+      "notAmount": "金額ではありません。",
+      "siteMustBeHttps": "サイトは https でなければなりません。",
+      "notAdagMarket": "Adag のマーケットではありません。",
+      "couldNotIssueCode": "コードを発行できませんでした。"
+    },
+    "safe": {
+      "requestUnreadable": "リクエストを読み取れませんでした。",
+      "batchUnreadable": "Safe バッチを読み取れなかったため、何も提案していません。",
+      "billsUnchecked": "Arc が応答しなかったため、この Safe バッチの請求書を確認できませんでした。何も提案していません。",
+      "amountsMismatch": "この Safe バッチの金額が支払う請求書と一致しないため、何も提案していません。",
+      "nonceNotCurrent": "nonce が Safe の現在のものではありません。支払いをもう一度組み立ててください。",
+      "hashMismatch": "署名されたハッシュがこの支払いと一致しません。",
+      "signatureNotOwner": "署名がこのオーナーのものではありません。",
+      "safeUnchecked": "Arc が応答しなかったか署名を読み取れなかったため、Safe を確認できませんでした。何も提案していません。",
+      "serviceCopyMismatch": "Safe サービスが持つ提案の写しが、署名された内容と一致しません。",
+      "otherSafe": "そのトランザクションは別の Safe のものです。",
+      "notConfigured": "Safe の提案はまだ設定されていません。",
+      "serviceTimeout": "Safe サービスが時間内に応答しませんでした。もう一度お試しください。",
+      "serviceUnknownTx": "Safe サービスはこのトランザクションをまだ知りません。",
+      "serviceRateLimit": "Safe サービスがリクエストを制限しています。一分後にもう一度お試しください。",
+      "serviceRefused": "Safe サービスが提案を拒否しました。",
+      "serviceUnreachable": "Safe サービスに接続できませんでした。もう一度お試しください。",
+      "listUnavailable": "Safe の一覧を取得できません。",
+      "notAddress": "それはアドレスではありません。",
+      "accountNotAddress": "接続中のアカウントが有効なアドレスではありません。",
+      "arcNoAnswerSafe": "Arc が応答しなかったため、この Safe を確認できませんでした。何も提案していません。",
+      "notArcMainnet": "Arc が Arc メインネットとして応答しなかったため、この Safe を確認できませんでした。",
+      "noContract": "Arc 上のこのアドレスにはコントラクトがないため、Safe ではありません。",
+      "notLikeSafe": "このアドレスは Safe のように応答しないため、Adag は誰にもこれへの署名を求めません。",
+      "versionTooOld": "この Safe はバージョン {version} です。Adag には Safe 1.3.0 以降が必要です。",
+      "notOwner": "接続中のウォレットはこの Safe のオーナーではないため、そこからの支払いを提案できません。何も署名していません。",
+      "noThreshold": "この Safe には署名のしきい値が設定されていません。",
+      "differentHash": "Safe はこの支払いに対して異なるハッシュを計算するため、署名しませんでした。",
+      "noSimulation": "Safe がシミュレーション結果を返しませんでした。",
+      "statusUnavailable": "状態を取得できません。",
+      "notAnAddress": "{what}がアドレスではありません。",
+      "notHash": "{what}が 32 バイトのハッシュではありません。",
+      "notWhole": "{what}が整数ではありません。",
+      "dataNotHex": "トランザクションデータが十六進数ではありません。",
+      "dataTooLarge": "トランザクションデータが大きすぎます。",
+      "txMissing": "Safe トランザクションがありません。",
+      "operation": "operation が 0 でも 1 でもありません。",
+      "fieldTarget": "トランザクションの宛先",
+      "fieldGasToken": "ガストークン",
+      "fieldRefund": "返金の受取先",
+      "fieldHash": "Safe トランザクションのハッシュ",
+      "signatureBytes": "署名が 65 バイトではありません。",
+      "bodyNotObject": "リクエスト本文がオブジェクトではありません。",
+      "noBody": "リクエストに本文がありません。",
+      "bodyNotJson": "リクエスト本文が JSON ではありません。",
+      "notMultiSend": "Safe バッチが MultiSend 呼び出しではありません。",
+      "cutShort": "Safe バッチが途中で切れています。",
+      "empty": "Safe バッチが空です。",
+      "stepNotPlain": "単純な呼び出しではない Safe バッチステップを拒否します。",
+      "stepValue": "値を送る Safe バッチステップを拒否します。",
+      "batchCalls": "{target} を呼び出す Safe バッチを拒否します。",
+      "enrolAlongside": "借入の登録を他のものと一緒に含む Safe バッチを拒否します。",
+      "billsCallOther": "請求書の支払いまたは Safe の借入の登録以外の AdagBills 呼び出しを拒否します。",
+      "morphoAccount": "アカウントが Safe ではない Morpho ステップを拒否します。",
+      "morphoMarket": "Adag の 2 つのマーケット以外に対する Morpho ステップを拒否します。",
+      "canonicalMultiSend": "Safe の支払いは正規の MultiSendCallOnly を通す必要があります。",
+      "delegatecallOnly": "Safe の支払いは delegatecall でのみ MultiSendCallOnly に届きます。",
+      "noValueNoRefund": "Safe の支払いは値もガスの返金も運びません。",
+      "noRefundReceiver": "Safe の支払いは誰にも返金を払いません。",
+      "nonceInvalid": "Safe の nonce が無効です。"
+    },
+    "arc": {
+      "noAnswerMoment": "Arc が応答しませんでした。しばらくしてからもう一度お試しください。",
+      "catchingUp": "まだ追いついていません。ブロック {block} まで集計済みで、新しい支払いは次の読み取りで加わります。",
+      "newestBills": "各コントラクトの最新 {n} 件の請求書の中で",
+      "indexNoAnswerAfter": "{note}。インデックスストアが応答しませんでした。",
+      "indexNoAnswer": "インデックスストアが応答しなかったため、Arc から直接読み取っています。"
+    },
+    "break": {
+      "providerDrpc": "dRPC の公開エンドポイント",
+      "providerOwn": "サーバー自身の RPC",
+      "unreadable": "シミュレーションサービスがこのページで読めない応答を返しました。もう一度お試しください",
+      "timedOut": "シミュレーションサービスがタイムアウトしました。もう一度お試しください",
+      "couldNotRun": "実行できませんでした：{reason}",
+      "endedEarly": "応答が途中で終わりました",
+      "noAnswerForCheck": "このチェックへの応答がありません",
+      "noAnswer150": "150 秒以内に応答がありません",
+      "lostConnection": "ページがサーバーとの接続を失いました。もう一度お試しください",
+      "providerNoAnswer": "{provider}が {method} に応答しませんでした。もう一度お試しください",
+      "providerRefused": "{provider}が {method} を拒否しました。もう一度お試しください",
+      "providerFailedTwice": "{provider}の {method} が二回失敗しました。",
+      "providerTooLarge": "{provider}が大きすぎる応答を送りました。",
+      "noLatestBlock": "シミュレーションノードが最新ブロックを返しませんでした。",
+      "unexpectedShape": "eth_simulateV1 が予期しない形を返しました。",
+      "wrongChain": "{provider}はチェーン {chain} を報告しており、Arc メインネット {expected} ではありません。",
+      "summaryAll": "{n} 件のチェックすべてが脅威モデルどおりに動作しました。すべての攻撃は拒否または防御されました{clause}。既知で受け入れ済みの 2 つの隙 A4 と E5 も脅威モデルどおりに動作し、それぞれ攻撃者自身の借入にしか影響しません。",
+      "allowedClauseOne": "、または {n} 行で設計上許可",
+      "allowedClauseMany": "、または {n} 行で設計上許可",
+      "summaryBroken": "{total} 件のチェックのうち {n} 件が期待どおりに動作しませんでした。",
+      "summaryNotRunOne": "{n} 件は今回実行できませんでした。それについての結果は示していません。",
+      "summaryNotRunMany": "{n} 件は今回実行できませんでした。それらの結果は示していません。",
+      "stateBills": "AdagBills {contract}。デモウォレット {payer}：預け入れ {btc} に対して借入 {debt}、LTV {ltv}。",
+      "stateSetup": "各攻撃の前に、シミュレーションは請求書 #{id} を作成して残高から支払い、Adag が今日の借入から始まるようにします。",
+      "stateCurrent": "請求書 #{id} はデモウォレットが支払い済みで、Adag の借入記録は最新です。",
+      "stateSupplier": "取引先 {payee}。シミュレーション上の第三者 {stranger}。ビットコインは {price} USDC、USDC マーケットのオラクルより。",
+      "simulatedBill": "シミュレーション請求書 #{id}",
+      "bill": "請求書 #{id}",
+      "a1Pass": "拒否。{label}はすでに支払済みで、支払済みの請求書は二度と支払えません。",
+      "notRefused": "期待どおりに拒否されませんでした：{out}。",
+      "notRefusedBill": "期待どおりに拒否されませんでした：{out}。請求書 {status}。",
+      "a2aPass": "Adag に届く前に Morpho が拒否。{btc} を担保に再び借りると借入は {pct} 近くになり、Morpho の 86% ラインを超えます。請求書は未払いのままです。",
+      "a2bPass": "Adag が拒否。前回の確認以降に預け入れが {btc} に下がったため確認を実行し、{over}。バッチ全体が自ら巻き戻りました。",
+      "a3Pass": "Adag が拒否。{amount} を追加で借りるのは新規借入のため確認を実行し、{over}。",
+      "a4Pass": "最初の支払いは通りました。{amount} の借入が Adag のステップの後に来て、借入は {ltv} に残ったためです。次の支払いは拒否されました：{over}。",
+      "a4Fail": "文書どおりに動作しませんでした：最初 {first}、次 {next}、請求書 {status}。",
+      "a5Pass": "拒否。取引先は自分の請求書を支払えません。資金が移動しないので、支払われたことを何も証明できないからです。",
+      "a61Pass": "拒否。請求書は USDC か EURC で支払われます。cirBTC は担保であり、通貨にはなりません。",
+      "a62Pass": "拒否。WETH は Adag が受け付ける 2 つの通貨のどちらでもありません。",
+      "a63Pass": "拒否。USDC でも EURC でもないアドレスが請求書の通貨になることはありません。",
+      "a64Pass": "拒否。金額ゼロの請求書は請求書ではありません。",
+      "a65Pass": "拒否。備考は 141 バイトで上限は 140 です。文字数ではなくバイト数で数えます。",
+      "a7aPass": "拒否。請求書を作成した取引先だけが取り消せます。請求書は未払いで支払い可能なままです。",
+      "a7bPass": "拒否。{label}は支払済みで、支払済みの請求書は取り消せません。",
+      "a8Pass": "拒否。USDC トークンは Adag が承認されていない資金を動かさないため、バッチ全体が自ら巻き戻り、請求書は未払いのままです。",
+      "a9aPass": "約束どおり支払われました。シミュレーションの下落後、借入は {ltv} ですが、この支払いは借入を増やさないため確認するものがありません。",
+      "a9aFail": "約束どおりに動作しませんでした：{out}。",
+      "a9bPass": "Adag が拒否。1 セントの追加は新規借入のため確認を実行し、{over}。",
+      "e1Pass": "拒否。まさにこのブロックで登録した支払者はそのブロックで支払えないため、登録を含むバッチ全体が自ら巻き戻りました。",
+      "e1Fail": "期待どおりに拒否されませんでした：{out}。請求書 {status}。登録ブロック {block}。",
+      "e2Pass": "拒否。{amount} を借り、登録し、1 つのバッチで支払うことは同一ブロック拒否に当たります。Adag の借入記録は変わっていません。",
+      "e3Pass": "防御。第三者の登録は通りましたが、第三者自身の記録だけを書きました。デモ支払者の登録済み借入は変わらず、その支払いも通りました。",
+      "e3Fail": "文書どおりに動作しませんでした：第三者の登録 {a}、デモの記録は前 {b}、後 {c}、デモの支払い {d}。",
+      "e4Pass": "Adag が拒否。預け入れが登録時より下がったため確認を実行し、{over}。",
+      "e4Fail": "期待どおりに拒否されませんでした：登録 {a}、その後 {b}、請求書 {status}。",
+      "e5Pass": "C32 が記すとおり設計上許可。Adag の外で借りた {amount}（借入 {ltv}）が登録され、次のブロックの残高からの支払いは確認なしに通りました。リスクは支払者自身の借入にのみあります。",
+      "e5Fail": "文書どおりに動作しませんでした：借入 {a}、登録 {b}、支払い {c}、請求書 {status}。",
+      "overLimit": "借入は {debt} となり、ビットコイン価値の 40% である上限 {limit} を超えます",
+      "liveStateWrong": "リアルタイムの状態は、これらの攻撃が書かれたときのものではありません：{problems}。",
+      "problemNoLoan": "デモウォレットに未完済の USDC マーケット借入がありません",
+      "problemMoved": "Adag が最後に記録してからデモの借入が動いています",
+      "problemNotPaid": "請求書 #{id} が支払済みではありません",
+      "problemStale": "BTC/USD 価格が古いため、すべての借入チェックは先に StalePrice で止まります",
+      "problemAllowance": "デモウォレットにまだ Adag への USDC の承認が残っています",
+      "problemBalance": "デモウォレットの保有が 2 USDC 未満で、A2 で返済と再借入をするには少なすぎます",
+      "guardStateChain": "AdagGuard {guard}。チェーン上：支払者の借入 {debt}（{ltv}）、そのルール {rule}、AdagGuard への承認 {approval}。",
+      "guardRuleNone": "なし",
+      "guardPremiseClears": "シミュレーション上の前提：支払者が{what}、そのため各行はどちらもない状態から始まります。",
+      "guardClearsRule": "稼働中のガードルール（{trigger} / {target}）を消去し",
+      "guardSetsApproval": "AdagGuard への {amount} の承認を 0 に設定し",
+      "guardPremiseBorrows": "シミュレーション上の前提：支払者が Morpho で {amount} を追加で借り、{range}。",
+      "guardPremiseRepays": "シミュレーション上の前提：支払者が Morpho で借入のうち {amount} を返済し、{range}。",
+      "guardRange": "借入を {from} から {to} へ動かします",
+      "guardFunding": "シミュレーション上の資金：状態の上書きで前提の前に支払者のウォレットを {start} に設定し、前提の後に {least} を保有させます。",
+      "guardPremiseLine": "ローンガードの各行はシミュレーション上の前提から始まります。デモ支払者が Morpho で借入が 38.00% になるまで借り、借入は 35% の発動ラインを上回ります。今回の実行では、各行は {ltv} の借入 {debt}、ウォレット {wallet}、ガードルールなし、承認なしから始まります。行に別の記載がなければ、そのルールは 35% で発動し、借入を 30% に戻します。ビットコインは {price} USDC。シミュレーション上の第三者 {stranger}。",
+      "guardNoteSentence": "ローンガードの各行はシミュレーション上の前提から始まります。デモ支払者が Morpho で借入が 38.00% になるまで借り、借入は 35% の発動ラインを上回ります。",
+      "g6Pass": "防御。一回目でガードは借入を 30% に戻すちょうどの額 {amount} を返済しました。二回の繰り返しには何もすることがなく、何も動きませんでした。",
+      "g6Fail": "文書どおりに動作しませんでした：返済 {shown}。",
+      "g1Pass": "防御。借入には {need} が必要でしたが、支払者は {cap} しか承認していませんでした。ガードはちょうどそれだけ返済し、承認はゼロになり、二回目は何も返済しませんでした。",
+      "g1Fail": "文書どおりに動作しませんでした：一回目 {first}、引き出し {pulled}、残りの承認 {left}。",
+      "repaidAmount": "{amount} を返済",
+      "g2aPass": "拒否。もう一つの実際の USDC/cirBTC マーケットは AdagGuard の固定の二つのマーケットのどちらでもありません。",
+      "g2bPass": "二回拒否。十六進数一桁だけ違うマーケット id は別の id です。setRule と protect の両方が拒否します。",
+      "g2bFail": "期待どおりに拒否されませんでした：setRule {a}、protect {b}。",
+      "g2cPass": "防御。EURC マーケットでは支払者に借入もルールもないため、ガードは何も返済せず、USDC も動きませんでした。",
+      "g2cFail": "文書どおりに動作しませんでした：{repaid}。支払者の USDC の移動 {moved}。",
+      "g3Pass": "防御。{ltv} の借入は支払者の 50% の発動ラインを下回るため、ガードは何も返済せず、何も発火せず、何も動かしませんでした。",
+      "g3Fail": "文書どおりに動作しませんでした：見積もり {act}（{amount}）、protect {repaid}。",
+      "g4Pass": "防御。期限前ならルールは {amount} を返済していました。期限の秒には働かず、ガードは何も返済しませんでした。",
+      "g4Fail": "文書どおりに動作しませんでした：期限前 {early}、期限時 {late}、protect {repaid}。",
+      "g5aPass": "拒否。clearRule は送信者だけを指し、第三者にはルールがありません。支払者のルールは今も {rule} です。",
+      "g5aFail": "期待どおりに拒否されませんでした：{out}。支払者のルール {rule}。",
+      "g5bPass": "防御。第三者の setRule は通りましたが、第三者自身のルール（80% / 1%）だけを書きました。支払者のルールは今も {rule} です。",
+      "g5bFail": "文書どおりに動作しませんでした：{out}。支払者のルール {rule}。",
+      "g7Pass": "防御。借入には {need} が必要でしたが、ウォレットには {held} しかありませんでした。ガードはちょうどそれだけ返済し、巻き戻らず、何も保持しませんでした。",
+      "g7Fail": "文書どおりに動作しませんでした：{repaid}。ウォレットは今 {after}。",
+      "g8Pass": "防御。価格ゼロでガードは切り捨てた借入残高である {repaid} を返済したため、Morpho のシェア計算はアンダーフローできませんでした。借入残高 {left} が残り、AdagGuard は何も保持しませんでした。",
+      "g8Fail": "文書どおりに動作しませんでした：見積もり {act} {quoted}、protect {repaid}、上限 {cap}。",
+      "g9aPass": "防御。価格ゼロでも、承認はあるがルールのない支払者はそのままです。ガードは何も返済せず、USDC も動きませんでした。",
+      "g9aFail": "文書どおりに動作しませんでした：見積もり {act}（{amount}）、protect {repaid}、USDC の移動 {moved}。",
+      "g9bPass": "防御。借入もルールもないウォレット（{wallet}）には返済するものがなく、何も動きませんでした。",
+      "g9bFail": "文書どおりに動作しませんでした：{repaid}。見積もり {act}。",
+      "g10Pass": "五つすべて拒否。デプロイ済みの AdagGuard にはそれらの関数が一つも存在せず、すべての呼び出しが巻き戻りました。状態を変える関数は clearRule、protect、setRule だけです。",
+      "g10Fail": "文書どおりに動作しませんでした：{prefix}書き込み {writes}。",
+      "g10Succeeded": "管理者呼び出しが成功しました。",
+      "guardNoLoan": "支払者に USDC マーケットの借入がないため、これらの攻撃には狙う対象がありません。",
+      "guardHoldsLittle": "支払者は {amount} を保有しています。これらの攻撃は少なくとも 1 USDC を前提とします。",
+      "guardHoldsLittleAfter": "前提の後、支払者は {amount} を保有しています。これらの攻撃は少なくとも 1 USDC を前提とします。",
+      "guardPremiseOff": "シミュレーション上の前提は借入を {expected} ではなく {ltv} にしました。",
+      "guardNotDeployed": "このビルドには AdagGuard がデプロイされていません。",
+      "setupFailed": "セットアップブロックが失敗しました：{out}",
+      "baselineFailed": "ベースライン読み取り {n} が失敗しました：{out}",
+      "guardBaselineFailed": "ガードのベースライン読み取り {n} が失敗しました：{out}",
+      "premiseFailed": "前提ブロックが失敗しました：{out}",
+      "createBillFailed": "セットアップの createBill が失敗しました：{out}",
+      "noPremise": "支払者に担保のある USDC マーケットの借入がないため、どの前提もそれを特定の水準に置けません。",
+      "paramsMismatch": "Morpho の USDC マーケットパラメータが固定マーケットと一致しません。",
+      "guardPremiseBoth": "稼働中のガードルール（{trigger} / {target}）を消去し、AdagGuard への {amount} の承認を 0 に設定し"
+    }
+  }
+}

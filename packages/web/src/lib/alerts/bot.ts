@@ -1,7 +1,8 @@
 import { KeyError, keys, normaliseAddress, normaliseChatId, normaliseCode } from "../store/keys";
 import { allow } from "../store/limit";
 import type { Store } from "../store/upstash";
-import { claimCode } from "./code";
+import { claimCodeWithLang } from "./code";
+import { langOfChat } from "./links";
 import type { Telegram } from "./telegram";
 import { expiredText, helloText, pendingText, stoppedText } from "./text";
 
@@ -23,6 +24,7 @@ export function parseUpdate(body: unknown): Update | null {
 }
 
 // Replies are the same whatever the store holds, so the bot never says whether a code, chat or wallet exists (C49).
+// A chat is answered in the language it linked with, or the one its fresh code carries; anything else is English (I4).
 export async function handleUpdate(update: Update, store: Store, telegram: Telegram): Promise<void> {
   // Telegram retries until it gets a 2xx, so each update is handled once.
   if (!(await store.set(keys.update(update.updateId), "1", { nx: true, px: 86_400_000 }))) return;
@@ -30,7 +32,7 @@ export async function handleUpdate(update: Update, store: Store, telegram: Teleg
   const [command, arg] = update.text.split(/\s+/, 2);
   if (command === "/start") {
     if (!arg) {
-      await telegram.send(update.chatId, helloText());
+      await telegram.send(update.chatId, helloText(await langOfChat(store, update.chatId)));
       return;
     }
     if (!(await allow(store, keys.rate("start", update.chatId), 10, 600))) return;
@@ -39,16 +41,18 @@ export async function handleUpdate(update: Update, store: Store, telegram: Teleg
       code = normaliseCode(arg);
     } catch (error) {
       if (!(error instanceof KeyError)) throw error;
-      await telegram.send(update.chatId, expiredText());
+      await telegram.send(update.chatId, expiredText(await langOfChat(store, update.chatId)));
       return;
     }
-    const claimed = await claimCode(store, code, { id: update.chatId, handle: update.handle });
-    await telegram.send(update.chatId, claimed ? pendingText() : expiredText());
+    const { claimed, lang } = await claimCodeWithLang(store, code, { id: update.chatId, handle: update.handle });
+    await telegram.send(update.chatId, claimed ? pendingText(lang) : expiredText(claimed ? lang : await langOfChat(store, update.chatId)));
     return;
   }
   if (command === "/stop") {
     // Unlinking from inside the chat needs no signature: only this chat can send it (C47).
+    const lang = await langOfChat(store, update.chatId);
     const wallet = await store.getdel(keys.chat(update.chatId));
+    await store.del(keys.chatLang(update.chatId));
     if (wallet) {
       try {
         const address = normaliseAddress(wallet);
@@ -60,6 +64,6 @@ export async function handleUpdate(update: Update, store: Store, telegram: Teleg
         // A malformed row is simply gone now.
       }
     }
-    await telegram.send(update.chatId, stoppedText());
+    await telegram.send(update.chatId, stoppedText(lang));
   }
 }

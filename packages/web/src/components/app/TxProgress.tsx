@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { AnimatePresence, motion } from "motion/react";
+import { useLibText } from "@/i18n/useLibText";
 import type { PlainError } from "@/lib/pay/errors";
 import type { TxStep } from "@/lib/wallet/send";
 
@@ -10,14 +12,6 @@ export type TxState =
   | { kind: "busy"; step: TxStep; since: number }
   | { kind: "refused"; error: PlainError }
   | { kind: "failed"; message: string; href?: string };
-
-const LABEL: Record<TxStep, string> = {
-  checking: "Checking with Arc",
-  signing: "Confirm in your wallet",
-  confirming: "Waiting for Arc to confirm",
-  watching: "No receipt yet. Checking the bill on Arc",
-  rereading: "Reading the bill again",
-};
 
 export function useElapsed(since: number | null) {
   const [now, setNow] = useState(() => Date.now());
@@ -31,16 +25,23 @@ export function useElapsed(since: number | null) {
 }
 
 // Any wait past two seconds shows its honest label and a running count, never a bare spinner.
-export function stepLabel(step: TxStep, seconds: number) {
-  return seconds >= 2 ? `${LABEL[step]} · ${seconds}s` : LABEL[step];
+export function useStepLabel() {
+  const t = useTranslations("tx");
+  return (step: TxStep, seconds: number) => (seconds >= 2 ? t("withSeconds", { label: t(`steps.${step}`), seconds: String(seconds) }) : t(`steps.${step}`));
 }
 
 export function BusyLabel({ step, since }: { step: TxStep; since: number }) {
   const seconds = useElapsed(since);
+  const stepLabel = useStepLabel();
   return <>{stepLabel(step, seconds)}</>;
 }
 
+// Messages reach this from lib/ in English (the sender, the error decoder); they are translated here, on the way to
+// the screen, and shown as written when the table does not know them.
 export function TxMessage({ state }: { state: TxState }) {
+  const t = useTranslations("tx");
+  const tl = useLibText();
+  const stepLabel = useStepLabel();
   const busy = state.kind === "busy" ? state : null;
   const seconds = useElapsed(busy ? busy.since : null);
   let content: React.ReactNode = null;
@@ -49,25 +50,25 @@ export function TxMessage({ state }: { state: TxState }) {
       <p className="type-body flex items-center gap-3 text-text" data-tx-state={busy.step}>
         <span aria-hidden="true" className="live-shimmer inline-block h-[2px] w-10" />
         {stepLabel(busy.step, seconds)}
-        {busy.step === "signing" && <span className="text-muted">Nothing is sent until you approve it.</span>}
+        {busy.step === "signing" && <span className="text-muted">{t("nothingUntilApprove")}</span>}
       </p>
     );
   } else if (state.kind === "refused") {
     content = (
       <div data-tx-state="refused">
-        <p className="type-body text-danger">{state.error.message}</p>
+        <p className="type-body text-danger">{tl(state.error.message)}</p>
         <p className="type-body mt-1 text-text">
-          {state.error.next} <span className="text-muted">Arc refused it in a dry run, so nothing was sent to your wallet.</span>
+          {tl(state.error.next)} <span className="text-muted">{t("dryRunRefused")}</span>
         </p>
       </div>
     );
   } else if (state.kind === "failed") {
     content = (
       <p className="type-body text-danger" data-tx-state="failed">
-        {state.message}{" "}
+        {tl(state.message)}{" "}
         {state.href && (
           <a href={state.href} target="_blank" rel="noopener noreferrer" className="link-draw text-text hover:text-gold">
-            View the transaction
+            {t("viewTheTransaction")}
           </a>
         )}
       </p>

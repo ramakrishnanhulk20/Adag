@@ -65,6 +65,8 @@ export const keys = {
   pending: (code: unknown) => key("alerts", "pending", normaliseCode(code)),
   link: (wallet: unknown) => key("alerts", "link", normaliseAddress(wallet)),
   chat: (chatId: unknown) => key("alerts", "chat", normaliseChatId(chatId)),
+  // The language a linked chat reads Adag in; absent means English (I4).
+  chatLang: (chatId: unknown) => key("alerts", "lang", normaliseChatId(chatId)),
   linked: () => key("alerts", "linked"),
   thresholds: (wallet: unknown) => key("alerts", "thresholds", normaliseAddress(wallet)),
   level: (wallet: unknown, market: unknown) => key("alerts", "level", normaliseAddress(wallet), normaliseMarket(market)),

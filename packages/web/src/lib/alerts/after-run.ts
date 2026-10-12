@@ -4,6 +4,7 @@ import type { Protection } from "../guard/keeper";
 import { readLiveLoans, readQuotes, type KeeperClient } from "../guard/read";
 import { keys, normaliseAddress } from "../store/keys";
 import type { Store } from "../store/upstash";
+import { langOfChat } from "./links";
 import { checkLevels } from "./message";
 import type { Telegram } from "./telegram";
 import { levelCrossedText, protectedText } from "./text";
@@ -22,20 +23,21 @@ async function levelsOf(store: Store, wallet: Address): Promise<readonly bigint[
 
 // After a run: one message for each protection, then one for each linked loan that rose past a level it had not
 // reached before. The loan-to-value is AdagGuard's own quote, the contract's arithmetic (C50). Best effort: a
-// failed send is counted, never retried into a loop, and nothing here can cause a transaction.
+// failed send is counted, never retried into a loop, and nothing here can cause a transaction. Each chat is written
+// to in the language it linked with (I4).
 export async function sendRunAlerts(protections: Protection[], deps: Deps): Promise<{ sent: number; failed: number }> {
   const { client, store, telegram, guard, site, blockNumber, budgetMs } = deps;
   const started = Date.now();
   let sent = 0;
   let failed = 0;
-  const deliver = async (chat: string | null, text: string) => {
+  const deliver = async (chat: string | null, text: (lang: string) => string) => {
     if (!chat) return;
-    if (await telegram.send(chat, text)) sent += 1;
+    if (await telegram.send(chat, text(await langOfChat(store, chat)))) sent += 1;
     else failed += 1;
   };
 
   for (const p of protections) {
-    await deliver(await store.get(keys.link(p.borrower)), protectedText(p, site));
+    await deliver(await store.get(keys.link(p.borrower)), (lang) => protectedText(p, site, lang));
   }
 
   const linked: Address[] = [];
@@ -60,7 +62,7 @@ export async function sendRunAlerts(protections: Protection[], deps: Deps): Prom
     // Falling back below a level re-arms it, so the next rise past it alerts again.
     await store.set(levelKey, String(reached), { px: 30 * 86_400_000 });
     if (reached > before) {
-      await deliver(await store.get(keys.link(quote.borrower)), levelCrossedText({ market: quote.market, ltvWad: quote.ltvWad, levelWad: levels[reached - 1] }, site));
+      await deliver(await store.get(keys.link(quote.borrower)), (lang) => levelCrossedText({ market: quote.market, ltvWad: quote.ltvWad, levelWad: levels[reached - 1] }, site, lang));
     }
   }
   return { sent, failed };

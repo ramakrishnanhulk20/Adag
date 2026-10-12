@@ -1,5 +1,6 @@
 import { createMDX } from "fumadocs-mdx/next";
 import type { NextConfig } from "next";
+import createNextIntlPlugin from "next-intl/plugin";
 
 const isDev = process.env.NODE_ENV === "development";
 
@@ -120,5 +121,7 @@ const nextConfig: NextConfig = {
 
 // Fumadocs compiles content/docs into the .source folder that src/lib/source.ts reads.
 const withMDX = createMDX();
+// Without i18n routing: the request config resolves the language from the cookie and Accept-Language (src/i18n).
+const withIntl = createNextIntlPlugin("./src/i18n/request.ts");
 
-export default withMDX(nextConfig);
+export default withIntl(withMDX(nextConfig));

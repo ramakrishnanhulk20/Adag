@@ -1,18 +1,22 @@
 "use client";
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useLocale, useTranslations } from "next-intl";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useQuery } from "@tanstack/react-query";
 import { isAddressEqual, size, type Hex } from "viem";
 import { BillStamp } from "@/components/BillStamp";
 import { Button } from "@/components/Button";
 import { Hallmark } from "@/components/Hallmark";
+import { dateIn } from "@/i18n/dates";
+import { localeOf, type Locale } from "@/i18n/locales";
+import { useLibText } from "@/i18n/useLibText";
 import { adagAbi } from "@/lib/pay/abi";
 import { dueFromDate, localIsoDate, parseAmountInput } from "@/lib/pay/amount";
 import { buildCreateBill, referenceBytes } from "@/lib/pay/build";
 import { billHref } from "@/lib/pay/billId";
 import { ADAG_BILLS, BILL_STATUS, CURRENCIES, EXPLORER, MAX_REFERENCE_BYTES, type Currency } from "@/lib/pay/constants";
-import { formatDate, formatUnitsExact, referenceText, shortAddress } from "@/lib/pay/format";
+import { formatUnitsExact, referenceText, shortAddress } from "@/lib/pay/format";
 import { billCreatedIn } from "@/lib/pay/receipt";
 import { estimateFee, publicArc, simulateAndSend, type TxStep } from "@/lib/wallet/send";
 import { readyToSign, useWallet } from "@/lib/wallet/useWallet";
@@ -21,12 +25,18 @@ import { FeeLine } from "./FeeLine";
 import { GetSetUp } from "./GetSetUp";
 import { ShareActions } from "./ShareActions";
 import { BusyLabel, TxMessage, type TxState } from "./TxProgress";
+import { useBlockedReason } from "./WalletNotice";
 
 const DEFAULT_DUE_DAYS = 14;
 
 type Written = { id: bigint; hash: Hex };
 
 export function WriteBill() {
+  const t = useTranslations("write");
+  const tc = useTranslations("common");
+  const tl = useLibText();
+  const blockedReason = useBlockedReason();
+  const locale = localeOf(useLocale());
   const wallet = useWallet();
   const ready = readyToSign(wallet);
   const address = wallet.status === "connected" ? wallet.address : null;
@@ -55,18 +65,18 @@ export function WriteBill() {
   const refBytes: Hex = referenceBytes(refText);
   const refLength = size(refBytes);
   const due: bigint | null = noDue ? 0n : dueDate && today && dueDate >= today ? dueFromDate(dueDate) : null;
-  const dueError = noDue ? null : !dueDate ? "Choose a due date, or No due date." : today && dueDate < today ? "The due date is in the past." : null;
+  const dueError = noDue ? null : !dueDate ? t("due.chooseOrNone") : today && dueDate < today ? t("due.inThePast") : null;
 
   // The builder is the validator: whatever it refuses, the form refuses, in its words (C8 as a courtesy).
   const built = useMemo(() => {
     if (!amount.ok) return { ok: false as const, message: amount.message };
-    if (due === null) return { ok: false as const, message: dueError ?? "Choose a due date." };
+    if (due === null) return { ok: false as const, message: dueError ?? t("due.choose") };
     try {
       return { ok: true as const, call: buildCreateBill(currency, amount.value, due, refText) };
     } catch (error) {
       return { ok: false as const, message: (error as Error).message };
     }
-  }, [amount, due, dueError, currency, refText]);
+  }, [amount, due, dueError, currency, refText, t]);
 
   const feeQuery = useQuery({
     queryKey: ["adag-create-fee", address, built.ok ? built.call.data : null],
@@ -107,7 +117,7 @@ export function WriteBill() {
       record.due === due &&
       record.ref.toLowerCase() === refBytes.toLowerCase();
     if (!matches || id === null) {
-      setTx({ kind: "failed", message: "Arc confirmed the transaction, but the bill it wrote does not read back as expected. Check the transaction.", href: `${EXPLORER}/tx/${out.hash}` });
+      setTx({ kind: "failed", message: t("notAsExpected"), href: `${EXPLORER}/tx/${out.hash}` });
       return;
     }
     setWritten({ id, hash: out.hash });
@@ -139,14 +149,14 @@ export function WriteBill() {
   return (
     <section className="relative px-5 pt-12 pb-24 md:px-[6vw] md:pt-[10vh]">
       <div className="app-rise" style={{ "--d": 0 } as React.CSSProperties}>
-        <Hallmark>Write a bill · Arc mainnet</Hallmark>
+        <Hallmark>{t("hallmark")}</Hallmark>
       </div>
       <h1 className="app-title app-rise mt-6 max-w-[12ch] text-text" style={{ "--d": 1 } as React.CSSProperties}>
         {/* The display face has no kerning pair for W and r, which leaves a visible gap, so the W is pulled in by hand. */}
-        <span className="-mr-[0.07em]">W</span>rite a <em className="font-semibold text-gold italic">bill</em>.
+        {t.rich("title", { w: (chunks) => <span className="-mr-[0.07em]">{chunks}</span>, em: (chunks) => <em className="font-semibold text-gold italic">{chunks}</em> })}
       </h1>
       <p className="type-lead app-rise mt-6 max-w-[40rem] text-text/88" style={{ "--d": 2 } as React.CSSProperties}>
-        One signature puts it on Arc, payable to you, exactly once. Send the link to whoever owes it.
+        {t("lead")}
       </p>
 
       <div className="mt-12 grid gap-12 md:mt-16 md:grid-cols-12 md:gap-10">
@@ -161,8 +171,8 @@ export function WriteBill() {
         >
           <fieldset disabled={locked} className="space-y-10">
             <div>
-              <p className="type-label text-muted">Currency</p>
-              <div role="radiogroup" aria-label="Currency" className="mt-3 inline-flex gap-1 rounded-[8px] border border-rule p-1">
+              <p className="type-label text-muted">{t("currency")}</p>
+              <div role="radiogroup" aria-label={t("currency")} className="mt-3 inline-flex gap-1 rounded-[8px] border border-rule p-1">
                 {CURRENCIES.map((c) => {
                   const on = c.symbol === currency.symbol;
                   return (
@@ -191,7 +201,7 @@ export function WriteBill() {
 
             <div>
               <label htmlFor={ids.amount} className="type-label text-muted">
-                Amount
+                {t("amount")}
               </label>
               <div className="mt-2 flex items-end gap-3">
                 <input
@@ -211,14 +221,14 @@ export function WriteBill() {
               </div>
               {showErrors && !amount.ok && (
                 <p className="type-body mt-2 text-danger" data-error="amount">
-                  {amount.message}
+                  {tl(amount.message)}
                 </p>
               )}
             </div>
 
             <div>
               <label htmlFor={ids.due} className="type-label text-muted">
-                Due date
+                {t("due.label")}
               </label>
               <div className="mt-3 flex flex-wrap items-center gap-5">
                 <input
@@ -232,20 +242,20 @@ export function WriteBill() {
                 />
                 <label htmlFor={ids.noDue} className="type-body inline-flex cursor-pointer items-center gap-3 text-text">
                   <input id={ids.noDue} type="checkbox" checked={noDue} onChange={(e) => setNoDue(e.target.checked)} className="h-4 w-4 accent-[var(--gold-fill)]" />
-                  No due date
+                  {tc("noDueDate")}
                 </label>
               </div>
-              <p className="type-body mt-2 text-muted">Shown to the payer, never enforced.</p>
+              <p className="type-body mt-2 text-muted">{t("due.shownNeverEnforced")}</p>
               {dueError && <p className="type-body mt-1 text-danger">{dueError}</p>}
             </div>
 
             <div>
               <div className="flex items-baseline justify-between gap-4">
                 <label htmlFor={ids.ref} className="type-label text-muted">
-                  Reference
+                  {tc("reference")}
                 </label>
                 <span className={`type-micro tabular-nums ${refLength > MAX_REFERENCE_BYTES ? "text-danger" : "text-muted"}`} data-field="ref-bytes">
-                  {refLength} / {MAX_REFERENCE_BYTES} bytes
+                  {t("ref.bytes", { used: String(refLength), max: String(MAX_REFERENCE_BYTES) })}
                 </span>
               </div>
               <textarea
@@ -254,16 +264,16 @@ export function WriteBill() {
                 value={refText}
                 onChange={(e) => setRefText(e.target.value)}
                 aria-describedby={ids.refNote}
-                placeholder="Invoice 1042, September hosting"
+                placeholder={t("ref.placeholder")}
                 className="type-body mt-3 w-full resize-y rounded-[8px] border border-rule-strong bg-transparent p-4 text-text transition-colors duration-200 placeholder:text-muted/70 hover:border-gold focus:border-gold focus:outline-none"
                 data-field="ref"
               />
               <p id={ids.refNote} className="type-body mt-2 text-muted">
-                Public on Arc: anyone can read it, forever. Accented letters and symbols take more than one byte.
+                {t("ref.note")}
               </p>
               {refLength > MAX_REFERENCE_BYTES && (
                 <p className="type-body mt-1 text-danger" data-error="ref">
-                  The reference is {refLength} bytes; the limit is {MAX_REFERENCE_BYTES}. Shorten it.
+                  {t("ref.tooLong", { used: String(refLength), max: String(MAX_REFERENCE_BYTES) })}
                 </p>
               )}
             </div>
@@ -274,28 +284,22 @@ export function WriteBill() {
               (ready ? (
                 <div className="flex flex-col gap-4">
                   <Button type="submit" variant="primary" disabled={!built.ok || Boolean(busy)} className="w-full md:w-auto md:self-start" data-action="write-bill">
-                    {busy ? <BusyLabel step={busy.step} since={busy.since} /> : "Write the bill"}
+                    {busy ? <BusyLabel step={busy.step} since={busy.since} /> : t("writeTheBill")}
                   </Button>
-                  {!built.ok && showErrors && <p className="type-body text-muted" data-blocked-reason>Fix the field marked above to write the bill.</p>}
-                  <FeeLine query={feeQuery} idle="The network fee shows once the bill is valid." />
+                  {!built.ok && showErrors && <p className="type-body text-muted" data-blocked-reason>{t("fixTheField")}</p>}
+                  <FeeLine query={feeQuery} idle={t("feeIdle")} />
                 </div>
               ) : (
                 <div data-blocked="true">
                   <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                    <p className="type-body max-w-[26rem] text-text">
-                      {wallet.status !== "connected"
-                        ? "Connect the wallet that should receive the money. Nothing is built until then."
-                        : !wallet.onArc
-                          ? "Your wallet is on another network. Switch it to Arc to write the bill."
-                          : "This wallet cannot sign here yet. See the note under the menu bar."}
-                    </p>
+                    <p className="type-body max-w-[26rem] text-text">{blockedReason(wallet, "writeBill")}</p>
                     <ConnectButton />
                   </div>
-                  {(wallet.status !== "connected" || !wallet.onArc) && <GetSetUp needs={["arc", "usdc"]} className="mt-5" title="New to Arc?" />}
+                  {(wallet.status !== "connected" || !wallet.onArc) && <GetSetUp needs={["arc", "usdc"]} className="mt-5" title={t("newToArc")} />}
                 </div>
               ))}
             {showErrors && !built.ok && amount.ok && refLength <= MAX_REFERENCE_BYTES && !dueError && (
-              <p className="type-body mt-3 text-danger">{built.message}</p>
+              <p className="type-body mt-3 text-danger">{tl(built.message)}</p>
             )}
             <div className="mt-4">
               <TxMessage state={tx} />
@@ -312,26 +316,26 @@ export function WriteBill() {
                   transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
                   className="app-panel p-6 md:p-8"
                 >
-                  <p className="type-label text-success">Written on Arc</p>
-                  <p className="type-h3 mt-3 text-text">Bill #{written.id.toString()} is ready to share.</p>
+                  <p className="type-label text-success">{t("writtenOnArc")}</p>
+                  <p className="type-h3 mt-3 text-text">{t("readyToShare", { id: written.id.toString() })}</p>
                   <p className="type-address mt-5 break-all rounded-[6px] border border-rule bg-bg/40 p-3 text-text" data-share-link>
                     {shareLink}
                   </p>
                   <div className="mt-5 flex flex-col gap-3 md:flex-row md:flex-wrap">
                     <ShareActions
                       url={shareLink}
-                      title={`Bill #${written.id}`}
-                      text={`Bill #${written.id} for ${amount.ok ? formatUnitsExact(amount.value, currency.decimals) : ""} ${currency.symbol}, payable on Arc.`}
+                      title={tc("billNumber", { id: written.id.toString() })}
+                      text={tc("shareTextAmount", { id: written.id.toString(), amount: amount.ok ? formatUnitsExact(amount.value, currency.decimals) : "", symbol: currency.symbol })}
                     />
                     <Button href={billHref(ADAG_BILLS, written.id)} variant="secondary" className="w-full md:w-auto">
-                      Open the bill page
+                      {t("openTheBillPage")}
                     </Button>
                     <Button type="button" variant="secondary" className="w-full md:w-auto" data-action="write-another" onClick={writeAnother}>
-                      Write another bill
+                      {t("writeAnother")}
                     </Button>
                   </div>
                   <a href={`${EXPLORER}/tx/${written.hash}`} target="_blank" rel="noopener noreferrer" className="link-draw type-address mt-5 inline-block text-muted hover:text-gold">
-                    Transaction {shortAddress(written.hash)} on the explorer
+                    {tc("transactionOnExplorer", { hash: shortAddress(written.hash) })}
                   </a>
                 </motion.div>
               )}
@@ -341,7 +345,7 @@ export function WriteBill() {
 
         <div className="app-rise md:col-span-6" style={{ "--d": 4 } as React.CSSProperties}>
           <div className="md:sticky md:top-28">
-            <p className="type-label text-muted">What the payer will see</p>
+            <p className="type-label text-muted">{t("preview.label")}</p>
             <Preview
               currency={currency}
               amount={amount.ok ? amount.value : null}
@@ -349,6 +353,7 @@ export function WriteBill() {
               refBytes={refLength <= MAX_REFERENCE_BYTES ? refBytes : null}
               payee={address}
               written={written}
+              locale={locale}
             />
           </div>
         </div>
@@ -357,16 +362,18 @@ export function WriteBill() {
   );
 }
 
-type PreviewProps = { currency: Currency; amount: bigint | null; due: bigint | null; refBytes: Hex | null; payee: string | null; written: Written | null };
+type PreviewProps = { currency: Currency; amount: bigint | null; due: bigint | null; refBytes: Hex | null; payee: string | null; written: Written | null; locale: Locale };
 
 // Rendered from the same integer and the same bytes the transaction carries (C15), and the reference as text only (C14).
-function Preview({ currency, amount, due, refBytes, payee, written }: PreviewProps) {
+function Preview({ currency, amount, due, refBytes, payee, written, locale }: PreviewProps) {
+  const t = useTranslations("write.preview");
+  const tc = useTranslations("common");
   const reference = refBytes ? referenceText(refBytes) : null;
   return (
     <div className="app-panel relative mt-4 overflow-hidden p-6 md:p-9" data-preview>
       <div className="flex items-start justify-between gap-4">
         <div className="min-h-[5.5rem]">
-          <p className="type-micro text-muted">Bill No.</p>
+          <p className="type-micro text-muted">{t("billNo")}</p>
           <AnimatePresence mode="wait">
             {written ? (
               <motion.p
@@ -377,11 +384,11 @@ function Preview({ currency, amount, due, refBytes, payee, written }: PreviewPro
                 transition={{ duration: 1.1, ease: [0.16, 1, 0.3, 1], delay: 0.35 }}
                 data-drawn-number
               >
-                No. {written.id.toString()}
+                {tc("no", { id: written.id.toString() })}
               </motion.p>
             ) : (
               <motion.p key="pending" className="mt-1 font-display text-[clamp(3.5rem,7vw,6rem)] leading-[0.9] text-rule-strong" exit={{ opacity: 0 }}>
-                No. ?
+                {tc("no", { id: "?" })}
               </motion.p>
             )}
           </AnimatePresence>
@@ -390,7 +397,7 @@ function Preview({ currency, amount, due, refBytes, payee, written }: PreviewPro
           {written ? (
             <BillStamp status="open" entrance="in-view" tilt={-7} />
           ) : (
-            <span className="type-micro inline-block -rotate-6 rounded-[3px] border-2 border-dashed border-rule-strong px-4 py-3 text-muted">Draft</span>
+            <span className="type-micro inline-block -rotate-6 rounded-[3px] border-2 border-dashed border-rule-strong px-4 py-3 text-muted">{t("draft")}</span>
           )}
         </div>
       </div>
@@ -402,17 +409,17 @@ function Preview({ currency, amount, due, refBytes, payee, written }: PreviewPro
 
       <dl className="app-ledger mt-8 border-y border-rule">
         <div className="app-ledger-row">
-          <dt className="type-micro text-muted">Pays</dt>
-          <dd className={`type-address min-w-0 text-text ${payee ? "break-all" : ""}`}>{payee ?? "Your connected wallet"}</dd>
+          <dt className="type-micro text-muted">{tc("pays")}</dt>
+          <dd className={`type-address min-w-0 text-text ${payee ? "break-all" : ""}`}>{payee ?? t("yourConnectedWallet")}</dd>
         </div>
         <div className="app-ledger-row">
-          <dt className="type-micro text-muted">Due</dt>
-          <dd className="type-body text-text">{due === null ? "Choose a date" : due === 0n ? "No due date" : formatDate(due)}</dd>
+          <dt className="type-micro text-muted">{t("due")}</dt>
+          <dd className="type-body text-text">{due === null ? t("chooseADate") : due === 0n ? tc("noDueDate") : dateIn(locale, due)}</dd>
         </div>
         <div className="app-ledger-row">
-          <dt className="type-micro text-muted">Reference</dt>
+          <dt className="type-micro text-muted">{tc("reference")}</dt>
           <dd className="type-body min-w-0 text-text">
-            {reference === null ? <span className="text-danger">Too long</span> : reference ? <span className="app-reference">{reference}</span> : <span className="text-muted">None</span>}
+            {reference === null ? <span className="text-danger">{t("tooLong")}</span> : reference ? <span className="app-reference">{reference}</span> : <span className="text-muted">{tc("none")}</span>}
           </dd>
         </div>
       </dl>

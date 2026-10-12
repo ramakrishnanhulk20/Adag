@@ -1,11 +1,11 @@
 "use client";
 
 import { useId } from "react";
+import { useTranslations } from "next-intl";
 import { motion, useReducedMotion } from "motion/react";
 
 export type BillStatus = "paid" | "open" | "void";
 
-const WORD: Record<BillStatus, string> = { paid: "Paid", open: "Open", void: "Void" };
 const DEFAULT_TILT: Record<BillStatus, number> = { paid: -8, open: -6, void: -9 };
 
 type BillStampProps = {
@@ -17,10 +17,12 @@ type BillStampProps = {
 };
 
 export function BillStamp({ status, tilt = DEFAULT_TILT[status], entrance = "none", className = "" }: BillStampProps) {
+  const t = useTranslations("stamp");
   const filterId = `stamp-ink-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
   const reduce = useReducedMotion();
   const seed = status === "paid" ? 3 : status === "open" ? 11 : 23;
   const animated = entrance === "in-view";
+  const word = t(status);
 
   return (
     <motion.span
@@ -38,8 +40,8 @@ export function BillStamp({ status, tilt = DEFAULT_TILT[status], entrance = "non
           <feDisplacementMap in="SourceGraphic" in2="ink" scale="1.5" xChannelSelector="R" yChannelSelector="G" />
         </filter>
       </svg>
-      <span className={`stamp stamp-${status}`} style={{ filter: `url(#${filterId})` }} role="img" aria-label={`Status: ${WORD[status]}`}>
-        <span className="stamp-inner">{WORD[status]}</span>
+      <span className={`stamp stamp-${status}`} style={{ filter: `url(#${filterId})` }} role="img" aria-label={t("status", { word })}>
+        <span className="stamp-inner">{word}</span>
       </span>
     </motion.span>
   );

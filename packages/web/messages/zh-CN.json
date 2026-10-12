@@ -1,0 +1,2051 @@
+{
+  "common": {
+    "payABill": "支付账单",
+    "writeABill": "开账单",
+    "docs": "文档",
+    "termsOfUse": "使用条款",
+    "liveOnArc": "在 Arc 主网实时运行",
+    "arcMainnet": "Arc 主网",
+    "readingArc": "正在读取 Arc",
+    "readingArcSeconds": "正在读取 Arc · {seconds} 秒",
+    "unavailable": "不可用",
+    "tryAgain": "重试",
+    "copied": "已复制",
+    "copyLink": "复制链接",
+    "noBillPaidYet": "Arc 上还没有已支付的账单。",
+    "billNumber": "账单 #{id}",
+    "billNo": "账单编号 {id}",
+    "no": "编号 {id}",
+    "firstDeployment": "首次部署",
+    "firstDeploymentAddress": "AdagBills 首次部署 {address}",
+    "paymentOnArc": "Arc 上的付款",
+    "contractNames": {
+      "bills": "AdagBills",
+      "guard": "AdagGuard",
+      "billsFirst": "AdagBills，首次部署"
+    },
+    "explorer": "区块浏览器",
+    "tryToBreakIt": "试着攻破它",
+    "howItWorks": "运作方式",
+    "backToAdag": "返回 Adag",
+    "couldNotReadFromArc": "无法从 Arc 读取此数据",
+    "refusesOver40": "超过 40% 的一律被 Adag 拒绝",
+    "refusesOver": "超过 {pct} 的一律被 Adag 拒绝",
+    "yourWallet": "您的钱包",
+    "loanGuard": "贷款守护",
+    "telegramAlerts": "Telegram 提醒",
+    "stopProtecting": "停止守护",
+    "viewTheTransaction": "查看交易",
+    "viewTheTransactionLower": "查看交易",
+    "transactionOnExplorer": "在区块浏览器中查看交易 {hash}",
+    "hashOnExplorer": "在区块浏览器中查看 {hash}",
+    "transaction": "交易",
+    "confirmedOnArc": "已在 Arc 上确认",
+    "nothingWasSent": "未发送任何内容。",
+    "arcNoAnswerNothingBuilt": "Arc 没有响应，因此未生成任何交易。请重试。",
+    "noBalanceAnswer": "Arc 没有返回您的余额。未发送任何内容。请重试。",
+    "notConfirmedTwoMinutes": "两分钟后 Arc 仍未确认。请不要再次支付：先检查这笔交易。",
+    "guardChanged": "自本页加载以来，您的贷款守护发生了变化：付款前请先阅读上方的说明。未发送任何内容。",
+    "stalePrice": "在比特币价格更新之前，新贷款已暂停。用余额支付仍然可用。",
+    "stalePriceShort": "在比特币价格更新之前，新贷款已暂停。",
+    "readingGuard": "正在从 Arc 读取您的贷款守护。",
+    "lessCirbtcThanPledge": "您的钱包持有的 cirBTC 少于这笔质押所需。",
+    "readingEuroAndMarket": "正在从 Arc 读取欧元价格和 {symbol} 市场。",
+    "convertUnreadable": "Adag 无法读取兑换所需的数据，因此兑换已关闭。请刷新后重试。",
+    "details": "详情",
+    "percentAYear": "年化 {pct}%",
+    "liveVariable": "实时，浮动",
+    "ltvAfter": "支付后的贷款价值比",
+    "fortyCheck": "40% 检查",
+    "yourDebt": "您的债务",
+    "debtInCurrency": "以 {symbol} 计。其美元成本随欧元波动。",
+    "circlesAdapter": "Circle 的适配器",
+    "adapterNoAccess": "它已没有任何访问您钱包的权限。",
+    "adapterStillAccess": "它仍然拥有您钱包的访问权限。",
+    "adapterUnreadable": "无法读取它的访问权限。",
+    "effectsUnchecked": "Adag 在您签名前无法追踪这次兑换的转账，因此只有付款自身的余额检查在保护它。",
+    "bitcoinSold": "出售的比特币",
+    "leftInWallet": "留在您钱包中",
+    "became": "{from} 变为 {to}",
+    "loanRecorded": "贷款已登记 ·",
+    "alreadyPaidNothing": "已支付。此处没有需要支付的内容。",
+    "cancelledNever": "已取消。它永远无法再被支付。",
+    "pays": "收款方",
+    "reference": "备注",
+    "none": "无",
+    "noDueDate": "无到期日",
+    "unknown": "未知",
+    "connectWallet": "连接钱包",
+    "switchToArc": "切换到 Arc",
+    "confirmInWallet": "请在钱包中确认",
+    "amountIn": "以 {symbol} 计的金额",
+    "aboutEstimated": "约 {usd}，估算值",
+    "shareText": "账单 #{id}，可在 Arc 上支付。",
+    "shareTextAmount": "账单 #{id}，金额 {amount} {symbol}，可在 Arc 上支付。",
+    "seconds": "{seconds} 秒",
+    "billIsPaid": "账单 #{id} 已支付。",
+    "poweredByMorpho": "由 Morpho 提供支持",
+    "cancel": "取消"
+  },
+  "nav": {
+    "main": "主导航",
+    "app": "应用",
+    "howItWorks": "运作方式",
+    "safety": "安全",
+    "proof": "证明",
+    "docs": "文档",
+    "openApp": "打开应用",
+    "closeMenu": "关闭菜单",
+    "openMenu": "打开菜单",
+    "writeABill": "开账单",
+    "payABill": "支付账单",
+    "yourWallet": "您的钱包",
+    "loanGuard": "贷款守护",
+    "menu": "菜单",
+    "close": "关闭"
+  },
+  "switcher": {
+    "label": "语言"
+  },
+  "theme": {
+    "system": "跟随系统",
+    "light": "浅色",
+    "dark": "深色",
+    "lower": {
+      "light": "浅色",
+      "dark": "深色"
+    },
+    "systemNow": "跟随系统，当前为{resolved}",
+    "switchTo": "主题：{state}。切换为{next}",
+    "tooltip": "主题：{state}",
+    "theme": "主题",
+    "optionLabel": "{option}主题"
+  },
+  "stamp": {
+    "paid": "已付",
+    "open": "待付",
+    "void": "已取消",
+    "status": "状态：{word}"
+  },
+  "hero": {
+    "line1": "付清账单。",
+    "line2": "留住<tail><em>比特币</em>。</tail>",
+    "lead": "用公司持有的比特币向供应商付款。只需一次签名，无论来自您的钱包<em>还是公司的 Safe</em>，即可在 Morpho 上质押 cirBTC，精确借入账单金额，并以 USDC 或 EURC 付款，每笔都对应各自的发票编号。",
+    "sendingABill": "要发送账单？<link>开一张</link>",
+    "ticker": "Arc 实时数据 · {amount} 可借出",
+    "cells": {
+      "labels": {
+        "ready": "Morpho 上可借出",
+        "rate": "借款利率",
+        "cap": "贷款上限",
+        "paid": "通过 Adag 支付"
+      },
+      "eurcUnavailable": "EURC 市场不可用",
+      "eurcMarket": "EURC 市场中有 {amount}",
+      "aYear": "年化",
+      "morphoLive": "Morpho Blue，实时",
+      "lineUnavailable": "Morpho 的清算线不可用",
+      "morphoLiquidatesAt": "Morpho 在 {pct} 清算",
+      "seeBillOneLabel": "查看账单 1，实时的证明付款",
+      "seeBillOne": "查看账单 #1",
+      "billsPaid": "{count, plural, =1 {已支付 {n} 张账单} other {已支付 {n} 张账单}}",
+      "couldNotRead": "无法从 Arc 读取此数据"
+    },
+    "credit": {
+      "arcMainnet": "Arc 主网",
+      "usdcOrEurc": "USDC 或 EURC",
+      "morphoBlue": "Morpho Blue",
+      "cap": "40% 上限",
+      "oneSignature": "一次签名",
+      "noOwner": "无管理员",
+      "btcPrice": "BTC 价格",
+      "btcPriceUnavailable": "BTC 价格不可用",
+      "pausedWaiting": "新贷款已暂停 · 等待最新的 BTC 价格",
+      "btcPriceFresh": "BTC 价格为最新",
+      "updated": "更新于",
+      "ageUnderMinute": "不到一分钟前",
+      "ageMinutes": "{minutes} 分钟前",
+      "ageHours": "{hours} 小时前",
+      "ageHoursMinutes": "{hours} 小时 {minutes} 分钟前"
+    }
+  },
+  "landing": {
+    "pledged": {
+      "label": "02 · 质押，而非出售",
+      "title": "质押，<em>而非出售。</em>",
+      "india": "在印度，家庭会把黄金质押换取现金，而不是卖掉它，等还清贷款后再把黄金带回家。",
+      "adagu": "Adag 来自泰米尔语 <em>adagu</em>，意为质押，它在 Arc 上用比特币做同样的事。",
+      "whereIsTheBitcoin": "比特币在哪里？",
+      "cirbtc": "cirBTC 是 Circle 发行的封装比特币，1:1 支持，由 Circle 托管，并有<link>公开储备</link>。质押后，它留在您自己的 Morpho 仓位中，不会被借出。Adag 从不持有它。",
+      "caption": "黄金被质押，而非出售。",
+      "imageAlt": "双手把黄金首饰放在黄铜托盘上，旁边是一张手写的质押单"
+    },
+    "oneSignature": {
+      "label": "04 · 一次签名",
+      "title": "五个步骤，<em>一次签名。</em>",
+      "lead": "用比特币支付一张账单，是 Arc 上的五次调用。您一次签名，它们作为一个批次一并执行。最多 10 张供应商账单可以放进同一次签名。",
+      "ifAnyFails": "任何一步失败，整个批次都不会执行。",
+      "seeTheRealOne": "在 Arc 上查看真实的那一笔"
+    },
+    "receipt": {
+      "oneBatch": "Adag · 一个批次",
+      "calls": {
+        "approveBtc": "允许 Morpho 接收质押，仅此而已。",
+        "supply": "质押比特币。它以您的名义保持质押，永不出售。",
+        "borrow": "精确借入账单金额。",
+        "approveCurrency": "允许 Adag 转移恰好这个金额。",
+        "memo": "向供应商付款，附上发票编号。"
+      },
+      "signedOnce": "每次调用都设置 allowFailure false · 一次签名，来自您自己的钱包",
+      "legend": "P 质押 · A 账单金额 · C USDC 或 EURC · N 账单编号 · R 发票备注"
+    },
+    "forty": {
+      "label": "05 · 40% 线",
+      "title": "40% 线",
+      "lead": "无论支付多少张账单，Adag 绝不允许任何付款把贷款推过比特币价值的 40%。Morpho 自身的清算线则远在其上。",
+      "facts": {
+        "noOwner": {
+          "title": "无管理员，不可升级，不可暂停",
+          "body": "没有管理员密钥，也没有开关。40% 线和 Adag 信任的每一个地址都在部署时就已固定。"
+        },
+        "neverHolds": {
+          "title": "从不持有您的资金",
+          "body": "每笔付款都在同一笔交易内从付款钱包直达供应商。您的任何资产都不会停留在 Adag 中。"
+        },
+        "verified": {
+          "title": "源代码已验证",
+          "body": "Arc 上运行的代码与公开的源代码完全一致，Adag 使用的每一个合约都经过 Sourcify 和 Arc 区块浏览器的核验。"
+        },
+        "refuses": {
+          "title": "拒绝任何超过 40% 的付款，哪怕是手工构造的交易",
+          "body": "这项检查写在合约里，而不是网站里。会把贷款推过 40% 的付款都会回滚，无论由谁构造。"
+        }
+      },
+      "links": {
+        "contractOnArc": "Arc 上的合约",
+        "tokenBalances": "它的代币余额",
+        "onSourcify": "Sourcify 上的 {name}",
+        "onExplorer": "explorer.arc.io 上的 {name}"
+      }
+    },
+    "gauge": {
+      "unavailable": "{what}不可用 · 无法从 Arc 读取此数据",
+      "theLoanCap": "贷款上限",
+      "theBtcPrice": "BTC 价格",
+      "ariaCapOnly": "Adag 止于 {cap}%",
+      "ariaCapAndLine": "Adag 止于 {cap}%；Morpho 在 {lltv}% 清算",
+      "oneCirbtcNow": "当前 1 cirBTC",
+      "adagPaysUpTo": "Adag 最多支付",
+      "liquidatesIfFallsTo": "若贷款处于 Adag 上限，比特币跌到以下水平时 Morpho 会清算",
+      "aFall": "下跌 {pct}%",
+      "perCirbtc": "每 1 cirBTC，按 Arc 上 USDC 市场预言机的实时价格"
+    },
+    "checkIt": {
+      "proof": "证明",
+      "title": "您<em>亲自</em>来验证。",
+      "billOne": "账单 #1",
+      "billOnePaid": "账单 #1，已支付",
+      "openBillOne": "打开账单 #1",
+      "reading": "正在从 Arc 读取账单 #1 及其付款。",
+      "noAnswer": "Arc 没有响应，因此这里不对账单 #1 作任何断言。它自己的页面会重新读取。",
+      "notPaidYet": "当前合约上一张 {amount} 的账单，尚未支付。",
+      "txNotFound": "一张真实的 {amount} 账单，在 Arc 上标记为已支付。它的付款交易刚才未能在范围内找到。",
+      "paidFromLoan": "一张真实的 {amount} 账单，用以比特币为抵押品的贷款支付，Adag 对该贷款执行了 40% 检查。",
+      "paidNoLoan": "一张真实的 {amount} 账单，一次签名付清；它没有新增贷款，因此 40% 检查无需测试任何内容。",
+      "itsTransaction": "它的交易",
+      "tryToBreakIt": "试着攻破它",
+      "attacks": "{n} 次针对实时合约的攻击，在您眼前于 Arc 上模拟。每一次都展示是什么阻止了它。",
+      "runTheAttacks": "运行攻击",
+      "auditStatus": "审计状态",
+      "auditBody": "自审计，而非外部机构审计。测试了什么，发现了什么，以及哪些未覆盖。",
+      "readTheRecord": "阅读记录"
+    },
+    "after": {
+      "label": "06 · 付款之后",
+      "title": "付清。然后<em>继续守护。</em>",
+      "lead": "大多数工具到付款就结束了。Adag 会继续照看您比特币支撑的那笔贷款：当贷款越过您的线时偿还一部分，通过 Telegram 通知您，并从您公司存放资金的那个 Safe 付款。",
+      "parts": {
+        "guard": {
+          "title": "贷款守护",
+          "body": "当贷款越过您选定的线时，守护会用您自己的 USDC 或 EURC 偿还一部分，恰好把它拉回您的目标线。",
+          "keyLine": "它最多只能动用您授权的额度。",
+          "after": "随时可停止：规则清除，授权额度归 0。",
+          "link": "贷款守护如何运作"
+        },
+        "alerts": {
+          "title": "Telegram 提醒",
+          "body": "贷款接近您设定的水平时发一条消息，守护每次偿还时也发一条。Adag 从不向任何人透露某个钱包是否开启了提醒。",
+          "link": "提醒如何运作"
+        },
+        "safe": {
+          "title": "从公司 Safe 付款",
+          "body": "一张或最多十张账单，提交给 Safe，由其所有者按照平时签署其他事项的方式签名。执行时，要么整笔生效，要么完全不生效。",
+          "link": "从 Safe 付款"
+        },
+        "record": {
+          "title": "已经在 Morpho 上借款",
+          "body": "把您已有的贷款登记一次。不会移动任何资金。此后您可以用余额支付账单，Adag 会把您的贷款与登记的那笔进行对照。",
+          "link": "登记现有贷款"
+        }
+      }
+    },
+    "suppliers": {
+      "label": "07 · 面向供应商",
+      "title": "发出账单。<em>收到款项。</em>",
+      "steps": {
+        "write": "开一张账单",
+        "share": "分享它的链接",
+        "getPaid": "收到 USDC 或 EURC，对应您的发票编号"
+      },
+      "latest": "Arc 上最新的一笔付款，实时读取"
+    },
+    "billCard": {
+      "unavailable": "最新付款不可用：Arc 没有响应。不会用其他内容代替显示。",
+      "paidTo": "收款方",
+      "paidBy": "付款方",
+      "paid": "已付",
+      "theBill": "账单",
+      "openIt": "打开它，查看发票备注"
+    },
+    "ledger": {
+      "label": "08 · 账本",
+      "title": "每一笔付款，<em>皆有记录。</em>",
+      "fromTo": "<muted>从 </muted>{from}<muted> 到 </muted>{to}",
+      "fromLoanChecked": "来自贷款，已执行 40% 检查",
+      "unavailable": "账本不可用：Arc 没有响应。",
+      "note": "通过 Adag 在 Arc 上完成的最新付款，读取自每个合约自己的付款记录。发票备注只显示在各账单自己的页面。这里没有任何模拟数据。",
+      "showing": "显示 {total} 笔已付款中最新的 {shown} 笔。"
+    },
+    "close": {
+      "title": "账单到期。<em>比特币仍在质押中。</em>",
+      "tamil": "<word>adagu</word> · 泰米尔语，意为质押",
+      "poweredBy": "由 Morpho 提供支持 · 运行于 Arc 主网",
+      "footer": "页脚",
+      "contracts": "Arc 主网上的合约"
+    }
+  },
+  "pledge": {
+    "readingArc": "正在读取 Arc",
+    "chapters": {
+      "coin": "比特币",
+      "bills": "账单",
+      "pledge": "质押",
+      "loan": "贷款",
+      "paid": "已付",
+      "neverSold": "永不出售"
+    },
+    "replay": {
+      "twoBoth": "回放两张真实账单，分别来自 Adag 的两个合约",
+      "one": "回放一张在 Arc 上支付的真实账单",
+      "oneFirst": "回放一张在 Adag 首个合约上、于 Arc 支付的真实账单",
+      "many": "{count, plural, =2 {回放两张在 Arc 上支付的真实账单} =3 {回放三张在 Arc 上支付的真实账单} other {回放 {n} 张在 Arc 上支付的真实账单}}",
+      "manyBoth": "{count, plural, =2 {回放两张跨 Adag 两个合约、在 Arc 上支付的真实账单} =3 {回放三张跨 Adag 两个合约、在 Arc 上支付的真实账单} other {回放 {n} 张跨 Adag 两个合约、在 Arc 上支付的真实账单}}"
+    },
+    "honesty": "{replay}。数字实时读取。",
+    "honestyFailed": "无法读取 Arc。不会用其他内容代替显示。",
+    "honestyNone": "Arc 上还没有已支付的账单。这里不会编造任何内容来填充。",
+    "captions": {
+      "pledgedHead": "您的比特币被质押，而非出售。",
+      "pledgedSub": "它作为抵押品存放在 Morpho 上，以您的名义。",
+      "borrowsHead": "{count, plural, =1 {Adag 精确借入账单金额。} other {Adag 精确借入各账单所需金额。}}",
+      "borrowsSub": "并拒绝任何超过比特币价值 {cap} 的借款。",
+      "neverSoldHead": "永不出售。",
+      "neverSoldSub": "它以您的名义保持质押。随时偿还即可取回。",
+      "readingHead": "正在从 Arc 读取最新账单。",
+      "failedHead": "无法从 Arc 读取账单。",
+      "failedSub": "不会编造账单来填充舞台。请一分钟后重试。",
+      "noneHead": "Arc 上还没有已支付的账单。",
+      "noneSub": "Arc 上的第一笔付款将显示在这里。",
+      "dueHead": "{count, plural, =1 {一张真实账单到期。} =2 {两张真实账单到期。} =3 {三张真实账单到期。} other {{n} 张真实账单到期。}}",
+      "dueSub": "{count, plural, =1 {它确实已在 Arc 上支付。这里的质押额，是一个新钱包今天用比特币支付它所需投入的数量。} =2 {两张都确实已在 Arc 上支付。这里的质押额，是一个新钱包今天用比特币支付它们所需投入的数量。} other {全部都确实已在 Arc 上支付。这里的质押额，是一个新钱包今天用比特币支付它们所需投入的数量。}}",
+      "paidHead": "{count, plural, =1 {供应商已收款。} =2 {两张账单已支付。} =3 {三张账单已支付。} other {{n} 张账单已支付。}}",
+      "paidSub": "{count, plural, =1 {附有发票编号。一次签名。} other {附有各发票编号。一次签名。}}"
+    },
+    "srTitle": "用质押的比特币支付账单，分六个步骤",
+    "imageAlt": "一个打开的保险箱抽屉，内衬蓝色天鹅绒",
+    "arcBlock": "Arc 区块 {block}",
+    "tagWallet": "{btc} cirBTC{usd} · 在您的钱包中",
+    "tagYourCirbtc": "您的 cirBTC",
+    "tagPledged": "质押于 Morpho · 仍以您的名义",
+    "tagNeverSoldBtc": "{btc} cirBTC，以您的名义质押，永不出售。随时偿还即可取回。",
+    "tagNeverSold": "以您的名义质押，永不出售。随时偿还即可取回。",
+    "borrowedLabel": "已借入 {amount}",
+    "billsPaidOnArc": "Arc 上已支付的账单",
+    "openBillsOnArc": "Arc 上待付的账单",
+    "yourPledge": "您的质押",
+    "pledgeNote": "{usd}{perBtc} · 5% 缓冲{markets}",
+    "valueUnavailable": "价值不可用",
+    "atPerBitcoin": "，按每枚比特币 {perBtc} 计",
+    "twoMarkets": " · 2 个市场",
+    "pausedFeed": "在价格源更新之前，新贷款已暂停。",
+    "borrowed": "已借入",
+    "exactlyTheBills": "{count, plural, =1 {恰好是账单金额，不多一分} other {恰好是各账单金额，不多一分}}",
+    "final": "贷款占比特币价值的 {ltv}。Morpho 的清算线是 {lltv}。比特币需要下跌 {fall}% 才会触及。",
+    "replayButton": "重播",
+    "card": {
+      "noDate": "无日期",
+      "titleFirst": "{title}，首次部署",
+      "to": "收款方",
+      "from": "付款方",
+      "paid": "已付",
+      "on": "日期",
+      "paidIn": "支付币种",
+      "txLabel": "支付账单 {id} 的那笔交易，在 Arc 区块浏览器中查看"
+    },
+    "gauge": {
+      "loanToValue": "贷款价值比",
+      "aria": "贷款占比 {ltv}。Adag 的上限是 {cap}，Morpho 在 {lltv} 清算。",
+      "adagCap": "{cap} Adag 上限"
+    }
+  },
+  "meta": {
+    "site": {
+      "title": "Adag · 用您的比特币支付账单，而无需出售它。",
+      "description": "在 Morpho 上质押您的比特币，精确借入账单金额，并在 Arc 上以一次签名用 USDC 或 EURC 向供应商付款。任何会把贷款推过 40% 的付款都会被 Adag 拒绝。",
+      "template": "%s · Adag"
+    },
+    "home": {
+      "title": "Adag · 用您的比特币支付账单，而无需出售它",
+      "description": "用公司的比特币向供应商付款而无需出售：在 Arc 上一次签名最多支付 10 张账单，附带发票编号，贷款由 Adag 限制在 40% 以内。"
+    },
+    "wallet": {
+      "title": "您的钱包",
+      "description": "您开出的账单、您支付的账单，以及您在 Morpho 上以 cirBTC 为抵押品的贷款，均从 Arc 实时读取。"
+    },
+    "protect": {
+      "title": "贷款守护与提醒",
+      "description": "针对您以 cirBTC 为抵押品的贷款的 Telegram 提醒，以及在触及 Morpho 清算线之前先行偿还的贷款守护。"
+    },
+    "write": {
+      "title": "开账单",
+      "description": "在 Arc 上以 USDC 或 EURC 开一张账单，仅可向您的钱包支付一次，并分享它的链接。"
+    },
+    "break": {
+      "title": "试着攻破它",
+      "description": "针对 Adag 实时合约的十六次真实攻击，在 Arc 主网当前状态上模拟。不签署也不发送任何内容。"
+    },
+    "pay": {
+      "title": "支付账单",
+      "description": "通过编号或链接打开 Arc 上的一张账单，准确查看它付给谁、付多少。"
+    },
+    "basket": {
+      "title": "支付多张账单",
+      "description": "在 Arc 上一次签名最多支付十张账单，用您的余额，或以 cirBTC 为抵押品的贷款。"
+    },
+    "terms": {
+      "title": "使用条款",
+      "description": "使用 Adag 的通俗条款。Adag 是 Arc 主网上不可变账单合约的一个界面。"
+    },
+    "bill": {
+      "title": "账单 #{id}",
+      "titleFirst": "账单 #{id}（首次部署）",
+      "fallback": "账单"
+    }
+  },
+  "pay": {
+    "hallmark": "支付账单 · Arc 主网",
+    "title": "哪张<em>账单</em>？",
+    "lead": "输入供应商发给您的编号，或粘贴他们的链接。Adag 直接从 Arc 读取账单：付给谁、付多少、是否仍待付。多个编号（最多十个）可用一次签名一起支付。",
+    "countNote": "{count, plural, =1 {张账单已在 Arc 上开出：当前 AdagBills 上 {current} 张，首次部署上 {first} 张，刚刚读取。} other {张账单已在 Arc 上开出：当前 AdagBills 上 {current} 张，首次部署上 {first} 张，刚刚读取。}}",
+    "countUnknown": "Arc 没有响应，因此目前无法得知账单数量。",
+    "form": {
+      "label": "账单编号或链接",
+      "placeholder": "例如 1，或粘贴账单链接",
+      "checkingArc": "正在查询 Arc",
+      "openTheBill": "打开账单",
+      "typeANumber": "输入账单编号，例如 12，或粘贴供应商发给您的账单链接。多个编号会一起支付。",
+      "notABillNumber": "“{token}”不是账单编号也不是账单链接。请修正或删除它。",
+      "onFirstDeployment": "在 AdagBills 首次部署上",
+      "onArc": "在 Arc 上",
+      "noBillYetNone": "{where}还没有账单 #{id}。目前尚未开出任何账单。",
+      "noBillYetNewest": "{where}还没有账单 #{id}。最新的账单是 #{newest}。"
+    }
+  },
+  "bill": {
+    "missing": {
+      "bill": "账单",
+      "mark": "账单编号 {id}",
+      "markFirst": "账单编号 {id} · 首次部署",
+      "noneTitle": "Arc 上<em>还</em>没有账单 #{id}。",
+      "onFirstDeployment": "在 AdagBills 首次部署上",
+      "onArc": "在 Arc 上",
+      "noRecord": "Adag 没有这个编号的记录。请向发给您链接的人核实。",
+      "noneWritten": "{where}目前尚未开出任何账单。请向发送者核实编号。",
+      "newestIs": "{where}最新的账单是 #{count}。请向发给您链接的人核实编号。",
+      "refusedTitle": "<em>账单</em>太多了。",
+      "invalidTitle": "这不是账单<em>编号</em>。",
+      "invalidBody": "账单编号是从 1 开始的整数，例如 /bill/12。",
+      "unavailableTitle": "Arc 没有<em>响应</em>。",
+      "unavailableBody": "这张账单的状态目前不可用。本页上的任何内容都不代表已付或未付。请稍后刷新重试。",
+      "findAnother": "查找其他账单"
+    },
+    "sheet": {
+      "srTitle": "账单编号 {id}：{amount} {currency}，状态{status}",
+      "statusWord": {
+        "open": "待付",
+        "paid": "已付",
+        "void": "已取消"
+      },
+      "headline": {
+        "open": "应付金额",
+        "paid": "已付金额",
+        "void": "已取消的金额"
+      },
+      "unknownTokenLower": "未知代币",
+      "unknownToken": "未知代币",
+      "pays": "收款方",
+      "addressOnExplorer": "在 Arc 区块浏览器中查看此地址",
+      "openText": "待付。任何人都可以支付它，仅一次。在此之前，开出它的供应商仍可以取消它。",
+      "paidText": "已在 Arc 上全额支付。供应商的余额在同一笔交易中恰好增加了这个金额。",
+      "voidText": "供应商取消了这张账单。它永远无法再被支付。",
+      "details": "账单详情",
+      "due": "到期日",
+      "written": "开出日期",
+      "currency": "币种",
+      "contract": "合约",
+      "paidBy": "付款方",
+      "paidOn": "付款日期",
+      "txUnavailable": "目前不可用。账单仍为已付：这来自 Adag 自己的记录。",
+      "txNotFound": "尚未在 Adag 的付款日志中找到。",
+      "checkPassed": "已通过。这笔付款以比特币为抵押品借款，因此 Adag 检查了贷款保持在 40% 或以下。",
+      "checkPassedOnBill": "已通过。这张账单与账单 #{id} 在同一笔交易中支付，Adag 在其中检查了贷款保持在 40% 或以下。",
+      "checkNotNeeded": "无需检查：没有新债务。"
+    },
+    "live": {
+      "titlePaid": "已付 · 账单 #{id} · Adag",
+      "titleCancelled": "已取消 · 账单 #{id} · Adag"
+    },
+    "howPaid": {
+      "title": "它是如何<em>支付</em>的",
+      "pledged": "已质押",
+      "keptNeverSold": "保留，永不出售",
+      "borrowedOnMorpho": "在 Morpho 上借入",
+      "ltvAfter": "支付后的贷款价值比（{symbol}）",
+      "bitcoinSold": "出售的比特币",
+      "keepsEverySatoshi": "付款方保留每一聪",
+      "convertedInto": "由 Circle 兑换为 {symbol} 付给供应商",
+      "straightToSupplier": "直接付给供应商",
+      "paidOtherBills": "支付了这笔交易中的其他账单",
+      "fromBalance": "来自付款方的余额：没有借款，没有质押，没有出售。",
+      "unavailable": "目前无法读取付款交易。账单仍为已付：这来自 Adag 自己的记录。"
+    },
+    "void": {
+      "notConfirmed": "两分钟后 Arc 仍未确认。重试前请先检查这笔交易。",
+      "notCancelledYet": "Arc 已确认交易，但账单尚未显示为已取消。请刷新查看。",
+      "cancelledTitle": "账单 #{id} 已取消。",
+      "whatItMeans": "这意味着",
+      "noOneCanPay": "任何人都无法再支付它。",
+      "youWroteThis": "这张账单由您开出",
+      "sendIt": "把这张账单发给欠款方。在有人支付之前，您可以随时取消。",
+      "closed": "它已关闭。这里没有其他事可做。",
+      "shareThisBill": "分享这张账单",
+      "voidThisBill": "取消这张账单",
+      "confirm": "永久取消账单 #{id}？此后任何人都无法支付它，且无法撤销。",
+      "yesVoidIt": "是，取消它",
+      "keepItOpen": "暂不取消"
+    }
+  },
+  "billWallet": {
+    "payThisBill": "支付这张账单",
+    "connectToPay": "连接钱包，用您的余额，或以 cirBTC 为抵押品的贷款，一次签名支付这张账单。",
+    "payInOneSignature": "一次签名付清。",
+    "yourPosition": "您在 Arc 上的仓位。",
+    "thisBill": "这张账单",
+    "inThisWallet": "此钱包中",
+    "morphoPositions": "Morpho 仓位",
+    "justNow": {
+      "label": "刚刚支付",
+      "received": "您收到了 {amount} {symbol}。",
+      "paidBy": "付款方 <addr>{address}</addr>",
+      "txOnExplorer": "在区块浏览器中查看交易",
+      "txLinkLater": "读取 Adag 的付款日志后，交易链接会显示在这里。"
+    },
+    "market": {
+      "pledged": "已质押",
+      "loan": "贷款",
+      "loanToValue": "贷款价值比",
+      "btcCanFall": "BTC 可下跌",
+      "noLoan": "无贷款",
+      "againstCirbtc": "以 cirBTC 为抵押品的 {symbol}"
+    },
+    "price": {
+      "status": "比特币价格状态：",
+      "fresh": "{symbol} 市场的比特币价格为最新。",
+      "paused": "比特币价格已暂停：新贷款需等待下次更新。",
+      "updatedHoursAgo": "Chainlink BTC/USD 于 {hours} 小时前更新。"
+    }
+  },
+  "walletState": {
+    "connectToContinue": "连接钱包以继续。",
+    "connectToReceive": "请连接应收款的钱包。在此之前不会生成任何交易。",
+    "otherNetwork": {
+      "continue": "您的钱包在另一个网络上。切换到 Arc 以继续；在此之前不会生成任何交易。",
+      "pay": "您的钱包在另一个网络上。切换到 Arc 以继续；在此之前不会生成任何交易。",
+      "changeLoan": "您的钱包在另一个网络上。切换到 Arc 以更改贷款；在此之前不会生成任何交易。",
+      "sign": "您的钱包在另一个网络上。请切换到 Arc；在此之前不会签署任何内容。",
+      "writeBill": "您的钱包在另一个网络上。切换到 Arc 以开账单。"
+    },
+    "smartAccount": "Adag 需要 MetaMask 或 Rabby 这类普通钱包。智能账户钱包无法使用 Arc 的一次签名批量功能。",
+    "kindUnavailable": "无法在 Arc 上检查此钱包的类型。请刷新重试。",
+    "cannotSignYet": "此钱包暂时无法在这里签名。请查看菜单栏下方的说明。",
+    "checkingWallet": "正在 Arc 上检查您的钱包。",
+    "notice": {
+      "otherNetwork": "您的钱包在{network}上。Adag 仅在 Arc 主网运行：如果您的钱包还没有 Arc，“切换到 Arc”会为您添加。",
+      "safe": "这是一个 Safe。Adag 通过 Safe 的所有者从 Safe 付款：请连接某位所有者自己的钱包，然后在账单上选择“付款方：一个 Safe”。",
+      "delegated": "此钱包设有 EIP-7702 委托。已在主网分叉上测试：只要它发送自己的交易，就可以在这里付款。",
+      "kindUnavailable": "目前无法在 Arc 上检查此钱包的类型。请刷新重试。"
+    }
+  },
+  "networks": {
+    "ethereum": "以太坊主网",
+    "optimism": "OP 主网",
+    "bnb": "BNB Smart Chain",
+    "polygon": "Polygon",
+    "base": "Base",
+    "arbitrum": "Arbitrum One",
+    "avalanche": "Avalanche",
+    "sepolia": "Sepolia 测试网",
+    "arcTestnet": "Arc 测试网",
+    "unnamed": "一个尚未命名的网络",
+    "numbered": "网络 {id}"
+  },
+  "connect": {
+    "walletDidNotAnswer": "钱包没有响应。",
+    "noWalletFound": "在此浏览器中未找到钱包。请在 MetaMask 或 Rabby 内置浏览器中打开 Adag，或为此浏览器添加一个钱包。",
+    "closedRequest": "您关闭了钱包请求。未连接任何内容。",
+    "declinedSwitch": "您拒绝了切换。Adag 仅在 Arc 上运行。",
+    "checkYourWallet": "请查看您的钱包",
+    "connectedOn": "已连接到{network}",
+    "copyAddress": "复制地址",
+    "disconnect": "断开连接"
+  },
+  "safe": {
+    "payAs": {
+      "label": "付款方",
+      "thisWallet": "此钱包",
+      "aSafe": "一个 Safe"
+    },
+    "firstContract": {
+      "note": "{count, plural, =1 {账单 '#'{list} 开在 Adag 的旧合约上，Safe 无法支付。请用钱包支付，或请供应商重新开一张。} other {账单 '#'{list} 开在 Adag 的旧合约上，Safe 无法支付。请用钱包支付，或请供应商重新开出。}}",
+      "message": "{count, plural, =1 {您好，能否在 Adag 上重新开一张账单 '#'{list}？它在 Adag 的旧合约上，而我们公司的 Safe 只能支付当前合约上的账单。} other {您好，能否在 Adag 上重新开出账单 '#'{list}？它们在 Adag 的旧合约上，而我们公司的 Safe 只能支付当前合约上的账单。}}",
+      "copy": "复制发给供应商的消息"
+    },
+    "pay": {
+      "title": "从 Safe 付款",
+      "intro": "您的钱包生成付款，并以一位所有者的身份签名一次。其他所有者在 Safe 自己的应用中确认。在 Safe 执行之前不会付款，执行时还会再检查一次：如果有任何变化，整笔付款都会被拒绝，资金不会移动。",
+      "connectOwner": "请在 Arc 上连接一个拥有该 Safe 的普通钱包。",
+      "steps": {
+        "checking": "正在 Arc 上检查 Safe 和账单",
+        "simulating": "正在以 Safe 的身份在实时状态上运行付款",
+        "signing": "请在钱包中签名",
+        "proposing": "正在把提案发送到您 Safe 的队列"
+      },
+      "yourSafes": "您的 Safe",
+      "lookingUp": "正在查找您的 Safe……",
+      "pasteInstead": "请改为在下方粘贴 Safe 的地址。",
+      "noneListed": "此钱包下没有列出任何 Safe。请在下方粘贴 Safe 的地址。",
+      "listHint": "这份列表只是 Safe 服务给出的提示；在签署任何内容之前，Adag 会在 Arc 上核验该 Safe。",
+      "safeAddress": "Safe 地址",
+      "checkThisSafe": "检查这个 Safe",
+      "verified": "Safe <addr>{address}</addr> · 版本 {version} · {owners} 位所有者中需 {threshold} 位签名 · 您是所有者。",
+      "enrol": {
+        "label": "先登记这个 Safe 的现有贷款",
+        "body": "这个 Safe 已在 Morpho 上借款：其 {symbol} 贷款处于 {ltv}。Adag 只对新借款检查 40% 线，因此 Safe 需先通过一笔自己的 Safe 交易登记现有贷款。不会移动任何资金。",
+        "doesNotChange": "登记不会改变贷款，也不会让它更安全：它只是告诉 Adag 从现在起只评估 Safe 新借的部分。",
+        "proposed": "已提交提案（{hash}）。待其他所有者在 Safe 应用中执行后，即可在此提交付款提案。",
+        "button": "提交提案：登记这个 Safe 的现有贷款"
+      },
+      "options": {
+        "bitcoinPledges": "用 Safe 的比特币：质押 {amount} cirBTC{usd}，并保留它。",
+        "bitcoinPaused": "用 Safe 的比特币：在比特币价格更新前已暂停。",
+        "bitcoin": "用 Safe 的比特币",
+        "balanceHolds": "用 Safe 的余额：它持有 {amount} {symbol}。",
+        "balance": "用 Safe 的余额",
+        "convert": "用 Safe 的比特币，借入 {symbol}。"
+      },
+      "proposeButton": "向 Safe 提交提案",
+      "chooseEach": "请选择 Safe 支付每种币种的方式。",
+      "afterRecording": "上方的登记执行后，即可提交付款提案。",
+      "problems": {
+        "billsChanged": "自本页加载以来，账单 #{ids} 发生了变化。未签署任何内容。请刷新以支付其余账单。",
+        "choose": "请选择 Safe 支付 {symbol} 账单的方式。",
+        "paused": "在比特币价格更新之前，{symbol} 新贷款已暂停。请选择 Safe 的余额，或稍候。",
+        "safeHolds": "Safe 持有 {held} {symbol}，需要 {need}{guard}。未签署任何内容。",
+        "includingGuard": "，其中包括其贷款守护即将偿还的 {amount}",
+        "guardChanged": "自本页加载以来，Safe 的贷款守护发生了变化：提交提案前请先阅读上方的说明。未签署任何内容。",
+        "wouldFailUnknown": "如果现在从 Safe 执行，这笔付款会失败。请检查 Safe 是否持有所需的余额或 cirBTC。未签署任何内容。",
+        "wouldFail": "如果现在从 Safe 执行，这笔付款会失败：{why}",
+        "recordWouldFail": "如果现在从 Safe 执行，登记其贷款会失败：{why}",
+        "walletChanged": "自检查 Safe 以来，您的钱包更换了账户或网络。未签署任何内容。",
+        "declined": "您在钱包中拒绝了该请求。未签署任何内容。",
+        "notAccepted": "提案未被接受。"
+      }
+    },
+    "status": {
+      "paidBySafe": "由您的 Safe 支付",
+      "billsArePaid": "{n} 张账单已支付。",
+      "restoredExecuted": "此浏览器发起的提案已执行。",
+      "payerOfRecord": "读取自 AdagBills：Safe 是记录在案的付款方。",
+      "proposedFromBrowser": "已从此浏览器向您的 Safe 提交提案",
+      "proposed": "已向您的 Safe 提交提案",
+      "allSignaturesIn": "{count, plural, =1 {全部 {n} 个签名已到齐} other {全部 {n} 个签名已到齐}}",
+      "signaturesOf": "{need} 个签名中已有 {have} 个",
+      "signaturesUnavailable": "签名信息不可用",
+      "readingQueue": "正在读取 Safe 的队列",
+      "pressExecute": "签名已到齐。由一位所有者在 Safe 应用中点击 Execute（需支付少量网络费）。",
+      "waitingForOwners": "正在等待其他所有者在 Safe 应用中操作。在 Safe 执行之前不会付款。",
+      "paidByOther": "账单 #{ids} 已被他人支付。如果 Safe 执行，整笔付款会被拒绝，只会花掉网络费：请在 Safe 应用中拒绝它。",
+      "movedPast": "Safe 已跳过这个提案而未付款：它被替换了，或在执行时失败且资金未移动。",
+      "buildAgain": "重新生成付款",
+      "openQueue": "在 Safe 应用中打开 Safe 的队列",
+      "proposalNote": "提案 {hash}。执行后，交易会出现在<link>区块浏览器</link>中。"
+    }
+  },
+  "tx": {
+    "steps": {
+      "checking": "正在与 Arc 核对",
+      "signing": "请在钱包中确认",
+      "confirming": "等待 Arc 确认",
+      "watching": "尚无回执。正在 Arc 上检查账单",
+      "rereading": "正在重新读取账单"
+    },
+    "withSeconds": "{label} · {seconds} 秒",
+    "nothingUntilApprove": "在您批准之前不会发送任何内容。",
+    "dryRunRefused": "Arc 在试运行中拒绝了它，因此没有向您的钱包发送任何内容。",
+    "viewTheTransaction": "查看交易",
+    "networkFee": "网络费",
+    "feeIdle": "上方各项就绪后会显示网络费。",
+    "about": "约 {amount} USDC",
+    "keepAtLeast": "请在钱包中至少保留 {amount} USDC 用于网络费",
+    "feeSentence": "网络费{about}；{keep}。Arc 会预留可能的最高费用，并退回多余部分。",
+    "confirmedOnArc": "已在 Arc 上确认",
+    "transaction": "交易",
+    "onTheExplorer": "在区块浏览器中查看 {hash}"
+  },
+  "setup": {
+    "title": "需要 Arc 上的 cirBTC 或 USDC？",
+    "didNotAdd": "您的钱包没有添加 Arc。请从钱包自己的网络菜单重试。",
+    "cirbtc": "<strong>获取 cirBTC：</strong>在 <portal>Arc Portal</portal> 用 USDC 兑换，或参考 <appkit>Circle 的 App Kit Swap</appkit>。",
+    "usdc": "<strong>从其他链转入 USDC：</strong><portal>Arc Portal</portal> 可跨链转移，<cctp>Circle 的 CCTP</cctp> 是原生路径。少量 USDC 也用于支付 Arc 的网络费。",
+    "arc": "<strong>把 Arc 添加到您的钱包：</strong>如果钱包里还没有 Arc，<switch>切换到 Arc</switch> 会为您添加。"
+  },
+  "disclaimer": {
+    "close": "关闭",
+    "label": "首次借款之前",
+    "title": "通过 Morpho 借款",
+    "body": "通过本应用访问 Morpho 协议受 Adag 的<terms>使用条款</terms>和 <morpho>Morpho 免责声明</morpho>约束。使用本应用即表示您确认已阅读并理解这些条款及相关风险。",
+    "checkbox": "我已阅读并理解这些条款以及以我的 cirBTC 为抵押品借款的风险。",
+    "notNow": "暂不",
+    "continue": "继续付款"
+  },
+  "share": {
+    "sendTheBill": "发送账单"
+  },
+  "enrol": {
+    "firstLabel": "您的现有贷款",
+    "firstStale": "这张账单在 Adag 的首个合约上，该合约会在您首次于此付款时检查您在 Morpho 上的全部贷款，而目前比特币价格不是最新的。价格更新后即可付款。",
+    "firstOver": "这张账单在 Adag 的首个合约上，该合约会在您首次于此付款时计入您在 Morpho 上的全部贷款，而您的贷款已超过 40%。请供应商重新开一张；新账单使用当前合约，您可以先在那里登记贷款。",
+    "recordMismatch": "Arc 已确认交易，但 Adag 记录的贷款与 Morpho 的尚不一致。付款前请刷新核对。",
+    "noNextBlock": "您的贷款已登记，但 Arc 尚未产出下一个区块。请稍后刷新再付款。",
+    "label": "先登记您的现有贷款",
+    "bodyStale": "您已在 Morpho 上借款，而目前比特币价格不是最新的，因此 Adag 对您 {symbol} 贷款的检查会拒绝这笔付款。在您登记之前，Adag 无法区分现有贷款和新借款。登记一次，不会移动任何资金，即可用余额付款。",
+    "bodyOver": "您已在 Morpho 上借款：您的 {symbol} 贷款处于 {ltv}。在您登记之前，Adag 无法区分现有贷款和新借款。登记一次，不会移动任何资金，即可用余额付款。",
+    "opens": "登记后即可用余额付款。用比特币付款会叠加到一笔已超过 40% 的贷款上，因此整笔贷款必须最终回到 40% 或以下。",
+    "doesNotChange": "登记不会改变您的贷款，也不会让它更安全：它只是告诉 Adag 从现在起只评估您新借的部分。",
+    "waitingBlock": "已登记。等待 Arc 的下一个区块，之后即可在下方付款。",
+    "recordButton": "登记我的现有贷款"
+  },
+  "wallet": {
+    "hallmark": "您的钱包 · Arc 主网",
+    "posterTitle": "您的账单。您的<em>比特币</em>。",
+    "posterLead": "连接后即可直接从 Arc 查看您开出的账单、支付的账单，以及每一笔以 cirBTC 为抵押品的贷款。一次签名即可追加比特币或结清贷款。",
+    "title": "您的<em>钱包</em>。",
+    "loansTitle": "您在 <em>Morpho</em> 上的贷款。",
+    "positionsUnavailable": "部分贷款仓位目前不可用：Arc 没有响应。请刷新重试。",
+    "noLoansYet": "此钱包尚无贷款。",
+    "ghost": {
+      "against": "以 cirBTC <muted>为抵押品的</muted> {symbol}",
+      "noLoan": "无贷款。",
+      "opensOne": "用比特币支付一张 {symbol} 账单会在这里开启一笔。"
+    },
+    "lists": {
+      "copyLinkTo": "复制账单 {id} 的链接",
+      "newer": "较新",
+      "older": "较早",
+      "pageOf": "第 {page} 页，共 {pages} 页",
+      "unavailable": "此列表目前不可用：Arc 没有响应。",
+      "wroteTitle": "您开出的账单",
+      "wroteSummary": "已开出 {total} 张。待付：{open}{across}。{capped}",
+      "and": "和",
+      "nothing": "无",
+      "acrossBills": "{count, plural, =1 {，共 {n} 张账单} other {，共 {n} 张账单}}",
+      "totalsCapped": "合计只涵盖最新的 1,000 张。",
+      "noneWritten": "还没有账单。开出您的第一张：只需一次签名，然后把链接发出去。",
+      "noReference": "无备注",
+      "paidOnBy": "{date} 由 {payer} 支付",
+      "dueOn": "{date} 到期",
+      "paidTitle": "您支付的账单",
+      "paidSummary": "通过 Adag 支付了 {total} 张。",
+      "nonePaid": "您还没有通过 Adag 支付过账单。通过链接打开一张，或按编号查找。",
+      "to": "收款方 {payee}",
+      "paidOn": "{date} 支付"
+    },
+    "export": {
+      "notLoaded": "列表尚未加载完成。请稍后重试。",
+      "finding": "正在 Arc 上查找交易 · {done} / {total}",
+      "exported": "{count, plural, =1 {已导出 {n} 张账单{capped}。} other {已导出 {n} 张账单{capped}。}}",
+      "cappedNote": "，即最新的 1,000 张",
+      "title": "导出给您的会计",
+      "body": "两个电子表格文件，在您的浏览器中根据与上方列表相同的记录生成：每张账单及其状态、UTC 日期、金额、备注、交易链接，以及是否执行了 40% 检查。",
+      "written": "您开出的账单（CSV）",
+      "paid": "您支付的账单（CSV）"
+    }
+  },
+  "csv": {
+    "header": {
+      "contractAddress": "合约地址",
+      "billNumber": "账单编号",
+      "status": "状态",
+      "writtenAt": "开出时间",
+      "paidAt": "付款时间",
+      "supplier": "供应商",
+      "payer": "付款方",
+      "amount": "金额",
+      "currency": "币种",
+      "reference": "备注",
+      "transactionLink": "交易链接",
+      "fortyCheckRan": "已执行 40% 检查"
+    },
+    "words": {
+      "paid": "已付",
+      "void": "已取消",
+      "open": "待付",
+      "unknown": "未知",
+      "unavailable": "不可用",
+      "notFound": "未找到",
+      "yes": "是",
+      "no": "否"
+    }
+  },
+  "loan": {
+    "borrowedAgainst": "以 cirBTC <muted>为抵押品借入的</muted> {symbol}",
+    "morphoMarket": "Morpho 市场 {id}",
+    "stats": {
+      "pledged": "已质押",
+      "aboutEstimated": "约 {usd}，估算值",
+      "youOwe": "您的欠款",
+      "exactRoundedUp": "精确值，向上取整",
+      "bitcoinCanFall": "比特币可下跌",
+      "noLoan": "无贷款",
+      "beforeLiquidate": "Morpho 才可能清算",
+      "borrowRate": "借款利率"
+    },
+    "priceFresh": "比特币价格为最新。",
+    "pricePaused": "比特币价格已暂停，新贷款暂不可用。",
+    "checksOnlyAtPay": "Adag 只在您付款的那一刻检查 40% 线。此后，只有下方的贷款守护会监控它，前提是您开启了它。",
+    "tabs": {
+      "label": "贷款操作",
+      "add": "追加 cirBTC",
+      "repay": "偿还一部分",
+      "close": "结清贷款",
+      "takeBack": "取回您的比特币"
+    },
+    "add": {
+      "holdsOnly": "您的钱包持有 {amount} cirBTC。",
+      "label": "要追加的 cirBTC · 您持有 <held></held>",
+      "after": "追加后的贷款价值比：<ltv></ltv>。没有新债务，因此无需价格检查。",
+      "notAsExpected": "Arc 已确认交易，但 Morpho 的记录未如预期显示这笔质押。请检查这笔交易。",
+      "done": "已追加 {amount} cirBTC。当前质押：{pledged} cirBTC。"
+    },
+    "repay": {
+      "mostIs": "用这种方式最多可偿还 {amount} {symbol}。要全部偿还，请使用“结清贷款”。",
+      "holdsOnly": "您的钱包持有 {amount} {symbol}{fee}。",
+      "andFee": "，另需少量 USDC 支付网络费",
+      "label": "要偿还的 {symbol} · 您欠 <owed></owed>",
+      "max": "最大",
+      "button": "偿还",
+      "after": "此后，贷款价值比为 <ltv></ltv>，比特币可下跌 <drop></drop>，Morpho 才可能清算。",
+      "dust": "“最大”会留下几个最小单位的零头，因为这是按金额偿还；“结清贷款”会清掉剩余部分并归还您的 cirBTC。",
+      "feeIdle": "金额有效后会显示网络费。",
+      "notAsExpected": "Arc 已确认交易，但 Morpho 的记录未如预期显示这笔偿还。请检查这笔交易。",
+      "done": "已偿还 {amount} {symbol}。您现在欠 {owed} {symbol}。"
+    },
+    "close": {
+      "explain": "按您精确的贷款份额偿还 <debt></debt>，然后取回全部 {collateral} cirBTC。授权额度为 {approval} {symbol}，用于覆盖到区块时为止的利息，并在同一次签名中重置为 0。",
+      "noDebt": "这里没有债务。把全部 {collateral} cirBTC 取回到您的钱包。",
+      "short": "您的钱包持有 <held></held> {symbol}；结清需要 {need}{fee}。请先添加 {add} {symbol}。",
+      "includingFee": "，含少量用于网络费",
+      "keepUsdc": "请在此钱包中保留少量 USDC 用于网络费。",
+      "stopsGuard": "结清也会停止这笔贷款的贷款守护：规则清除，授权额度设为 0。",
+      "reading": "正在 Arc 上读取您的贷款和余额。",
+      "withOther": "用 {symbol} 结清",
+      "readingEuro": "正在 Arc 上读取欧元价格和您的 {symbol}。",
+      "notAsExpected": "Arc 已确认交易，但 Morpho 未将该贷款读取为已结清。请检查这笔交易。",
+      "backInWallet": "{amount} cirBTC 已回到您的钱包。",
+      "doneLoan": "贷款已结清。欠款 0，质押 0。{returned}",
+      "doneNoLoan": "完成。此市场中质押为 0，且{returned}",
+      "guardOff": "这笔贷款的贷款守护已关闭：没有规则，授权额度为 0。",
+      "notBuiltShort": "Arc 没有响应，因此未生成结清交易。请重试。",
+      "noLoanToConvert": "这里没有可以通过兑换结清的贷款。",
+      "guardNoAnswerShort": "Arc 没有返回您贷款守护的信息，因此未生成结清交易。请重试。",
+      "leftInWallet": "{amount} {symbol} 留在您的钱包中。",
+      "adapterClear": "Circle 的适配器对您钱包没有访问权限。",
+      "adapterMaybe": "Circle 的适配器可能仍拥有您钱包的访问权限：再次兑换前请先检查。",
+      "effectsUnchecked": "Adag 在您签名前无法追踪这次兑换的转账。",
+      "circleTurned": "Circle 把 {from} 兑换成了 {to}。",
+      "needs": "结清需要 {need} {symbol}，而您的钱包持有 {held}。请添加 {add} {symbol} 后重试。未发送任何内容。",
+      "guardNoAnswer": "Arc 没有返回您贷款守护的信息，因此未生成结清交易。未发送任何内容。请重试。"
+    },
+    "gauge": {
+      "loanToValue": "贷款价值比",
+      "aria": "贷款价值比 {pct}%（满刻度 100%），Adag 的线在 {adag}%，Morpho 在 {morpho}% 清算"
+    }
+  },
+  "guard": {
+    "section": {
+      "saveNotAsExpected": "Arc 已确认交易，但 AdagGuard 未将规则读取为已保存。请检查这笔交易。",
+      "protectedDone": "已守护。它在 {trigger} 时介入，偿还至 {target}，最多使用 {amount} {symbol}。",
+      "repayNotReported": "Arc 已确认交易，但 AdagGuard 没有报告这笔贷款的偿还。价格可能已回落。请检查这笔交易。",
+      "repaidDone": "守护已从您的钱包偿还了这笔贷款的 {amount} {symbol}。",
+      "ariaLabel": "{symbol} 贷款的贷款守护",
+      "readingGuard": "正在 Arc 上读取 AdagGuard。",
+      "settingsUnavailable": "守护的设置目前不可用：Arc 没有响应。",
+      "wouldRepay": "此刻它会偿还约 {amount} {symbol}。Adag 的自动执行程序（Adag 运行的一个小程序）会在几分钟内发送它。",
+      "canRepayNow": "您也可以现在就偿还。",
+      "wouldNotAct": "此刻它不会触发偿还。",
+      "change": "更改",
+      "protectThisLoan": "守护这笔贷款",
+      "repayItNow": "现在偿还"
+    },
+    "stop": {
+      "notDeployed": "贷款守护尚未部署，因此未生成任何交易。",
+      "notCleared": "Arc 已确认交易，但规则或授权额度未读取为已清除。请检查这笔交易。",
+      "stopped": "守护已停止。没有规则，AdagGuard 对您 {symbol} 的授权额度为 0。"
+    },
+    "summary": {
+      "notProtected": "未守护。如果这笔贷款越过您选定的线，守护会用您自己的 {symbol} 偿还一部分，使其远离 Morpho 86% 的清算线。",
+      "leftover": "AdagGuard 仍持有 {amount} {symbol} 的授权额度但没有规则。“停止守护”会把它设为 0。",
+      "protected": "已守护：在 <strong>{trigger}</strong> 时偿还至 <strong>{target}</strong>。最多可使用 <usableSpan>{usable}</usableSpan>（当前授权额度 <allowanceSpan>{allowance}</allowanceSpan>）。",
+      "ended": "已于 {date} 结束。",
+      "until": "有效至 {date}。",
+      "cannotActZero": "它无法执行偿还：授权额度为 0。请更改以给它一个额度，或停止守护。",
+      "noBalance": "您的钱包没有 {symbol}，因此守护无法偿还。"
+    },
+    "list": {
+      "loanOf": "{symbol} 贷款",
+      "changeOnWallet": "在您的钱包页面更改",
+      "closedLoan": "这笔贷款已结清。“停止守护”会把授权额度设为 0。",
+      "title": "您的贷款守护",
+      "reading": "正在 Arc 上读取您的贷款和 AdagGuard。",
+      "none": "此钱包没有贷款也没有守护。用比特币支付一张账单后，贷款会显示在这里。",
+      "someUnavailable": "部分贷款目前不可用：Arc 没有响应。响应后它们会显示在这里。"
+    },
+    "gauge": {
+      "target": "目标线 {pct}",
+      "trigger": "触发线 {pct}",
+      "ltvUnavailable": "贷款价值比不可用",
+      "ltv": "贷款价值比 {pct}%"
+    },
+    "panel": {
+      "usePercentage": "请使用百分比，例如 55 或 55.5。",
+      "realEndDate": "请选择一个有效的结束日期，或不设置。",
+      "stepInWhen": "当贷款达到以下水平时介入",
+      "morphoLiquidatesAt": "Morpho 在 {pct} 清算。",
+      "repayDownTo": "偿还至",
+      "onlyWhatBrings": "每次只偿还把它拉回这里所需的部分。",
+      "mayUse": "它最多可使用的 {symbol} 总额 · 您持有 {held}",
+      "oneStep": "单次守护",
+      "oneStepRepays": "从触发线开始的一次守护会偿还约 {amount} {symbol}。",
+      "neverMore": "无论触发多少次，它都不会超过这个额度。",
+      "endDate": "结束日期 · 可选",
+      "noDateStaysOn": "不设日期则持续有效，直到您停止它。",
+      "alreadyPast": "您的贷款已处于 {ltv}，超过了这个触发线。保存后，它会在几分钟内偿还约 <strong>{amount}</strong>{landing}。",
+      "bringingTo": "，使其回到约 {ltv}",
+      "wouldNotActToday": "按今天的价格它不会触发偿还。",
+      "stepsInIfFalls": "如果比特币从当前水平下跌约 {pct}%，它会介入。",
+      "ceiling": "它最多只能动用您的授权额度{approval}。每次触发，它只偿还把贷款拉回目标线所需的部分，授权额度相应减少。",
+      "onlyYourLoan": "它只能用这份授权额度偿还您自己的贷款。一旦贷款越过您的触发线，任何人都可以触发它，包括 Adag。",
+      "usdcGasWarning": "在 Arc 上，USDC 同时用于支付网络费。USDC 规则使用同一份余额，因此可能让这个钱包没有足够的 USDC 来发送交易。",
+      "feeIdle": "规则和金额有效后会显示网络费。",
+      "saveNewRule": "保存新规则",
+      "protectThisLoan": "守护这笔贷款",
+      "oneSignature": "一次签名：先授权恰好这个金额，再设置规则。"
+    }
+  },
+  "protect": {
+    "hallmark": "贷款守护 · 提醒",
+    "title": "比 <em>Morpho</em> 更早知道。",
+    "lead": "当贷款越过您选定的线时，贷款守护会用您自己的 USDC 或 EURC 偿还一部分。贷款接近时，以及守护每次触发时，提醒会通过 Telegram 通知您。守护在您钱包中的每笔贷款上单独设置。",
+    "connectForAlerts": "请连接您想为其贷款接收提醒的钱包。"
+  },
+  "alerts": {
+    "codeExpired": "代码在点击“开始”（Start） 之前已过期。请获取新的。",
+    "usePercentagesLike": "请使用百分比，例如 60 或 72.5。",
+    "levelsSaved": "提醒线已保存：{levels}。",
+    "alertsOff": "此钱包的提醒已关闭。曾关联的聊天不会再收到任何消息。",
+    "title": "贷款接近时发一条消息，守护每次偿还时也发一条。",
+    "plainText": "纯文本，只有数字：除 Adag 自己的网址外，绝不包含可点击的链接。提醒尽力送达；守护不依赖它们。",
+    "linkedHereOn": "此浏览器于 {date} 为此钱包关联了提醒。",
+    "gettingCode": "正在获取代码",
+    "linkAnotherChat": "关联另一个聊天",
+    "getAlerts": "获取 Telegram 提醒",
+    "openBotPressStart": "打开机器人并点击“开始”（Start）。链接中的代码仅属于您，有效期十分钟。",
+    "openTelegram": "打开 Telegram",
+    "waitingForStart": "等待在 Telegram 中点击“开始”（Start）",
+    "chatPressedStart": "聊天 <chat></chat>（id {id}）点击了“开始”（Start）。请在钱包中签署一条消息，把它关联到此钱包。签名不花费任何费用，也不会发送交易。",
+    "withoutUsername": "无用户名",
+    "signAndLink": "签名并关联",
+    "linked": "已关联。此钱包的提醒会发送到那个聊天。随时可在那里发送 /stop，或在这里停止。",
+    "whatYouSign": {
+      "link": "您签署的消息是英文的，内容为：在本站点、链 5042 上，用此代码和此聊天 id 把此钱包关联到一个 Telegram 聊天，以及过期时间。服务器核对的是同一段文字，因此它永不翻译。",
+      "levelsAndStop": "您签署的消息是英文的，内容为：在本站点、链 5042 上，设置触发提醒的贷款水平，或停止此钱包的提醒，附带一次性 nonce 和过期时间。服务器核对的是同一段文字，因此它永不翻译。"
+    },
+    "levels": {
+      "title": "提醒线",
+      "body": "贷款的贷款价值比每次升破一条线时发一条消息，只发一次，直到它回落到线下。在您自行设置之前，提醒线为 60% 和 75%。",
+      "saved": "{date} 已保存：{levels}",
+      "level": "第 {n} 条线",
+      "none": "无",
+      "signAndSave": "签名并保存提醒线",
+      "stopAlerts": "停止此钱包的提醒",
+      "eachChange": "每次更改都是一条由您钱包签署的消息。Adag 从不向任何人透露某个钱包是否开启了提醒。"
+    }
+  },
+  "break": {
+    "stamps": {
+      "refused": "已拒绝",
+      "held": "已守住",
+      "allowed": "已允许",
+      "byDesign": "设计如此",
+      "broken": "被攻破",
+      "error": "未运行",
+      "armed": "待命",
+      "running": "运行中",
+      "verdict": "判定：{word}"
+    },
+    "tally": {
+      "armed": "攻击已就位",
+      "soFar": "共 {total} 项，截至目前均符合威胁模型",
+      "brokeThrough": "已守住。{n} 项被攻破",
+      "allHeld": "共 {total} 项，均符合威胁模型",
+      "couldNotRun": "符合威胁模型。{n} 项无法运行"
+    },
+    "simulatedDrop": "模拟价格下跌 · 模拟预言机，低 25%",
+    "simulatedCrash": "模拟价格崩盘 · 模拟预言机归零",
+    "whatShouldStopIt": "应当阻止它的是 · <span>{stopper}</span>",
+    "simulatingOnArc": "正在 Arc 上模拟",
+    "rawAnswer": "链上原始回应",
+    "decoded": "已解码",
+    "gas": "Gas",
+    "invariant": "不变量",
+    "status": {
+      "idle": "大约一分钟。每次模拟依次排队，以免挤占 Arc 的公共节点。",
+      "reading": "正在读取 Arc 实时状态 · {seconds} 秒",
+      "simulating": "正在 Arc 上模拟 · {answered} / {total} · {seconds} 秒",
+      "cached": "来自 {age} 秒 前的运行结果。新运行每分钟最多启动一次。",
+      "finished": "在 {seconds} 秒 内完成。"
+    },
+    "nothingSigned": "不签署也不发送任何内容",
+    "hallmark": "攻击套件 · Arc 主网",
+    "titleLine1": "试着",
+    "titleLine2": "<em>攻破</em>它。",
+    "lead": "{total} 次针对 Adag 实时合约（AdagBills 和贷款守护）的真实攻击，在 Arc 主网当前状态上模拟：真实的贷款、真实的账单、真实的比特币价格。不签署也不发送任何内容。",
+    "attacking": "正在攻击",
+    "runAgain": "再次运行",
+    "runAll": "运行全部 {total} 次攻击",
+    "legendLabel": "各印章的含义，以及下一步去哪里",
+    "legend": {
+      "refused": {
+        "term": "已拒绝",
+        "means": "链拒绝了它。"
+      },
+      "held": {
+        "term": "已守住",
+        "means": "它运行了，但受保护的内容没有任何变动。"
+      },
+      "byDesign": {
+        "term": "设计如此",
+        "means": "一个已知且被接受的缺口，只影响攻击者自己的贷款。"
+      },
+      "allowed": {
+        "term": "已允许",
+        "means": "链允许了它，而威胁模型认为这是正确的。"
+      }
+    },
+    "next": "下一步",
+    "threatModel": "威胁模型",
+    "liveStateAt": "区块 {block} 的实时状态",
+    "simulatedOn": "，在{provider}上模拟",
+    "theAttacks": "攻击列表",
+    "groups": {
+      "bills": {
+        "name": "支付账单",
+        "note": "针对当前的 AdagBills 以及演示钱包在 Morpho 上的真实贷款。"
+      },
+      "enrol": {
+        "name": "登记现有贷款",
+        "note": "登记（enrol）会保存付款方已有的贷款，使其后续付款以此为基准进行检查。"
+      },
+      "guard": {
+        "name": "贷款守护",
+        "note": "针对实时的 AdagGuard。每一行贷款守护都从一个模拟前提开始：演示付款方在 Morpho 上借款，直到贷款处于 38.00%，高于 35% 的触发线。AdagGuard、Morpho 和预言机均未被改写。"
+      }
+    },
+    "footer": {
+      "simulatedAt": "在{providers}上模拟，Arc 区块 {block} · {when}",
+      "and": "和",
+      "pinned": "每次运行都固定在 Arc 的最新区块",
+      "terminal": "同样的套件可在终端运行：<attack>attack.mjs</attack> 和 <guard>guard-attack.mjs</guard>"
+    },
+    "residuals": {
+      "A4": "设计如此，在下一次付款时被捕获。<link>威胁模型</link>中 C10 下列明的残余风险。",
+      "E5": "设计如此：在一个区块登记并在下一个区块付款，风险由付款方自行承担。<link>威胁模型</link>中 C32 下列明的残余风险。"
+    },
+    "checks": {
+      "A1": {
+        "attack": "一个有钱的陌生人再次支付一张已付的账单。",
+        "stopper": "一张账单只能支付一次。只有待付的账单可以支付。"
+      },
+      "A2a": {
+        "attack": "在 Adag 之外结清贷款，然后以四分之一的比特币重新借入同样的金额。",
+        "stopper": "Morpho 自身 86% 的清算线在触及 Adag 之前就阻止了它。"
+      },
+      "A2b": {
+        "attack": "结清贷款，然后以价值 60% 的比特币（Morpho 允许）重新借入同样的金额，并支付一张账单。",
+        "stopper": "Adag 发现质押自上次检查以来缩减了，因此执行 40% 检查。"
+      },
+      "A3": {
+        "attack": "最多借入比特币价值一半的金额，并在同一次签名中支付一张新账单。",
+        "stopper": "Adag 发现新债务，因此执行 40% 检查。"
+      },
+      "A4": {
+        "attack": "用余额支付一张账单，然后在同一批次中、在 Adag 的步骤之后借到 60%。下一个区块，再支付一张账单。",
+        "stopper": "设计如此，在下一次付款时被捕获。"
+      },
+      "A5": {
+        "attack": "供应商支付自己的账单。",
+        "stopper": "付款方永远不能是收款方。"
+      },
+      "A6_1": {
+        "attack": "一个陌生人开出一张以 cirBTC 支付的账单。",
+        "stopper": "账单只能以 USDC 或 EURC 计价。"
+      },
+      "A6_2": {
+        "attack": "一个陌生人开出一张以 WETH 支付的账单。",
+        "stopper": "账单只能以 USDC 或 EURC 计价。"
+      },
+      "A6_3": {
+        "attack": "一个陌生人开出一张以虚构代币支付的账单。",
+        "stopper": "账单只能以 USDC 或 EURC 计价。"
+      },
+      "A6_4": {
+        "attack": "一个陌生人开出一张金额为零的账单。",
+        "stopper": "账单金额必须大于零。"
+      },
+      "A6_5": {
+        "attack": "一个陌生人开出一张带有 141 字节发票备注的账单。",
+        "stopper": "备注最多 140 字节。"
+      },
+      "A7a": {
+        "attack": "一个陌生人取消供应商的待付账单。",
+        "stopper": "只有开出账单的供应商才能取消它。"
+      },
+      "A7b": {
+        "attack": "供应商在账单已付后取消它。",
+        "stopper": "只有待付的账单可以取消。"
+      },
+      "A8": {
+        "attack": "在没有授权 Adag 转移 USDC 的情况下支付账单。",
+        "stopper": "代币拒绝，整个批次自行回滚。"
+      },
+      "A9a": {
+        "attack": "比特币下跌 25%。用余额支付一张新账单，没有新借款。",
+        "stopper": "有意允许：没有新债务，因此没有可检查的内容。价格下跌永远不会阻止余额付款。"
+      },
+      "A9b": {
+        "attack": "比特币下跌 25%。多借一分钱并支付同一张账单。",
+        "stopper": "新债务，因此执行 40% 检查。"
+      },
+      "E1": {
+        "attack": "用 enrol 登记贷款，并在同一批次中用余额支付一张账单。",
+        "stopper": "在本区块登记的付款方会被拒绝，因此贷款无法在登记的同时被花掉。"
+      },
+      "E2": {
+        "attack": "借到 60%，用 enrol 登记这笔债务，并支付一张账单，全部在一个批次中。",
+        "stopper": "同样的同区块拒绝：新债务无法在登记的同时被花掉。"
+      },
+      "E3": {
+        "attack": "一个陌生人调用 enrol，企图覆盖演示付款方登记的贷款，然后付款方付款。",
+        "stopper": "enrol 不接受参数，只会写入调用者自己的记录。"
+      },
+      "E4": {
+        "attack": "在一个区块登记；在下一个区块，于 Adag 之外结清贷款，以价值 60% 的比特币重新借入，并付款。",
+        "stopper": "质押低于登记时的水平，因此执行 40% 检查。"
+      },
+      "E5": {
+        "attack": "在 Adag 之外借到 60% 并登记；在下一个区块，用余额支付一张账单。",
+        "stopper": "设计如此：enrol 按贷款现状接受它，风险只落在付款方自己的仓位上。"
+      },
+      "G6": {
+        "attack": "在同一价格下调用 protect 三次：一个区块内两次，下一个区块一次。",
+        "stopper": "每次 protect 只偿还把贷款拉回目标线所需的部分，因此重复调用无事可做。"
+      },
+      "G1": {
+        "attack": "提取超出付款方授权的金额：贷款所需超过 0.10 USDC 的授权额度，且 protect 运行两次。",
+        "stopper": "授权额度是累计上限，protect 以它为限。"
+      },
+      "G2a": {
+        "attack": "通过 Morpho 上另一个真实的 USDC/cirBTC 市场守护付款方的贷款。",
+        "stopper": "AdagGuard 只接受它固定的两个市场 id，并与 Morpho 核对。"
+      },
+      "G2b": {
+        "attack": "设置一条规则，并用与 Adag 市场 id 只差一个十六进制位的 id 调用 protect。",
+        "stopper": "差一位就是另一个 id，会被拒绝。"
+      },
+      "G2c": {
+        "attack": "在 EURC 市场守护付款方，而他在那里没有贷款也没有规则。",
+        "stopper": "每个市场只偿还自己的贷款，且只针对真实、已触发的规则。"
+      },
+      "G3": {
+        "attack": "一个陌生人在贷款低于付款方 50% 触发线时调用 protect。",
+        "stopper": "protect 只在达到或超过触发线时才执行；否则没有资金移动，也不发出任何事件。"
+      },
+      "G4": {
+        "attack": "付款方的规则在设置后 60 秒过期；一个陌生人恰在那一秒调用 protect。",
+        "stopper": "过期的规则不起作用。"
+      },
+      "G5a": {
+        "attack": "一个陌生人清除付款方的规则。",
+        "stopper": "规则以发送者为键；任何人都无法指定其他钱包。"
+      },
+      "G5b": {
+        "attack": "一个陌生人设置一条规则（80% / 1%），企图让它落到付款方身上。",
+        "stopper": "setRule 只写入发送者自己的规则。"
+      },
+      "G7": {
+        "attack": "贷款需要更多时，付款方的钱包只持有 0.05 USDC。",
+        "stopper": "protect 提取的永不超过钱包持有量，且不会回滚。"
+      },
+      "G8": {
+        "attack": "比特币崩至零。用 2 USDC 的授权额度对整笔贷款执行 protect。",
+        "stopper": "偿还额以向下取整的债务为上限，因此 Morpho 的份额运算不会下溢。"
+      },
+      "G9a": {
+        "attack": "比特币崩至零。守护一个授权了 1 USDC 但没有规则的付款方。",
+        "stopper": "没有规则就不会执行，即使价格为零。"
+      },
+      "G9b": {
+        "attack": "守护一个没有贷款也没有规则的钱包。",
+        "stopper": "没有可偿还的，没有资金移动。"
+      },
+      "G10": {
+        "attack": "调用抽空资金所需的管理员函数：transferOwnership、withdraw、rescue、pause 和 upgradeToAndCall。",
+        "stopper": "不存在所有者、暂停、救援或升级；只有 setRule、clearRule 和 protect 会改变状态。"
+      }
+    }
+  },
+  "terms": {
+    "hallmark": "使用条款 · Adag",
+    "title": "通俗版<em>条款</em>。",
+    "lead": "很短，因为合约本身会说话。使用本网站即表示您接受以下条款。",
+    "englishApplies": "这是为方便阅读提供的译文。以英文版条款为准。",
+    "and": "和",
+    "sections": {
+      "whatAdagIs": {
+        "title": "Adag 是什么",
+        "body": "Adag 是一个网站，与 Arc 主网上的一个智能合约 AdagBills 交互。该合约不可变：没有所有者，没有管理员密钥，任何人（包括开发它的人）都无法暂停、升级或更改其规则。网站只是它的一个界面。"
+      },
+      "youSign": {
+        "title": "一切由您签署",
+        "body": "每一笔付款、贷款和取消都是您在自己钱包中审阅并签署的交易。Adag 从不持有您的资金，从不持有您的密钥，没有您的签名无法移动任何东西。合约在同一笔交易内把精确的账单金额从付款方转给供应商，自己不保留任何部分。"
+      },
+      "liquidation": {
+        "title": "借款可能以清算告终",
+        "body": "用比特币付款会把您的 cirBTC 质押在 Morpho 上，并以此借入账单金额。如果比特币价格跌得足够深，Morpho 可以清算该贷款并卖出您的部分质押。Adag 会拒绝任何让贷款超过您比特币价值 40% 的付款，但只在您付款的那一刻检查。此后，利息和价格持续变动，Adag 不会监控贷款，一旦贷款达到 86%，Morpho 即可清算。监控和偿还贷款由您自行负责。"
+      },
+      "tokens": {
+        "title": "代币带有其发行方的风险",
+        "body": "USDC、EURC 和 cirBTC 由第三方发行，他们可以冻结地址、暂停转账或更改代币的行为方式。一旦发生，付款可能失败或资金可能被卡住。Adag 无法凌驾于其上。"
+      },
+      "noAudit": {
+        "title": "除我们自己的审查外没有审计",
+        "body": "该合约没有经过付费的第三方审计。已有的内容均已公开：一份威胁模型、一份自审（含针对已部署合约在主网实时状态上模拟的攻击套件），以及静态分析。每个合约的源代码都已在 Arc 区块浏览器上验证：<contracts></contracts>。"
+      },
+      "notAdvice": {
+        "title": "不构成建议，无关联关系",
+        "body": "本站的任何内容都不是财务、法律或税务建议。Adag 是一个独立项目。它与 Circle、Arc 或 Morpho 没有关联，不受其背书，也不由其运营。"
+      },
+      "ownRisk": {
+        "title": "风险自担",
+        "body": "Adag 按现状提供，不附带任何形式的保证。您自行承担使用风险，并有责任在签名前核对每一张账单、每一个地址和每一笔交易。"
+      }
+    },
+    "publishedReview": "已公开的审查",
+    "docs": {
+      "threatModel": "威胁模型以及本应用遵循的标准",
+      "attackSuite": "针对已部署合约模拟的攻击套件",
+      "staticAnalysis": "静态分析结果"
+    }
+  },
+  "notFound": {
+    "label": "404 · 不在 ADAG 上",
+    "title": "这个页面<em>不在 Adag 上</em>。",
+    "body": "网址可能输错了，或者这张账单在另一个合约上。",
+    "backHome": "返回首页",
+    "readTheDocs": "阅读文档"
+  },
+  "appFooter": {
+    "tagline": "Arc 主网上的账单，用余额支付，或以质押的比特币为抵押品借款来支付。",
+    "poweredBy": "由 Morpho 提供支持",
+    "firstDeployment": "首次部署 {address}"
+  },
+  "docs": {
+    "theme": "主题",
+    "englishOnly": "文档以英文撰写，未提供翻译。"
+  },
+  "write": {
+    "hallmark": "开账单 · Arc 主网",
+    "title": "<w>开</w>一张<em>账单</em>。",
+    "lead": "一次签名把它放到 Arc 上，仅可向您支付一次。把链接发给欠款方。",
+    "currency": "币种",
+    "amount": "金额",
+    "due": {
+      "label": "到期日",
+      "chooseOrNone": "请选择到期日，或选择“无到期日”。",
+      "inThePast": "到期日已过。",
+      "choose": "请选择到期日。",
+      "shownNeverEnforced": "仅向付款方展示，从不强制执行。"
+    },
+    "ref": {
+      "bytes": "{used} / {max} 字节",
+      "placeholder": "发票 1042，九月托管费",
+      "note": "在 Arc 上公开：任何人都可以永久读取。汉字、带重音的字母和符号各占多个字节，因此能写的字符数少于字节上限。",
+      "tooLong": "备注为 {used} 字节；上限为 {max}。请缩短。"
+    },
+    "writeTheBill": "开出账单",
+    "fixTheField": "请修正上方标记的字段后再开账单。",
+    "feeIdle": "账单有效后会显示网络费。",
+    "newToArc": "刚接触 Arc？",
+    "notAsExpected": "Arc 已确认交易，但开出的账单读取结果与预期不符。请检查这笔交易。",
+    "writtenOnArc": "已在 Arc 上开出",
+    "readyToShare": "账单 #{id} 已可分享。",
+    "openTheBillPage": "打开账单页面",
+    "writeAnother": "再开一张账单",
+    "preview": {
+      "label": "付款方将看到的内容",
+      "draft": "草稿",
+      "yourConnectedWallet": "您已连接的钱包",
+      "due": "到期日",
+      "chooseADate": "请选择日期",
+      "tooLong": "太长",
+      "billNo": "账单编号"
+    }
+  },
+  "payActions": {
+    "payThisBill": "支付这张账单",
+    "fail": {
+      "noRecord": "Arc 已确认交易，但 Adag 在其中没有这张账单的付款记录。重试前请检查链接。",
+      "needsWithGuard": "这笔付款需要 {need} {symbol}：账单金额加上您贷款守护即将偿还的 {guard}。您的钱包持有 {held}。未发送任何内容。",
+      "notBuilt": "Arc 没有响应，因此没有生成付款。未发送任何内容。请重试。",
+      "pledgesMore": "这笔付款要质押 {pledge} cirBTC，而您的钱包持有 {held}。未发送任何内容。",
+      "billChanged": "自页面加载以来，这张账单发生了变化。请刷新页面查看当前状态。",
+      "notBuiltShort": "Arc 没有响应，因此没有生成付款。请重试。",
+      "pledgesMoreShort": "这笔付款要质押 {pledge} cirBTC，而您的钱包持有 {held}。"
+    },
+    "receipt": {
+      "title": "账单 #{id} 已支付。",
+      "supplierReceived": "供应商收到",
+      "paidFrom": "付款来源",
+      "fromBalance": "您的 {symbol} 余额",
+      "fromConverted": "以您的 cirBTC 为抵押品的 {loan} 贷款，由 Circle 兑换为 {symbol}",
+      "fromLoan": "以您的 cirBTC 为抵押品的贷款",
+      "borrowedAndConverted": "借入并兑换",
+      "pledgedNow": "当前质押",
+      "cirbtcMore": "新增 {amount} cirBTC{usd}",
+      "ltvAfterSymbol": "支付后的 {symbol} 贷款价值比",
+      "seeTheTransaction": "查看交易",
+      "ranAndPassed": "已执行并通过",
+      "notNeeded": "无需执行",
+      "extraCheck": "额外检查",
+      "yourBitcoinBack": "取回您的比特币",
+      "repayAnyTimeOther": "随时可在“您的钱包”中偿还：结清贷款，或用另一种币种结清。",
+      "repayAnyTime": "随时可在“您的钱包”中偿还：结清贷款。"
+    },
+    "closed": {
+      "progressPaid": "Arc 已显示这张账单为已付。Adag 正在读取您的交易，以确认这笔付款是您的。",
+      "progressCancelled": "您的付款在途中时，这张账单被取消了。Adag 正在读取您的交易。",
+      "cannotBePaid": "这张账单无法支付。"
+    },
+    "blocked": {
+      "readingPriceStatus": "正在 Arc 上读取比特币价格状态。",
+      "readingPosition": "正在 Arc 上读取您的仓位。",
+      "positionUnreadable": "无法读取您的仓位。请在下方重试。"
+    },
+    "sameBlock": "您的贷款已在 Arc 最新区块中登记。下一个区块产出后即可付款，请稍等片刻。",
+    "fromYourBalance": "用您的余额",
+    "balance": {
+      "unavailable": "您的 {symbol} 余额目前不可用。",
+      "youHold": "您持有 {amount} {symbol}。一次签名即授权恰好账单金额并完成支付。",
+      "guardAboutToUse": "您的贷款守护即将从此钱包使用 {amount} {symbol}，因此没有余额可用于这张账单。",
+      "needUsdc": "您需要 {amount} 用于账单，以及少量 USDC 用于网络费{keep}。您的钱包持有 {held} USDC，因此不提供用余额支付。",
+      "holdLess": "您持有的 {symbol} 少于这张账单，因此不提供用余额支付。"
+    },
+    "payFromBalance": "用余额支付 {amount}",
+    "opensOnceRecorded": "您的贷款登记后即可使用。届时会显示网络费。",
+    "fromBitcoin": "用比特币",
+    "lendShort": "Morpho 目前可借出 <ready></ready>，少于这张账单。用余额支付仍然可用，或稍后再来。",
+    "supplierGets": "供应商收到 <strong>{amount}</strong>。",
+    "pledgeNothingExtra": "您<strong>无需追加质押 cirBTC</strong>：已质押的部分足以覆盖。不会卖出任何比特币。",
+    "pledgeAndKeep": "您质押 <pledge></pledge> 并保留它。不会卖出任何比特币。",
+    "canFall": "比特币可下跌 <drop></drop>，Morpho 才可能清算。",
+    "morphoReady": "Morpho 目前可借出 <ready></ready>。",
+    "figures": {
+      "borrowRate": "Morpho 借款利率",
+      "cirbtcInWallet": "您钱包中的 cirBTC",
+      "liquidationLine": "清算线",
+      "morphosNotAdags": "Morpho 的，不是 Adag 的"
+    },
+    "pledgeNote": "质押额为 Adag 自己的计算值再加 5% 以应对价格波动。随时可在“您的钱包”中偿还并取回比特币。",
+    "wholeLoanOver": "您的整笔 {symbol} 贷款已超过 40%，因此新贷款必须把它整体拉回线下。这就是质押额如此之大的原因。",
+    "payFromBitcoin": "用比特币支付",
+    "payFromBitcoinBorrowing": "用比特币支付，借入 {symbol}",
+    "recordFirstAbove": "请先在上方登记您的现有贷款。"
+  },
+  "basket": {
+    "hallmark": "批量支付 · {n} 张账单",
+    "payable": "{n} 张可支付",
+    "title": "{count, plural, =1 {一张账单。} other {{n} 张账单。}}<em>一次</em>签名。",
+    "titleNothing": "没有可支付的内容。",
+    "titlePaidBySafe": "由您的 <em>Safe</em> 支付。",
+    "leftOut": "以下内容因{count, plural, =1 {不是账单编号} other {不是账单编号}}而被排除：{list}{more}。",
+    "andMore": "，另有 {n} 项",
+    "safePayerOfRecord": "读取自 AdagBills：Safe {safe} 是{count, plural, =1 {这张账单} other {全部 {n} 张账单}}记录在案的付款方。",
+    "notInThisPayment": "不在这笔付款中",
+    "connectToSee": "连接钱包以查看每种币种的支付方式。",
+    "oneTransaction": "一笔交易",
+    "totals": "{totals}，共 {count, plural, =1 {{n} 张账单} other {{n} 张账单}}。每一步要么一起成功，要么没有任何资金移动。",
+    "and": "和",
+    "feeWithConversion": "涉及兑换时，网络费在您点击支付时检查：{keep}。",
+    "feeIdle": "每种币种都做出选择后会显示网络费。",
+    "payButton": "一次签名支付 {count, plural, =1 {{n} 张账单} other {{n} 张账单}}",
+    "paidTitle": "{n} 张账单已支付。<em>1</em> 次签名。",
+    "ltvAfterSymbol": "支付后的 {symbol} 贷款价值比",
+    "ofAdagsCap": "Adag 上限为 {cap}",
+    "convertedByCircle": "由 Circle 兑换",
+    "aside": {
+      "none": "Arc 上还没有这个编号的账单。",
+      "unavailable": "Arc 没有响应这张账单，因此它被排除。请刷新重试。",
+      "paid": "已支付。",
+      "void": "已被供应商取消。它永远无法再被支付。",
+      "notUsdcEurc": "不是以 USDC 或 EURC 计价。",
+      "yours": "这张账单由您开出，因此您不能支付它。"
+    },
+    "cleared": {
+      "paused": "在比特币价格更新之前，{symbol} 新贷款已暂停，因此用比特币支付这些账单已关闭。请重新选择。",
+      "noCash": "Morpho 的 {symbol} 市场已没有足够的可借资金来支付这些账单，因此用比特币支付已关闭。请重新选择。",
+      "balance": "您的 {symbol} 余额已不足以覆盖这些账单{fee}，因此用余额支付已关闭。请重新选择。",
+      "plusFee": "加 0.01 USDC 的网络费",
+      "chooseAgain": "{reason}请重新选择。"
+    },
+    "blocked": {
+      "connect": "请先连接钱包。",
+      "switch": "请把钱包切换到 Arc，或使用普通钱包付款。",
+      "readingBalances": "正在 Arc 上读取您的余额和价格。",
+      "choose": "请选择 {symbol} 账单的支付方式。",
+      "readingEuro": "正在 Arc 上读取欧元价格和贷款市场。",
+      "convertUnreadable": "Adag 无法读取兑换所需的数据。请刷新重试。",
+      "shortOfBtc": "这次批量支付要质押的 cirBTC 多于您钱包的持有量。请改用余额支付其中一组。"
+    },
+    "fail": {
+      "billIsNow": "#{id} 现在{state}",
+      "statePaid": "已付",
+      "stateCancelled": "已取消",
+      "stateDifferent": "已变化",
+      "sinceLoaded": "自本页加载以来，账单 {words}。未发送任何内容。请刷新批量支付以支付其余账单。",
+      "includingGuard": "，其中包括您贷款守护即将偿还的 {amount}",
+      "balanceNeeds": "用余额支付 {symbol} 账单需要 {need} {symbol}{why}；您的钱包持有 {held}。未发送任何内容。",
+      "pausedAtPay": "在比特币价格更新之前，{symbol} 新贷款已暂停。请用余额支付这些账单，或稍候。未发送任何内容。",
+      "pledgesMore": "这次批量支付要质押 {pledge} cirBTC，而您的钱包持有 {held}。未发送任何内容。",
+      "notPaidByYou": "Arc 已确认交易，但账单 #{ids} 未读取为由您支付。请检查这笔交易。"
+    },
+    "group": {
+      "groupTitle": "{count, plural, =1 {{n} 张 {symbol} 账单} other {{n} 张 {symbol} 账单}}",
+      "payFrom": "{symbol} 账单的支付方式",
+      "fromBitcoin": "用比特币",
+      "fromBalance": "用余额",
+      "lendShort": "Morpho 目前可借出 <ready></ready>，少于{what}。请用余额支付，或稍后再来。",
+      "theseBillsWithConversion": "这些账单加上您选择的兑换",
+      "theseBills": "这些账单",
+      "sharedMarket": "这些账单与为 {other} 账单选择的兑换处于同一个 Morpho 市场，因此一笔质押覆盖两者，并显示在那里。您在这里无需追加质押 cirBTC。Morpho 目前可借出 <ready></ready>。",
+      "pledgeNothingExtra": "您无需追加质押 cirBTC：已质押的部分足以覆盖。",
+      "pledgeAndKeep": "您质押 <pledge></pledge> 并保留它。",
+      "canFall": "比特币可下跌 <drop></drop>，Morpho 才可能清算。",
+      "morphoReady": "Morpho 目前可借出 <ready></ready>。",
+      "youHold": "您持有 <balance></balance>。",
+      "oneApproval": "一次精确授权，然后逐张支付。",
+      "notEnoughFee": "不足以支付这些账单和网络费。",
+      "notEnough": "不足以支付这些账单。",
+      "details": "支付后的贷款价值比：<ltv></ltv>（超过 40% 的一律被 Adag 拒绝）。您钱包中的 cirBTC：<btc></btc>。质押额含 5% 以应对价格波动。"
+    }
+  },
+  "convert": {
+    "title": "用比特币，借入 {symbol}",
+    "youBorrow": "您借入 <num>{amount}</num>（约 ${usd}），Circle 把它兑换成 {bill} 用于支付账单。",
+    "worstCase": "最差情况下，{rate}。兑换必须至少返回 {min}，否则整笔付款回滚，没有任何资金移动。用不到的部分留在您的钱包中。",
+    "circleFee": "Circle 的费用为 0.02%，约 {fee}。{what}包含比今日欧元价格高 {cushion} 的缓冲。",
+    "amountBorrowed": "借入的金额",
+    "amountSold": "卖出的金额",
+    "pledgeNothingExtra": "您无需追加质押 cirBTC：已质押的部分足以覆盖。",
+    "pledgeAndKeep": "您质押 <num>{amount}</num>{usd} 并保留它。",
+    "sharedBorrow": "这包括您用比特币支付的 {loan} 账单所需的 {amount} 贷款：两者在同一个 Morpho 市场借款，因此一笔质押覆盖两者。",
+    "ltvAfter": "支付后的贷款价值比：Morpho {loan} 市场中为 <num>{ltv}</num>（超过 {cap} 的一律被 Adag 拒绝）。比特币可下跌 {drop}，Morpho 才可能清算。",
+    "networkFee": "网络费：{keep}。Arc 会退回未使用的部分。",
+    "debtWillBeIn": "您的债务将以 {loan} 计。其美元成本随欧元波动。",
+    "checksOnlyNow": "Adag 只在现在，也就是您付款时，检查 40% 上限。",
+    "guardRepaysFrom": "贷款守护只能用您钱包中的 {loan} 偿还这笔贷款。",
+    "readAtBlock": "在 Arc 区块 {block} 一并读取。",
+    "youSell": "您通过 Circle 卖出 <num>{amount}</num>（约 ${usd}），至少换回 {min}，即这次结清所需的金额。",
+    "worstCaseClose": "最差情况下，{rate}。如果兑换返回得更少，整个结清回滚，没有任何资金移动。贷款用不到的部分留在您的钱包中。",
+    "thenRepays": "然后 Adag 在同一次签名中按精确份额偿还您的贷款，并取回您全部的 cirBTC。",
+    "reset": {
+      "button": "把 Circle 适配器的访问权限设为 0",
+      "onlyTakesAway": "其他一切不变：这只会收回访问权限。",
+      "done": "Circle 的适配器现在对您钱包没有访问权限。"
+    }
+  },
+  "lib": {
+    "joiner": "none",
+    "words": {
+      "thisWallet": "此钱包",
+      "theSafe": "该 Safe",
+      "thisSafe": "此 Safe",
+      "noCollateral": "无抵押品",
+      "underOneCent": "不到 $0.01",
+      "theWalletDidNotAnswer": "钱包没有响应。",
+      "nothingWasSent": "未发送任何内容。",
+      "successLoanChecked": "成功，loanChecked {flag}",
+      "unreadableLevel": "一个无法读取的水平",
+      "paused": "已暂停",
+      "reverted": "已回滚"
+    },
+    "errors": {
+      "insufficientCollateral": "Morpho 拒绝了这笔贷款，因为它会越过 Morpho 自身 86% 的清算线。",
+      "pledgeMoreOrPayLess": "请质押更多 cirBTC，或减少用比特币支付的金额。",
+      "insufficientLiquidity": "Morpho 市场目前没有足够的可借资金，无法借出这个金额。",
+      "payFromBalanceOrLater": "请用余额支付，或稍后重试。",
+      "zeroAssets": "Morpho 拒绝了金额为零的操作。",
+      "reloadAndBuild": "请刷新页面并重新生成付款。",
+      "unauthorized": "Morpho 拒绝代表此钱包操作。",
+      "useOrdinaryWallet": "请使用 MetaMask 或 Rabby 这类普通钱包，并由它发送自己的交易。",
+      "blocked": "代币发行方冻结了这笔付款中的一个钱包。",
+      "blockedNext": "没有资金移动。被冻结的钱包需要联系发行方。",
+      "paused": "该代币已被发行方暂停。",
+      "nothingMovedLater": "没有资金移动。请稍后重试。",
+      "insufficientBalance": "您的钱包持有的这种代币不足。",
+      "addFundsOrBitcoin": "请充值，或改用比特币支付。",
+      "insufficientAllowance": "这笔付款中的授权额度小于金额。",
+      "transferFailed": "Morpho 内部的一次代币转账失败：您的钱包持有或授权的金额少于 Morpho 需要转移的金额。",
+      "transferFailedNext": "没有资金移动。请刷新以重新读取金额，然后重试。",
+      "batchStepFailed": "付款中的一步失败，因此什么都没有发生。",
+      "reloadAndTry": "请刷新页面并重试。",
+      "unknown": "付款因 Adag 无法读取的原因被拒绝。",
+      "unknownNext": "没有资金移动。请在 Arc 区块浏览器中检查这笔交易，或重试。",
+      "ltvAboveLimit": "这会使您的贷款超过比特币价值的 40%。",
+      "alreadyPaid": "这张账单已支付。",
+      "alreadyPaidNext": "没有扣款。账单页面显示了付款方。",
+      "supplierCancelled": "供应商取消了这张账单。",
+      "askForNewOne": "如果您仍欠款，请向他们索要一张新账单。",
+      "noBillWithNumber": "没有这个编号的账单。",
+      "checkWithSupplier": "请向供应商核实编号。",
+      "stalePrice": "在比特币价格更新之前，新贷款已暂停。",
+      "balanceStillWorks": "用余额支付仍然可用。",
+      "enrolledThisBlock": "您的贷款在同一个区块中登记，而 Adag 只在下一个区块起接受付款。",
+      "waitThenPay": "请稍等片刻，然后再次付款。",
+      "zeroPrice": "比特币价格读取为零，因此新贷款已关闭。",
+      "badFeed": "比特币价格预言机没有指定价格源，因此新贷款已关闭。",
+      "badMarket": "Morpho 报告的这个市场与 Adag 预期不同，因此用比特币支付已关闭。",
+      "unknownBill": "Arc 上没有账单 #{id}。",
+      "selfPayment": "您不能支付自己开出的账单。",
+      "payFromDifferentWallet": "请用另一个钱包支付。",
+      "notPayee": "只有开出这张账单的供应商才能取消它。",
+      "connectWalletThatWrote": "请连接开出它的钱包。",
+      "payeeNotCredited": "供应商的余额没有增加账单金额，因此 Adag 撤销了付款。",
+      "payeeNotCreditedNext": "没有资金移动。该代币可能已把这位供应商列入黑名单；请让他们核查。",
+      "zeroAmount": "这张账单的金额为零，因此无法支付。",
+      "askCorrectedBill": "请向供应商索要更正后的账单。",
+      "referenceTooLong": "备注为 {n} 字节，超过了 140 字节的上限。",
+      "shortenIt": "请缩短。汉字等字符各占多个字节，因此能写的字符数少于字节上限。",
+      "unsupportedCurrency": "Adag 账单只能以 USDC 或 EURC 计价。",
+      "chooseOneOfThose": "请选择其中一种。",
+      "pageTooLarge": "应用一次向 Arc 请求了太多账单。",
+      "reloadThePage": "请刷新页面。",
+      "reentrancy": "付款试图回调 Adag，因此被拒绝。",
+      "nothingMovedReload": "没有资金移动。请刷新页面并重试。",
+      "safeErc20": "{symbol} 合约拒绝了这次转账。",
+      "safeErc20Next": "没有资金移动。请确认您的钱包持有足够的 {symbol}，且未被其发行方冻结。",
+      "invalidAddress": "代币拒绝了这笔付款中的一个地址。",
+      "memoFailed": "付款步骤失败，且没有给出原因。",
+      "panic": "付款遇到算术错误，已被拒绝。"
+    },
+    "send": {
+      "effectsUnavailable": "我们刚才无法对这次兑换做二次核验。未发送任何内容。请一分钟后重试。",
+      "ownCheckRefused": "Adag 对这笔付款调用的自检拒绝了它。",
+      "startAgain": "未发送任何内容。请重新开始付款。",
+      "noLatestBlock": "Arc 没有返回最新区块。未发送任何内容。请重试。",
+      "quoteExpired": "Circle 为这笔付款提供的兑换报价已过期或即将过期。",
+      "quoteExpiredNext": "未发送任何内容。请重新开始付款以获取新报价。",
+      "feeMoved": "Arc 的网络费已超过生成这笔付款时所用的上限。",
+      "feeMovedNext": "未发送任何内容。请重新开始付款，以便按当前网络费重新计算余额检查。",
+      "noBalanceAnswer": "Arc 没有返回您的余额。未发送任何内容。请重试。",
+      "needsForFee": "您的钱包需要约 {fee} USDC 用于网络费，而当前持有 {held}。未发送任何内容。",
+      "needsForPaymentAndFee": "您的钱包需要约 {need} USDC，其中 {principal} 用于这笔付款，另约 {fee} 用于网络费，而当前持有 {held}。未发送任何内容。",
+      "simulationEmpty": "Arc 对这笔付款的模拟返回为空。",
+      "nothingSentTryAgain": "未发送任何内容。请重试。",
+      "tooMuchGas": "这次兑换使用的 gas 超过了 Adag 为一次签名设定的上限。",
+      "tooMuchGasNext": "未发送任何内容。请减少金额，或以账单自身的币种支付。",
+      "quoteUsed": "这份 Circle 报价已用于一次签名请求。",
+      "walletOffArc": "您的钱包已切换账户或离开 Arc 主网。未发送任何内容。",
+      "resetDryRun": "Arc 对重置的试运行未通过，因此未发送任何内容。请稍后重试。",
+      "reachesAdapter": "这笔付款触及了 Circle 的兑换适配器却未说明兑换内容，因此 Adag 不会发送它。",
+      "nothingSentReload": "未发送任何内容。请刷新页面并重试。",
+      "noFeeAnswer": "Arc 没有返回当前网络费。未发送任何内容。请重试。",
+      "declined": "您在钱包中拒绝了该请求。未发送任何内容。",
+      "couldNotSend": "钱包无法发送它：{line}",
+      "notConfirmedYet": "Arc 尚未确认。请不要再次支付：先检查交易链接。",
+      "reverted": "交易在 Arc 上回滚，因此除网络费外没有资金移动。",
+      "resetNotConfirmed": "Arc 尚未确认重置。重试前请先检查这笔交易。",
+      "resetReverted": "重置在 Arc 上回滚，因此除网络费外没有任何变化。",
+      "noEuroPrice": "Adag 无法从 Arc 读取欧元价格。未发送任何内容。请重试。",
+      "resetViaMulticall": "重置 Circle 适配器必须通过 Multicall3From 进行。",
+      "resetNotOwnCalls": "这不是由重置自身调用组成的批次。",
+      "resetDisallowedCall": "这个批次包含适配器重置不允许的调用。",
+      "noArcClient": "没有配置 Arc 客户端。"
+    },
+    "guard": {
+      "keptAside": "您的贷款守护将在几分钟内从{who}偿还约 {parts}，因此这部分已被预留。",
+      "ruleUnreadable": "Adag 无法读取您的贷款守护，因此无法告知这笔付款是否会触发它。请重试。",
+      "ruleUnreadableSafe": "Adag 无法读取 Safe 的贷款守护，因此无法告知这笔付款是否会触发它。请重试。",
+      "unreadable": "Adag 无法读取您的贷款守护，因此无法检查此钱包是否足以支付。请重试。",
+      "trigger": "这笔付款会把贷款推到 {ltv}，达到或超过您守护的 {trigger} 触发线。守护随后会在几分钟内从{who}偿还约 {amount} {symbol}，回到 {target}。",
+      "targetAboveZero": "请选择一个高于 0% 的目标线。",
+      "targetBelowTrigger": "目标线必须低于触发线：守护从触发线向下偿还至目标线。",
+      "triggerBelowLine": "触发线必须低于 Morpho 的清算线。",
+      "outOfRange": "这些百分比超出范围。",
+      "endDateFuture": "结束日期必须在未来。",
+      "endDateNotStorable": "结束日期不是 Arc 可以存储的日期。",
+      "chooseAmount": "请选择它可使用的额度，须大于零。",
+      "approvalTooLarge": "这个授权额度大于本页会生成的任何金额。",
+      "onlyTwoMarkets": "只能守护 Adag 的 USDC 和 EURC 市场。",
+      "walletInvalid": "钱包地址无效。",
+      "notDeployed": "贷款守护尚未部署，因此未生成任何交易。",
+      "ownLoanOnly": "本页只偿还已连接钱包自己的贷款。"
+    },
+    "fx": {
+      "safeConvertLine": "Safe 付款不支持兑换：Circle 的报价有效期为 10 分钟，而 Safe 的所有者会在之后才签名。",
+      "tooLarge": "这次兑换对单笔付款来说太大了。请用余额支付一部分，或拆分账单。",
+      "otherConverts": "这次批量支付中的 {other} 账单已经通过兑换支付。一次签名只运行一次兑换，且绝不双向各一次。",
+      "loanPaused": "在比特币价格更新之前，{loan} 新贷款已暂停，因此借入 {loan} 已关闭。以账单自身的币种支付仍然可用。",
+      "loanUnknown": "Adag 目前无法读取 {loan} 新贷款当前能否发放，因此兑换已关闭。请稍后重试。",
+      "cash": "Morpho 目前可借出 {ready}，少于这次兑换要借入的 {need}。请用其他方式支付，或稍后再来。",
+      "closeShort": "您持有 {held}，而用这种方式结清需要 {need}。",
+      "pledgeUnsized": "Adag 无法计算这次兑换所需的质押额，因此兑换已关闭。请稍后重试。",
+      "rate": "1 {sold} 至少换回 {rate} {bought}",
+      "loanCurrencyUnsupported": "这笔付款的贷款币种不是 Adag 支持的币种。",
+      "euroNotPositive": "Adag 从 Arc 读取的欧元价格不是正数，因此兑换已关闭。",
+      "euroScale": "Adag 从 Arc 读取的欧元价格精度无法使用，因此兑换已关闭。",
+      "euroFuture": "Adag 从 Arc 读取的欧元价格日期在未来，因此兑换已关闭。",
+      "euroOld": "Adag 从 Arc 读取的欧元价格已超过 96 小时（该价格源在周末暂停），因此美元与欧元之间的兑换已关闭。以账单自身的币种支付仍然可用。",
+      "convertZero": "要兑换的金额必须大于零。",
+      "euroUnreadable": "Adag 无法从 Arc 读取欧元价格，因此兑换已关闭。请稍后重试。",
+      "circleNoRoute": "Circle 目前找不到能为这笔付款换回足够金额的兑换路径。请稍后重试，或用其他方式支付。",
+      "circleBusy": "Circle 的兑换服务繁忙。请等待一分钟后重试。",
+      "circleUnavailable": "Circle 的兑换服务没有响应。未发送任何内容。请稍后重试，或用其他方式支付。",
+      "circleBadAnswer": "Circle 的兑换服务返回了 Adag 不信任的格式，因此没有使用其中任何内容。请重试，或用其他方式支付。",
+      "circleBadRequest": "Adag 无法为这笔付款构造兑换请求，因此未发送任何内容。",
+      "adapterUnreadable": "Adag 无法读取 Circle 的兑换适配器被允许对您钱包做什么，因此无法提供兑换。请稍后重试。",
+      "adapterCanSpend": "Circle 的兑换适配器已经可以花费您的 {symbol}：之前的一笔授权仍然有效。兑换需等它设为 0 后才可进行。",
+      "adapterAuthorised": "Circle 的兑换适配器已获授权操作您的 Morpho 贷款。兑换需等该授权撤销后才可进行。",
+      "planNotBytes": "兑换计划不是可读取的字节。",
+      "planOverBytes": "兑换计划超过 {n} 字节。",
+      "planNotExecute": "兑换计划不是对适配器 execute 的调用。",
+      "planUnreadable": "无法读取兑换计划。",
+      "planReshaped": "兑换计划含有多余或被改动的字节，因此不是经过核验的那份计划。",
+      "planOneToken": "兑换计划必须恰好从您的钱包提取一种代币。",
+      "planPermit": "兑换计划要求 permit，而 Adag 从不签署 permit。",
+      "planPermitData": "兑换计划携带 permit 数据。",
+      "planOtherCurrency": "兑换计划提取的币种与这笔付款卖出的不同。",
+      "planOtherAmount": "兑换计划提取的金额与这笔付款卖出的不同。",
+      "planSteps": "兑换计划有 {n} 步；Adag 接受 1 到 {max} 步。",
+      "planTokens": "兑换计划列出的返还代币数量无法使用。",
+      "planOtherAddress": "兑换计划会把资金发送到非您钱包的地址。",
+      "planNoBought": "兑换计划没有把买入的币种发送到您的钱包。",
+      "planNativeValue": "兑换计划转发原生代币价值，而这笔付款永远不需要。",
+      "planNoGuarantee": "兑换计划没有保证至少返回这笔付款所需的金额。",
+      "planExpires": "按 Arc 的时钟，兑换计划将在不到 {n} 秒后过期。",
+      "effectsNotPlain": "这笔付款中会有非普通代币金额的内容离开您的钱包。",
+      "effectsUnexpected": "这笔付款中有一次意外的转账会把资金移出您的钱包。",
+      "effectsMoreBtc": "这笔付款中离开您钱包的 cirBTC 多于质押额。",
+      "effectsMoreSold": "为兑换离开您钱包的金额多于要兑换的金额。",
+      "effectsMoreRepay": "这笔付款中离开您钱包的金额多于贷款偿还额。",
+      "effectsNotBill": "这笔付款中会有一次不属于您任何账单的转账离开您的钱包。",
+      "effectsNative": "这笔付款中会有原生代币价值离开您的钱包，却没有对应的 USDC 转账。",
+      "effectsFloor": "兑换结束时的余额检查没有按生成时的设定运行。",
+      "effectsUnpaid": "这笔付款中有一张账单收不到应得金额。",
+      "effectsNoBillPaid": "账单 #{id} 在其自己的合约上不会显示来自您钱包的付款。",
+      "planTokenNotAddress": "兑换请求中的一个代币地址不是有效地址。",
+      "planTwoCurrencies": "兑换需要两种不同的币种。",
+      "planAmountZero": "要兑换的金额必须大于零。",
+      "planMinZero": "兑换可返回的最低金额必须大于零。",
+      "planNoChainTime": "缺少用于兑换检查的链上时间。",
+      "planNoFeeCeiling": "缺少兑换批次的网络费上限。",
+      "bufferRange": "缓冲必须在 0 到 {n} 个基点之间。",
+      "rateTwoAmounts": "汇率需要两个大于零的金额。"
+    },
+    "build": {
+      "amountZero": "金额必须大于零。",
+      "dueNotStorable": "到期日不是 Arc 可以存储的日期。",
+      "referenceTooLong": "备注为 {n} 字节；上限为 {max}。汉字等字符各占多个字节，因此能写的字符数少于字节上限。",
+      "currencyOnly": "账单只能以 USDC 或 EURC 开出。",
+      "addOneBill": "请至少添加一张要支付的账单。",
+      "atMostBills": "一次签名最多支付 {n} 张账单。",
+      "chooseHowToPay": "请选择 {symbol} 账单的支付方式。",
+      "addZero": "要追加的 cirBTC 数量必须大于零。",
+      "repayZero": "要偿还的金额必须大于零。",
+      "repayTooMuch": "这超过了这种偿还方式可接受的上限。请使用“结清贷款”全部偿还。",
+      "nothingInMarket": "这个市场中没有贷款，也没有质押的 cirBTC。",
+      "tooSmallForFloor": "这个金额太小，无法通过保护兑换的余额检查，因此不提供。请用余额支付。",
+      "convertTooMuchBills": "要兑换的金额超过了按 Adag 读取的欧元价格计算的这些账单价值加 1.5% 缓冲。未生成任何交易。",
+      "convertTooMuchClose": "要兑换的金额超过了按 Adag 读取的欧元价格计算的结清授权额加 1.5% 缓冲。未生成任何交易。",
+      "safeNoConversion": "Safe 不支持通过美元与欧元之间的兑换付款，因为 Circle 的报价有效期为 10 分钟，而 Safe 的签名需要更长时间。请以账单自身的币种支付，或用钱包支付。",
+      "safeCurrentOnly": "从 Safe 付款仅适用于当前 AdagBills 合约上的账单。这张账单在首次部署上，请用钱包支付。",
+      "twiceInBasket": "账单 #{id} 在批量支付中出现了两次；支付两次会使整个批次回滚。",
+      "twiceInPayment": "账单 #{id} 在付款中出现了两次；支付两次会使整个批次回滚。",
+      "safeAtMostBills": "一次 Safe 付款最多支付 {n} 张账单。",
+      "safeChooseHowToPay": "请选择 Safe 支付 {symbol} 账单的方式。",
+      "selfPayment": "您不能支付自己开出的账单。",
+      "billNotOpen": "账单 #{id} 不处于待付状态。",
+      "billNoAmount": "账单 #{id} 没有可支付的金额。",
+      "billUnreadableRef": "账单 #{id} 的备注无法读取。",
+      "billNotUsdcEurc": "账单 #{id} 不是以 USDC 或 EURC 计价。",
+      "pledgeNegative": "质押额必须为零或更多聪。",
+      "enrolFirstDeployment": "只有当前的 AdagBills 合约可以登记现有贷款。这张账单在首次部署上。",
+      "noLoanToClose": "这个市场中没有可以通过兑换结清的贷款。",
+      "repayApprovalZero": "偿还授权额度必须大于零。",
+      "resetTokens": "这里只能重置对兑换适配器的 USDC、EURC 和 cirBTC 授权。",
+      "resetOnce": "每项授权只重置一次。",
+      "nothingToReset": "没有需要重置的内容。",
+      "twoContracts": "这些账单位于两个不同的 AdagBills 合约上。一次签名只能支付同一个合约上的账单。",
+      "guardNotDeployed": "贷款守护尚未部署，因此无法停止其规则。",
+      "billNumberWhole": "账单编号必须是 1 或更大的整数。",
+      "tooManyBills": "共 {n} 张账单。一次签名最多支付 {max} 张；请拆成两次批量支付。",
+      "mixedContracts": "这些账单位于两个不同的 AdagBills 合约上，而一次签名只能支付同一个合约上的账单。请单独支付首次部署上的账单。",
+      "marketMalformed": "{market} 的市场参数格式错误；拒绝用它们签名。",
+      "marketHash": "市场参数的哈希为 {hash}，而非 {expected}；拒绝用它们签名。",
+      "marketDiffer": "{market} 的市场参数与固定的 {symbol} 市场不同；拒绝用它们签名。",
+      "payerNotAddress": "付款钱包地址不是有效地址。",
+      "convertDirection": "{bill} 账单通过兑换 {loan} 贷款支付，绝不会用 {other} 贷款。",
+      "oneDirection": "一次签名只朝一个方向兑换：两组朝相反方向兑换的内容绝不会一起生成。",
+      "floorNegative": "兑换起始余额读取为负数，因此未生成任何交易。",
+      "positionNegative": "贷款仓位读取为负数，因此未生成任何交易。",
+      "approvalNegative": "贷款守护的授权额度读取为负数，因此未生成任何交易。",
+      "refuseStepMayFail": "拒绝可能单独失败的批次步骤。",
+      "refuseApprovalUnreadable": "拒绝无法读取的授权。",
+      "refuseNoSwapCall": "拒绝没有兑换调用的兑换批次。",
+      "refuseSwapCount": "拒绝包含 {n} 次兑换调用的批次。一次签名只运行一次。",
+      "refuseAdapterNotExecute": "拒绝对兑换适配器的非 execute 调用。",
+      "refuseSwapPlan": "拒绝计划与生成此批次所用计划不同的兑换。",
+      "refuseGasCeiling": "拒绝未按固定 gas 上限设置发送的兑换。",
+      "refuseBalanceCheckFloor": "拒绝余额检查不等于起始余额加所提供资金再减去 USDC gas 余量的兑换。",
+      "refuseSwapNotFollowed": "拒绝其后没有对买入币种做余额检查的兑换。",
+      "refuseBalanceCheckBack": "拒绝没有把精确底线退回付款方的余额检查。",
+      "refuseSwapNotPreceded": "拒绝其前没有恰好以兑换金额授权的兑换。",
+      "refuseAdapterApprovalCurrency": "拒绝对兑换适配器授权非兑换币种的任何币种。",
+      "refuseResetBeforeSwap": "拒绝在兑换之前重置兑换适配器的授权。",
+      "refuseAdapterApprovalAmount": "拒绝对兑换适配器授权超过兑换金额，或未在兑换前紧接设置的授权。",
+      "refuseAdapterApprovalLeft": "拒绝结束时仍给兑换适配器留有授权的批次。",
+      "refuseTokenCallConversion": "拒绝兑换批次中除授权和余额检查之外的代币调用。",
+      "refuseBatchInConversion": "拒绝兑换批次内嵌套的批次。",
+      "refuseMorphoCall": "拒绝本应用不会发起的 Morpho 调用。",
+      "refuseMorphoMarket": "拒绝在非 Adag 两个市场之一上的 Morpho 调用。",
+      "refuseMorphoPayer": "拒绝为付款方以外任何人发起的 Morpho 调用。",
+      "refuseMorphoReceiver": "拒绝把资金发送给付款方以外任何人的 Morpho 调用。",
+      "refuseBorrowFunding": "拒绝未由恰好等于兑换金额的借款提供资金的兑换。",
+      "refuseDirectBillsConversion": "拒绝兑换批次中对 AdagBills 的直接调用。账单通过 Memo 支付。",
+      "refusePaymentBeforeSwap": "拒绝在兑换之前的付款。",
+      "refuseMemoNotPayment": "拒绝不是账单付款的 Memo 调用。",
+      "refusePaymentNotBuilt": "拒绝为非此批次所生成账单的付款，或重复支付。",
+      "refuseConversionUnpaid": "拒绝留有未付账单的兑换批次。",
+      "refuseBatchInBatch": "拒绝批次内嵌套的批次。",
+      "refuseTokenCallNotApproval": "拒绝非授权的代币调用。",
+      "refuseCirbtcApproval": "拒绝对 AdagBills 的 cirBTC 授权，或对此批次中没有任何账单所在合约的授权。",
+      "refuseApprovalTo": "拒绝对 {to} 的授权。",
+      "refuseMemoInSafe": "拒绝 Safe 批次中的 Memo 调用。Safe 直接向 AdagBills 付款。",
+      "refuseMemoOtherId": "拒绝记在另一张账单 memo id 下的 Memo 付款。",
+      "refuseMorphoCallback": "拒绝要求 Morpho 回调批次的 Morpho 调用。",
+      "refuseDirectBills": "拒绝批次中对 AdagBills 的直接调用。账单通过 Memo 支付。",
+      "refuseSafeBillsCall": "拒绝 Safe 发起的除支付其账单或单独登记其贷款以外的 AdagBills 调用。",
+      "refuseGuardCallExactStop": "拒绝除恰好停止这笔贷款规则以外的贷款守护调用。",
+      "refuseBatchCalls": "拒绝调用 {target} 的批次。",
+      "refuseBatchUnpaid": "拒绝留有其所生成账单未付的批次。",
+      "refuseAdapterIndirect": "拒绝通过其他调用触及兑换适配器的批次。",
+      "refuseGuardCallStop": "拒绝除停止这笔贷款规则以外的贷款守护调用。",
+      "refuseStopOtherMarket": "拒绝停止另一个市场的守护。",
+      "refuseGuardApproval": "拒绝对贷款守护的授权，除非是把这笔贷款的代币设为 0。",
+      "refuseNotMulticall": "拒绝未通过 Multicall3From 发送的兑换。",
+      "refuseOtherWallet": "拒绝为另一个钱包生成的兑换。",
+      "refuseNotPlainBatch": "拒绝字节不是普通调用批次的兑换。",
+      "refuseResetNotZero": "拒绝不是把兑换授权设为 0 的重置步骤。",
+      "refuseResetNotAllowed": "拒绝不属于重置允许的两种之一的重置步骤。",
+      "refuseTokenNotApprovalGuard": "拒绝非授权的代币调用。",
+      "refuseApprovalOtherAmount": "拒绝与您所选金额不同的授权。",
+      "refuseGuardCallNotRule": "拒绝除设置或清除规则以外的守护调用。",
+      "refuseRuleOtherMarket": "拒绝针对另一个市场的规则。",
+      "refuseRepaymentTarget": "拒绝发送到 {to} 而非 AdagGuard 的偿还。",
+      "refuseRepaymentValue": "拒绝附带原生代币价值的偿还。",
+      "refuseGuardCallNotProtect": "拒绝除 protect 以外的守护调用。",
+      "refuseProtectLength": "拒绝长度错误的 protect 调用数据。",
+      "refuseOtherWalletGuard": "拒绝触发另一个钱包的守护。",
+      "callOnlyTwoMarkets": "只能守护 Adag 的两个市场。",
+      "callGuardNotDeployed": "贷款守护尚未部署。",
+      "callBorrowerNotAddress": "借款人不是地址。",
+      "callNotToGuard": "该调用不是发给 AdagGuard 的。",
+      "callCarriesValue": "该调用附带原生代币价值。",
+      "callNotProtect": "该调用不是 protect。",
+      "callExtraBytes": "该调用附带多余字节。"
+    },
+    "amount": {
+      "enter": "请输入金额。",
+      "oneDecimalMark": "请只用一个小数点，不要用千位分隔符，例如 1250.50。",
+      "digits": "请使用数字和一个小数点，例如 12.50。",
+      "decimals": "最多 {n} 位小数。",
+      "moreThanZero": "金额必须大于零。"
+    },
+    "alerts": {
+      "serverAnswered": "服务器返回了 {status}。",
+      "serverNoAnswer": "服务器没有响应。请重试。",
+      "declinedNothingChanged": "您在钱包中拒绝了该请求。没有任何改变。",
+      "oneToThreeLevels": "请选择一到三条提醒线。",
+      "levelWhole": "每条线必须是整数。",
+      "levelRange": "每条线必须在 5% 到 85% 之间，步长 0.01%。",
+      "levelsRise": "各线必须递增。",
+      "siteNotUrl": "站点来源不是 URL。",
+      "siteNotHttps": "站点来源必须是 https。",
+      "expiryNotTime": "过期时间不是时间。",
+      "requestTooLarge": "请求太大。",
+      "requestNotJson": "请求不是 JSON。",
+      "requestNotObject": "请求不是 JSON 对象。",
+      "notWallet": "这不是钱包地址。",
+      "zeroAddress": "零地址不是钱包。",
+      "notChatId": "这不是聊天 id。",
+      "notLinkCode": "这不是关联代码。",
+      "notNonce": "这不是 nonce。",
+      "notMarket": "这不是市场。",
+      "notOneOfTwoMarkets": "这不是 Adag 两个市场之一。",
+      "notUpdateId": "这不是更新 id。",
+      "signatureMismatch": "签名与此钱包和消息不匹配，或已过期。",
+      "messageUsed": "这条签名消息已被使用。",
+      "telegramMissing": "此服务器尚未配置 Telegram 提醒。",
+      "storeMissing": "提醒和贷款守护需要一个键值存储，而此服务器尚未配置。",
+      "tooMany": "请求过多。请几分钟后重试。",
+      "tooManyCodes": "代码过多。请几分钟后重试。",
+      "botNoAnswer": "Telegram 机器人没有响应。请一分钟后重试。",
+      "tooManyAttempts": "尝试过多。请几分钟后重试。",
+      "tooManyWithCode": "此代码的尝试次数过多。",
+      "codeExpired": "此代码已过期或已被使用。请重新开始。",
+      "chatTaken": "该聊天已在接收另一个钱包的 Adag 提醒。请在该聊天发送 /stop，然后重新关联。",
+      "full": "提醒目前已满。请稍后重试。",
+      "notAmount": "不是金额。",
+      "siteMustBeHttps": "站点必须是 https。",
+      "notAdagMarket": "不是 Adag 的市场。",
+      "couldNotIssueCode": "无法发放代码。"
+    },
+    "safe": {
+      "requestUnreadable": "无法读取请求。",
+      "batchUnreadable": "无法读取 Safe 批次，因此未提交任何提案。",
+      "billsUnchecked": "Arc 没有响应，因此无法检查此 Safe 批次中的账单。未提交任何提案。",
+      "amountsMismatch": "此 Safe 批次中的金额与它支付的账单不匹配，因此未提交任何提案。",
+      "nonceNotCurrent": "nonce 不是 Safe 当前的 nonce。请重新生成付款。",
+      "hashMismatch": "签名的哈希与这笔付款不匹配。",
+      "signatureNotOwner": "签名不是来自这位所有者。",
+      "safeUnchecked": "Arc 没有响应，或无法读取签名，因此无法检查该 Safe。未提交任何提案。",
+      "serviceCopyMismatch": "Safe 服务保存的提案副本与所签署的内容不匹配。",
+      "otherSafe": "该交易属于另一个 Safe。",
+      "notConfigured": "Safe 提案尚未配置。",
+      "serviceTimeout": "Safe 服务没有及时响应。请重试。",
+      "serviceUnknownTx": "Safe 服务尚不知道这笔交易。",
+      "serviceRateLimit": "Safe 服务正在限制请求。请一分钟后重试。",
+      "serviceRefused": "Safe 服务拒绝了该提案。",
+      "serviceUnreachable": "无法连接 Safe 服务。请重试。",
+      "listUnavailable": "Safe 列表不可用。",
+      "notAddress": "这不是地址。",
+      "accountNotAddress": "已连接的账户不是有效地址。",
+      "arcNoAnswerSafe": "Arc 没有响应，因此无法检查此 Safe。未提交任何提案。",
+      "notArcMainnet": "Arc 的响应不是 Arc 主网，因此无法检查此 Safe。",
+      "noContract": "Arc 上此地址没有合约，因此它不是 Safe。",
+      "notLikeSafe": "此地址的响应不像 Safe，因此 Adag 不会请任何人为它签名。",
+      "versionTooOld": "此 Safe 版本为 {version}。Adag 需要 Safe 1.3.0 或更高版本。",
+      "notOwner": "您已连接的钱包不是此 Safe 的所有者，因此无法为它提交付款提案。未签署任何内容。",
+      "noThreshold": "此 Safe 未设置签名阈值。",
+      "differentHash": "Safe 为这笔付款计算出不同的哈希，因此未签名。",
+      "noSimulation": "Safe 没有返回模拟结果。",
+      "statusUnavailable": "状态不可用。",
+      "notAnAddress": "{what}不是地址。",
+      "notHash": "{what}不是 32 字节哈希。",
+      "notWhole": "{what}不是整数。",
+      "dataNotHex": "交易数据不是十六进制。",
+      "dataTooLarge": "交易数据太大。",
+      "txMissing": "缺少 Safe 交易。",
+      "operation": "operation 不是 0 或 1。",
+      "fieldTarget": "交易目标",
+      "fieldGasToken": "gas 代币",
+      "fieldRefund": "退款接收方",
+      "fieldHash": "Safe 交易哈希",
+      "signatureBytes": "签名不是 65 字节。",
+      "bodyNotObject": "请求体不是对象。",
+      "noBody": "请求没有请求体。",
+      "bodyNotJson": "请求体不是 JSON。",
+      "notMultiSend": "Safe 批次不是 MultiSend 调用。",
+      "cutShort": "Safe 批次被截断。",
+      "empty": "Safe 批次为空。",
+      "stepNotPlain": "拒绝不是普通调用的 Safe 批次步骤。",
+      "stepValue": "拒绝附带原生代币价值的 Safe 批次步骤。",
+      "batchCalls": "拒绝调用 {target} 的 Safe 批次。",
+      "enrolAlongside": "拒绝在登记贷款的同时包含其他内容的 Safe 批次。",
+      "billsCallOther": "拒绝除支付账单或登记 Safe 贷款以外的 AdagBills 调用。",
+      "morphoAccount": "拒绝账户不是该 Safe 的 Morpho 步骤。",
+      "morphoMarket": "拒绝在非 Adag 两个市场之一上的 Morpho 步骤。",
+      "canonicalMultiSend": "Safe 付款必须通过规范的 MultiSendCallOnly。",
+      "delegatecallOnly": "Safe 付款只能通过 delegatecall 到达 MultiSendCallOnly。",
+      "noValueNoRefund": "Safe 付款不附带原生代币价值，也没有 gas 退款。",
+      "noRefundReceiver": "Safe 付款不向任何人支付退款。",
+      "nonceInvalid": "Safe nonce 无效。"
+    },
+    "arc": {
+      "noAnswerMoment": "Arc 没有响应。请稍后重试。",
+      "catchingUp": "仍在追赶：已统计到区块 {block}，更新的付款会在下次读取时加入。",
+      "newestBills": "在每个合约最新的 {n} 张账单中",
+      "indexNoAnswerAfter": "{note}。索引存储没有响应。",
+      "indexNoAnswer": "索引存储没有响应，因此这是直接从 Arc 读取的。"
+    },
+    "break": {
+      "providerDrpc": "dRPC 的公共端点",
+      "providerOwn": "服务器自己的 RPC",
+      "unreadable": "模拟服务返回了本页无法读取的回应，请重试",
+      "timedOut": "模拟服务超时，请重试",
+      "couldNotRun": "无法运行：{reason}",
+      "endedEarly": "回应提前结束",
+      "noAnswerForCheck": "此项检查没有回应",
+      "noAnswer150": "150 秒内没有回应",
+      "lostConnection": "页面与服务器的连接中断，请重试",
+      "providerNoAnswer": "{provider}没有响应 {method}，请重试",
+      "providerRefused": "{provider}拒绝了 {method}，请重试",
+      "providerFailedTwice": "{provider} {method} 失败了两次。",
+      "providerTooLarge": "{provider}返回的回应过大。",
+      "noLatestBlock": "模拟节点没有返回最新区块。",
+      "unexpectedShape": "eth_simulateV1 返回了意外的结构。",
+      "wrongChain": "{provider}报告的链为 {chain}，不是 Arc 主网 {expected}。",
+      "summaryAll": "全部 {n} 项检查均符合威胁模型：每次攻击都被拒绝或守住{clause}。两个已知且被接受的缺口 A4 和 E5 也符合威胁模型：各自只影响攻击者自己的贷款。",
+      "allowedClauseOne": "，或在 {n} 行中为“设计如此”",
+      "allowedClauseMany": "，或在 {n} 行中为“设计如此”",
+      "summaryBroken": "{total} 项检查中有 {n} 项未按预期表现。",
+      "summaryNotRunOne": "{n} 项本次无法运行；不对其作任何断言。",
+      "summaryNotRunMany": "{n} 项本次无法运行；不对它们作任何断言。",
+      "stateBills": "AdagBills {contract}。演示钱包 {payer}：贷款 {debt}，质押 {btc}，贷款价值比 {ltv}。",
+      "stateSetup": "每次攻击前，模拟会开出账单 #{id} 并用余额支付，使 Adag 从今天的贷款状态开始。",
+      "stateCurrent": "账单 #{id} 已由演示钱包支付，Adag 对其贷款的记录是最新的。",
+      "stateSupplier": "供应商 {payee}。模拟陌生人 {stranger}。比特币价格 {price} USDC，来自 USDC 市场的预言机。",
+      "simulatedBill": "模拟账单 #{id}",
+      "bill": "账单 #{id}",
+      "a1Pass": "已拒绝。{label}已经支付，已付账单永远无法再次支付。",
+      "notRefused": "未按预期拒绝：{out}。",
+      "notRefusedBill": "未按预期拒绝：{out}；账单 {status}。",
+      "a2aPass": "在触及 Adag 之前被 Morpho 拒绝：以 {btc} 重新借款会使贷款接近 {pct}，超过 Morpho 86% 的清算线。账单保持待付。",
+      "a2bPass": "被 Adag 拒绝：质押自上次检查以来降至 {btc}，因此它执行了检查，且{over}。整个批次自行回滚。",
+      "a3Pass": "被 Adag 拒绝：多借 {amount} 属于新债务，因此它执行了检查，且{over}。",
+      "a4Pass": "第一笔付款通过，因为 {amount} 的借款发生在 Adag 的步骤之后，使贷款处于 {ltv}。下一笔付款被拒绝：{over}。",
+      "a4Fail": "未按文档所述表现：第一笔 {first}；下一笔 {next}；账单 {status}。",
+      "a5Pass": "已拒绝。供应商不能支付自己的账单：不会有资金转手，因此无法证明已付款。",
+      "a61Pass": "已拒绝。账单以 USDC 或 EURC 支付；cirBTC 是抵押品，永远不是币种。",
+      "a62Pass": "已拒绝。WETH 不是 Adag 接受的两种币种之一。",
+      "a63Pass": "已拒绝。不是 USDC 或 EURC 的地址永远不能作为账单币种。",
+      "a64Pass": "已拒绝。金额为零的账单不是账单。",
+      "a65Pass": "已拒绝。备注为 141 字节，上限为 140，按字节而非字符计算。",
+      "a7aPass": "已拒绝。只有开出账单的供应商才能取消它；账单保持待付并可支付。",
+      "a7bPass": "已拒绝。{label}已经支付，已付账单永远无法取消。",
+      "a8Pass": "已拒绝。USDC 代币不会转移 Adag 从未获授权转移的资金，因此整个批次自行回滚，账单保持待付。",
+      "a9aPass": "如约支付。模拟下跌后贷款处于 {ltv}，但这笔付款没有新增债务，因此没有可检查的内容。",
+      "a9aFail": "未按承诺表现：{out}。",
+      "a9bPass": "被 Adag 拒绝：多借一分钱属于新债务，因此它执行了检查，且{over}。",
+      "e1Pass": "已拒绝。在同一区块登记的付款方不能在该区块付款，因此整个批次自行回滚，包括登记。",
+      "e1Fail": "未按预期拒绝：{out}；账单 {status}；登记区块 {block}。",
+      "e2Pass": "已拒绝。借入 {amount}、登记并在一个批次中付款触发了同区块拒绝；Adag 对贷款的记录未变。",
+      "e3Pass": "已守住。陌生人的登记通过了，但只写入了陌生人自己的记录；演示付款方登记的贷款没有变化，其付款也通过了。",
+      "e3Fail": "未按文档所述表现：陌生人登记 {a}；演示记录之前 {b}，之后 {c}；演示付款 {d}。",
+      "e4Pass": "被 Adag 拒绝：质押低于登记时的水平，因此它执行了检查，且{over}。",
+      "e4Fail": "未按预期拒绝：登记 {a}；随后 {b}；账单 {status}。",
+      "e5Pass": "设计如此，正如 C32 所述：在 Adag 之外借入的 {amount}（贷款处于 {ltv}）被登记，下一区块的余额付款未经检查即通过。风险只落在付款方自己的贷款上。",
+      "e5Fail": "未按文档所述表现：借款 {a}；登记 {b}；付款 {c}；账单 {status}。",
+      "overLimit": "贷款将为 {debt}，而上限为 {limit}，即比特币价值的 40%",
+      "liveStateWrong": "实时状态不是这些攻击所针对的状态：{problems}。",
+      "problemNoLoan": "演示钱包没有待还的 USDC 市场贷款",
+      "problemMoved": "演示贷款自 Adag 上次登记以来已发生变动",
+      "problemNotPaid": "账单 #{id} 不是已付状态",
+      "problemStale": "BTC/USD 价格已过时，因此每项贷款检查都会先停在 StalePrice",
+      "problemAllowance": "演示钱包仍有对 Adag 的 USDC 授权",
+      "problemBalance": "演示钱包持有不到 2 USDC，不足以在 A2 中偿还并重新借款",
+      "guardStateChain": "AdagGuard {guard}。链上：付款方贷款 {debt}（{ltv}），其规则 {rule}，其对 AdagGuard 的授权额度 {approval}。",
+      "guardRuleNone": "无",
+      "guardPremiseClears": "模拟前提：付款方{what}，因此每一行都从两者皆无开始。",
+      "guardClearsRule": "清除其现有守护规则（{trigger} / {target}）",
+      "guardSetsApproval": "把其对 AdagGuard 的 {amount} 授权额度设为 0",
+      "guardPremiseBorrows": "模拟前提：付款方在 Morpho 上多借 {amount}，{range}。",
+      "guardPremiseRepays": "模拟前提：付款方在 Morpho 上偿还贷款中的 {amount}，{range}。",
+      "guardRange": "使贷款从 {from} 变为 {to}",
+      "guardFunding": "模拟资金：一次状态覆写在前提之前把付款方钱包设为 {start}，使其在前提之后持有 {least}。",
+      "guardPremiseLine": "每一行贷款守护都从一个模拟前提开始：演示付款方在 Morpho 上借款，直到贷款处于 38.00%，高于 35% 的触发线。在本次运行中，每一行都从 {debt} 的贷款（{ltv}）、{wallet} 的钱包、无守护规则且无授权额度开始；除非该行另有说明，其规则在 35% 时触发并把贷款拉回 30%。比特币价格 {price} USDC。模拟陌生人 {stranger}。",
+      "guardNoteSentence": "每一行贷款守护都从一个模拟前提开始：演示付款方在 Morpho 上借款，直到贷款处于 38.00%，高于 35% 的触发线。",
+      "g6Pass": "已守住。第一次，守护偿还了 {amount}，恰好把贷款拉回 30%；两次重复都无事可做，没有资金移动。",
+      "g6Fail": "未按文档所述表现：偿还了 {shown}。",
+      "g1Pass": "已守住。贷款需要 {need}，但付款方只授权了 {cap}：守护恰好偿还了这个额度，授权降为零，第二次什么都没偿还。",
+      "g1Fail": "未按文档所述表现：第一次 {first}，提取 {pulled}，剩余授权 {left}。",
+      "repaidAmount": "偿还了 {amount}",
+      "g2aPass": "已拒绝。另一个真实的 USDC/cirBTC 市场不是 AdagGuard 固定的两个市场之一。",
+      "g2bPass": "两次均被拒绝。只差一个十六进制位的市场 id 是另一个 id：setRule 和 protect 都拒绝了它。",
+      "g2bFail": "未按预期拒绝：setRule {a}；protect {b}。",
+      "g2cPass": "已守住。在 EURC 市场中付款方没有贷款也没有规则，因此守护什么都没偿还，没有 USDC 移动。",
+      "g2cFail": "未按文档所述表现：{repaid}；付款方 USDC 移动了 {moved}。",
+      "g3Pass": "已守住。处于 {ltv} 的贷款低于付款方 50% 的触发线，因此守护什么都没偿还，没有发出事件，也没有资金移动。",
+      "g3Fail": "未按文档所述表现：报价 {act}（{amount}）；protect {repaid}。",
+      "g4Pass": "已守住。过期前该规则本会偿还 {amount}；在过期那一秒它不起作用，守护什么都没偿还。",
+      "g4Fail": "未按文档所述表现：过期前 {early}；过期时 {late}；protect {repaid}。",
+      "g5aPass": "已拒绝。clearRule 只针对发送者，而陌生人没有规则；付款方的规则仍为 {rule}。",
+      "g5aFail": "未按预期拒绝：{out}；付款方的规则 {rule}。",
+      "g5bPass": "已守住。陌生人的 setRule 通过了，但只写入了陌生人自己的规则（80% / 1%）；付款方的仍为 {rule}。",
+      "g5bFail": "未按文档所述表现：{out}；付款方的规则 {rule}。",
+      "g7Pass": "已守住。贷款需要 {need}，而钱包持有 {held}：守护恰好偿还了这个额度，没有回滚，也没有留存任何资金。",
+      "g7Fail": "未按文档所述表现：{repaid}；钱包现为 {after}。",
+      "g8Pass": "已守住。在零价格下守护偿还了 {repaid}，即向下取整的债务，因此 Morpho 的份额运算不会下溢；剩余债务 {left}，AdagGuard 没有留存任何资金。",
+      "g8Fail": "未按文档所述表现：报价 {act} {quoted}；protect {repaid}，上限 {cap}。",
+      "g9aPass": "已守住。即使价格为零，有授权但没有规则的付款方也不受影响：守护什么都没偿还，没有 USDC 移动。",
+      "g9aFail": "未按文档所述表现：报价 {act}（{amount}）；protect {repaid}；USDC 移动了 {moved}。",
+      "g9bPass": "已守住。没有贷款也没有规则的钱包（{wallet}）没有可偿还的内容；没有资金移动。",
+      "g9bFail": "未按文档所述表现：{repaid}；报价 {act}。",
+      "g10Pass": "五项全部拒绝。这些函数在已部署的 AdagGuard 上都不存在，因此每次调用都回滚；唯一会改变状态的函数是 clearRule、protect 和 setRule。",
+      "g10Fail": "未按文档所述表现：{prefix}写入 {writes}。",
+      "g10Succeeded": "一次管理员调用成功了；",
+      "guardNoLoan": "付款方没有 USDC 市场贷款，因此这些攻击没有目标。",
+      "guardHoldsLittle": "付款方持有 {amount}；这些攻击假定至少有 1 USDC。",
+      "guardHoldsLittleAfter": "前提之后付款方持有 {amount}；这些攻击假定至少有 1 USDC。",
+      "guardPremiseOff": "模拟前提使贷款处于 {ltv}，而非 {expected}。",
+      "guardNotDeployed": "此版本中未部署 AdagGuard。",
+      "setupFailed": "准备区块失败：{out}",
+      "baselineFailed": "基线读取 {n} 失败：{out}",
+      "guardBaselineFailed": "守护基线读取 {n} 失败：{out}",
+      "premiseFailed": "前提区块失败：{out}",
+      "createBillFailed": "准备阶段 createBill 失败：{out}",
+      "noPremise": "付款方没有带抵押品的 USDC 市场贷款，因此任何前提都无法把它置于某个水平。",
+      "paramsMismatch": "Morpho 的 USDC 市场参数与固定市场不匹配。",
+      "guardPremiseBoth": "清除其现有守护规则（{trigger} / {target}）并把其对 AdagGuard 的 {amount} 授权额度设为 0"
+    }
+  }
+}

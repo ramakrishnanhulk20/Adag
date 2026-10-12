@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import type { Address, Hex } from "viem";
 import { arc } from "viem/chains";
 import { useReadContracts } from "wagmi";
@@ -12,7 +13,7 @@ import { ADAG_GUARD } from "@/lib/guard/constants";
 import { erc20Abi, morphoAbi } from "@/lib/pay/abi";
 import { CURRENCIES, EXPLORER, MORPHO, type Currency } from "@/lib/pay/constants";
 import type { TxStep } from "@/lib/wallet/send";
-import { stopGuard } from "./guardTx";
+import { useStopGuard } from "./guardTx";
 import { GuardSummary, type GuardRule } from "./GuardSummary";
 
 type Read = { status: "success"; result: unknown } | { status: "failure"; error: Error };
@@ -24,6 +25,9 @@ type ItemProps = { address: Address; currency: Currency; rule: GuardRule; allowa
 // One market's guard. A rule is set or changed on the loan card, but it can always be stopped from here, because a
 // closed loan has no card and its leftover approval must still be switchable to 0 where it is shown (C60).
 function GuardListItem({ address, currency, rule, allowance, balance, hasCard, canSign, onStopped }: ItemProps) {
+  const t = useTranslations("guard.list");
+  const tc = useTranslations("common");
+  const stopGuard = useStopGuard();
   const [tx, setTx] = useState<TxState>({ kind: "idle" });
   const busy = tx.kind === "busy" ? tx : null;
   const step = (s: TxStep) => setTx((prev) => ({ kind: "busy", step: s, since: prev.kind === "busy" && prev.step === s ? prev.since : Date.now() }));
@@ -37,23 +41,23 @@ function GuardListItem({ address, currency, rule, allowance, balance, hasCard, c
 
   return (
     <li className="py-5" data-guard-list-item={currency.symbol}>
-      <p className="type-micro text-muted">{currency.symbol} loan</p>
+      <p className="type-micro text-muted">{t("loanOf", { symbol: currency.symbol })}</p>
       <div className="mt-2">
         <GuardSummary currency={currency} rule={rule} allowance={allowance} balance={balance} />
       </div>
       {hasCard ? (
         <Link href={`/app#guard-${currency.symbol.toLowerCase()}`} className="link-draw type-body mt-3 inline-block text-text hover:text-gold" data-guard-list-link={currency.symbol}>
-          Change it on your wallet page
+          {t("changeOnWallet")}
         </Link>
       ) : (
         <p className="type-body mt-3 text-muted" data-guard-list-closed={currency.symbol}>
-          This loan is closed. Stop protecting sets the approval to 0.
+          {t("closedLoan")}
         </p>
       )}
       {canSign && (hasRule || allowance > 0n) && (
         <div className="mt-4">
           <Button variant="secondary" size="sm" disabled={Boolean(busy)} onClick={() => void stop()} data-action="list-protect-stop">
-            {busy ? <BusyLabel step={busy.step} since={busy.since} /> : "Stop protecting"}
+            {busy ? <BusyLabel step={busy.step} since={busy.since} /> : tc("stopProtecting")}
           </Button>
         </div>
       )}
@@ -67,6 +71,8 @@ function GuardListItem({ address, currency, rule, allowance, balance, hasCard, c
 // "Your loan guards": every market where this wallet borrows, keeps a rule or still grants AdagGuard an approval,
 // in the loan card's own words, with a link to the card where it is changed and a way to stop it from here.
 export function GuardList({ address, canSign }: { address: Address; canSign: boolean }) {
+  const t = useTranslations("guard.list");
+  const tc = useTranslations("common");
   const guard = ADAG_GUARD;
   const [done, setDone] = useState<Done | null>(null);
   const reads = useReadContracts({
@@ -101,15 +107,13 @@ export function GuardList({ address, canSign }: { address: Address; canSign: boo
   const listed = rows.filter((r) => r.shown);
 
   return (
-    <section className="app-panel p-6 md:p-8" aria-label="Your loan guards" data-guard-list>
-      <p className="type-label text-gold">Your loan guards</p>
+    <section className="app-panel p-6 md:p-8" aria-label={t("title")} data-guard-list>
+      <p className="type-label text-gold">{t("title")}</p>
       {reads.isPending ? (
-        <p className="type-body mt-4 text-muted">Reading your loans and AdagGuard on Arc.</p>
+        <p className="type-body mt-4 text-muted">{t("reading")}</p>
       ) : (
         <>
-          {listed.length === 0 && !rows.some((r) => r.unreadable) && (
-            <p className="type-body mt-4 text-muted">This wallet has no loan and no guard. A loan appears here once you pay a bill from bitcoin.</p>
-          )}
+          {listed.length === 0 && !rows.some((r) => r.unreadable) && <p className="type-body mt-4 text-muted">{t("none")}</p>}
           <ul className="mt-2 divide-y divide-rule">
             {listed.map(({ currency, rule, allowance, balance, hasCard }) => (
               <GuardListItem
@@ -133,11 +137,11 @@ export function GuardList({ address, canSign }: { address: Address; canSign: boo
             <p className="type-body mt-4 text-success" data-guard-list-result>
               {done.text}{" "}
               <a href={`${EXPLORER}/tx/${done.hash}`} target="_blank" rel="noopener noreferrer" className="link-draw text-text hover:text-gold">
-                View the transaction
+                {tc("viewTheTransaction")}
               </a>
             </p>
           )}
-          {rows.some((r) => r.unreadable) && <p className="type-body mt-4 text-muted">Some loans are unavailable right now: Arc did not answer. They appear here once it does.</p>}
+          {rows.some((r) => r.unreadable) && <p className="type-body mt-4 text-muted">{t("someUnavailable")}</p>}
         </>
       )}
     </section>

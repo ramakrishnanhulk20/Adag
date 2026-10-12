@@ -1,0 +1,2051 @@
+{
+  "common": {
+    "payABill": "Pagar una factura",
+    "writeABill": "Crear una factura",
+    "docs": "Docs",
+    "termsOfUse": "Términos de uso",
+    "liveOnArc": "En vivo en Arc mainnet",
+    "arcMainnet": "Arc mainnet",
+    "readingArc": "Leyendo Arc",
+    "readingArcSeconds": "Leyendo Arc · {seconds}s",
+    "unavailable": "no disponible",
+    "tryAgain": "Reintentar",
+    "copied": "Copiado",
+    "copyLink": "Copiar enlace",
+    "noBillPaidYet": "Todavía no se ha pagado ninguna factura en Arc.",
+    "billNumber": "Factura #{id}",
+    "billNo": "Factura N.º {id}",
+    "no": "N.º {id}",
+    "firstDeployment": "Primer despliegue",
+    "firstDeploymentAddress": "Primer despliegue de AdagBills {address}",
+    "paymentOnArc": "Pago en Arc",
+    "contractNames": {
+      "bills": "AdagBills",
+      "guard": "AdagGuard",
+      "billsFirst": "AdagBills, primer despliegue"
+    },
+    "explorer": "Explorador",
+    "tryToBreakIt": "Intenta romperlo",
+    "howItWorks": "Cómo funciona",
+    "backToAdag": "Volver a Adag",
+    "couldNotReadFromArc": "No se pudo leer esto desde Arc",
+    "refusesOver40": "Adag rechaza todo lo que pase del 40%",
+    "refusesOver": "Adag rechaza todo lo que pase de {pct}",
+    "yourWallet": "Tu billetera",
+    "loanGuard": "Guardián del préstamo",
+    "telegramAlerts": "Alertas de Telegram",
+    "stopProtecting": "Dejar de proteger",
+    "viewTheTransaction": "Ver la transacción",
+    "viewTheTransactionLower": "ver la transacción",
+    "transactionOnExplorer": "Transacción {hash} en el explorador",
+    "hashOnExplorer": "{hash} en el explorador",
+    "transaction": "Transacción",
+    "confirmedOnArc": "Confirmada en Arc",
+    "nothingWasSent": "No se envió nada.",
+    "arcNoAnswerNothingBuilt": "Arc no respondió, así que no se preparó nada. Intenta de nuevo.",
+    "noBalanceAnswer": "Arc no respondió con tu saldo. No se envió nada. Intenta de nuevo.",
+    "notConfirmedTwoMinutes": "Arc no la ha confirmado después de dos minutos. No pagues otra vez: revisa primero la transacción.",
+    "guardChanged": "Tu guardián del préstamo cambió desde que se cargó esta página: lee la nota de arriba antes de pagar. No se envió nada.",
+    "stalePrice": "Los préstamos nuevos están en pausa hasta que se actualice el precio del bitcoin. Pagar desde tu saldo sigue funcionando.",
+    "stalePriceShort": "Los préstamos nuevos están en pausa hasta que se actualice el precio del bitcoin.",
+    "readingGuard": "Leyendo tu guardián del préstamo en Arc.",
+    "lessCirbtcThanPledge": "Tu billetera tiene menos cirBTC que esta garantía.",
+    "readingEuroAndMarket": "Leyendo el precio del euro y el mercado de {symbol} en Arc.",
+    "convertUnreadable": "Adag no pudo leer lo que necesita una conversión, así que está desactivada. Recarga para intentar de nuevo.",
+    "details": "Detalles",
+    "percentAYear": "{pct}% al año",
+    "liveVariable": "en vivo, variable",
+    "ltvAfter": "Préstamo/valor (LTV) después",
+    "fortyCheck": "Verificación del 40%",
+    "yourDebt": "Tu deuda",
+    "debtInCurrency": "En {symbol}. Su costo en dólares se mueve con el euro.",
+    "circlesAdapter": "Adaptador de Circle",
+    "adapterNoAccess": "No le queda acceso a tu billetera.",
+    "adapterStillAccess": "Todavía tiene acceso a tu billetera.",
+    "adapterUnreadable": "No se pudo leer su acceso.",
+    "effectsUnchecked": "Adag no pudo rastrear las transferencias de esta conversión antes de que firmaras, así que solo la protegió la verificación de saldo del propio pago.",
+    "bitcoinSold": "Bitcoin vendido",
+    "leftInWallet": "Queda en tu billetera",
+    "became": "{from} se convirtió en {to}",
+    "loanRecorded": "Préstamo registrado ·",
+    "alreadyPaidNothing": "Ya está pagada. No hay nada que pagar aquí.",
+    "cancelledNever": "Anulada. Nunca se podrá pagar.",
+    "pays": "Paga a",
+    "reference": "Referencia",
+    "none": "Ninguna",
+    "noDueDate": "Sin vencimiento",
+    "unknown": "desconocido",
+    "connectWallet": "Conectar billetera",
+    "switchToArc": "Cambiar a Arc",
+    "confirmInWallet": "Confirma en tu billetera",
+    "amountIn": "Monto en {symbol}",
+    "aboutEstimated": "unos {usd}, estimado",
+    "shareText": "Factura #{id}, pagadera en Arc.",
+    "shareTextAmount": "Factura #{id} por {amount} {symbol}, pagadera en Arc.",
+    "seconds": "{seconds}s",
+    "billIsPaid": "La factura #{id} está pagada.",
+    "poweredByMorpho": "Con tecnología de Morpho",
+    "cancel": "Cancelar"
+  },
+  "nav": {
+    "main": "Principal",
+    "app": "App",
+    "howItWorks": "Cómo funciona",
+    "safety": "Seguridad",
+    "proof": "Prueba",
+    "docs": "Docs",
+    "openApp": "Abrir la app",
+    "closeMenu": "Cerrar menú",
+    "openMenu": "Abrir menú",
+    "writeABill": "Crear una factura",
+    "payABill": "Pagar una factura",
+    "yourWallet": "Tu billetera",
+    "loanGuard": "Guardián",
+    "menu": "Menú",
+    "close": "Cerrar"
+  },
+  "switcher": {
+    "label": "Idioma"
+  },
+  "theme": {
+    "system": "Sistema",
+    "light": "Claro",
+    "dark": "Oscuro",
+    "lower": {
+      "light": "claro",
+      "dark": "oscuro"
+    },
+    "systemNow": "Sistema, ahora {resolved}",
+    "switchTo": "Tema: {state}. Cambiar a {next}",
+    "tooltip": "Tema: {state}",
+    "theme": "Tema",
+    "optionLabel": "Tema {option}"
+  },
+  "stamp": {
+    "paid": "Pagada",
+    "open": "Abierta",
+    "void": "Anulada",
+    "status": "Estado: {word}"
+  },
+  "hero": {
+    "line1": "Paga la factura.",
+    "line2": "Conserva el <tail><em>bitcoin</em>.</tail>",
+    "lead": "Paga a tus proveedores con el bitcoin que tiene tu empresa. Una sola firma, desde tu billetera <em>o desde el Safe de tu empresa</em>, pone cirBTC en garantía en Morpho, pide prestado exactamente el valor de las facturas y las paga en USDC o EURC, cada una vinculada a su número de factura.",
+    "sendingABill": "¿Envías una factura? <link>Crea una</link>",
+    "ticker": "En vivo en Arc · {amount} disponibles para prestar",
+    "cells": {
+      "labels": {
+        "ready": "Disponible para prestar en Morpho",
+        "rate": "Tasa de interés",
+        "cap": "Tope",
+        "paid": "Pagado a través de Adag"
+      },
+      "eurcUnavailable": "Mercado de EURC no disponible",
+      "eurcMarket": "{amount} en el mercado de EURC",
+      "aYear": "al año",
+      "morphoLive": "Morpho Blue, en vivo",
+      "lineUnavailable": "La línea de Morpho no está disponible",
+      "morphoLiquidatesAt": "Morpho liquida al {pct}",
+      "seeBillOneLabel": "Ver la factura 1, el pago de prueba en vivo",
+      "seeBillOne": "ver la factura #1",
+      "billsPaid": "{count, plural, =1 {{n} factura pagada} other {{n} facturas pagadas}}",
+      "couldNotRead": "No se pudo leer esto desde Arc"
+    },
+    "credit": {
+      "arcMainnet": "Arc mainnet",
+      "usdcOrEurc": "USDC o EURC",
+      "morphoBlue": "Morpho Blue",
+      "cap": "Tope del 40%",
+      "oneSignature": "Una sola firma",
+      "noOwner": "Sin dueño",
+      "btcPrice": "Precio del BTC",
+      "btcPriceUnavailable": "Precio del BTC no disponible",
+      "pausedWaiting": "Préstamos nuevos en pausa · esperando un precio del BTC actualizado",
+      "btcPriceFresh": "Precio del BTC actualizado",
+      "updated": "Actualizado",
+      "ageUnderMinute": "HACE MENOS DE UN MIN",
+      "ageMinutes": "HACE {minutes} MIN",
+      "ageHours": "HACE {hours} H",
+      "ageHoursMinutes": "HACE {hours} H {minutes} MIN"
+    }
+  },
+  "landing": {
+    "pledged": {
+      "label": "02 · En garantía, no vendido",
+      "title": "En garantía, <em>no vendido.</em>",
+      "india": "En India, las familias dejan su oro en garantía a cambio de efectivo en lugar de venderlo, y se lo llevan de vuelta a casa cuando devuelven el préstamo.",
+      "adagu": "Adag, de la palabra tamil <em>adagu</em>, una prenda, hace lo mismo con bitcoin, en Arc.",
+      "whereIsTheBitcoin": "¿Dónde está el bitcoin?",
+      "cirbtc": "cirBTC es el bitcoin envuelto de Circle, respaldado 1:1 y custodiado por Circle, con <link>reservas públicas</link>. En garantía, se queda en tu propia posición de Morpho y no se presta a nadie. Adag nunca lo tiene en su poder.",
+      "caption": "Oro en garantía, no vendido.",
+      "imageAlt": "Manos que colocan joyas de oro en una bandeja de latón junto a un recibo de prenda escrito a mano"
+    },
+    "oneSignature": {
+      "label": "04 · Una sola firma",
+      "title": "Cinco pasos, <em>una sola firma.</em>",
+      "lead": "Pagar una factura con bitcoin son cinco llamadas en Arc. Las firmas una vez, como un solo lote, y se ejecutan juntas. Hasta 10 facturas de proveedores caben en esa misma firma.",
+      "ifAnyFails": "Si falla algún paso, nada de esto ocurrió.",
+      "seeTheRealOne": "Ver un pago real en Arc"
+    },
+    "receipt": {
+      "oneBatch": "Adag · un solo lote",
+      "calls": {
+        "approveBtc": "Dejar que Morpho tome la garantía, y nada más.",
+        "supply": "Poner el bitcoin en garantía. Queda en garantía a tu nombre, nunca vendido.",
+        "borrow": "Pedir prestado exactamente el monto de la factura.",
+        "approveCurrency": "Dejar que Adag mueva exactamente ese monto.",
+        "memo": "Pagar al proveedor, con el número de factura adjunto."
+      },
+      "signedOnce": "allowFailure false en cada llamada · firmado una vez, desde tu propia billetera",
+      "legend": "P garantía · A monto de la factura · C USDC o EURC · N número de factura · R referencia de la factura"
+    },
+    "forty": {
+      "label": "05 · La línea del 40%",
+      "title": "La línea del 40%",
+      "lead": "Adag nunca deja que un pago lleve el préstamo más allá del 40% del valor del bitcoin, por muchas facturas que pague. La propia línea de Morpho está mucho más lejos.",
+      "facts": {
+        "noOwner": {
+          "title": "Sin dueño, sin actualizaciones, sin pausa",
+          "body": "No hay clave de administrador ni interruptor. La línea del 40% y cada dirección en la que Adag confía quedaron fijadas cuando se desplegó."
+        },
+        "neverHolds": {
+          "title": "Nunca custodia tu dinero",
+          "body": "Cada pago va de la billetera que paga al proveedor dentro de una misma transacción. Nada tuyo espera en Adag."
+        },
+        "verified": {
+          "title": "Código fuente verificado",
+          "body": "El código que corre en Arc coincide exactamente con el código fuente publicado, verificado por Sourcify y por el explorador de Arc, para cada contrato que usa Adag."
+        },
+        "refuses": {
+          "title": "Rechaza todo lo que pase del 40%, incluso transacciones armadas a mano",
+          "body": "La verificación vive en el contrato, no en el sitio web. Un pago que llevaría el préstamo más allá del 40% se revierte, sin importar quién lo arme."
+        }
+      },
+      "links": {
+        "contractOnArc": "El contrato en Arc",
+        "tokenBalances": "Sus saldos de tokens",
+        "onSourcify": "{name} en Sourcify",
+        "onExplorer": "{name} en explorer.arc.io"
+      }
+    },
+    "gauge": {
+      "unavailable": "{what} no disponible · no se pudo leer esto desde Arc",
+      "theLoanCap": "El tope del préstamo",
+      "theBtcPrice": "El precio del BTC",
+      "ariaCapOnly": "Adag se detiene en {cap}%",
+      "ariaCapAndLine": "Adag se detiene en {cap}%; Morpho liquida al {lltv}%",
+      "oneCirbtcNow": "1 cirBTC ahora",
+      "adagPaysUpTo": "Adag paga hasta",
+      "liquidatesIfFallsTo": "Morpho liquida un préstamo en el tope de Adag si el bitcoin cae a",
+      "aFall": "una caída del {pct}%",
+      "perCirbtc": "Por 1 cirBTC, al precio en vivo del oráculo del mercado de USDC en Arc"
+    },
+    "checkIt": {
+      "proof": "Prueba",
+      "title": "Verifícalo <em>por tu cuenta.</em>",
+      "billOne": "Factura #1",
+      "billOnePaid": "Factura #1, pagada",
+      "openBillOne": "Abrir la factura #1",
+      "reading": "Leyendo la factura #1 y su pago desde Arc.",
+      "noAnswer": "Arc no respondió, así que aquí no se afirma nada sobre la factura #1. Su propia página la vuelve a leer.",
+      "notPaidYet": "Una factura de {amount} en el contrato actual, todavía sin pagar.",
+      "txNotFound": "Una factura real de {amount}, marcada como pagada en Arc. Su transacción de pago no se encontró en el rango justo ahora.",
+      "paidFromLoan": "Una factura real de {amount}, pagada con un préstamo respaldado por bitcoin, con la verificación del 40% de Adag aplicada a ese préstamo.",
+      "paidNoLoan": "Una factura real de {amount}, pagada con una sola firma; no agregó ningún préstamo nuevo, así que la verificación del 40% no tenía nada que verificar.",
+      "itsTransaction": "Su transacción",
+      "tryToBreakIt": "Intenta romperlo",
+      "attacks": "{n} ataques contra los contratos en vivo, simulados en Arc mientras miras. Cada uno muestra qué lo detiene.",
+      "runTheAttacks": "Ejecutar los ataques",
+      "auditStatus": "Estado de la auditoría",
+      "auditBody": "Auditoría propia, no de una firma externa. Qué se probó, qué se encontró y qué no está cubierto.",
+      "readTheRecord": "Leer el registro"
+    },
+    "after": {
+      "label": "06 · Después de pagar",
+      "title": "Pagado. Y luego, <em>cuidado.</em>",
+      "lead": "Pagar es donde la mayoría de las herramientas se detienen. Adag sigue trabajando sobre el préstamo que respalda tu bitcoin: devuelve una parte cuando el préstamo cruza tu línea, te avisa por Telegram y paga desde el Safe de la empresa donde ya vive tu tesorería.",
+      "parts": {
+        "guard": {
+          "title": "El guardián del préstamo",
+          "body": "Cuando un préstamo cruza una línea que tú eliges, el guardián devuelve una parte con tus propios USDC o EURC, justo lo necesario para volver a tu objetivo.",
+          "keyLine": "Lo máximo que puede tomar es el monto que aprobaste.",
+          "after": "Detenlo cuando quieras: la regla se borra y el monto aprobado pasa a 0.",
+          "link": "Cómo funciona el guardián del préstamo"
+        },
+        "alerts": {
+          "title": "Alertas de Telegram",
+          "body": "Un mensaje cuando un préstamo se acerca a un nivel que fijaste, y uno cada vez que el guardián abona una parte. Adag nunca le dice a nadie más si una billetera tiene alertas.",
+          "link": "Cómo funcionan las alertas"
+        },
+        "safe": {
+          "title": "Pagar desde el Safe de la empresa",
+          "body": "Una factura o hasta diez, propuestas al Safe y firmadas por sus propietarios como firman cualquier otra cosa. Al ejecutarse, se completa entera o no se completa.",
+          "link": "Pagar desde un Safe"
+        },
+        "record": {
+          "title": "Ya pides prestado en Morpho",
+          "body": "Registra una sola vez el préstamo que tienes. No se mueve dinero. Desde entonces puedes pagar facturas desde tu saldo, y Adag compara tu préstamo con el que registraste.",
+          "link": "Registrar un préstamo existente"
+        }
+      }
+    },
+    "suppliers": {
+      "label": "07 · Para proveedores",
+      "title": "Envía una factura. <em>Cobra.</em>",
+      "steps": {
+        "write": "Crea una factura",
+        "share": "Comparte su enlace",
+        "getPaid": "Cobra en USDC o EURC, vinculado a tu número de factura"
+      },
+      "latest": "El último pago en Arc, leído en vivo"
+    },
+    "billCard": {
+      "unavailable": "El último pago no está disponible: Arc no respondió. No se muestra nada en su lugar.",
+      "paidTo": "Pagado a",
+      "paidBy": "Pagado por",
+      "paid": "Pagado",
+      "theBill": "La factura",
+      "openIt": "Ábrela, con su referencia de factura"
+    },
+    "ledger": {
+      "label": "08 · El libro mayor",
+      "title": "Cada pago, <em>en el registro.</em>",
+      "fromTo": "<muted>de </muted>{from}<muted> a </muted>{to}",
+      "fromLoanChecked": "de un préstamo, verificación del 40%",
+      "unavailable": "El libro mayor no está disponible: Arc no respondió.",
+      "note": "Los pagos más recientes a través de Adag en Arc, leídos del propio registro de pagos de cada contrato. Las referencias de factura se quedan en la página de cada factura. Nada de esto es ficticio.",
+      "showing": "Mostrando los últimos {shown} de {total} pagados."
+    },
+    "close": {
+      "title": "La factura vence. <em>El bitcoin sigue en garantía.</em>",
+      "tamil": "<word>adagu</word> · prenda, en tamil",
+      "poweredBy": "Con tecnología de Morpho · en Arc mainnet",
+      "footer": "Pie de página",
+      "contracts": "Contratos en Arc mainnet"
+    }
+  },
+  "pledge": {
+    "readingArc": "Leyendo Arc",
+    "chapters": {
+      "coin": "La moneda",
+      "bills": "Las facturas",
+      "pledge": "La garantía",
+      "loan": "El préstamo",
+      "paid": "Pagado",
+      "neverSold": "Nunca vendido"
+    },
+    "replay": {
+      "twoBoth": "Repetición de dos facturas reales, una en cada contrato de Adag",
+      "one": "Repetición de una factura real, pagada en Arc",
+      "oneFirst": "Repetición de una factura real, en el primer contrato de Adag, pagada en Arc",
+      "many": "{count, plural, =2 {Repetición de dos facturas reales, pagadas en Arc} =3 {Repetición de tres facturas reales, pagadas en Arc} other {Repetición de {n} facturas reales, pagadas en Arc}}",
+      "manyBoth": "{count, plural, =2 {Repetición de dos facturas reales en ambos contratos de Adag, pagadas en Arc} =3 {Repetición de tres facturas reales en ambos contratos de Adag, pagadas en Arc} other {Repetición de {n} facturas reales en ambos contratos de Adag, pagadas en Arc}}"
+    },
+    "honesty": "{replay}. Las cifras se leen en vivo.",
+    "honestyFailed": "No se pudo leer Arc. No se muestra nada en su lugar.",
+    "honestyNone": "Todavía no se ha pagado ninguna factura en Arc. No se inventa nada para llenar esto.",
+    "captions": {
+      "pledgedHead": "Tu bitcoin está en garantía, no vendido.",
+      "pledgedSub": "Está en Morpho como colateral, a tu nombre.",
+      "borrowsHead": "{count, plural, =1 {Adag pide prestado exactamente el monto de la factura.} other {Adag pide prestado exactamente el monto de las facturas.}}",
+      "borrowsSub": "Y rechaza todo lo que pase de {cap} del valor del bitcoin.",
+      "neverSoldHead": "Nunca vendido.",
+      "neverSoldSub": "Sigue en garantía a tu nombre. Devuelve el préstamo cuando quieras para recuperarlo.",
+      "readingHead": "Leyendo las últimas facturas desde Arc.",
+      "failedHead": "No se pudieron leer las facturas desde Arc.",
+      "failedSub": "No se inventa ninguna factura para llenar el escenario. Intenta de nuevo en un minuto.",
+      "noneHead": "Todavía no hay facturas pagadas en Arc.",
+      "noneSub": "El primer pago en Arc aparecerá aquí.",
+      "dueHead": "{count, plural, =1 {Vence una factura real.} =2 {Vencen dos facturas reales.} =3 {Vencen tres facturas reales.} other {Vencen {n} facturas reales.}}",
+      "dueSub": "{count, plural, =1 {Se pagó de verdad en Arc. La garantía es lo que una billetera nueva pondría hoy para pagarla con bitcoin.} =2 {Ambas se pagaron de verdad en Arc. La garantía es lo que una billetera nueva pondría hoy para pagarlas con bitcoin.} other {Todas se pagaron de verdad en Arc. La garantía es lo que una billetera nueva pondría hoy para pagarlas con bitcoin.}}",
+      "paidHead": "{count, plural, =1 {El proveedor cobró.} =2 {Dos facturas pagadas.} =3 {Tres facturas pagadas.} other {{n} facturas pagadas.}}",
+      "paidSub": "{count, plural, =1 {Número de factura adjunto. Una sola firma.} other {Números de factura adjuntos. Una sola firma.}}"
+    },
+    "srTitle": "Pagar facturas con bitcoin en garantía, en seis tiempos",
+    "imageAlt": "Un cajón de caja fuerte abierto, forrado de terciopelo azul",
+    "arcBlock": "Bloque de Arc {block}",
+    "tagWallet": "{btc} cirBTC{usd} · en tu billetera",
+    "tagYourCirbtc": "Tu cirBTC",
+    "tagPledged": "En garantía en Morpho · sigue a tu nombre",
+    "tagNeverSoldBtc": "{btc} cirBTC, en garantía a tu nombre, nunca vendido. Devuelve el préstamo cuando quieras para recuperarlo.",
+    "tagNeverSold": "En garantía a tu nombre, nunca vendido. Devuelve el préstamo cuando quieras para recuperarlo.",
+    "borrowedLabel": "{amount} prestados",
+    "billsPaidOnArc": "Facturas pagadas en Arc",
+    "openBillsOnArc": "Facturas abiertas en Arc",
+    "yourPledge": "Tu garantía",
+    "pledgeNote": "{usd}{perBtc} · 5% de margen{markets}",
+    "valueUnavailable": "valor no disponible",
+    "atPerBitcoin": " a {perBtc} por bitcoin",
+    "twoMarkets": " · 2 mercados",
+    "pausedFeed": "Los préstamos nuevos están en pausa hasta que se actualice la fuente de precios.",
+    "borrowed": "Prestado",
+    "exactlyTheBills": "{count, plural, =1 {Exactamente la factura, nada más} other {Exactamente las facturas, nada más}}",
+    "final": "Préstamo al {ltv} del bitcoin. La línea de Morpho es {lltv}. El bitcoin tendría que caer {fall}% para llegar a ella.",
+    "replayButton": "Ver de nuevo",
+    "card": {
+      "noDate": "SIN FECHA",
+      "titleFirst": "{title}, primer despliegue",
+      "to": "Para",
+      "from": "De",
+      "paid": "Pagada",
+      "on": "El",
+      "paidIn": "Pagada en",
+      "txLabel": "La transacción que pagó la factura {id}, en el explorador de Arc"
+    },
+    "gauge": {
+      "loanToValue": "Préstamo/valor (LTV)",
+      "aria": "Préstamo al {ltv}. El tope de Adag es {cap}, Morpho liquida al {lltv}.",
+      "adagCap": "Tope de Adag {cap}"
+    }
+  },
+  "meta": {
+    "site": {
+      "title": "Adag · Paga tus facturas con tu bitcoin, sin venderlo.",
+      "description": "Pon bitcoin en garantía en Morpho, pide prestado el monto de la factura y paga en USDC o EURC con una firma en Arc. Adag rechaza todo pago que pase del 40%.",
+      "template": "%s · Adag"
+    },
+    "home": {
+      "title": "Adag · Paga tus facturas con tu bitcoin, sin venderlo",
+      "description": "Paga a tus proveedores con el bitcoin de tu empresa sin venderlo: hasta 10 facturas con una sola firma en Arc, con los números de factura adjuntos y un préstamo que Adag limita al 40%."
+    },
+    "wallet": {
+      "title": "Tu billetera",
+      "description": "Las facturas que creaste, las que pagaste y tus préstamos respaldados por cirBTC en Morpho, leídos en vivo desde Arc."
+    },
+    "protect": {
+      "title": "Guardián del préstamo y alertas",
+      "description": "Alertas de Telegram para tus préstamos respaldados por cirBTC, y el guardián del préstamo que abona una parte antes de la línea de Morpho."
+    },
+    "write": {
+      "title": "Crear una factura",
+      "description": "Crea una factura en Arc en USDC o EURC, pagadera a tu billetera exactamente una vez, y comparte su enlace."
+    },
+    "break": {
+      "title": "Intenta romperlo",
+      "description": "Dieciséis ataques reales contra el contrato en vivo de Adag, simulados sobre el estado actual de Arc mainnet. No se firma ni se envía nada."
+    },
+    "pay": {
+      "title": "Pagar una factura",
+      "description": "Abre una factura en Arc por su número o su enlace, y mira exactamente a quién paga y cuánto."
+    },
+    "basket": {
+      "title": "Pagar varias facturas",
+      "description": "Paga hasta diez facturas en Arc con una sola firma, desde tu saldo o con un préstamo respaldado por tu cirBTC."
+    },
+    "terms": {
+      "title": "Términos de uso",
+      "description": "Los términos en lenguaje claro para usar Adag, una interfaz a contratos de facturas inmutables en Arc mainnet."
+    },
+    "bill": {
+      "title": "Factura #{id}",
+      "titleFirst": "Factura #{id} (primer despliegue)",
+      "fallback": "Factura"
+    }
+  },
+  "pay": {
+    "hallmark": "Pagar una factura · Arc mainnet",
+    "title": "¿Qué <em>factura</em>?",
+    "lead": "Escribe el número que te envió tu proveedor, o pega su enlace. Adag lee la factura directamente desde Arc: a quién paga, cuánto y si sigue abierta. Varios números, hasta diez, se pagan juntos con una sola firma.",
+    "countNote": "{count, plural, =1 {factura creada en Arc hasta ahora: {current} en el AdagBills actual y {first} en el primer despliegue, leído justo ahora.} other {facturas creadas en Arc hasta ahora: {current} en el AdagBills actual y {first} en el primer despliegue, leído justo ahora.}}",
+    "countUnknown": "Arc no respondió, así que ahora mismo no se conoce el número de facturas.",
+    "form": {
+      "label": "Números o enlaces de facturas",
+      "placeholder": "Por ejemplo 1, o pega el enlace de una factura",
+      "checkingArc": "Consultando Arc",
+      "openTheBill": "Abrir la factura",
+      "typeANumber": "Escribe un número de factura, como 12, o pega el enlace que te envió tu proveedor. Varios números se pagan juntos.",
+      "notABillNumber": "\"{token}\" no es un número de factura ni un enlace de factura. Corrígelo o quítalo.",
+      "onFirstDeployment": "en el primer despliegue de AdagBills",
+      "onArc": "en Arc",
+      "noBillYetNone": "Todavía no hay factura #{id} {where}. Hasta ahora no se ha creado ninguna factura.",
+      "noBillYetNewest": "Todavía no hay factura #{id} {where}. La factura más reciente es la #{newest}."
+    }
+  },
+  "bill": {
+    "missing": {
+      "bill": "Factura",
+      "mark": "Factura N.º {id}",
+      "markFirst": "Factura N.º {id} · Primer despliegue",
+      "noneTitle": "<em>Todavía</em> no hay factura #{id} en Arc.",
+      "onFirstDeployment": "en el primer despliegue de AdagBills",
+      "onArc": "en Arc",
+      "noRecord": "Adag no tiene registro de este número. Verifícalo con quien te envió el enlace.",
+      "noneWritten": "Hasta ahora no se ha creado ninguna factura {where}. Verifica el número con quien lo envió.",
+      "newestIs": "La factura más reciente {where} es la #{count}. Verifica el número con quien te envió el enlace.",
+      "refusedTitle": "Demasiadas <em>facturas</em>.",
+      "invalidTitle": "Eso no es un <em>número</em> de factura.",
+      "invalidBody": "Los números de factura son números enteros desde 1, como /bill/12.",
+      "unavailableTitle": "Arc no <em>respondió</em>.",
+      "unavailableBody": "El estado de esta factura no está disponible ahora mismo. Nada en esta página significa pagada o sin pagar. Recarga en un momento para intentar de nuevo.",
+      "findAnother": "Buscar otra factura"
+    },
+    "sheet": {
+      "srTitle": "Factura número {id}: {amount} {currency}, estado {status}",
+      "statusWord": {
+        "open": "abierta",
+        "paid": "pagada",
+        "void": "anulada"
+      },
+      "headline": {
+        "open": "Monto a pagar",
+        "paid": "Monto pagado",
+        "void": "Monto anulado"
+      },
+      "unknownTokenLower": "token desconocido",
+      "unknownToken": "Token desconocido",
+      "pays": "Paga a",
+      "addressOnExplorer": "Esta dirección en el explorador de Arc",
+      "openText": "Abierta. Cualquiera puede pagarla, una vez. Hasta entonces, el proveedor que la creó todavía puede anularla.",
+      "paidText": "Pagada por completo en Arc. El saldo del proveedor subió exactamente este monto en la misma transacción.",
+      "voidText": "El proveedor anuló esta factura. Nunca se podrá pagar.",
+      "details": "Detalles de la factura",
+      "due": "Vence",
+      "written": "Creada",
+      "currency": "Moneda",
+      "contract": "Contrato",
+      "paidBy": "Pagada por",
+      "paidOn": "Pagada el",
+      "txUnavailable": "No disponible ahora mismo. La factura sigue pagada: eso viene del propio registro de Adag.",
+      "txNotFound": "Todavía no se encuentra en el registro de pagos de Adag.",
+      "checkPassed": "Aprobada. Este pago tomó un préstamo con bitcoin en garantía, así que Adag verificó que el préstamo se mantuviera en el 40% o por debajo.",
+      "checkPassedOnBill": "Aprobada. Esta factura se pagó en una misma transacción con la factura #{id}, donde Adag verificó que el préstamo se mantuviera en el 40% o por debajo.",
+      "checkNotNeeded": "No hizo falta: sin deuda nueva."
+    },
+    "live": {
+      "titlePaid": "Pagada · Factura #{id} · Adag",
+      "titleCancelled": "Anulada · Factura #{id} · Adag"
+    },
+    "howPaid": {
+      "title": "Cómo se <em>pagó</em>",
+      "pledged": "En garantía",
+      "keptNeverSold": "conservado, nunca vendido",
+      "borrowedOnMorpho": "Prestado en Morpho",
+      "ltvAfter": "Préstamo/valor (LTV) después ({symbol})",
+      "bitcoinSold": "Bitcoin vendido",
+      "keepsEverySatoshi": "el pagador conserva cada satoshi",
+      "convertedInto": "convertido por Circle en {symbol} para el proveedor",
+      "straightToSupplier": "enviado directamente al proveedor",
+      "paidOtherBills": "pagó las otras facturas de esta transacción",
+      "fromBalance": "Desde el saldo del pagador: nada prestado, nada en garantía, nada vendido.",
+      "unavailable": "La transacción que pagó no se pudo leer ahora mismo. La factura sigue pagada: eso viene del propio registro de Adag."
+    },
+    "void": {
+      "notConfirmed": "Arc no la ha confirmado después de dos minutos. Revisa la transacción antes de intentar de nuevo.",
+      "notCancelledYet": "Arc confirmó la transacción, pero la factura todavía no se lee como anulada. Recarga para verificar.",
+      "cancelledTitle": "La factura #{id} está anulada.",
+      "whatItMeans": "Qué significa",
+      "noOneCanPay": "Nadie puede pagarla, nunca.",
+      "youWroteThis": "Tú creaste esta factura",
+      "sendIt": "Envía esta factura a quien la debe. Puedes anularla hasta que alguien la pague.",
+      "closed": "Está cerrada. No hay nada más que hacer aquí.",
+      "shareThisBill": "Compartir esta factura",
+      "voidThisBill": "Anular esta factura",
+      "confirm": "¿Anular la factura #{id} para siempre? Después de esto nadie podrá pagarla, y no se puede deshacer.",
+      "yesVoidIt": "Sí, anularla",
+      "keepItOpen": "Dejarla abierta"
+    }
+  },
+  "billWallet": {
+    "payThisBill": "Pagar esta factura",
+    "connectToPay": "Conecta una billetera para pagar esta factura desde tu saldo, o con un préstamo respaldado por tu cirBTC, con una sola firma.",
+    "payInOneSignature": "Págala con una sola firma.",
+    "yourPosition": "Tu posición en Arc.",
+    "thisBill": "Esta factura",
+    "inThisWallet": "En esta billetera",
+    "morphoPositions": "Posiciones en Morpho",
+    "justNow": {
+      "label": "Pagada justo ahora",
+      "received": "Recibiste {amount} {symbol}.",
+      "paidBy": "Pagada por <addr>{address}</addr>",
+      "txOnExplorer": "La transacción en el explorador",
+      "txLinkLater": "El enlace de la transacción aparece cuando se lee el registro de pagos de Adag."
+    },
+    "market": {
+      "pledged": "En garantía",
+      "loan": "Préstamo",
+      "loanToValue": "Préstamo/valor (LTV)",
+      "btcCanFall": "El BTC puede caer",
+      "noLoan": "sin préstamo",
+      "againstCirbtc": "{symbol} con garantía en cirBTC"
+    },
+    "price": {
+      "status": "Estado del precio del bitcoin:",
+      "fresh": "Precio del bitcoin actualizado para el mercado de {symbol}.",
+      "paused": "Precio del bitcoin en pausa: los préstamos nuevos esperan la próxima actualización.",
+      "updatedHoursAgo": "Chainlink BTC/USD se actualizó hace {hours} horas."
+    }
+  },
+  "walletState": {
+    "connectToContinue": "Conecta una billetera para continuar.",
+    "connectToReceive": "Conecta la billetera que debe recibir el dinero. Hasta entonces no se prepara nada.",
+    "otherNetwork": {
+      "continue": "Tu billetera está en otra red. Cámbiala a Arc para continuar; hasta entonces no se prepara nada.",
+      "pay": "Tu billetera está en otra red. Cámbiala a Arc para continuar; hasta entonces no se prepara nada.",
+      "changeLoan": "Tu billetera está en otra red. Cámbiala a Arc para cambiar un préstamo; hasta entonces no se prepara nada.",
+      "sign": "Tu billetera está en otra red. Cámbiala a Arc; hasta entonces no se firma nada.",
+      "writeBill": "Tu billetera está en otra red. Cámbiala a Arc para crear la factura."
+    },
+    "smartAccount": "Adag necesita una billetera común como MetaMask o Rabby. Las billeteras de cuenta inteligente no pueden usar el lote de una sola firma de Arc.",
+    "kindUnavailable": "No se pudo verificar el tipo de esta billetera en Arc. Recarga para intentar de nuevo.",
+    "cannotSignYet": "Esta billetera todavía no puede firmar aquí. Lee la nota bajo la barra de menú.",
+    "checkingWallet": "Verificando tu billetera en Arc.",
+    "notice": {
+      "otherNetwork": "Tu billetera está en {network}. Adag funciona solo en Arc mainnet: Cambiar a Arc agrega Arc a tu billetera si todavía no está.",
+      "safe": "Esto es un Safe. Adag paga desde un Safe a través de sus propietarios: conecta la billetera propia de un propietario y luego elige Pagar como: un Safe en la factura.",
+      "delegated": "Esta billetera tiene una delegación EIP-7702. Probado en un fork de mainnet: puede pagar aquí mientras envíe su propia transacción.",
+      "kindUnavailable": "No se pudo verificar el tipo de esta billetera en Arc ahora mismo. Recarga para intentar de nuevo."
+    }
+  },
+  "networks": {
+    "ethereum": "Ethereum mainnet",
+    "optimism": "OP Mainnet",
+    "bnb": "BNB Smart Chain",
+    "polygon": "Polygon",
+    "base": "Base",
+    "arbitrum": "Arbitrum One",
+    "avalanche": "Avalanche",
+    "sepolia": "la testnet Sepolia",
+    "arcTestnet": "la testnet de Arc",
+    "unnamed": "una red que todavía no ha nombrado",
+    "numbered": "la red {id}"
+  },
+  "connect": {
+    "walletDidNotAnswer": "La billetera no respondió.",
+    "noWalletFound": "No se encontró ninguna billetera en este navegador. Abre Adag en el navegador dentro de MetaMask o Rabby, o agrega una a este navegador.",
+    "closedRequest": "Cerraste la solicitud de la billetera. No se conectó nada.",
+    "declinedSwitch": "Rechazaste el cambio. Adag solo funciona en Arc.",
+    "checkYourWallet": "Revisa tu billetera",
+    "connectedOn": "Conectada en {network}",
+    "copyAddress": "Copiar dirección",
+    "disconnect": "Desconectar"
+  },
+  "safe": {
+    "payAs": {
+      "label": "Pagar como",
+      "thisWallet": "Esta billetera",
+      "aSafe": "Un Safe"
+    },
+    "firstContract": {
+      "note": "{count, plural, =1 {La factura '#'{list} se creó en el contrato anterior de Adag, que un Safe no puede pagar. Págala desde una billetera, o pide al proveedor que la cree de nuevo.} other {Las facturas '#'{list} se crearon en el contrato anterior de Adag, que un Safe no puede pagar. Págalas desde una billetera, o pide al proveedor que las cree de nuevo.}}",
+      "message": "{count, plural, =1 {Hola, ¿podrías crear de nuevo la factura '#'{list} en Adag? Está en el contrato anterior de Adag, y el Safe de nuestra empresa solo puede pagar facturas del actual.} other {Hola, ¿podrías crear de nuevo las facturas '#'{list} en Adag? Están en el contrato anterior de Adag, y el Safe de nuestra empresa solo puede pagar facturas del actual.}}",
+      "copy": "Copiar el mensaje para el proveedor"
+    },
+    "pay": {
+      "title": "Pagar desde un Safe",
+      "intro": "Tu billetera prepara el pago y lo firma una vez como propietario. Los demás propietarios lo confirman en la propia app de Safe. No se paga nada hasta que el Safe lo ejecuta, y en ese momento se verifica otra vez: si algo cambió, el pago entero se rechaza y nada se mueve.",
+      "connectOwner": "Conecta una billetera común que sea propietaria del Safe, en Arc.",
+      "steps": {
+        "checking": "Verificando el Safe y las facturas en Arc",
+        "simulating": "Ejecutando el pago como lo haría el Safe, sobre el estado en vivo",
+        "signing": "Firma en tu billetera",
+        "proposing": "Enviando la propuesta a la cola de tu Safe"
+      },
+      "yourSafes": "Tus Safes",
+      "lookingUp": "Buscando tus Safes…",
+      "pasteInstead": "En su lugar, pega abajo la dirección del Safe.",
+      "noneListed": "No hay Safes listados para esta billetera. Pega abajo la dirección del Safe.",
+      "listHint": "La lista es una pista del servicio de Safe; Adag verifica el Safe en Arc antes de que se firme nada.",
+      "safeAddress": "Dirección del Safe",
+      "checkThisSafe": "Verificar este Safe",
+      "verified": "Safe <addr>{address}</addr> · versión {version} · {threshold} de {owners} propietarios deben firmar · eres propietario.",
+      "enrol": {
+        "label": "Registra primero el préstamo existente de este Safe",
+        "body": "Este Safe ya pide prestado en Morpho: su préstamo en {symbol} está al {ltv}. Adag verifica la línea del 40% solo en el endeudamiento nuevo, así que el Safe registra primero el préstamo que tiene, en una transacción de Safe propia. No se mueve dinero.",
+        "doesNotChange": "Registrarlo no cambia el préstamo ni lo hace más seguro: le dice a Adag que evalúe solo lo que el Safe pida prestado a partir de ahora.",
+        "proposed": "Propuesto ({hash}). Cuando los demás propietarios lo ejecuten en la app de Safe, el pago se podrá proponer aquí.",
+        "button": "Proponer: registrar el préstamo existente de este Safe"
+      },
+      "options": {
+        "bitcoinPledges": "Desde el bitcoin del Safe: pone en garantía {amount} cirBTC{usd} y lo conserva.",
+        "bitcoinPaused": "Desde el bitcoin del Safe: en pausa hasta que se actualice el precio del bitcoin.",
+        "bitcoin": "Desde el bitcoin del Safe",
+        "balanceHolds": "Desde el saldo del Safe: tiene {amount} {symbol}.",
+        "balance": "Desde el saldo del Safe",
+        "convert": "Desde el bitcoin del Safe, pidiendo prestado {symbol}."
+      },
+      "proposeButton": "Proponer al Safe",
+      "chooseEach": "Elige cómo paga el Safe cada moneda.",
+      "afterRecording": "El pago se podrá proponer cuando se haya ejecutado el registro de arriba.",
+      "problems": {
+        "billsChanged": "La factura #{ids} cambió desde que se cargó esta página. No se firmó nada. Recarga para pagar el resto.",
+        "choose": "Elige cómo paga el Safe las facturas en {symbol}.",
+        "paused": "Los préstamos nuevos en {symbol} están en pausa hasta que se actualice el precio del bitcoin. Elige el saldo del Safe, o espera.",
+        "safeHolds": "El Safe tiene {held} {symbol} y necesita {need}{guard}. No se firmó nada.",
+        "includingGuard": ", incluidos {amount} que su guardián del préstamo está por devolver",
+        "guardChanged": "El guardián del préstamo del Safe cambió desde que se cargó esta página: lee la nota de arriba antes de proponer. No se firmó nada.",
+        "wouldFailUnknown": "Ejecutado desde el Safe ahora mismo, este pago fallaría. Verifica que el Safe tenga el saldo o el cirBTC que necesita. No se firmó nada.",
+        "wouldFail": "Ejecutado desde el Safe ahora mismo, este pago fallaría: {why}",
+        "recordWouldFail": "Ejecutado desde el Safe ahora mismo, registrar su préstamo fallaría: {why}",
+        "walletChanged": "Tu billetera cambió de cuenta o de red desde que se verificó el Safe. No se firmó nada.",
+        "declined": "Rechazaste en tu billetera. No se firmó nada.",
+        "notAccepted": "La propuesta no fue aceptada."
+      }
+    },
+    "status": {
+      "paidBySafe": "Pagado por tu Safe",
+      "billsArePaid": "{n} facturas están pagadas.",
+      "restoredExecuted": "La propuesta que hizo este navegador se ha ejecutado.",
+      "payerOfRecord": "Leído de AdagBills: el Safe es el pagador registrado.",
+      "proposedFromBrowser": "Propuesto a tu Safe desde este navegador",
+      "proposed": "Propuesto a tu Safe",
+      "allSignaturesIn": "{count, plural, =1 {Ya hay {n} firma y no falta ninguna} other {Ya están las {n} firmas}}",
+      "signaturesOf": "{have} de {need} firmas",
+      "signaturesUnavailable": "Firmas no disponibles",
+      "readingQueue": "Leyendo la cola del Safe",
+      "pressExecute": "Ya están todas las firmas. Un propietario presiona Execute en la app de Safe (cuesta una pequeña comisión).",
+      "waitingForOwners": "Esperando a los demás propietarios en la app de Safe. No se paga nada hasta que el Safe lo ejecute.",
+      "paidByOther": "La factura #{ids} la pagó otra persona. Si el Safe ejecuta, el pago entero se rechaza y solo se gasta la comisión: recházalo en la app de Safe.",
+      "movedPast": "El Safe siguió adelante sin pagar esta propuesta: fue reemplazada, o falló al ejecutarse y nada se movió.",
+      "buildAgain": "Preparar el pago de nuevo",
+      "openQueue": "Abrir la cola del Safe en la app de Safe",
+      "proposalNote": "Propuesta {hash}. Cuando se ejecute, la transacción aparece en el <link>explorador</link>."
+    }
+  },
+  "tx": {
+    "steps": {
+      "checking": "Consultando con Arc",
+      "signing": "Confirma en tu billetera",
+      "confirming": "Esperando a que Arc confirme",
+      "watching": "Todavía sin recibo. Verificando la factura en Arc",
+      "rereading": "Leyendo la factura de nuevo"
+    },
+    "withSeconds": "{label} · {seconds}s",
+    "nothingUntilApprove": "No se envía nada hasta que lo apruebes.",
+    "dryRunRefused": "Arc lo rechazó en una simulación previa, así que no se envió nada a tu billetera.",
+    "viewTheTransaction": "Ver la transacción",
+    "networkFee": "Comisión de red",
+    "feeIdle": "La comisión de red aparece cuando todo lo de arriba esté listo.",
+    "about": "unos {amount} USDC",
+    "keepAtLeast": "mantén al menos {amount} USDC en la billetera para la comisión",
+    "feeSentence": "Comisión de red {about}; {keep}. Arc reserva lo máximo que podría costar y devuelve el resto.",
+    "confirmedOnArc": "Confirmada en Arc",
+    "transaction": "Transacción",
+    "onTheExplorer": "{hash} en el explorador"
+  },
+  "setup": {
+    "title": "¿Necesitas cirBTC o USDC en Arc?",
+    "didNotAdd": "Tu billetera no agregó Arc. Intenta de nuevo desde el menú de redes de la propia billetera.",
+    "cirbtc": "<strong>Obtén cirBTC:</strong> intercambia USDC por él en <portal>Arc Portal</portal>, o mira <appkit>App Kit Swap de Circle</appkit>.",
+    "usdc": "<strong>Trae USDC desde otra cadena:</strong> <portal>Arc Portal</portal> lo mueve entre cadenas, y <cctp>CCTP de Circle</cctp> es la ruta nativa. Un poco de USDC también paga la comisión de red de Arc.",
+    "arc": "<strong>Agrega Arc a tu billetera:</strong> <switch>Cambiar a Arc</switch> lo agrega si tu billetera todavía no lo tiene."
+  },
+  "disclaimer": {
+    "close": "Cerrar",
+    "label": "Antes de tu primer préstamo",
+    "title": "Pedir prestado a través de Morpho",
+    "body": "El acceso al Protocolo Morpho a través de esta app se rige por los <terms>Términos de uso</terms> de Adag y por el <morpho>Aviso legal de Morpho</morpho>. Al usarla, reconoces que has leído y entendido estos términos y los riesgos que implica.",
+    "checkbox": "He leído y entendido estos términos y los riesgos de pedir prestado con mi cirBTC en garantía.",
+    "notNow": "Ahora no",
+    "continue": "Continuar al pago"
+  },
+  "share": {
+    "sendTheBill": "Enviar la factura"
+  },
+  "enrol": {
+    "firstLabel": "Tu préstamo existente",
+    "firstStale": "Esta factura está en el primer contrato de Adag, que verifica todo tu préstamo de Morpho la primera vez que pagas ahí, y el precio del bitcoin no está actualizado ahora mismo. Pagar funciona cuando el precio se actualice.",
+    "firstOver": "Esta factura está en el primer contrato de Adag, que cuenta todo tu préstamo de Morpho la primera vez que pagas ahí, y tu préstamo está por encima del 40%. Pide al proveedor que la cree de nuevo; las facturas nuevas usan el contrato actual, donde puedes registrar tu préstamo primero.",
+    "recordMismatch": "Arc confirmó la transacción, pero el registro que Adag tiene de tu préstamo todavía no coincide con el de Morpho. Recarga para verificar antes de pagar.",
+    "noNextBlock": "Tu préstamo está registrado, pero Arc todavía no ha producido el siguiente bloque. Recarga en un momento para pagar.",
+    "label": "Registra primero tu préstamo existente",
+    "bodyStale": "Ya pides prestado en Morpho, y el precio del bitcoin no está actualizado ahora mismo, así que la verificación de Adag sobre tu préstamo en {symbol} rechazaría el pago. Adag no puede distinguir tu préstamo existente del endeudamiento nuevo hasta que lo registres. Regístralo una vez, sin mover dinero, y se habilitan los pagos desde tu saldo.",
+    "bodyOver": "Ya pides prestado en Morpho: tu préstamo en {symbol} está al {ltv}. Adag no puede distinguir tu préstamo existente del endeudamiento nuevo hasta que lo registres. Regístralo una vez, sin mover dinero, y se habilitan los pagos desde tu saldo.",
+    "opens": "Registrarlo abre el pago desde tu saldo. Pagar con bitcoin se suma a un préstamo que ya pasa del 40%, así que todo el préstamo tendría que terminar en el 40% o por debajo.",
+    "doesNotChange": "Registrarlo no cambia tu préstamo ni lo hace más seguro: le dice a Adag que evalúe solo lo que pidas prestado a partir de ahora.",
+    "waitingBlock": "Registrado. Esperando el siguiente bloque de Arc; después se abre el pago de abajo.",
+    "recordButton": "Registrar mi préstamo existente"
+  },
+  "wallet": {
+    "hallmark": "Tu billetera · Arc mainnet",
+    "posterTitle": "Tus facturas. Tu <em>bitcoin</em>.",
+    "posterLead": "Conéctate para ver las facturas que creaste, las que pagaste y cada préstamo respaldado por tu cirBTC, directamente desde Arc. Agrega bitcoin o cierra un préstamo con una sola firma.",
+    "title": "Tu <em>billetera</em>.",
+    "loansTitle": "Tus préstamos en <em>Morpho</em>.",
+    "positionsUnavailable": "Algunas posiciones de préstamo no están disponibles ahora mismo: Arc no respondió. Recarga para intentar de nuevo.",
+    "noLoansYet": "Todavía no hay préstamos desde esta billetera.",
+    "ghost": {
+      "against": "{symbol} <muted>con garantía en</muted> cirBTC",
+      "noLoan": "Sin préstamo.",
+      "opensOne": "Pagar una factura en {symbol} con bitcoin abre uno aquí."
+    },
+    "lists": {
+      "copyLinkTo": "Copiar el enlace a la factura {id}",
+      "newer": "Recientes",
+      "older": "Antiguas",
+      "pageOf": "Página {page} de {pages}",
+      "unavailable": "Esta lista no está disponible ahora mismo: Arc no respondió.",
+      "wroteTitle": "Facturas que creaste",
+      "wroteSummary": "{total} creadas. Abiertas: {open}{across}.{capped}",
+      "and": " y ",
+      "nothing": "nada",
+      "acrossBills": "{count, plural, =1 { en {n} factura} other { en {n} facturas}}",
+      "totalsCapped": " Los totales cubren las 1,000 más recientes.",
+      "noneWritten": "Todavía no hay facturas. Crea la primera: lleva una sola firma, y tú envías el enlace.",
+      "noReference": "Sin referencia",
+      "paidOnBy": "Pagada el {date} por {payer}",
+      "dueOn": "Vence el {date}",
+      "paidTitle": "Facturas que pagaste",
+      "paidSummary": "{total} pagadas a través de Adag.",
+      "nonePaid": "Todavía no has pagado ninguna factura a través de Adag. Abre una desde su enlace, o búscala por número.",
+      "to": "Para {payee}",
+      "paidOn": "Pagada el {date}"
+    },
+    "export": {
+      "notLoaded": "La lista todavía no ha cargado. Intenta de nuevo en un momento.",
+      "finding": "Buscando las transacciones en Arc · {done} de {total}",
+      "exported": "{count, plural, =1 {{n} factura exportada{capped}.} other {{n} facturas exportadas{capped}.}}",
+      "cappedNote": ", las 1,000 más recientes",
+      "title": "Exportar para tu contador",
+      "body": "Dos archivos de hoja de cálculo, hechos en tu navegador a partir de los mismos registros que las listas de arriba: cada factura con su estado, fechas en UTC, montos, referencia, enlace a la transacción y si se aplicó la verificación del 40%.",
+      "written": "Facturas que creaste (CSV)",
+      "paid": "Facturas que pagaste (CSV)"
+    }
+  },
+  "csv": {
+    "header": {
+      "contractAddress": "dirección del contrato",
+      "billNumber": "número de factura",
+      "status": "estado",
+      "writtenAt": "fecha de creación",
+      "paidAt": "fecha de pago",
+      "supplier": "proveedor",
+      "payer": "pagador",
+      "amount": "monto",
+      "currency": "moneda",
+      "reference": "referencia",
+      "transactionLink": "enlace de la transacción",
+      "fortyCheckRan": "verificación del 40% aplicada"
+    },
+    "words": {
+      "paid": "pagada",
+      "void": "anulada",
+      "open": "abierta",
+      "unknown": "desconocido",
+      "unavailable": "no disponible",
+      "notFound": "no encontrada",
+      "yes": "sí",
+      "no": "no"
+    }
+  },
+  "loan": {
+    "borrowedAgainst": "{symbol} <muted>prestados con garantía en</muted> cirBTC",
+    "morphoMarket": "Mercado de Morpho {id}",
+    "stats": {
+      "pledged": "En garantía",
+      "aboutEstimated": "unos {usd}, estimado",
+      "youOwe": "Debes",
+      "exactRoundedUp": "exacto, redondeado hacia arriba",
+      "bitcoinCanFall": "El bitcoin puede caer",
+      "noLoan": "sin préstamo",
+      "beforeLiquidate": "antes de que Morpho pueda liquidar",
+      "borrowRate": "Tasa de interés"
+    },
+    "priceFresh": "Precio del bitcoin actualizado.",
+    "pricePaused": "Precio del bitcoin en pausa para préstamos nuevos.",
+    "checksOnlyAtPay": "Adag verifica la línea del 40% solo en el momento en que pagas. Después, solo el guardián del préstamo de abajo la vigila, si lo activas.",
+    "tabs": {
+      "label": "Acciones del préstamo",
+      "add": "Agregar cirBTC",
+      "repay": "Devolver parte",
+      "close": "Cerrar préstamo",
+      "takeBack": "Recuperar bitcoin"
+    },
+    "add": {
+      "holdsOnly": "Tu billetera tiene {amount} cirBTC.",
+      "label": "cirBTC a agregar · tienes <held></held>",
+      "after": "Relación préstamo-valor (LTV) después: <ltv></ltv>. Sin deuda nueva, así que no hace falta verificar el precio.",
+      "notAsExpected": "Arc confirmó la transacción, pero el registro de Morpho no muestra la garantía como se esperaba. Revisa la transacción.",
+      "done": "Agregaste {amount} cirBTC. Ahora en garantía: {pledged} cirBTC."
+    },
+    "repay": {
+      "mostIs": "Lo máximo que puedes devolver así es {amount} {symbol}. Para devolverlo todo, usa Cerrar préstamo.",
+      "holdsOnly": "Tu billetera tiene {amount} {symbol}{fee}.",
+      "andFee": ", y un poco de USDC también paga la comisión de red",
+      "label": "{symbol} a devolver · debes <owed></owed>",
+      "max": "Máx.",
+      "button": "Devolver",
+      "after": "Después de esto, la relación préstamo-valor (LTV) queda en <ltv></ltv>, y el bitcoin puede caer <drop></drop> antes de que Morpho pueda liquidar.",
+      "dust": "Máx. deja unas pocas unidades mínimas sobrantes (polvo), porque esto devuelve por monto; Cerrar préstamo limpia el resto y te devuelve tu cirBTC.",
+      "feeIdle": "La comisión de red aparece cuando el monto sea válido.",
+      "notAsExpected": "Arc confirmó la transacción, pero el registro de Morpho no muestra la devolución como se esperaba. Revisa la transacción.",
+      "done": "Devolviste {amount} {symbol}. Ahora debes {owed} {symbol}."
+    },
+    "close": {
+      "explain": "Devuelve <debt></debt> según tus participaciones exactas del préstamo, y recupera luego los {collateral} cirBTC completos. La aprobación es de {approval} {symbol} para cubrir intereses hasta el bloque, y se restablece a 0 en la misma firma.",
+      "noDebt": "No hay deuda aquí. Recupera los {collateral} cirBTC completos a tu billetera.",
+      "short": "Tu billetera tiene <held></held> {symbol}; cerrar necesita {need}{fee}. Agrega {add} {symbol} primero.",
+      "includingFee": " incluido un poco para la comisión",
+      "keepUsdc": "Mantén un poco de USDC en esta billetera para la comisión de red.",
+      "stopsGuard": "Cerrar también detiene el guardián del préstamo para este préstamo: la regla se borra y su monto aprobado pasa a 0.",
+      "reading": "Leyendo tu préstamo y tu saldo en Arc.",
+      "withOther": "Cerrar con {symbol}",
+      "readingEuro": "Leyendo el precio del euro y tus {symbol} en Arc.",
+      "notAsExpected": "Arc confirmó la transacción, pero Morpho no lee el préstamo como cerrado. Revisa la transacción.",
+      "backInWallet": "{amount} cirBTC están de vuelta en tu billetera.",
+      "doneLoan": "Préstamo cerrado. 0 de deuda, 0 en garantía. {returned}",
+      "doneNoLoan": "Listo. 0 en garantía en este mercado, y {returned}",
+      "guardOff": "El guardián del préstamo para este préstamo está desactivado: sin regla, y su monto aprobado es 0.",
+      "notBuiltShort": "Arc no respondió, así que el cierre no se preparó. Intenta de nuevo.",
+      "noLoanToConvert": "Aquí no hay ningún préstamo que cerrar con una conversión.",
+      "guardNoAnswerShort": "Arc no respondió sobre tu guardián del préstamo, así que el cierre no se preparó. Intenta de nuevo.",
+      "leftInWallet": "Quedan {amount} {symbol} en tu billetera.",
+      "adapterClear": "El adaptador de Circle no tiene acceso a tu billetera.",
+      "adapterMaybe": "El adaptador de Circle puede seguir teniendo acceso a tu billetera: verifícalo antes de convertir otra vez.",
+      "effectsUnchecked": "Adag no pudo rastrear las transferencias del intercambio antes de que firmaras.",
+      "circleTurned": "Circle convirtió {from} en {to}.",
+      "needs": "Cerrar necesita {need} {symbol} y tu billetera tiene {held}. Agrega {add} {symbol} y luego intenta de nuevo. No se envió nada.",
+      "guardNoAnswer": "Arc no respondió sobre tu guardián del préstamo, así que el cierre no se preparó. No se envió nada. Intenta de nuevo."
+    },
+    "gauge": {
+      "loanToValue": "Préstamo/valor (LTV)",
+      "aria": "Relación préstamo-valor (LTV) {pct}% de 100%, la línea de Adag en {adag}%, Morpho liquida al {morpho}%"
+    }
+  },
+  "guard": {
+    "section": {
+      "saveNotAsExpected": "Arc confirmó la transacción, pero AdagGuard no lee la regla como guardada. Revisa la transacción.",
+      "protectedDone": "Protegido. Interviene al {trigger} y devuelve lo justo para bajar al {target}, usando como máximo {amount} {symbol}.",
+      "repayNotReported": "Arc confirmó la transacción, pero AdagGuard no reportó una devolución para este préstamo. Puede que el precio haya vuelto atrás. Revisa la transacción.",
+      "repaidDone": "El guardián devolvió {amount} {symbol} de este préstamo desde tu billetera.",
+      "ariaLabel": "Guardián del préstamo para el préstamo en {symbol}",
+      "readingGuard": "Leyendo AdagGuard en Arc.",
+      "settingsUnavailable": "La configuración del guardián no está disponible ahora mismo: Arc no respondió.",
+      "wouldRepay": "Ahora mismo devolvería unos {amount} {symbol}. El keeper de Adag, un pequeño programa que Adag ejecuta, lo envía en cuestión de minutos.",
+      "canRepayNow": "También puedes devolver ahora.",
+      "wouldNotAct": "Ahora mismo no actuaría.",
+      "change": "Cambiar",
+      "protectThisLoan": "Proteger este préstamo",
+      "repayItNow": "Devolver ahora"
+    },
+    "stop": {
+      "notDeployed": "El guardián del préstamo no está desplegado, así que no se preparó nada.",
+      "notCleared": "Arc confirmó la transacción, pero la regla o el monto aprobado no se leen como borrados. Revisa la transacción.",
+      "stopped": "Protección detenida. Sin regla, y el monto aprobado a AdagGuard para tus {symbol} es 0."
+    },
+    "summary": {
+      "notProtected": "Sin proteger. El guardián devuelve una parte de este préstamo con tus propios {symbol} si cruza una línea que tú eliges, para mantenerlo lejos de la línea del 86% de Morpho.",
+      "leftover": "AdagGuard todavía tiene aprobado un monto de {amount} {symbol} sin regla. Dejar de proteger lo pone en 0.",
+      "protected": "Protegido: interviene al <strong>{trigger}</strong> y devuelve lo justo para bajar al <strong>{target}</strong>. Puede usar hasta <usableSpan>{usable}</usableSpan> (monto aprobado actual <allowanceSpan>{allowance}</allowanceSpan>).",
+      "ended": "Terminó el {date}.",
+      "until": "Hasta el {date}.",
+      "cannotActZero": "No puede actuar: su monto aprobado es 0. Cámbialo para darle un monto, o deja de proteger.",
+      "noBalance": "Tu billetera no tiene {symbol}, así que el guardián no puede actuar."
+    },
+    "list": {
+      "loanOf": "Préstamo en {symbol}",
+      "changeOnWallet": "Cámbialo en la página de tu billetera",
+      "closedLoan": "Este préstamo está cerrado. Dejar de proteger pone el monto aprobado en 0.",
+      "title": "Tus guardianes del préstamo",
+      "reading": "Leyendo tus préstamos y AdagGuard en Arc.",
+      "none": "Esta billetera no tiene préstamo ni guardián. Un préstamo aparece aquí cuando pagas una factura con bitcoin.",
+      "someUnavailable": "Algunos préstamos no están disponibles ahora mismo: Arc no respondió. Aparecen aquí cuando responda."
+    },
+    "gauge": {
+      "target": "Objetivo {pct}",
+      "trigger": "Umbral {pct}",
+      "ltvUnavailable": "Préstamo/valor (LTV) no disponible",
+      "ltv": "Préstamo/valor (LTV) {pct}%"
+    },
+    "panel": {
+      "usePercentage": "Usa un porcentaje como 55 o 55.5.",
+      "realEndDate": "Elige una fecha de fin real, o ninguna.",
+      "stepInWhen": "Intervenir cuando el préstamo llegue a",
+      "morphoLiquidatesAt": "Morpho liquida al {pct}.",
+      "repayDownTo": "Devolver hasta bajarlo a",
+      "onlyWhatBrings": "Solo lo que lo traiga de vuelta aquí, cada vez.",
+      "mayUse": "{symbol} que puede usar, en total · tienes {held}",
+      "oneStep": "Un paso",
+      "oneStepRepays": "Una protección que empieza en el umbral devuelve unos {amount} {symbol}.",
+      "neverMore": "Nunca toma más que esto, por muchas veces que actúe.",
+      "endDate": "Fecha de fin · opcional",
+      "noDateStaysOn": "Sin fecha, sigue activo hasta que lo detengas.",
+      "alreadyPast": "Tu préstamo ya está al {ltv}, por encima de este umbral. Una vez guardado, esto devolverá unos <strong>{amount}</strong> en cuestión de minutos{landing}.",
+      "bringingTo": ", llevándolo a unos {ltv}",
+      "wouldNotActToday": "No actuaría al precio de hoy.",
+      "stepsInIfFalls": "Interviene si el bitcoin cae alrededor de un {pct}% desde aquí.",
+      "ceiling": "Lo máximo que puede tomar es el monto que aprobaste{approval}. Cada vez que actúa, devuelve solo lo que lleva el préstamo de vuelta a tu objetivo, y el monto aprobado se reduce en esa cantidad.",
+      "onlyYourLoan": "Solo puede devolver tu propio préstamo, con el monto que aprobaste. Una vez que el préstamo pasa tu umbral, cualquiera puede activarlo, Adag incluido.",
+      "usdcGasWarning": "En Arc, USDC también paga la comisión de red. Una regla en USDC usa el mismo saldo, así que puede dejar esta billetera sin USDC suficiente para enviar una transacción.",
+      "feeIdle": "La comisión de red aparece cuando la regla y el monto sean válidos.",
+      "saveNewRule": "Guardar la nueva regla",
+      "protectThisLoan": "Proteger este préstamo",
+      "oneSignature": "Una sola firma: la aprobación por exactamente este monto, y luego la regla."
+    }
+  },
+  "protect": {
+    "hallmark": "Guardián del préstamo · alertas",
+    "title": "Entérate antes que <em>Morpho</em>.",
+    "lead": "El guardián del préstamo devuelve una parte de un préstamo con tus propios USDC o EURC cuando cruza una línea que tú eliges. Las alertas te avisan por Telegram cuando un préstamo se acerca, y cada vez que el guardián actúa. El guardián se configura en cada préstamo desde tu billetera.",
+    "connectForAlerts": "Conecta la billetera cuyos préstamos quieres vigilar con alertas."
+  },
+  "alerts": {
+    "codeExpired": "El código expiró antes de que se presionara Iniciar (Start). Obtén uno nuevo.",
+    "usePercentagesLike": "Usa porcentajes como 60 o 72.5.",
+    "levelsSaved": "Niveles de alerta guardados: {levels}.",
+    "alertsOff": "Las alertas están desactivadas para esta billetera. Cualquier chat al que estuviera vinculada no recibe nada más.",
+    "title": "Un mensaje cuando un préstamo se acerca, y uno cada vez que el guardián abona una parte.",
+    "plainText": "Texto plano, solo números: nunca un enlace para hacer clic, salvo la propia dirección de Adag. Las alertas se envían sin garantía de entrega; el guardián no depende de ellas.",
+    "linkedHereOn": "Este navegador vinculó alertas para esta billetera el {date}.",
+    "gettingCode": "Obteniendo un código",
+    "linkAnotherChat": "Vincular otro chat",
+    "getAlerts": "Recibir alertas de Telegram",
+    "openBotPressStart": "Abre el bot y presiona Iniciar (Start). El código del enlace es solo tuyo y funciona durante diez minutos.",
+    "openTelegram": "Abrir Telegram",
+    "waitingForStart": "Esperando Iniciar (Start) en Telegram",
+    "chatPressedStart": "El chat <chat></chat> (id {id}) presionó Iniciar (Start). Firma un mensaje en tu billetera para vincularlo a esta billetera. Firmar no cuesta nada y no envía ninguna transacción.",
+    "withoutUsername": "sin nombre de usuario",
+    "signAndLink": "Firmar y vincular",
+    "linked": "Vinculado. Las alertas de esta billetera van a ese chat. Envía /stop ahí, o deténlas aquí, cuando quieras.",
+    "whatYouSign": {
+      "link": "El mensaje que firmas está en inglés y dice: vincular esta billetera a un chat de Telegram, en este sitio, cadena 5042, con este código y este id de chat, y cuándo expira. El servidor verifica el mismo texto, así que nunca se traduce.",
+      "levelsAndStop": "Los mensajes que firmas están en inglés y dicen: fijar los niveles del préstamo que envían una alerta, o detener las alertas de esta billetera, en este sitio, cadena 5042, con un nonce de un solo uso y una fecha de expiración. El servidor verifica el mismo texto, así que nunca se traduce."
+    },
+    "levels": {
+      "title": "Niveles de alerta",
+      "body": "Un mensaje cuando la relación préstamo-valor (LTV) de un préstamo sube más allá de cada nivel, una vez, hasta que vuelve a bajar. Hasta que fijes los tuyos, los niveles son 60% y 75%.",
+      "saved": "Guardado el {date}: {levels}",
+      "level": "Nivel {n}",
+      "none": "ninguno",
+      "signAndSave": "Firmar y guardar niveles",
+      "stopAlerts": "Detener las alertas de esta billetera",
+      "eachChange": "Cada cambio es un mensaje que firma tu billetera. Adag nunca le dice a nadie más si una billetera tiene alertas."
+    }
+  },
+  "break": {
+    "stamps": {
+      "refused": "Rechazado",
+      "held": "Resistió",
+      "allowed": "Permitido",
+      "byDesign": "Por diseño",
+      "broken": "Vulnerado",
+      "error": "No ejecutado",
+      "armed": "Listo",
+      "running": "En curso",
+      "verdict": "Veredicto: {word}"
+    },
+    "tally": {
+      "armed": "Ataques listos",
+      "soFar": "De {total} como dice el modelo de amenazas, hasta ahora",
+      "brokeThrough": "Resistieron. Lograron pasar: {n}",
+      "allHeld": "De {total} como dice el modelo de amenazas",
+      "couldNotRun": "Como dice el modelo de amenazas. No se pudieron ejecutar: {n}"
+    },
+    "simulatedDrop": "Caída de precio simulada · un oráculo ficticio, 25% más bajo",
+    "simulatedCrash": "Desplome de precio simulado · un oráculo ficticio en cero",
+    "whatShouldStopIt": "Qué debería detenerlo · <span>{stopper}</span>",
+    "simulatingOnArc": "Simulando en Arc",
+    "rawAnswer": "Respuesta sin procesar de la cadena",
+    "decoded": "Decodificada",
+    "gas": "Gas",
+    "invariant": "Invariante",
+    "status": {
+      "idle": "Alrededor de un minuto. Cada simulación espera su turno para no saturar nunca el nodo público de Arc.",
+      "reading": "Leyendo el estado en vivo de Arc · {seconds}s",
+      "simulating": "Simulando en Arc · {answered} de {total} · {seconds}s",
+      "cached": "Servido desde la ejecución de hace {age}s. Una ejecución nueva empieza como máximo una vez por minuto.",
+      "finished": "Terminado en {seconds}s."
+    },
+    "nothingSigned": "No se firma ni se envía nada",
+    "hallmark": "Suite de ataques · Arc mainnet",
+    "titleLine1": "Intenta",
+    "titleLine2": "<em>romperlo</em>.",
+    "lead": "{total} ataques reales contra los contratos en vivo de Adag, AdagBills y el guardián del préstamo, simulados sobre el estado actual de Arc mainnet: el préstamo real, las facturas reales, el precio real del bitcoin. No se firma nada y no se envía nada.",
+    "attacking": "Atacando",
+    "runAgain": "Ejecutarlos de nuevo",
+    "runAll": "Ejecutar los {total} ataques",
+    "legendLabel": "Qué significan los sellos, y a dónde ir después",
+    "legend": {
+      "refused": {
+        "term": "Rechazado",
+        "means": "la cadena dijo no."
+      },
+      "held": {
+        "term": "Resistió",
+        "means": "se ejecutó, y nada de lo que protege se movió."
+      },
+      "byDesign": {
+        "term": "Permitido por diseño",
+        "means": "una brecha conocida y aceptada que solo afecta al préstamo del propio atacante."
+      },
+      "allowed": {
+        "term": "Permitido",
+        "means": "la cadena lo permitió, y el modelo de amenazas dice que eso es correcto."
+      }
+    },
+    "next": "Siguiente",
+    "threatModel": "Modelo de amenazas",
+    "liveStateAt": "Estado en vivo en el bloque {block}",
+    "simulatedOn": ", simulado en {provider}",
+    "theAttacks": "Los ataques",
+    "groups": {
+      "bills": {
+        "name": "Pagar facturas",
+        "note": "Contra el AdagBills actual y el préstamo real en Morpho de la billetera de demostración."
+      },
+      "enrol": {
+        "name": "Registrar un préstamo existente",
+        "note": "Registrar (enrol) guarda un préstamo que el pagador ya tenía, para que sus siguientes pagos se verifiquen contra él."
+      },
+      "guard": {
+        "name": "El guardián del préstamo",
+        "note": "Contra el AdagGuard en vivo. Cada fila del guardián del préstamo parte de una premisa simulada: el pagador de demostración pide prestado en Morpho hasta que el préstamo queda al 38.00%, por encima del umbral del 35%. Nada de AdagGuard, Morpho o el oráculo se sobrescribe."
+      }
+    },
+    "footer": {
+      "simulatedAt": "Simulado en {providers} en el bloque {block} de Arc · {when}",
+      "and": " y ",
+      "pinned": "Cada ejecución queda fijada al último bloque de Arc",
+      "terminal": "Las mismas suites se ejecutan desde la terminal: <attack>attack.mjs</attack> y <guard>guard-attack.mjs</guard>"
+    },
+    "residuals": {
+      "A4": "Permitido por diseño, detectado en el siguiente pago. El riesgo residual descrito en <link>el modelo de amenazas</link>, punto C10.",
+      "E5": "Permitido por diseño: registrar en un bloque y pagar en el siguiente, a riesgo del propio pagador. El riesgo residual descrito en <link>el modelo de amenazas</link>, punto C32."
+    },
+    "checks": {
+      "A1": {
+        "attack": "Un desconocido con dinero paga por segunda vez una factura ya pagada.",
+        "stopper": "Una factura se puede pagar una vez. Solo una factura abierta se puede pagar."
+      },
+      "A2a": {
+        "attack": "Cerrar el préstamo fuera de Adag, y luego volver a pedir la misma deuda con una cuarta parte del bitcoin como garantía.",
+        "stopper": "La propia línea del 86% de Morpho lo detiene antes de llegar a Adag."
+      },
+      "A2b": {
+        "attack": "Cerrar el préstamo, volver a pedir la misma deuda con bitcoin al 60% como garantía, lo que Morpho permite, y pagar una factura.",
+        "stopper": "Adag ve que la garantía se redujo desde su última verificación, así que se aplica la verificación del 40%."
+      },
+      "A3": {
+        "attack": "Pedir prestado hasta la mitad del valor del bitcoin y pagar una factura nueva en la misma firma.",
+        "stopper": "Adag ve deuda nueva, así que se aplica la verificación del 40%."
+      },
+      "A4": {
+        "attack": "Pagar una factura desde el saldo, y luego pedir prestado hasta el 60% después del paso de Adag en el mismo lote. En el siguiente bloque, pagar otra factura.",
+        "stopper": "Permitido por diseño, detectado en el siguiente pago."
+      },
+      "A5": {
+        "attack": "Un proveedor paga su propia factura.",
+        "stopper": "El pagador nunca puede ser el beneficiario."
+      },
+      "A6_1": {
+        "attack": "Un desconocido crea una factura pagadera en cirBTC.",
+        "stopper": "Las facturas son solo en USDC o EURC."
+      },
+      "A6_2": {
+        "attack": "Un desconocido crea una factura pagadera en WETH.",
+        "stopper": "Las facturas son solo en USDC o EURC."
+      },
+      "A6_3": {
+        "attack": "Un desconocido crea una factura pagadera en un token inventado.",
+        "stopper": "Las facturas son solo en USDC o EURC."
+      },
+      "A6_4": {
+        "attack": "Un desconocido crea una factura por cero.",
+        "stopper": "Una factura debe ser por un monto mayor que cero."
+      },
+      "A6_5": {
+        "attack": "Un desconocido crea una factura con una referencia de 141 bytes.",
+        "stopper": "Las referencias son de 140 bytes como máximo."
+      },
+      "A7a": {
+        "attack": "Un desconocido anula la factura abierta de un proveedor.",
+        "stopper": "Solo el proveedor que creó una factura puede anularla."
+      },
+      "A7b": {
+        "attack": "El proveedor anula una factura después de que se pagó.",
+        "stopper": "Solo una factura abierta se puede anular."
+      },
+      "A8": {
+        "attack": "Pagar una factura sin aprobar que Adag mueva los USDC.",
+        "stopper": "El token lo rechaza, y el lote entero se deshace solo."
+      },
+      "A9a": {
+        "attack": "El bitcoin cae 25%. Pagar una factura nueva desde el saldo, sin endeudamiento nuevo.",
+        "stopper": "Permitido a propósito: sin deuda nueva, no hay nada que verificar. Una caída de precio nunca bloquea un pago desde el saldo."
+      },
+      "A9b": {
+        "attack": "El bitcoin cae 25%. Pedir prestado un centavo más y pagar la misma factura.",
+        "stopper": "Deuda nueva, así que se aplica la verificación del 40%."
+      },
+      "E1": {
+        "attack": "Registrar el préstamo con enrol y pagar una factura desde el saldo en el mismo lote.",
+        "stopper": "Un pagador que se registró en este bloque es rechazado, así que un préstamo no se puede registrar y gastar a la vez."
+      },
+      "E2": {
+        "attack": "Pedir prestado hasta el 60%, registrar esa deuda con enrol y pagar una factura, todo en un lote.",
+        "stopper": "El mismo rechazo de bloque: la deuda nueva no se puede registrar y gastar a la vez."
+      },
+      "E3": {
+        "attack": "Un desconocido llama a enrol, esperando sobrescribir el préstamo registrado del pagador de demostración, y luego el pagador paga.",
+        "stopper": "enrol no recibe argumentos y solo escribe el registro propio de quien llama."
+      },
+      "E4": {
+        "attack": "Registrar en un bloque; en el siguiente, cerrar el préstamo fuera de Adag, volver a pedirlo con bitcoin al 60% como garantía y pagar.",
+        "stopper": "La garantía cayó por debajo de la registrada, así que se aplica la verificación del 40%."
+      },
+      "E5": {
+        "attack": "Pedir prestado hasta el 60% fuera de Adag y registrarlo; en el siguiente bloque, pagar una factura desde el saldo.",
+        "stopper": "Permitido por diseño: enrol acepta el préstamo tal como está, y solo la propia posición del pagador carga con el riesgo."
+      },
+      "G6": {
+        "attack": "Llamar a protect tres veces al mismo precio: dos en un bloque, una en el siguiente.",
+        "stopper": "Cada protect devuelve solo lo que lleva el préstamo de vuelta al objetivo, así que una repetición no encuentra nada que hacer."
+      },
+      "G1": {
+        "attack": "Sacar más de lo que el pagador aprobó: el préstamo necesita más que los 0.10 USDC aprobados, y protect se ejecuta dos veces.",
+        "stopper": "El monto aprobado es el tope total, y protect se limita a él."
+      },
+      "G2a": {
+        "attack": "Proteger el préstamo del pagador a través del otro mercado real USDC/cirBTC de Morpho.",
+        "stopper": "AdagGuard acepta solo sus dos ids de mercado fijos, verificados con Morpho."
+      },
+      "G2b": {
+        "attack": "Fijar una regla y llamar a protect con un id de mercado a un dígito hexadecimal del de Adag.",
+        "stopper": "Un casi acierto es un id distinto, y se rechaza."
+      },
+      "G2c": {
+        "attack": "Proteger al pagador en el mercado de EURC, donde no tiene préstamo ni regla.",
+        "stopper": "Cada mercado devuelve solo su propio préstamo, y solo para una regla real y activada."
+      },
+      "G3": {
+        "attack": "Un desconocido llama a protect mientras el préstamo está por debajo del umbral del 50% del pagador.",
+        "stopper": "Protect actúa solo en el umbral o por encima; si no, nada se mueve y nada se emite."
+      },
+      "G4": {
+        "attack": "La regla del pagador expira 60 segundos después de fijarse; un desconocido llama a protect en ese mismo segundo.",
+        "stopper": "Una regla expirada es inerte."
+      },
+      "G5a": {
+        "attack": "Un desconocido borra la regla del pagador.",
+        "stopper": "Las reglas se indexan por el remitente; nadie puede nombrar otra billetera."
+      },
+      "G5b": {
+        "attack": "Un desconocido fija una regla (80% / 1%) esperando que caiga sobre el pagador.",
+        "stopper": "setRule escribe solo la regla propia del remitente."
+      },
+      "G7": {
+        "attack": "La billetera del pagador tiene solo 0.05 USDC cuando el préstamo necesita más.",
+        "stopper": "Protect nunca saca más de lo que tiene la billetera, y no se revierte."
+      },
+      "G8": {
+        "attack": "El bitcoin se desploma a cero. Protect con 2 USDC aprobados, frente al préstamo entero.",
+        "stopper": "La devolución se limita a la deuda redondeada hacia abajo, así que la aritmética de participaciones de Morpho no puede desbordarse por debajo."
+      },
+      "G9a": {
+        "attack": "El bitcoin se desploma a cero. Proteger a un pagador que aprobó 1 USDC pero no tiene regla.",
+        "stopper": "Sin regla no hay acción, ni siquiera a precio cero."
+      },
+      "G9b": {
+        "attack": "Proteger una billetera sin préstamo y sin regla.",
+        "stopper": "Nada que devolver, nada se mueve."
+      },
+      "G10": {
+        "attack": "Llamar a las funciones de administrador que necesitaría un vaciado: transferOwnership, withdraw, rescue, pause y upgradeToAndCall.",
+        "stopper": "No existe dueño, pausa, rescate ni actualización; solo setRule, clearRule y protect cambian el estado."
+      }
+    }
+  },
+  "terms": {
+    "hallmark": "Términos de uso · Adag",
+    "title": "Los <em>términos</em>, sin rodeos.",
+    "lead": "Cortos, porque el contrato es el que habla. Al usar este sitio web aceptas los términos de abajo.",
+    "englishApplies": "Esta es una traducción por comodidad. La versión en inglés de estos términos es la que se aplica.",
+    "and": " y ",
+    "sections": {
+      "whatAdagIs": {
+        "title": "Qué es Adag",
+        "body": "Adag es un sitio web que habla con un contrato inteligente, AdagBills, en Arc mainnet. El contrato es inmutable: no tiene dueño ni clave de administrador, y nadie, incluidas las personas que lo construyeron, puede pausarlo, actualizarlo ni cambiar sus reglas. El sitio web es solo una interfaz hacia él."
+      },
+      "youSign": {
+        "title": "Tú firmas todo",
+        "body": "Cada pago, préstamo y anulación es una transacción que revisas y firmas en tu propia billetera. Adag nunca custodia tu dinero ni tus claves y no puede mover nada sin tu firma. El contrato pasa el monto exacto de la factura del pagador al proveedor dentro de la misma transacción y no se queda con nada."
+      },
+      "liquidation": {
+        "title": "Pedir prestado puede terminar en liquidación",
+        "body": "Pagar con bitcoin pone tu cirBTC en garantía en Morpho y pide prestado el monto de la factura con ese cirBTC como respaldo. Si el precio del bitcoin cae lo suficiente, Morpho puede liquidar el préstamo y vender parte de tu garantía. Adag rechaza un pago que dejaría el préstamo por encima del 40% del valor de tu bitcoin, pero lo verifica solo en el momento en que pagas. Después, los intereses y el precio siguen moviéndose, Adag no vigila el préstamo, y Morpho puede liquidar cuando el préstamo llegue al 86%. Vigilar y devolver el préstamo depende de ti."
+      },
+      "tokens": {
+        "title": "Los tokens heredan los riesgos de sus emisores",
+        "body": "USDC, EURC y cirBTC los emiten terceros que pueden congelar direcciones, pausar transferencias o cambiar cómo se comportan sus tokens. Si lo hacen, un pago puede fallar o los fondos pueden quedar atascados. Adag no puede anular nada de eso."
+      },
+      "noAudit": {
+        "title": "Sin auditoría más allá de nuestra propia revisión",
+        "body": "El contrato no ha tenido una auditoría pagada de terceros. Lo que existe está publicado: un modelo de amenazas, una autorrevisión con una suite de ataques simulada contra el contrato desplegado sobre el estado en vivo de mainnet, y análisis estático. El código fuente de cada contrato está verificado en el explorador de Arc: <contracts></contracts>."
+      },
+      "notAdvice": {
+        "title": "No es asesoría, no hay afiliación",
+        "body": "Nada en este sitio es asesoría financiera, legal ni fiscal. Adag es un proyecto independiente. No está afiliado a Circle, Arc ni Morpho, ni respaldado ni operado por ellos."
+      },
+      "ownRisk": {
+        "title": "Úsalo bajo tu propio riesgo",
+        "body": "Adag se ofrece tal cual, sin garantía de ningún tipo. Lo usas bajo tu propio riesgo, y eres responsable de revisar cada factura, cada dirección y cada transacción antes de firmar."
+      }
+    },
+    "publishedReview": "La revisión publicada",
+    "docs": {
+      "threatModel": "Modelo de amenazas y los estándares a los que se somete la app",
+      "attackSuite": "Suite de ataques simulada contra el contrato desplegado",
+      "staticAnalysis": "Resultados del análisis estático"
+    }
+  },
+  "notFound": {
+    "label": "404 · NO ESTÁ EN ADAG",
+    "title": "Esta página <em>no está en Adag</em>.",
+    "body": "Puede que la dirección esté mal escrita, o que la factura viva en otro contrato.",
+    "backHome": "Volver a la página de inicio",
+    "readTheDocs": "Leer la documentación"
+  },
+  "appFooter": {
+    "tagline": "Facturas en Arc mainnet, pagadas desde el saldo o con un préstamo con bitcoin en garantía.",
+    "poweredBy": "Con tecnología de Morpho",
+    "firstDeployment": "Primer despliegue {address}"
+  },
+  "docs": {
+    "theme": "Tema",
+    "englishOnly": "La documentación está escrita en inglés y no está traducida."
+  },
+  "write": {
+    "hallmark": "Crear una factura · Arc mainnet",
+    "title": "<w>C</w>rea una <em>factura</em>.",
+    "lead": "Una sola firma la pone en Arc, pagadera a ti, exactamente una vez. Envía el enlace a quien la deba.",
+    "currency": "Moneda",
+    "amount": "Monto",
+    "due": {
+      "label": "Vencimiento",
+      "chooseOrNone": "Elige una fecha de vencimiento, o Sin vencimiento.",
+      "inThePast": "La fecha de vencimiento ya pasó.",
+      "choose": "Elige una fecha de vencimiento.",
+      "shownNeverEnforced": "Se muestra al pagador, nunca se exige."
+    },
+    "ref": {
+      "bytes": "{used} / {max} bytes",
+      "placeholder": "Factura 1042, hosting de septiembre",
+      "note": "Pública en Arc: cualquiera puede leerla, para siempre. Las letras con acento y los símbolos ocupan más de un byte.",
+      "tooLong": "La referencia tiene {used} bytes; el límite es {max}. Acórtala."
+    },
+    "writeTheBill": "Crear la factura",
+    "fixTheField": "Corrige el campo marcado arriba para crear la factura.",
+    "feeIdle": "La comisión de red aparece cuando la factura sea válida.",
+    "newToArc": "¿Nuevo en Arc?",
+    "notAsExpected": "Arc confirmó la transacción, pero la factura que creó no se lee como se esperaba. Revisa la transacción.",
+    "writtenOnArc": "Creada en Arc",
+    "readyToShare": "La factura #{id} está lista para compartir.",
+    "openTheBillPage": "Abrir la página de la factura",
+    "writeAnother": "Crear otra factura",
+    "preview": {
+      "label": "Lo que verá el pagador",
+      "draft": "Borrador",
+      "yourConnectedWallet": "Tu billetera conectada",
+      "due": "Vence",
+      "chooseADate": "Elige una fecha",
+      "tooLong": "Demasiado larga",
+      "billNo": "Factura N.º"
+    }
+  },
+  "payActions": {
+    "payThisBill": "Pagar esta factura",
+    "fail": {
+      "noRecord": "Arc confirmó la transacción, pero Adag no tiene en ella ningún registro de pago para esta factura. Revisa el enlace antes de intentar de nuevo.",
+      "needsWithGuard": "Este pago necesita {need} {symbol}: la factura más {guard} que tu guardián del préstamo está por devolver. Tu billetera tiene {held}. No se envió nada.",
+      "notBuilt": "Arc no respondió, así que el pago no se preparó. No se envió nada. Intenta de nuevo.",
+      "pledgesMore": "Este pago pone en garantía {pledge} cirBTC y tu billetera tiene {held}. No se envió nada.",
+      "billChanged": "Esta factura cambió desde que se cargó la página. Recarga la página para verla como está ahora.",
+      "notBuiltShort": "Arc no respondió, así que el pago no se preparó. Intenta de nuevo.",
+      "pledgesMoreShort": "Este pago pone en garantía {pledge} cirBTC y tu billetera tiene {held}."
+    },
+    "receipt": {
+      "title": "La factura #{id} está pagada.",
+      "supplierReceived": "El proveedor recibió",
+      "paidFrom": "Pagado desde",
+      "fromBalance": "Tu saldo en {symbol}",
+      "fromConverted": "Un préstamo en {loan} respaldado por tu cirBTC, convertido a {symbol} por Circle",
+      "fromLoan": "Un préstamo respaldado por tu cirBTC",
+      "borrowedAndConverted": "Prestado y convertido",
+      "pledgedNow": "Ahora en garantía",
+      "cirbtcMore": "{amount} cirBTC más{usd}",
+      "ltvAfterSymbol": "Préstamo/valor (LTV) en {symbol} después",
+      "seeTheTransaction": "Ver la transacción",
+      "ranAndPassed": "Aplicada y aprobada",
+      "notNeeded": "No hizo falta",
+      "extraCheck": "Verificación adicional",
+      "yourBitcoinBack": "Tu bitcoin de vuelta",
+      "repayAnyTimeOther": "Devuelve cuando quieras desde Tu billetera: Cerrar préstamo, o ciérralo con la otra moneda.",
+      "repayAnyTime": "Devuelve cuando quieras desde Tu billetera: Cerrar préstamo."
+    },
+    "closed": {
+      "progressPaid": "Arc ya muestra esta factura como pagada. Adag está leyendo tu transacción para confirmar que el pago es tuyo.",
+      "progressCancelled": "Esta factura fue anulada mientras tu pago estaba en camino. Adag está leyendo tu transacción.",
+      "cannotBePaid": "Esta factura no se puede pagar."
+    },
+    "blocked": {
+      "readingPriceStatus": "Leyendo el estado del precio del bitcoin en Arc.",
+      "readingPosition": "Leyendo tu posición en Arc.",
+      "positionUnreadable": "No se pudo leer tu posición. Intenta de nuevo abajo."
+    },
+    "sameBlock": "Tu préstamo se registró en el último bloque de Arc. El pago se abre con el siguiente, en un momento.",
+    "fromYourBalance": "Desde tu saldo",
+    "balance": {
+      "unavailable": "Tu saldo en {symbol} no está disponible ahora mismo.",
+      "youHold": "Tienes {amount} {symbol}. Una sola firma aprueba exactamente el monto de la factura y la paga.",
+      "guardAboutToUse": "Tu guardián del préstamo está por usar {amount} {symbol} de esta billetera, así que no queda nada libre para esta factura.",
+      "needUsdc": "Necesitas {amount} para la factura y un poco de USDC para la comisión de red{keep}. Tu billetera tiene {held} USDC, así que no se ofrece pagar desde el saldo.",
+      "holdLess": "Tienes menos {symbol} que esta factura, así que no se ofrece pagar desde el saldo."
+    },
+    "payFromBalance": "Pagar {amount} desde el saldo",
+    "opensOnceRecorded": "Se abre cuando tu préstamo esté registrado. La comisión de red aparece entonces.",
+    "fromBitcoin": "Desde bitcoin",
+    "lendShort": "Morpho tiene <ready></ready> disponibles para prestar ahora mismo, menos que esta factura. Pagar desde tu saldo sigue funcionando, o vuelve más tarde.",
+    "supplierGets": "El proveedor recibe <strong>{amount}</strong>.",
+    "pledgeNothingExtra": "No pones <strong>cirBTC adicional</strong> en garantía: lo que ya tienes en garantía cubre esto. Nada se vende.",
+    "pledgeAndKeep": "Pones <pledge></pledge> en garantía y lo conservas. Nada se vende.",
+    "canFall": "El bitcoin puede caer <drop></drop> antes de que Morpho pueda liquidar.",
+    "morphoReady": "Morpho tiene <ready></ready> disponibles para prestar ahora.",
+    "figures": {
+      "borrowRate": "Tasa de interés de Morpho",
+      "cirbtcInWallet": "cirBTC en tu billetera",
+      "liquidationLine": "Línea de liquidación",
+      "morphosNotAdags": "De Morpho, no de Adag"
+    },
+    "pledgeNote": "La garantía es la cifra propia de Adag más un 5% por movimientos de precio. Devuelve cuando quieras desde Tu billetera para recuperar el bitcoin.",
+    "wholeLoanOver": "Todo tu préstamo en {symbol} está por encima del 40%, así que un préstamo nuevo debe traerlo entero de vuelta bajo la línea. Por eso la garantía es tan grande.",
+    "payFromBitcoin": "Pagar con bitcoin",
+    "payFromBitcoinBorrowing": "Pagar con bitcoin, pidiendo prestado {symbol}",
+    "recordFirstAbove": "Registra primero tu préstamo existente, arriba."
+  },
+  "basket": {
+    "hallmark": "Canasta · {n} facturas",
+    "payable": "{n} pagaderas",
+    "title": "{count, plural, =1 {Una factura.} other {{n} facturas.}} <em>Una</em> sola firma.",
+    "titleNothing": "Nada que pagar.",
+    "titlePaidBySafe": "Pagado por tu <em>Safe</em>.",
+    "leftOut": "Fuera porque {count, plural, =1 {no es un número de factura} other {no son números de factura}}: {list}{more}.",
+    "andMore": " y {n} más",
+    "safePayerOfRecord": "Leído de AdagBills: el Safe {safe} es el pagador registrado de {count, plural, =1 {esta factura} other {las {n} facturas}}.",
+    "notInThisPayment": "No están en este pago",
+    "connectToSee": "Conecta una billetera para ver cómo se puede pagar cada moneda.",
+    "oneTransaction": "Una sola transacción",
+    "totals": "{totals} en {count, plural, =1 {{n} factura} other {{n} facturas}}. Todos los pasos se completan juntos o nada se mueve.",
+    "and": " y ",
+    "feeWithConversion": "Con una conversión, la comisión de red se verifica cuando presionas pagar: {keep}.",
+    "feeIdle": "La comisión de red aparece cuando cada moneda tenga una opción elegida.",
+    "payButton": "Pagar {count, plural, =1 {{n} factura} other {{n} facturas}} con una sola firma",
+    "paidTitle": "{n} facturas pagadas. <em>1</em> firma.",
+    "ltvAfterSymbol": "Préstamo/valor (LTV) en {symbol} después",
+    "ofAdagsCap": "del tope de {cap} de Adag",
+    "convertedByCircle": "Convertido por Circle",
+    "aside": {
+      "none": "Todavía no hay ninguna factura con este número en Arc.",
+      "unavailable": "Arc no respondió para esta factura, así que queda fuera. Recarga para intentar de nuevo.",
+      "paid": "Ya está pagada.",
+      "void": "Anulada por el proveedor. Nunca se podrá pagar.",
+      "notUsdcEurc": "No está en USDC ni en EURC.",
+      "yours": "Tú creaste esta factura, así que no puedes pagarla."
+    },
+    "cleared": {
+      "paused": "Los préstamos nuevos en {symbol} están en pausa hasta que se actualice el precio del bitcoin, así que pagar estas facturas con bitcoin está desactivado. Elige de nuevo.",
+      "noCash": "El mercado de {symbol} de Morpho ya no tiene liquidez suficiente para prestar el monto de estas facturas, así que pagar con bitcoin está desactivado. Elige de nuevo.",
+      "balance": "Tu saldo en {symbol} ya no cubre estas facturas{fee}, así que pagar desde el saldo está desactivado. Elige de nuevo.",
+      "plusFee": " más 0.01 USDC para la comisión",
+      "chooseAgain": "{reason} Elige de nuevo."
+    },
+    "blocked": {
+      "connect": "Conecta una billetera primero.",
+      "switch": "Cambia tu billetera a Arc, o usa una billetera común, para pagar.",
+      "readingBalances": "Leyendo tus saldos y los precios en Arc.",
+      "choose": "Elige cómo pagar las facturas en {symbol}.",
+      "readingEuro": "Leyendo el precio del euro y el mercado de préstamos en Arc.",
+      "convertUnreadable": "Adag no pudo leer lo que necesita la conversión. Recarga para intentar de nuevo.",
+      "shortOfBtc": "Esta canasta pone en garantía más cirBTC del que tiene tu billetera. Paga un grupo desde el saldo en su lugar."
+    },
+    "fail": {
+      "billIsNow": "la factura #{id} ahora está {state}",
+      "statePaid": "pagada",
+      "stateCancelled": "anulada",
+      "stateDifferent": "distinta",
+      "sinceLoaded": "Desde que se cargó esta página, {words}. No se envió nada. Recarga la canasta para pagar el resto.",
+      "includingGuard": ", incluidos {amount} que tu guardián del préstamo está por devolver",
+      "balanceNeeds": "Pagar las facturas en {symbol} desde el saldo necesita {need} {symbol}{why}; tu billetera tiene {held}. No se envió nada.",
+      "pausedAtPay": "Los préstamos nuevos en {symbol} están en pausa hasta que se actualice el precio del bitcoin. Paga esas facturas desde el saldo, o espera. No se envió nada.",
+      "pledgesMore": "Esta canasta pone en garantía {pledge} cirBTC y tu billetera tiene {held}. No se envió nada.",
+      "notPaidByYou": "Arc confirmó la transacción, pero la factura #{ids} no se lee como pagada por ti. Revisa la transacción."
+    },
+    "group": {
+      "groupTitle": "{count, plural, =1 {{n} factura en {symbol}} other {{n} facturas en {symbol}}}",
+      "payFrom": "Pagar las facturas en {symbol} desde",
+      "fromBitcoin": "Desde bitcoin",
+      "fromBalance": "Desde el saldo",
+      "lendShort": "Morpho tiene <ready></ready> disponibles para prestar ahora mismo, menos que {what}. Paga desde tu saldo, o vuelve más tarde.",
+      "theseBillsWithConversion": "estas facturas junto con la conversión que elegiste",
+      "theseBills": "estas facturas",
+      "sharedMarket": "Estas facturas están en el mismo mercado de Morpho que la conversión elegida para las facturas en {other}, así que una sola garantía cubre ambas y se muestra allí. Aquí no pones cirBTC adicional en garantía. Morpho tiene <ready></ready> disponibles para prestar ahora.",
+      "pledgeNothingExtra": "No pones cirBTC adicional en garantía: lo que ya tienes en garantía cubre esto.",
+      "pledgeAndKeep": "Pones <pledge></pledge> en garantía y lo conservas.",
+      "canFall": "El bitcoin puede caer <drop></drop> antes de que Morpho pueda liquidar.",
+      "morphoReady": "Morpho tiene <ready></ready> disponibles para prestar ahora.",
+      "youHold": "Tienes <balance></balance>.",
+      "oneApproval": "Una aprobación exacta, y luego se paga cada factura.",
+      "notEnoughFee": "No alcanza para estas facturas y la comisión de red.",
+      "notEnough": "No alcanza para estas facturas.",
+      "details": "Relación préstamo-valor (LTV) después: <ltv></ltv> (Adag rechaza todo lo que pase del 40%). cirBTC en tu billetera: <btc></btc>. La garantía incluye un 5% por movimientos de precio."
+    }
+  },
+  "convert": {
+    "title": "Desde bitcoin, pidiendo prestado {symbol}",
+    "youBorrow": "Pides prestado <num>{amount}</num> (unos ${usd}) y Circle lo convierte en {bill} para la factura.",
+    "worstCase": "En el peor caso, {rate}. El intercambio debe devolver al menos {min}, o el pago entero se deshace y nada se mueve. Lo que no necesite se queda en tu billetera.",
+    "circleFee": "La comisión de Circle es del 0.02%, unos {fee}. {what} incluye un colchón de {cushion} sobre el precio del euro de hoy.",
+    "amountBorrowed": "El monto prestado",
+    "amountSold": "El monto vendido",
+    "pledgeNothingExtra": "No pones cirBTC adicional en garantía: lo que ya tienes en garantía cubre esto.",
+    "pledgeAndKeep": "Pones <num>{amount}</num>{usd} en garantía y lo conservas.",
+    "sharedBorrow": "Esto incluye el préstamo de {amount} para tus facturas en {loan} pagadas con bitcoin: ambos piden prestado en el mismo mercado de Morpho, así que una sola garantía los cubre.",
+    "ltvAfter": "Relación préstamo-valor (LTV) después: <num>{ltv}</num> en el mercado de {loan} de Morpho (Adag rechaza todo lo que pase de {cap}). El bitcoin puede caer {drop} antes de que Morpho pueda liquidar.",
+    "networkFee": "Comisión de red: {keep}. Arc devuelve lo que no use.",
+    "debtWillBeIn": "Tu deuda estará en {loan}. Su costo en dólares se mueve con el euro.",
+    "checksOnlyNow": "Adag verifica el límite del 40% solo ahora, cuando pagas.",
+    "guardRepaysFrom": "El guardián del préstamo solo puede devolver este préstamo con los {loan} de tu billetera.",
+    "readAtBlock": "Leído en conjunto en el bloque {block} de Arc.",
+    "youSell": "Vendes <num>{amount}</num> (unos ${usd}) a través de Circle por al menos {min}, el monto que necesita este cierre.",
+    "worstCaseClose": "En el peor caso, {rate}. Si el intercambio devuelve menos, el cierre entero se deshace y nada se mueve. Lo que el préstamo no necesite se queda en tu billetera.",
+    "thenRepays": "Luego Adag devuelve tu préstamo según sus participaciones exactas y recupera todo tu cirBTC, en la misma firma.",
+    "reset": {
+      "button": "Poner en 0 el acceso del adaptador de Circle",
+      "onlyTakesAway": "Nada más cambia: esto solo quita acceso.",
+      "done": "El adaptador de Circle ya no tiene acceso a tu billetera."
+    }
+  },
+  "lib": {
+    "joiner": "space",
+    "words": {
+      "thisWallet": "esta billetera",
+      "theSafe": "el Safe",
+      "thisSafe": "este Safe",
+      "noCollateral": "sin colateral",
+      "underOneCent": "menos de $0.01",
+      "theWalletDidNotAnswer": "La billetera no respondió.",
+      "nothingWasSent": "No se envió nada.",
+      "successLoanChecked": "éxito, loanChecked {flag}",
+      "unreadableLevel": "un nivel ilegible",
+      "paused": "en pausa",
+      "reverted": "revertido"
+    },
+    "errors": {
+      "insufficientCollateral": "Morpho rechazó el préstamo porque pasaría la propia línea del 86% de Morpho.",
+      "pledgeMoreOrPayLess": "Pon más cirBTC en garantía o paga menos con bitcoin.",
+      "insufficientLiquidity": "El mercado de Morpho no tiene liquidez suficiente para prestar este monto ahora mismo.",
+      "payFromBalanceOrLater": "Paga desde tu saldo, o intenta de nuevo más tarde.",
+      "zeroAssets": "Morpho rechazó un monto de cero.",
+      "reloadAndBuild": "Recarga la página y prepara el pago de nuevo.",
+      "unauthorized": "Morpho se negó a actuar por esta billetera.",
+      "useOrdinaryWallet": "Usa una billetera común como MetaMask o Rabby, que envíe su propia transacción.",
+      "blocked": "El emisor del token ha bloqueado una de las billeteras de este pago.",
+      "blockedNext": "Nada se movió. La billetera bloqueada tiene que contactar al emisor.",
+      "paused": "El token está en pausa por su emisor.",
+      "nothingMovedLater": "Nada se movió. Intenta de nuevo más tarde.",
+      "insufficientBalance": "Tu billetera no tiene suficiente de este token.",
+      "addFundsOrBitcoin": "Agrega fondos, o paga con bitcoin en su lugar.",
+      "insufficientAllowance": "La aprobación de este pago fue menor que el monto.",
+      "transferFailed": "Una transferencia de tokens dentro de Morpho falló: tu billetera tenía o aprobó menos de lo que Morpho necesitaba mover.",
+      "transferFailedNext": "Nada se movió. Recarga para que los montos se lean de nuevo, y luego intenta otra vez.",
+      "batchStepFailed": "Un paso del pago falló, así que no ocurrió nada.",
+      "reloadAndTry": "Recarga la página e intenta de nuevo.",
+      "unknown": "El pago fue rechazado por un motivo que Adag no pudo leer.",
+      "unknownNext": "Nada se movió. Revisa la transacción en el explorador de Arc, o intenta de nuevo.",
+      "ltvAboveLimit": "Esto llevaría tu préstamo más allá del 40% del valor de tu bitcoin.",
+      "alreadyPaid": "Esta factura ya está pagada.",
+      "alreadyPaidNext": "No se cobró nada. La página de la factura muestra quién la pagó.",
+      "supplierCancelled": "El proveedor anuló esta factura.",
+      "askForNewOne": "Pídele una nueva si todavía la debes.",
+      "noBillWithNumber": "No hay ninguna factura con este número.",
+      "checkWithSupplier": "Verifica el número con el proveedor.",
+      "stalePrice": "Los préstamos nuevos están en pausa hasta que se actualice el precio del bitcoin.",
+      "balanceStillWorks": "Pagar desde tu saldo sigue funcionando.",
+      "enrolledThisBlock": "Tu préstamo se registró en este mismo bloque, y Adag solo acepta el pago a partir del siguiente.",
+      "waitThenPay": "Espera un momento y luego paga de nuevo.",
+      "zeroPrice": "El precio del bitcoin se lee como cero, así que los préstamos nuevos están desactivados.",
+      "badFeed": "El oráculo del precio del bitcoin no nombra ninguna fuente de precios, así que los préstamos nuevos están desactivados.",
+      "badMarket": "Morpho reporta este mercado de forma distinta a lo que Adag espera, así que pagar con bitcoin está desactivado.",
+      "unknownBill": "No hay ninguna factura #{id} en Arc.",
+      "selfPayment": "No puedes pagar una factura que tú creaste.",
+      "payFromDifferentWallet": "Págala desde otra billetera.",
+      "notPayee": "Solo el proveedor que creó esta factura puede anularla.",
+      "connectWalletThatWrote": "Conecta la billetera que la creó.",
+      "payeeNotCredited": "El saldo del proveedor no subió el monto de la factura, así que Adag deshizo el pago.",
+      "payeeNotCreditedNext": "Nada se movió. Puede que el token esté bloqueando a este proveedor; pídele que lo verifique.",
+      "zeroAmount": "El monto de esta factura es cero, así que no se puede pagar.",
+      "askCorrectedBill": "Pide al proveedor una factura corregida.",
+      "referenceTooLong": "La referencia tiene {n} bytes, más del límite de 140 bytes.",
+      "shortenIt": "Acórtala. Algunos caracteres ocupan más de un byte.",
+      "unsupportedCurrency": "Las facturas de Adag son solo en USDC o EURC.",
+      "chooseOneOfThose": "Elige una de esas.",
+      "pageTooLarge": "La app pidió a Arc demasiadas facturas a la vez.",
+      "reloadThePage": "Recarga la página.",
+      "reentrancy": "El pago intentó volver a llamar a Adag, así que fue rechazado.",
+      "nothingMovedReload": "Nada se movió. Recarga la página e intenta de nuevo.",
+      "safeErc20": "El contrato de {symbol} rechazó la transferencia.",
+      "safeErc20Next": "Nada se movió. Verifica que tu billetera tenga suficiente {symbol} y que su emisor no la haya bloqueado.",
+      "invalidAddress": "El token rechazó una de las direcciones de este pago.",
+      "memoFailed": "El paso del pago falló sin dar un motivo.",
+      "panic": "El pago encontró un error aritmético y fue rechazado."
+    },
+    "send": {
+      "effectsUnavailable": "No pudimos volver a verificar esta conversión justo ahora. No se envió nada. Intenta de nuevo en un minuto.",
+      "ownCheckRefused": "La propia verificación de Adag sobre las llamadas de este pago lo rechazó.",
+      "startAgain": "No se envió nada. Empieza el pago de nuevo.",
+      "noLatestBlock": "Arc no respondió con el último bloque. No se envió nada. Intenta de nuevo.",
+      "quoteExpired": "La cotización de intercambio de Circle para este pago ha expirado o está por expirar.",
+      "quoteExpiredNext": "No se envió nada. Empieza el pago de nuevo para obtener una nueva.",
+      "feeMoved": "La comisión de Arc ha subido por encima del techo con el que se preparó este pago.",
+      "feeMovedNext": "No se envió nada. Empieza el pago de nuevo para que la verificación de saldo se calcule con la comisión actual.",
+      "noBalanceAnswer": "Arc no respondió con tu saldo. No se envió nada. Intenta de nuevo.",
+      "needsForFee": "Tu billetera necesita unos {fee} USDC para la comisión de red y tiene {held}. No se envió nada.",
+      "needsForPaymentAndFee": "Tu billetera necesita unos {need} USDC, {principal} para este pago más unos {fee} para la comisión de red, y tiene {held}. No se envió nada.",
+      "simulationEmpty": "La simulación de Arc de este pago volvió vacía.",
+      "nothingSentTryAgain": "No se envió nada. Intenta de nuevo.",
+      "tooMuchGas": "Esta conversión usaría más gas del que Adag permite para una sola firma.",
+      "tooMuchGasNext": "No se envió nada. Paga un monto menor, o paga en la moneda propia de la factura.",
+      "quoteUsed": "Esta cotización de Circle ya se usó para una solicitud de firma.",
+      "walletOffArc": "Tu billetera ya no está en Arc mainnet con esta dirección. No se envió nada.",
+      "resetDryRun": "La simulación previa de Arc del restablecimiento falló, así que no se envió nada. Intenta de nuevo en un momento.",
+      "reachesAdapter": "Este pago llega al adaptador de intercambio de Circle sin decir qué convierte, así que Adag no lo enviará.",
+      "nothingSentReload": "No se envió nada. Recarga la página e intenta de nuevo.",
+      "noFeeAnswer": "Arc no respondió con la comisión actual. No se envió nada. Intenta de nuevo.",
+      "declined": "Rechazaste en tu billetera. No se envió nada.",
+      "couldNotSend": "La billetera no pudo enviarlo: {line}",
+      "notConfirmedYet": "Arc todavía no lo ha confirmado. No pagues otra vez: revisa primero el enlace de la transacción.",
+      "reverted": "La transacción se revirtió en Arc, así que nada se movió aparte de la comisión.",
+      "resetNotConfirmed": "Arc todavía no ha confirmado el restablecimiento. Revisa la transacción antes de intentar de nuevo.",
+      "resetReverted": "El restablecimiento se revirtió en Arc, así que nada cambió aparte de la comisión.",
+      "noEuroPrice": "Adag no pudo leer el precio del euro desde Arc. No se envió nada. Intenta de nuevo.",
+      "resetViaMulticall": "Un restablecimiento del adaptador de Circle debe pasar por Multicall3From.",
+      "resetNotOwnCalls": "Esto no es un lote de las llamadas propias del restablecimiento.",
+      "resetDisallowedCall": "Este lote contiene una llamada que el restablecimiento del adaptador no permite.",
+      "noArcClient": "No hay ningún cliente de Arc configurado."
+    },
+    "guard": {
+      "keptAside": "Tu guardián del préstamo devolverá unos {parts} desde {who} en cuestión de minutos, así que eso se reserva.",
+      "ruleUnreadable": "Adag no pudo leer tu guardián del préstamo, así que no puede decirte si este pago lo activa. Intenta de nuevo.",
+      "ruleUnreadableSafe": "Adag no pudo leer el guardián del préstamo del Safe, así que no puede decirte si este pago lo activa. Intenta de nuevo.",
+      "unreadable": "Adag no pudo leer tu guardián del préstamo, así que no puede verificar que esta billetera cubra el pago. Intenta de nuevo.",
+      "trigger": "Este pago lleva el préstamo a {ltv}, en el umbral de {trigger} de tu guardián o más allá. El guardián devolverá entonces unos {amount} {symbol} desde {who} en cuestión de minutos, de vuelta a {target}.",
+      "targetAboveZero": "Elige un objetivo por encima del 0%.",
+      "targetBelowTrigger": "El objetivo debe estar por debajo del umbral: el guardián devuelve desde el umbral hasta el objetivo.",
+      "triggerBelowLine": "El umbral debe estar por debajo de la línea de liquidación de Morpho.",
+      "outOfRange": "Esos porcentajes están fuera de rango.",
+      "endDateFuture": "La fecha de fin debe estar en el futuro.",
+      "endDateNotStorable": "La fecha de fin no es una fecha que Arc pueda guardar.",
+      "chooseAmount": "Elige cuánto puede usar, un monto mayor que cero.",
+      "approvalTooLarge": "Ese monto aprobado es mayor que cualquier monto que esta página vaya a preparar.",
+      "onlyTwoMarkets": "Solo los mercados de USDC y EURC de Adag se pueden proteger.",
+      "walletInvalid": "La dirección de la billetera no es válida.",
+      "notDeployed": "El guardián del préstamo no está desplegado, así que no se preparó nada.",
+      "ownLoanOnly": "Esta página solo devuelve el préstamo propio de la billetera conectada."
+    },
+    "fx": {
+      "safeConvertLine": "La conversión no está disponible para pagos desde un Safe: las cotizaciones de Circle duran 10 minutos y los propietarios de un Safe firman más tarde.",
+      "tooLarge": "Esta conversión es demasiado grande para un solo pago. Paga una parte desde tu saldo o divide la factura.",
+      "otherConverts": "Las facturas en {other} de esta canasta ya se pagan convirtiendo. Una sola firma ejecuta una conversión, y nunca una en cada dirección.",
+      "loanPaused": "Los préstamos nuevos en {loan} están en pausa hasta que se actualice el precio del bitcoin, así que pedir prestado {loan} está desactivado. Pagar en la moneda propia de la factura sigue funcionando.",
+      "loanUnknown": "Adag no pudo leer si los préstamos nuevos en {loan} están abiertos ahora mismo, así que convertir está desactivado. Intenta de nuevo en un momento.",
+      "cash": "Morpho tiene {ready} disponibles para prestar ahora mismo, menos que los {need} que pide prestados esta conversión. Paga de otra forma, o vuelve más tarde.",
+      "closeShort": "Tienes {held}, y cerrar de esta forma necesita {need}.",
+      "pledgeUnsized": "Adag no pudo dimensionar la garantía para esta conversión, así que está desactivada. Intenta de nuevo en un momento.",
+      "rate": "1 {sold} devuelve al menos {rate} {bought}",
+      "loanCurrencyUnsupported": "La moneda del préstamo de este pago no es una que Adag admita.",
+      "euroNotPositive": "El precio del euro que Adag lee desde Arc no es positivo, así que convertir está desactivado.",
+      "euroScale": "El precio del euro que Adag lee desde Arc tiene una escala inutilizable, así que convertir está desactivado.",
+      "euroFuture": "El precio del euro que Adag lee desde Arc tiene fecha en el futuro, así que convertir está desactivado.",
+      "euroOld": "El precio del euro que Adag lee desde Arc tiene más de 96 horas (la fuente se pausa los fines de semana), así que convertir entre dólares y euros está desactivado. Pagar en la moneda propia de la factura sigue funcionando.",
+      "convertZero": "El monto a convertir debe ser mayor que cero.",
+      "euroUnreadable": "Adag no pudo leer el precio del euro desde Arc, así que convertir está desactivado. Intenta de nuevo en un momento.",
+      "circleNoRoute": "Circle no encontró ningún intercambio que devuelva lo suficiente para este pago ahora mismo. Intenta de nuevo en un momento, o paga de otra forma.",
+      "circleBusy": "El servicio de intercambio de Circle está ocupado. Espera un minuto e intenta de nuevo.",
+      "circleUnavailable": "El servicio de intercambio de Circle no respondió. No se envió nada. Intenta de nuevo en un momento, o paga de otra forma.",
+      "circleBadAnswer": "El servicio de intercambio de Circle respondió con un formato en el que Adag no confía, así que no se usó nada de él. Intenta de nuevo, o paga de otra forma.",
+      "circleBadRequest": "Adag no pudo formar una solicitud de intercambio para este pago, así que no se envió nada.",
+      "adapterUnreadable": "Adag no pudo leer qué puede hacer el adaptador de intercambio de Circle con tu billetera, así que no puede ofrecer una conversión. Intenta de nuevo en un momento.",
+      "adapterCanSpend": "El adaptador de intercambio de Circle ya puede gastar tus {symbol}: una aprobación anterior sigue abierta. La conversión espera hasta que se ponga en 0.",
+      "adapterAuthorised": "El adaptador de intercambio de Circle está autorizado a actuar sobre tus préstamos de Morpho. La conversión espera hasta que eso se retire.",
+      "planNotBytes": "El plan de intercambio no son bytes legibles.",
+      "planOverBytes": "El plan de intercambio supera los {n} bytes.",
+      "planNotExecute": "El plan de intercambio no es una llamada a execute del adaptador.",
+      "planUnreadable": "No se pudo leer el plan de intercambio.",
+      "planReshaped": "El plan de intercambio tiene bytes adicionales o reorganizados, así que no es el plan que se verificó.",
+      "planOneToken": "El plan de intercambio debe sacar exactamente un token de tu billetera.",
+      "planPermit": "El plan de intercambio pide un permit, que Adag nunca firma.",
+      "planPermitData": "El plan de intercambio lleva datos de permit.",
+      "planOtherCurrency": "El plan de intercambio saca una moneda distinta de la que vende este pago.",
+      "planOtherAmount": "El plan de intercambio saca un monto distinto del que vende este pago.",
+      "planSteps": "El plan de intercambio tiene {n} pasos; Adag acepta de 1 a {max}.",
+      "planTokens": "El plan de intercambio lista un número inutilizable de tokens a devolver.",
+      "planOtherAddress": "El plan de intercambio enviaría dinero a una dirección que no es tu billetera.",
+      "planNoBought": "El plan de intercambio no envía la moneda comprada a tu billetera.",
+      "planNativeValue": "El plan de intercambio reenvía valor nativo, que este pago nunca necesita.",
+      "planNoGuarantee": "El plan de intercambio no garantiza al menos el monto que necesita este pago.",
+      "planExpires": "El plan de intercambio expira en menos de {n} segundos según el reloj de Arc.",
+      "effectsNotPlain": "Algo que no es un monto simple de tokens saldría de tu billetera en este pago.",
+      "effectsUnexpected": "Una transferencia inesperada dentro de este pago sacaría dinero de tu billetera.",
+      "effectsMoreBtc": "En este pago saldría de tu billetera más cirBTC que la garantía.",
+      "effectsMoreSold": "Saldría de tu billetera para el intercambio más que el monto que se convierte.",
+      "effectsMoreRepay": "En este pago saldría de tu billetera más que la devolución del préstamo.",
+      "effectsNotBill": "En este pago saldría de tu billetera una transferencia que no es una de tus facturas.",
+      "effectsNative": "En este pago saldría valor nativo de tu billetera sin una transferencia de USDC que coincida.",
+      "effectsFloor": "La verificación de saldo al final del intercambio no se ejecutó como se preparó.",
+      "effectsUnpaid": "Una factura de este pago no recibiría su monto.",
+      "effectsNoBillPaid": "La factura #{id} no mostraría un pago desde tu billetera en su propio contrato.",
+      "planTokenNotAddress": "Una dirección de token en la solicitud de intercambio no es una dirección válida.",
+      "planTwoCurrencies": "Un intercambio necesita dos monedas distintas.",
+      "planAmountZero": "El monto a intercambiar debe ser mayor que cero.",
+      "planMinZero": "Lo mínimo que puede devolver el intercambio debe ser mayor que cero.",
+      "planNoChainTime": "Falta la hora de la cadena para la verificación del intercambio.",
+      "planNoFeeCeiling": "Falta el techo de comisión para el lote del intercambio.",
+      "bufferRange": "El margen debe estar entre 0 y {n} puntos básicos.",
+      "rateTwoAmounts": "La tasa necesita dos montos por encima de cero."
+    },
+    "build": {
+      "amountZero": "El monto debe ser mayor que cero.",
+      "dueNotStorable": "La fecha de vencimiento no es una fecha que Arc pueda guardar.",
+      "referenceTooLong": "La referencia tiene {n} bytes; el límite es {max}. Algunos caracteres ocupan más de un byte.",
+      "currencyOnly": "Las facturas solo se pueden crear en USDC o EURC.",
+      "addOneBill": "Agrega al menos una factura que pagar.",
+      "atMostBills": "Una sola firma paga como máximo {n} facturas.",
+      "chooseHowToPay": "Elige cómo pagar las facturas en {symbol}.",
+      "addZero": "El monto de cirBTC a agregar debe ser mayor que cero.",
+      "repayZero": "El monto a devolver debe ser mayor que cero.",
+      "repayTooMuch": "Eso es más de lo que esta forma de devolver puede aceptar. Usa Cerrar préstamo para devolverlo todo.",
+      "nothingInMarket": "No hay préstamo ni cirBTC en garantía en este mercado.",
+      "tooSmallForFloor": "Este monto es demasiado pequeño para la verificación de saldo que protege una conversión, así que no se ofrece. Págalo desde tu saldo.",
+      "convertTooMuchBills": "El monto a convertir es más de lo que valen estas facturas al precio del euro que Adag lee, más el margen del 1.5%. No se preparó nada.",
+      "convertTooMuchClose": "El monto a convertir es más de lo que vale la aprobación del cierre al precio del euro que Adag lee, más el margen del 1.5%. No se preparó nada.",
+      "safeNoConversion": "Pagar mediante una conversión entre dólares y euros no está disponible desde un Safe, porque la cotización de Circle dura 10 minutos y las firmas de un Safe tardan más. Paga en la moneda propia de la factura, o paga desde una billetera.",
+      "safeCurrentOnly": "Pagar desde un Safe funciona para facturas del contrato AdagBills actual. Esta factura está en el primer despliegue, así que págala desde una billetera.",
+      "twiceInBasket": "La factura #{id} está dos veces en la canasta; pagarla dos veces desharía el lote entero.",
+      "twiceInPayment": "La factura #{id} está dos veces en el pago; pagarla dos veces desharía el lote entero.",
+      "safeAtMostBills": "Un pago desde un Safe paga como máximo {n} facturas.",
+      "safeChooseHowToPay": "Elige cómo paga el Safe las facturas en {symbol}.",
+      "selfPayment": "No puedes pagar una factura que tú creaste.",
+      "billNotOpen": "La factura #{id} no está abierta para el pago.",
+      "billNoAmount": "La factura #{id} no tiene monto que pagar.",
+      "billUnreadableRef": "La factura #{id} tiene una referencia ilegible.",
+      "billNotUsdcEurc": "La factura #{id} no está en USDC ni en EURC.",
+      "pledgeNegative": "La garantía debe ser de cero o más satoshis.",
+      "enrolFirstDeployment": "Solo el contrato AdagBills actual puede registrar un préstamo existente. Esta factura está en el primer despliegue.",
+      "noLoanToClose": "No hay ningún préstamo en este mercado que cerrar con una conversión.",
+      "repayApprovalZero": "La aprobación para devolver debe ser mayor que cero.",
+      "resetTokens": "Aquí solo se pueden restablecer aprobaciones de USDC, EURC y cirBTC al adaptador de intercambio.",
+      "resetOnce": "Cada aprobación se restablece una vez.",
+      "nothingToReset": "No hay nada que restablecer.",
+      "twoContracts": "Estas facturas están en dos contratos AdagBills distintos. Una sola firma paga facturas de un solo contrato.",
+      "guardNotDeployed": "El guardián del préstamo no está desplegado, así que su regla no se puede detener.",
+      "billNumberWhole": "Un número de factura debe ser un número entero de 1 o más.",
+      "tooManyBills": "Son {n} facturas. Una sola firma paga como máximo {max}; divídelas en dos canastas.",
+      "mixedContracts": "Estas facturas están en dos contratos AdagBills distintos, y una sola firma paga facturas de un solo contrato. Paga por separado las facturas del primer despliegue.",
+      "marketMalformed": "Los parámetros del mercado {market} están malformados; se rechaza firmar con ellos.",
+      "marketHash": "Los parámetros del mercado dan el hash {hash}, no {expected}; se rechaza firmar con ellos.",
+      "marketDiffer": "Los parámetros del mercado {market} difieren del mercado fijo de {symbol}; se rechaza firmar con ellos.",
+      "payerNotAddress": "La dirección de la billetera que paga no es una dirección válida.",
+      "convertDirection": "Una factura en {bill} se paga convirtiendo un préstamo en {loan}, nunca uno en {other}.",
+      "oneDirection": "Una sola firma convierte en una sola dirección: dos grupos que convierten en direcciones opuestas nunca se preparan juntos.",
+      "floorNegative": "El saldo del que parte la conversión se lee como negativo, así que no se preparó nada.",
+      "positionNegative": "La posición del préstamo se lee como negativa, así que no se preparó nada.",
+      "approvalNegative": "El monto aprobado al guardián del préstamo se lee como negativo, así que no se preparó nada.",
+      "refuseStepMayFail": "Se rechaza un paso del lote que puede fallar por sí solo.",
+      "refuseApprovalUnreadable": "Se rechaza una aprobación que no es legible.",
+      "refuseNoSwapCall": "Se rechaza un lote de conversión sin llamada de intercambio.",
+      "refuseSwapCount": "Se rechaza un lote con {n} llamadas de intercambio. Una sola firma ejecuta exactamente una.",
+      "refuseAdapterNotExecute": "Se rechaza una llamada al adaptador de intercambio que no sea execute.",
+      "refuseSwapPlan": "Se rechaza un intercambio cuyo plan no es el que se usó para preparar este lote.",
+      "refuseGasCeiling": "Se rechaza una conversión que no está preparada para enviarse con el techo de gas fijo.",
+      "refuseBalanceCheckFloor": "Se rechaza una conversión cuya verificación de saldo no es el saldo del que partió más lo que financia, menos el margen de gas en USDC.",
+      "refuseSwapNotFollowed": "Se rechaza un intercambio al que no le sigue la verificación de saldo en la moneda que compra.",
+      "refuseBalanceCheckBack": "Se rechaza una verificación de saldo que no devuelve el piso exacto al pagador.",
+      "refuseSwapNotPreceded": "Se rechaza un intercambio al que no le precede una aprobación por exactamente el monto que se convierte.",
+      "refuseAdapterApprovalCurrency": "Se rechaza una aprobación al adaptador de intercambio para cualquier moneda que no sea la que se convierte.",
+      "refuseResetBeforeSwap": "Se rechaza un restablecimiento de la aprobación del adaptador de intercambio antes del intercambio.",
+      "refuseAdapterApprovalAmount": "Se rechaza una aprobación al adaptador de intercambio por más del monto que se convierte, o una que no se fija justo antes del intercambio.",
+      "refuseAdapterApprovalLeft": "Se rechaza un lote que deja al adaptador de intercambio con una aprobación al final.",
+      "refuseTokenCallConversion": "Se rechaza una llamada de token en un lote de conversión que no sea una aprobación o la verificación de saldo.",
+      "refuseBatchInConversion": "Se rechaza un lote dentro de un lote de conversión.",
+      "refuseMorphoCall": "Se rechaza una llamada a Morpho que esta app no hace.",
+      "refuseMorphoMarket": "Se rechaza una llamada a Morpho en un mercado que no es uno de los dos de Adag.",
+      "refuseMorphoPayer": "Se rechaza una llamada a Morpho hecha para alguien que no es el pagador.",
+      "refuseMorphoReceiver": "Se rechaza una llamada a Morpho que envía dinero a alguien que no es el pagador.",
+      "refuseBorrowFunding": "Se rechaza una conversión que no se financia con un préstamo por exactamente el monto que se convierte.",
+      "refuseDirectBillsConversion": "Se rechaza una llamada directa a AdagBills en un lote de conversión. Las facturas se pagan a través de Memo.",
+      "refusePaymentBeforeSwap": "Se rechaza un pago que viene antes del intercambio.",
+      "refuseMemoNotPayment": "Se rechaza una llamada a Memo que no es el pago de una factura.",
+      "refusePaymentNotBuilt": "Se rechaza un pago de una factura para la que este lote no se preparó, o una pagada dos veces.",
+      "refuseConversionUnpaid": "Se rechaza un lote de conversión que deja una factura sin pagar.",
+      "refuseBatchInBatch": "Se rechaza un lote dentro del lote.",
+      "refuseTokenCallNotApproval": "Se rechaza una llamada de token que no es una aprobación.",
+      "refuseCirbtcApproval": "Se rechaza una aprobación de cirBTC a AdagBills, o a un contrato en el que no está ninguna factura de este lote.",
+      "refuseApprovalTo": "Se rechaza una aprobación a {to}.",
+      "refuseMemoInSafe": "Se rechaza una llamada a Memo en un lote de Safe. Un Safe paga a AdagBills directamente.",
+      "refuseMemoOtherId": "Se rechaza un pago por Memo archivado bajo el id de memo de otra factura.",
+      "refuseMorphoCallback": "Se rechaza una llamada a Morpho que pide a Morpho volver a llamar al lote.",
+      "refuseDirectBills": "Se rechaza una llamada directa a AdagBills en un lote. Las facturas se pagan a través de Memo.",
+      "refuseSafeBillsCall": "Se rechaza una llamada a AdagBills desde un Safe que no sea pagar una de sus facturas, o registrar su préstamo por sí solo.",
+      "refuseGuardCallExactStop": "Se rechaza una llamada al guardián del préstamo que no sea exactamente detener la regla de este préstamo.",
+      "refuseBatchCalls": "Se rechaza un lote que llama a {target}.",
+      "refuseBatchUnpaid": "Se rechaza un lote que deja sin pagar una factura para la que se preparó.",
+      "refuseAdapterIndirect": "Se rechaza un lote que llega al adaptador de intercambio a través de otra llamada.",
+      "refuseGuardCallStop": "Se rechaza una llamada al guardián del préstamo que no sea detener la regla de este préstamo.",
+      "refuseStopOtherMarket": "Se rechaza detener el guardián de otro mercado.",
+      "refuseGuardApproval": "Se rechaza una aprobación al guardián del préstamo que no sea poner en 0 el token de este préstamo.",
+      "refuseNotMulticall": "Se rechaza una conversión que no se envía a través de Multicall3From.",
+      "refuseOtherWallet": "Se rechaza una conversión que se preparó para otra billetera.",
+      "refuseNotPlainBatch": "Se rechaza una conversión cuyos bytes no son un lote simple de llamadas.",
+      "refuseResetNotZero": "Se rechaza un paso de restablecimiento que no pone en 0 una aprobación de intercambio.",
+      "refuseResetNotAllowed": "Se rechaza un paso de restablecimiento que no es uno de los dos que el restablecimiento permite.",
+      "refuseTokenNotApprovalGuard": "Se rechaza una llamada de token que no es una aprobación.",
+      "refuseApprovalOtherAmount": "Se rechaza una aprobación distinta del monto que elegiste.",
+      "refuseGuardCallNotRule": "Se rechaza una llamada al guardián que no sea fijar o borrar una regla.",
+      "refuseRuleOtherMarket": "Se rechaza una regla para otro mercado.",
+      "refuseRepaymentTarget": "Se rechaza una devolución enviada a {to} en lugar de a AdagGuard.",
+      "refuseRepaymentValue": "Se rechaza una devolución que envía valor.",
+      "refuseGuardCallNotProtect": "Se rechaza una llamada al guardián que no sea protect.",
+      "refuseProtectLength": "Se rechazan datos de llamada de protect con la longitud equivocada.",
+      "refuseOtherWalletGuard": "Se rechaza activar el guardián de otra billetera.",
+      "callOnlyTwoMarkets": "Solo los dos mercados de Adag se pueden proteger.",
+      "callGuardNotDeployed": "El guardián del préstamo todavía no está desplegado.",
+      "callBorrowerNotAddress": "El prestatario no es una dirección.",
+      "callNotToGuard": "La llamada no es a AdagGuard.",
+      "callCarriesValue": "La llamada lleva valor.",
+      "callNotProtect": "La llamada no es protect.",
+      "callExtraBytes": "La llamada lleva bytes adicionales."
+    },
+    "amount": {
+      "enter": "Ingresa un monto.",
+      "oneDecimalMark": "Usa un solo separador decimal y sin separadores de miles, como 1250.50.",
+      "digits": "Usa dígitos y un solo punto decimal, como 12.50.",
+      "decimals": "Como máximo {n} decimales.",
+      "moreThanZero": "El monto debe ser mayor que cero."
+    },
+    "alerts": {
+      "serverAnswered": "El servidor respondió {status}.",
+      "serverNoAnswer": "El servidor no respondió. Intenta de nuevo.",
+      "declinedNothingChanged": "Rechazaste en tu billetera. Nada cambió.",
+      "oneToThreeLevels": "Elige de uno a tres niveles de alerta.",
+      "levelWhole": "Cada nivel debe ser un número entero.",
+      "levelRange": "Cada nivel debe estar entre 5% y 85%, en pasos de 0.01%.",
+      "levelsRise": "Los niveles deben ir en aumento.",
+      "siteNotUrl": "El origen del sitio no es una URL.",
+      "siteNotHttps": "El origen del sitio debe ser https.",
+      "expiryNotTime": "La expiración no es una hora.",
+      "requestTooLarge": "La solicitud es demasiado grande.",
+      "requestNotJson": "La solicitud no es JSON.",
+      "requestNotObject": "La solicitud no es un objeto JSON.",
+      "notWallet": "Eso no es una dirección de billetera.",
+      "zeroAddress": "La dirección cero no es una billetera.",
+      "notChatId": "Eso no es un id de chat.",
+      "notLinkCode": "Eso no es un código de vinculación.",
+      "notNonce": "Eso no es un nonce.",
+      "notMarket": "Eso no es un mercado.",
+      "notOneOfTwoMarkets": "Eso no es uno de los dos mercados de Adag.",
+      "notUpdateId": "Eso no es un id de actualización.",
+      "signatureMismatch": "La firma no coincide con esta billetera y este mensaje, o ha expirado.",
+      "messageUsed": "Este mensaje firmado ya se usó.",
+      "telegramMissing": "Las alertas de Telegram todavía no están configuradas en este servidor.",
+      "storeMissing": "Las alertas y el guardián del préstamo necesitan un almacén clave-valor, y todavía no hay ninguno configurado en este servidor.",
+      "tooMany": "Demasiadas solicitudes. Intenta de nuevo en unos minutos.",
+      "tooManyCodes": "Demasiados códigos. Intenta de nuevo en unos minutos.",
+      "botNoAnswer": "El bot de Telegram no respondió. Intenta de nuevo en un minuto.",
+      "tooManyAttempts": "Demasiados intentos. Intenta de nuevo en unos minutos.",
+      "tooManyWithCode": "Demasiados intentos con este código.",
+      "codeExpired": "Este código ha expirado o ya se usó. Empieza de nuevo.",
+      "chatTaken": "Ese chat ya recibe alertas de Adag para otra billetera. Envía /stop en ese chat y luego vincula de nuevo.",
+      "full": "Las alertas están llenas ahora mismo. Intenta de nuevo más tarde.",
+      "notAmount": "No es un monto.",
+      "siteMustBeHttps": "El sitio debe ser https.",
+      "notAdagMarket": "No es uno de los mercados de Adag.",
+      "couldNotIssueCode": "No se pudo emitir un código."
+    },
+    "safe": {
+      "requestUnreadable": "No se pudo leer la solicitud.",
+      "batchUnreadable": "No se pudo leer el lote del Safe, así que no se propuso nada.",
+      "billsUnchecked": "Arc no respondió, así que las facturas de este lote del Safe no se pudieron verificar. No se propuso nada.",
+      "amountsMismatch": "Los montos de este lote del Safe no coinciden con las facturas que paga, así que no se propuso nada.",
+      "nonceNotCurrent": "El nonce no es el actual del Safe. Prepara el pago de nuevo.",
+      "hashMismatch": "El hash firmado no coincide con este pago.",
+      "signatureNotOwner": "La firma no es de este propietario.",
+      "safeUnchecked": "Arc no respondió, o la firma no se pudo leer, así que el Safe no se pudo verificar. No se propuso nada.",
+      "serviceCopyMismatch": "La copia de la propuesta del servicio de Safe no coincide con lo que se firmó.",
+      "otherSafe": "Esa transacción pertenece a otro Safe.",
+      "notConfigured": "Las propuestas de Safe todavía no están configuradas.",
+      "serviceTimeout": "El servicio de Safe no respondió a tiempo. Intenta de nuevo.",
+      "serviceUnknownTx": "El servicio de Safe todavía no conoce esta transacción.",
+      "serviceRateLimit": "El servicio de Safe está limitando las solicitudes. Intenta de nuevo en un minuto.",
+      "serviceRefused": "El servicio de Safe rechazó la propuesta.",
+      "serviceUnreachable": "No se pudo contactar al servicio de Safe. Intenta de nuevo.",
+      "listUnavailable": "La lista de Safes no está disponible.",
+      "notAddress": "Eso no es una dirección.",
+      "accountNotAddress": "La cuenta conectada no es una dirección válida.",
+      "arcNoAnswerSafe": "Arc no respondió, así que este Safe no se pudo verificar. No se propuso nada.",
+      "notArcMainnet": "Arc no respondió como Arc mainnet, así que este Safe no se pudo verificar.",
+      "noContract": "No hay ningún contrato en esta dirección en Arc, así que no es un Safe.",
+      "notLikeSafe": "Esta dirección no responde como un Safe, así que Adag no pedirá a nadie que firme por ella.",
+      "versionTooOld": "Este Safe es la versión {version}. Adag necesita Safe 1.3.0 o posterior.",
+      "notOwner": "Tu billetera conectada no es propietaria de este Safe, así que no puede proponer un pago desde él. No se firmó nada.",
+      "noThreshold": "Este Safe no tiene un umbral de firmas configurado.",
+      "differentHash": "El Safe calcula un hash distinto para este pago, así que no se firmó.",
+      "noSimulation": "El Safe no devolvió un resultado de simulación.",
+      "statusUnavailable": "Estado no disponible.",
+      "notAnAddress": "{what} no es una dirección.",
+      "notHash": "{what} no es un hash de 32 bytes.",
+      "notWhole": "{what} no es un número entero.",
+      "dataNotHex": "Los datos de la transacción no son hexadecimales.",
+      "dataTooLarge": "Los datos de la transacción son demasiado grandes.",
+      "txMissing": "Falta la transacción del Safe.",
+      "operation": "La operación no es 0 ni 1.",
+      "fieldTarget": "El destino de la transacción",
+      "fieldGasToken": "El token de gas",
+      "fieldRefund": "El receptor del reembolso",
+      "fieldHash": "El hash de la transacción del Safe",
+      "signatureBytes": "La firma no tiene 65 bytes.",
+      "bodyNotObject": "El cuerpo de la solicitud no es un objeto.",
+      "noBody": "La solicitud no tiene cuerpo.",
+      "bodyNotJson": "El cuerpo de la solicitud no es JSON.",
+      "notMultiSend": "El lote del Safe no es una llamada MultiSend.",
+      "cutShort": "El lote del Safe está cortado.",
+      "empty": "El lote del Safe está vacío.",
+      "stepNotPlain": "Se rechaza un paso del lote del Safe que no es una llamada simple.",
+      "stepValue": "Se rechaza un paso del lote del Safe que envía valor.",
+      "batchCalls": "Se rechaza un lote del Safe que llama a {target}.",
+      "enrolAlongside": "Se rechaza un lote del Safe que registra el préstamo junto con cualquier otra cosa.",
+      "billsCallOther": "Se rechaza una llamada a AdagBills que no sea pagar una factura o registrar el préstamo del Safe.",
+      "morphoAccount": "Se rechaza un paso de Morpho cuya cuenta no es el Safe.",
+      "morphoMarket": "Se rechaza un paso de Morpho en un mercado que no es uno de los dos de Adag.",
+      "canonicalMultiSend": "Un pago desde un Safe debe pasar por el MultiSendCallOnly canónico.",
+      "delegatecallOnly": "Un pago desde un Safe llega a MultiSendCallOnly solo por delegatecall.",
+      "noValueNoRefund": "Un pago desde un Safe no lleva valor ni reembolso de gas.",
+      "noRefundReceiver": "Un pago desde un Safe no paga reembolso a nadie.",
+      "nonceInvalid": "El nonce del Safe no es válido."
+    },
+    "arc": {
+      "noAnswerMoment": "Arc no respondió. Intenta de nuevo en un momento.",
+      "catchingUp": "Todavía poniéndose al día: contado hasta el bloque {block}, y los pagos más nuevos se agregan en las siguientes lecturas.",
+      "newestBills": "En las {n} facturas más recientes de cada contrato",
+      "indexNoAnswerAfter": "{note}. El almacén del índice no respondió.",
+      "indexNoAnswer": "El almacén del índice no respondió, así que esto se lee directamente desde Arc."
+    },
+    "break": {
+      "providerDrpc": "el endpoint público de dRPC",
+      "providerOwn": "el RPC propio del servidor",
+      "unreadable": "el servicio de simulación dio una respuesta que esta página no puede leer, intenta de nuevo",
+      "timedOut": "el servicio de simulación tardó demasiado, intenta de nuevo",
+      "couldNotRun": "no se pudo ejecutar: {reason}",
+      "endedEarly": "la respuesta terminó antes de tiempo",
+      "noAnswerForCheck": "sin respuesta para esta verificación",
+      "noAnswer150": "sin respuesta en 150 segundos",
+      "lostConnection": "la página perdió la conexión con el servidor, intenta de nuevo",
+      "providerNoAnswer": "{provider} no respondió a {method}, intenta de nuevo",
+      "providerRefused": "{provider} rechazó {method}, intenta de nuevo",
+      "providerFailedTwice": "{provider} {method} falló dos veces.",
+      "providerTooLarge": "{provider} envió una respuesta demasiado grande.",
+      "noLatestBlock": "El nodo de simulación no devolvió ningún último bloque.",
+      "unexpectedShape": "eth_simulateV1 devolvió una forma inesperada.",
+      "wrongChain": "{provider} reporta la cadena {chain}, no Arc mainnet {expected}.",
+      "summaryAll": "Las {n} verificaciones se comportaron como dice el modelo de amenazas: cada ataque fue rechazado o resistido{clause}. Las dos brechas conocidas y aceptadas, A4 y E5, se comportaron como dice el modelo de amenazas: cada una afecta solo al préstamo del propio atacante.",
+      "allowedClauseOne": ", o, en {n} fila, permitido por diseño",
+      "allowedClauseMany": ", o, en {n} filas, permitido por diseño",
+      "summaryBroken": "{n} de {total} verificaciones no se comportaron como se esperaba.",
+      "summaryNotRunOne": "{n} no se pudo ejecutar esta vez; no se afirma nada sobre ella.",
+      "summaryNotRunMany": "{n} no se pudieron ejecutar esta vez; no se afirma nada sobre ellas.",
+      "stateBills": "AdagBills {contract}. Billetera de demostración {payer}: préstamo {debt} con {btc} en garantía, relación préstamo-valor (LTV) {ltv}.",
+      "stateSetup": "Antes de cada ataque, la simulación crea la factura #{id} y la paga desde el saldo, para que Adag parta del préstamo de hoy.",
+      "stateCurrent": "La factura #{id} está pagada por la billetera de demostración, y el registro que Adag tiene de su préstamo está al día.",
+      "stateSupplier": "Proveedor {payee}. Desconocido simulado {stranger}. Bitcoin a {price} USDC, del oráculo del mercado de USDC.",
+      "simulatedBill": "Factura simulada #{id}",
+      "bill": "Factura #{id}",
+      "a1Pass": "Rechazado. {label} ya está pagada, y una factura pagada nunca se puede volver a pagar.",
+      "notRefused": "No se rechazó como se esperaba: {out}.",
+      "notRefusedBill": "No se rechazó como se esperaba: {out}; factura {status}.",
+      "a2aPass": "Rechazado por Morpho antes de llegar a Adag: volver a pedir prestado con {btc} en garantía pondría el préstamo cerca del {pct}, más allá de la línea del 86% de Morpho. La factura sigue abierta.",
+      "a2bPass": "Rechazado por Adag: la garantía cayó a {btc} desde su última verificación, así que verificó, y {over}. El lote entero se deshizo solo.",
+      "a3Pass": "Rechazado por Adag: pedir prestados {amount} más es deuda nueva, así que verificó, y {over}.",
+      "a4Pass": "El primer pago pasó, porque el préstamo de {amount} vino después del paso de Adag, dejando el préstamo al {ltv}. El siguiente pago fue rechazado: {over}.",
+      "a4Fail": "No se comportó como está documentado: primero {first}; después {next}; factura {status}.",
+      "a5Pass": "Rechazado. Un proveedor no puede pagar su propia factura: no cambiaría dinero de manos, así que nada probaría que se pagó.",
+      "a61Pass": "Rechazado. Las facturas se pagan en USDC o EURC; cirBTC es el colateral, nunca la moneda.",
+      "a62Pass": "Rechazado. WETH no es una de las dos monedas que Adag acepta.",
+      "a63Pass": "Rechazado. Una dirección que no es USDC ni EURC nunca puede ser la moneda de una factura.",
+      "a64Pass": "Rechazado. Una factura por cero no es una factura.",
+      "a65Pass": "Rechazado. La referencia tiene 141 bytes y el límite es 140, contados en bytes, no en caracteres.",
+      "a7aPass": "Rechazado. Solo el proveedor que creó una factura puede anularla; la factura sigue abierta y pagadera.",
+      "a7bPass": "Rechazado. {label} está pagada, y una factura pagada nunca se puede anular.",
+      "a8Pass": "Rechazado. El token USDC no movería dinero que Adag nunca fue aprobado para mover, así que el lote entero se deshizo solo y la factura sigue abierta.",
+      "a9aPass": "Pagada, como se prometió. Después de la caída simulada el préstamo queda al {ltv}, pero este pago no agrega deuda, así que no hay nada que verificar.",
+      "a9aFail": "No se comportó como se prometió: {out}.",
+      "a9bPass": "Rechazado por Adag: un centavo más es deuda nueva, así que verificó, y {over}.",
+      "e1Pass": "Rechazado. Un pagador que se registró en este mismo bloque no puede pagar en él, así que el lote entero se deshizo solo, el registro incluido.",
+      "e1Fail": "No se rechazó como se esperaba: {out}; factura {status}; bloque del registro {block}.",
+      "e2Pass": "Rechazado. Pedir prestados {amount}, registrarlos y pagar en un solo lote choca con el rechazo de mismo bloque; el registro que Adag tiene del préstamo no cambia.",
+      "e3Pass": "Resistió. El registro del desconocido pasó pero escribió solo el registro propio del desconocido; el préstamo registrado del pagador de demostración no cambió, y su pago pasó.",
+      "e3Fail": "No se comportó como está documentado: registro del desconocido {a}; registro de demostración {b} antes, {c} después; pago de demostración {d}.",
+      "e4Pass": "Rechazado por Adag: la garantía cayó por debajo de la registrada, así que verificó, y {over}.",
+      "e4Fail": "No se rechazó como se esperaba: registro {a}; luego {b}; factura {status}.",
+      "e5Pass": "Permitido por diseño, como lo nombra C32: los {amount} pedidos prestados fuera de Adag (préstamo al {ltv}) se registraron, y el pago desde el saldo del siguiente bloque se ejecutó sin verificación. El riesgo recae solo en el préstamo propio del pagador.",
+      "e5Fail": "No se comportó como está documentado: préstamo {a}; registro {b}; pago {c}; factura {status}.",
+      "overLimit": "el préstamo sería de {debt} frente a un límite de {limit}, que es el 40% del valor del bitcoin",
+      "liveStateWrong": "El estado en vivo no es para el que se escribieron estos ataques: {problems}.",
+      "problemNoLoan": "la billetera de demostración no tiene ningún préstamo abierto en el mercado de USDC",
+      "problemMoved": "el préstamo de demostración se ha movido desde que Adag lo registró por última vez",
+      "problemNotPaid": "la factura #{id} no está Pagada",
+      "problemStale": "el precio BTC/USD está desactualizado, así que cada verificación del préstamo se detendría primero en StalePrice",
+      "problemAllowance": "la billetera de demostración todavía tiene una aprobación de USDC a Adag",
+      "problemBalance": "la billetera de demostración tiene menos de 2 USDC, muy poco para devolver y volver a pedir prestado en A2",
+      "guardStateChain": "AdagGuard {guard}. En la cadena: el préstamo del pagador {debt} ({ltv}), su regla {rule}, su monto aprobado a AdagGuard {approval}.",
+      "guardRuleNone": "ninguna",
+      "guardPremiseClears": "Premisa simulada: el pagador {what}, así que cada fila empieza sin ninguna de las dos.",
+      "guardClearsRule": "borra su regla de guardián en vivo ({trigger} / {target})",
+      "guardSetsApproval": "pone en 0 su monto aprobado de {amount} a AdagGuard",
+      "guardPremiseBorrows": "Premisa simulada: el pagador pide prestados {amount} más en Morpho, {range}.",
+      "guardPremiseRepays": "Premisa simulada: el pagador devuelve {amount} del préstamo en Morpho, {range}.",
+      "guardRange": "llevando el préstamo de {from} a {to}",
+      "guardFunding": "Financiación simulada: una sobrescritura de estado fija la billetera del pagador en {start} antes de la premisa, para que tenga {least} después de ella.",
+      "guardPremiseLine": "Cada fila del guardián del préstamo parte de una premisa simulada: el pagador de demostración pide prestado en Morpho hasta que el préstamo queda al 38.00%, por encima del umbral del 35%. En esta ejecución cada fila parte de un préstamo de {debt} al {ltv}, una billetera de {wallet}, sin regla de guardián y sin monto aprobado; salvo que una fila diga otra cosa, su regla actúa al 35% y lleva el préstamo de vuelta al 30%. Bitcoin a {price} USDC. Desconocido simulado {stranger}.",
+      "guardNoteSentence": "Cada fila del guardián del préstamo parte de una premisa simulada: el pagador de demostración pide prestado en Morpho hasta que el préstamo queda al 38.00%, por encima del umbral del 35%.",
+      "g6Pass": "Resistió. La primera vez, el guardián devolvió {amount}, exactamente lo que lleva el préstamo de vuelta al 30%; las dos repeticiones no encontraron nada que hacer y no movieron nada.",
+      "g6Fail": "No se comportó como está documentado: devolvió {shown}.",
+      "g1Pass": "Resistió. El préstamo necesitaba {need}, pero el pagador aprobó solo {cap}: el guardián devolvió exactamente eso, el monto aprobado cayó a cero, y la segunda vez no devolvió nada.",
+      "g1Fail": "No se comportó como está documentado: primero {first}, sacó {pulled}, monto aprobado restante {left}.",
+      "repaidAmount": "devolvió {amount}",
+      "g2aPass": "Rechazado. El otro mercado real USDC/cirBTC no es uno de los dos mercados fijos de AdagGuard.",
+      "g2bPass": "Rechazado dos veces. Un id de mercado a un dígito hexadecimal es un id distinto: setRule y protect lo rechazan ambos.",
+      "g2bFail": "No se rechazó como se esperaba: setRule {a}; protect {b}.",
+      "g2cPass": "Resistió. En el mercado de EURC el pagador no tiene préstamo ni regla, así que el guardián no devolvió nada y no se movió ningún USDC.",
+      "g2cFail": "No se comportó como está documentado: {repaid}; USDC del pagador movidos {moved}.",
+      "g3Pass": "Resistió. El préstamo al {ltv} está por debajo del umbral del 50% del pagador, así que el guardián no devolvió nada, no emitió nada y no movió nada.",
+      "g3Fail": "No se comportó como está documentado: cotización {act} ({amount}); protect {repaid}.",
+      "g4Pass": "Resistió. Antes de expirar, la regla habría devuelto {amount}; en el segundo de la expiración es inerte, y el guardián no devolvió nada.",
+      "g4Fail": "No se comportó como está documentado: antes de expirar {early}; al expirar {late}; protect {repaid}.",
+      "g5aPass": "Rechazado. clearRule solo nombra al remitente, y el desconocido no tiene regla; la regla del pagador sigue siendo {rule}.",
+      "g5aFail": "No se rechazó como se esperaba: {out}; regla del pagador {rule}.",
+      "g5bPass": "Resistió. El setRule del desconocido pasó y escribió solo la regla propia del desconocido (80% / 1%); la del pagador sigue siendo {rule}.",
+      "g5bFail": "No se comportó como está documentado: {out}; regla del pagador {rule}.",
+      "g7Pass": "Resistió. El préstamo necesitaba {need} pero la billetera tenía {held}: el guardián devolvió exactamente eso, no se revirtió y no se quedó con nada.",
+      "g7Fail": "No se comportó como está documentado: {repaid}; billetera ahora {after}.",
+      "g8Pass": "Resistió. A precio cero el guardián devolvió {repaid}, la deuda redondeada hacia abajo, así que la aritmética de participaciones de Morpho no pudo desbordarse por debajo; quedan {left} de deuda y AdagGuard no se quedó con nada.",
+      "g8Fail": "No se comportó como está documentado: cotización {act} {quoted}; protect {repaid} frente a {cap}.",
+      "g9aPass": "Resistió. Incluso a precio cero, un pagador con un monto aprobado pero sin regla se deja en paz: el guardián no devolvió nada y no se movió ningún USDC.",
+      "g9aFail": "No se comportó como está documentado: cotización {act} ({amount}); protect {repaid}; USDC movidos {moved}.",
+      "g9bPass": "Resistió. Una billetera sin préstamo y sin regla ({wallet}) no tiene nada que devolver; nada se movió.",
+      "g9bFail": "No se comportó como está documentado: {repaid}; cotización {act}.",
+      "g10Pass": "Rechazado, las cinco. Ninguna de esas funciones existe en el AdagGuard desplegado, así que cada llamada se revirtió; las únicas funciones que cambian el estado son clearRule, protect y setRule.",
+      "g10Fail": "No se comportó como está documentado: {prefix}escrituras {writes}.",
+      "g10Succeeded": "una llamada de administrador tuvo éxito;",
+      "guardNoLoan": "El pagador no tiene préstamo en el mercado de USDC, así que estos ataques no tienen a qué apuntar.",
+      "guardHoldsLittle": "El pagador tiene {amount}; estos ataques suponen al menos 1 USDC.",
+      "guardHoldsLittleAfter": "El pagador tiene {amount} después de la premisa; estos ataques suponen al menos 1 USDC.",
+      "guardPremiseOff": "La premisa simulada dejó el préstamo al {ltv}, no al {expected}.",
+      "guardNotDeployed": "AdagGuard no está desplegado en esta compilación.",
+      "setupFailed": "el bloque de preparación falló: {out}",
+      "baselineFailed": "la lectura base {n} falló: {out}",
+      "guardBaselineFailed": "la lectura base del guardián {n} falló: {out}",
+      "premiseFailed": "el bloque de la premisa falló: {out}",
+      "createBillFailed": "el createBill de preparación falló: {out}",
+      "noPremise": "El pagador no tiene ningún préstamo en el mercado de USDC con colateral detrás, así que ninguna premisa puede ponerlo en un nivel.",
+      "paramsMismatch": "Los parámetros del mercado de USDC de Morpho no coinciden con el mercado fijo.",
+      "guardPremiseBoth": "borra su regla de guardián en vivo ({trigger} / {target}) y pone en 0 su monto aprobado de {amount} a AdagGuard"
+    }
+  }
+}

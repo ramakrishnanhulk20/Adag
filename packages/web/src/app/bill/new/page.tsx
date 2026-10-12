@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 import { AppShell } from "@/components/app/AppShell";
 import { WriteBill } from "@/components/app/WriteBill";
 
-export const metadata: Metadata = {
-  title: "Write a bill",
-  description: "Write a bill on Arc in USDC or EURC, payable to your wallet exactly once, and share its link.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("meta.write");
+  return { title: t("title"), description: t("description") };
+}
 
 export default function WriteBillPage() {
   return (

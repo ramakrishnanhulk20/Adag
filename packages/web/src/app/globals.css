@@ -25,9 +25,10 @@
   --color-current: currentColor;
 
   --font-*: initial;
-  --font-display: var(--font-bodoni), "Bodoni Moda", Didot, "Bodoni 72", serif;
-  --font-body: var(--font-dm-sans), "DM Sans", system-ui, sans-serif;
-  --font-mono: var(--font-plex-mono), "IBM Plex Mono", ui-monospace, monospace;
+  /* The CJK face is only defined under :lang(zh-CN), :lang(ko) and :lang(ja) below; elsewhere the fallback keeps the stack as it was. */
+  --font-display: var(--font-bodoni), var(--font-cjk-serif, "Bodoni Moda"), Didot, "Bodoni 72", serif;
+  --font-body: var(--font-dm-sans), var(--font-cjk-sans, "DM Sans"), system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), "IBM Plex Mono", var(--font-cjk-sans, ui-monospace), ui-monospace, monospace;
 }
 
 @theme {
@@ -175,6 +176,102 @@ html.theme-switching *::after {
     border-color 500ms var(--ease-theme),
     fill 500ms var(--ease-theme),
     stroke 500ms var(--ease-theme) !important;
+}
+
+/* Unlayered on purpose: these must win over the type utilities, which live in the utilities layer. */
+/* Chinese, Korean and Japanese: Noto behind the Latin faces, no faked slant or bold, and line breaking by the
+   language's own rules. Tracked uppercase labels lose their tracking, which only ever suited Latin capitals. */
+html:lang(zh-CN) {
+  --font-cjk-serif: var(--font-noto-serif-sc);
+  --font-cjk-sans: var(--font-noto-sans-sc);
+}
+html:lang(ko) {
+  --font-cjk-serif: var(--font-noto-serif-kr);
+  --font-cjk-sans: var(--font-noto-sans-kr);
+}
+html:lang(ja) {
+  --font-cjk-serif: var(--font-noto-serif-jp);
+  --font-cjk-sans: var(--font-noto-sans-jp);
+}
+html:lang(zh-CN),
+html:lang(ko),
+html:lang(ja) {
+  font-synthesis: none;
+}
+html:lang(zh-CN),
+html:lang(ja) {
+  line-break: strict;
+}
+html:lang(ko) {
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+:is(html:lang(zh-CN), html:lang(ko), html:lang(ja)) :is(.type-label, .type-micro, .hallmark, .stamp, .pl-caption, .pl-sub, .btn) {
+  letter-spacing: normal;
+}
+/* Display headings: the Latin face sets the size for one or two Latin words a line, which CJK glyphs fill faster,
+   so they step down enough to keep each headline on the same number of lines as the English. */
+:is(html:lang(zh-CN), html:lang(ko), html:lang(ja)) :is(.type-hero, .app-title, .bk-title) {
+  font-size: clamp(2.4rem, 6.6vw, 6rem);
+  line-height: 1.05;
+  letter-spacing: 0;
+}
+:is(html:lang(zh-CN), html:lang(ko), html:lang(ja)) .type-h2 {
+  font-size: clamp(2.25rem, 1rem + 4vw, 4.5rem);
+  line-height: 1.1;
+  letter-spacing: 0;
+}
+:is(html:lang(zh-CN), html:lang(ko), html:lang(ja)) .type-h3 {
+  font-size: 2rem;
+  line-height: 1.2;
+  letter-spacing: 0;
+}
+:is(html:lang(zh-CN), html:lang(ko), html:lang(ja)) :is(.type-hero, .type-h2, .type-h3, .app-title, .bk-title, .type-h4, .type-lead) em {
+  font-style: normal;
+}
+/* Spanish runs longer than English. Only under :lang(es): the tracked hallmark may wrap on a phone, a long word in a
+   grid heading breaks rather than spills past its column, and the tablet-width nav row tightens so its last button
+   stays on screen. */
+html:lang(es) .hallmark {
+  white-space: normal;
+}
+html:lang(es) :is(.type-h3, .type-h4) {
+  overflow-wrap: anywhere;
+}
+/* Headline sizes per language at phone widths, so each keeps the English line count (three for the hero at 375,
+   two for the wallet poster) and the hero's nowrap tail stays inside the screen. Measured with probe-hero.mjs. */
+@media (max-width: 40rem) {
+  html:lang(es) .type-hero {
+    font-size: clamp(2.5rem, 8.5vw, 7.5rem);
+  }
+  html:lang(ja) .type-hero {
+    font-size: clamp(1.85rem, 6.6vw, 6rem);
+  }
+  html:lang(ko) .type-hero {
+    font-size: clamp(1.8rem, 6.6vw, 6rem);
+  }
+}
+html:lang(ja) .app-title {
+  font-size: clamp(2rem, 6.6vw, 6rem);
+  max-width: 12em;
+}
+/* The /break title column is about half the content width; ten Japanese glyphs on its second line need a smaller
+   size there to keep the English two lines. */
+@media (min-width: 40rem) {
+  html:lang(ja) .bk-title {
+    font-size: clamp(2rem, 4.4vw, 4.5rem);
+  }
+}
+@media (min-width: 48rem) and (max-width: 64rem) {
+  html:lang(es) nav.gap-9 {
+    gap: 1.25rem;
+  }
+  html:lang(es) nav.gap-9 .type-ui {
+    font-size: 0.9375rem;
+  }
+  html:lang(es) .gap-12:has(> nav.gap-9) {
+    gap: 2rem;
+  }
 }
 
 @layer components {

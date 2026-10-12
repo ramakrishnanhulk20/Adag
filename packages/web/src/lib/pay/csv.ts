@@ -5,6 +5,8 @@ import { referenceText } from "./format";
 import { currencyOf } from "./market";
 import type { PaidTx } from "./paidTx";
 
+// The column keys. The screen writes the header row in the reader's language (messages/*.json, "csv.header"); these
+// are also the English column names.
 export const CSV_HEADER = [
   "contract address",
   "bill number",
@@ -20,6 +22,10 @@ export const CSV_HEADER = [
   "40% check ran",
 ] as const;
 
+// The status and flag words a row carries. English by default; the screen passes the active language's.
+export type CsvWords = { paid: string; void: string; open: string; unknown: string; unavailable: string; notFound: string; yes: string; no: string };
+export const CSV_WORDS_EN: CsvWords = { paid: "paid", void: "void", open: "open", unknown: "unknown", unavailable: "unavailable", notFound: "not found", yes: "yes", no: "no" };
+
 // A spreadsheet runs a cell that starts with one of these as a formula. References and every other cell come from
 // outside, so each such cell gets a leading single quote and is shown as the text it is.
 const FORMULA_START = /^[=+\-@\t\r]/;
@@ -34,19 +40,19 @@ export function toCsv(rows: readonly (readonly string[])[]): string {
 }
 
 const iso = (seconds: bigint) => (seconds > 0n ? new Date(Number(seconds) * 1000).toISOString() : "");
-const statusWord = (s: number) => (s === BILL_STATUS.Paid ? "paid" : s === BILL_STATUS.Void ? "void" : s === BILL_STATUS.Open ? "open" : "unknown");
+const statusWord = (s: number, w: CsvWords) => (s === BILL_STATUS.Paid ? w.paid : s === BILL_STATUS.Void ? w.void : s === BILL_STATUS.Open ? w.open : w.unknown);
 
 // One row per bill, from the same bill(id) records the lists show. The transaction and the 40% flag come only from
 // Adag's own BillPaid log for that bill (C16); when it cannot be read, the cell says so rather than guessing.
-export function billRow(bill: Bill, paid: PaidTx | null): string[] {
+export function billRow(bill: Bill, paid: PaidTx | null, words: CsvWords = CSV_WORDS_EN): string[] {
   const c = currencyOf(bill.currency);
   const isPaid = bill.status === BILL_STATUS.Paid;
-  const tx = !isPaid ? "" : paid?.kind === "found" ? paid.url : paid?.kind === "unavailable" ? "unavailable" : "not found";
-  const checked = !isPaid ? "" : paid?.kind === "found" ? (paid.loanChecked ? "yes" : "no") : "unknown";
+  const tx = !isPaid ? "" : paid?.kind === "found" ? paid.url : paid?.kind === "unavailable" ? words.unavailable : words.notFound;
+  const checked = !isPaid ? "" : paid?.kind === "found" ? (paid.loanChecked ? words.yes : words.no) : words.unknown;
   return [
     bill.contract,
     bill.id.toString(),
-    statusWord(bill.status),
+    statusWord(bill.status, words),
     iso(bill.createdAt),
     isPaid ? iso(bill.paidAt) : "",
     bill.payee,

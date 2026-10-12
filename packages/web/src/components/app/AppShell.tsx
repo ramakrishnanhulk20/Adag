@@ -1,4 +1,5 @@
 import "./app.css";
+import { getTranslations } from "next-intl/server";
 import { ADAG_BILLS, ADAG_BILLS_FIRST, EXPLORER } from "@/lib/pay/constants";
 import { AppNav } from "./AppNav";
 
@@ -16,13 +17,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   );
 }
 
-function AppFooter() {
+async function AppFooter() {
+  const t = await getTranslations("appFooter");
   return (
     <footer className="border-t border-rule px-5 py-10 md:px-[6vw]">
       <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
         <div>
           <p className="font-display text-[22px] font-semibold tracking-[0.08em] text-text">ADAG</p>
-          <p className="type-body mt-2 max-w-[34rem] text-muted">Bills on Arc mainnet, paid from balance or from a loan against pledged bitcoin.</p>
+          <p className="type-body mt-2 max-w-[34rem] text-muted">{t("tagline")}</p>
         </div>
         <div className="flex flex-col md:items-end">
           <a
@@ -32,7 +34,7 @@ function AppFooter() {
             className="type-label inline-flex min-h-10 items-center gap-2 text-text transition-colors duration-200 hover:text-gold"
           >
             <span aria-hidden="true" className="diamond" />
-            Powered by Morpho
+            {t("poweredBy")}
           </a>
           <a
             href={`${EXPLORER}/address/${ADAG_BILLS}`}
@@ -48,7 +50,7 @@ function AppFooter() {
             rel="noopener noreferrer"
             className="link-draw tap-target type-address break-all text-muted transition-colors duration-200 hover:text-text"
           >
-            First deployment {ADAG_BILLS_FIRST}
+            {t("firstDeployment", { address: ADAG_BILLS_FIRST })}
           </a>
         </div>
       </div>

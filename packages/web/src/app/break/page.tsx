@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 import { BreakPage } from "@/components/break/BreakPage";
 
-export const metadata: Metadata = {
-  title: "Try to break it",
-  description: "Sixteen real attacks on Adag's live contract, simulated on Arc mainnet's current state. Nothing is signed or sent.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("meta.break");
+  return { title: t("title"), description: t("description") };
+}
 
 export default function BreakRoute() {
   return (

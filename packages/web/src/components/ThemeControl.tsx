@@ -1,11 +1,10 @@
 "use client";
 
 import { useId } from "react";
+import { useTranslations } from "next-intl";
 import { AnimatePresence, motion } from "motion/react";
 import { useTheme } from "@/components/ThemeProvider";
 import { THEME_CHOICES, type ThemeChoice } from "@/lib/theme";
-
-const LABEL: Record<ThemeChoice, string> = { system: "System", light: "Light", dark: "Dark" };
 
 function nextChoice(choice: ThemeChoice): ThemeChoice {
   const i = THEME_CHOICES.indexOf(choice);
@@ -40,17 +39,19 @@ function ThemeIcon({ choice }: { choice: ThemeChoice }) {
 }
 
 function CycleControl({ tipAlign }: { tipAlign: "start" | "end" }) {
+  const t = useTranslations("theme");
   const { choice, resolved, setChoice } = useTheme();
   const tipId = useId();
   const upcoming = nextChoice(choice);
-  const state = choice === "system" && resolved ? `System, now ${LABEL[resolved].toLowerCase()}` : LABEL[choice];
+  // "System, now dark" in English: the resolved theme's name is lowercased only where the language has case.
+  const state = choice === "system" && resolved ? t("systemNow", { resolved: t(`lower.${resolved}`) }) : t(choice);
 
   return (
     <span className="group relative inline-flex">
       <button
         type="button"
         onClick={() => setChoice(upcoming)}
-        aria-label={`Theme: ${state}. Switch to ${LABEL[upcoming]}`}
+        aria-label={t("switchTo", { state, next: t(upcoming) })}
         aria-describedby={tipId}
         className="inline-flex h-10 w-10 items-center justify-center overflow-hidden rounded-[8px] border border-rule-strong text-text transition-colors duration-200 hover:border-gold hover:text-gold"
       >
@@ -72,18 +73,19 @@ function CycleControl({ tipAlign }: { tipAlign: "start" | "end" }) {
         role="tooltip"
         className={`type-micro pointer-events-none absolute top-full ${tipAlign === "end" ? "right-0" : "left-0"} z-20 mt-2 translate-y-1 whitespace-nowrap rounded-[4px] border border-rule bg-raised px-2.5 py-1.5 text-muted opacity-0 transition duration-200 group-focus-within:translate-y-0 group-focus-within:opacity-100 group-hover:translate-y-0 group-hover:opacity-100`}
       >
-        Theme: {state}
+        {t("tooltip", { state })}
       </span>
     </span>
   );
 }
 
 function SegmentedControl() {
+  const t = useTranslations("theme");
   const { choice, setChoice } = useTheme();
   const pillId = useId();
 
   return (
-    <div role="radiogroup" aria-label="Theme" className="inline-flex gap-1 rounded-[8px] border border-rule p-1">
+    <div role="radiogroup" aria-label={t("theme")} className="inline-flex gap-1 rounded-[8px] border border-rule p-1">
       {THEME_CHOICES.map((option) => {
         const selected = option === choice;
         return (
@@ -92,7 +94,7 @@ function SegmentedControl() {
             type="button"
             role="radio"
             aria-checked={selected}
-            aria-label={`${LABEL[option]} theme`}
+            aria-label={t("optionLabel", { option: t(option) })}
             onClick={() => setChoice(option)}
             className={`relative inline-flex h-9 items-center gap-2 rounded-[6px] px-3 type-micro transition-colors duration-200 ${
               selected ? "text-gold" : "text-muted hover:text-text"
@@ -109,7 +111,7 @@ function SegmentedControl() {
             <span className="relative inline-flex">
               <ThemeIcon choice={option} />
             </span>
-            <span className="relative">{LABEL[option]}</span>
+            <span className="relative">{t(option)}</span>
           </button>
         );
       })}

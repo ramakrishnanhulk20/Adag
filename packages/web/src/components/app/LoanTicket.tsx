@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import { motion } from "motion/react";
 import { useQuery } from "@tanstack/react-query";
 import { formatUnits, type Address, type Hex } from "viem";
@@ -8,6 +9,7 @@ import { arc } from "viem/chains";
 import { useBlock, useReadContract, useReadContracts } from "wagmi";
 import { Button } from "@/components/Button";
 import { GuardSection } from "@/components/guard/GuardSection";
+import { useLibText } from "@/i18n/useLibText";
 import { adagAbi, erc20Abi, irmAbi, morphoAbi, oracleAbi } from "@/lib/pay/abi";
 import { parseAmountInput } from "@/lib/pay/amount";
 import { buildAddCollateral, buildCloseLoan, buildCloseWithOtherCurrency, buildRepaySome, type GuardStop } from "@/lib/pay/build";
@@ -31,7 +33,7 @@ import { EFFECTS_UNAVAILABLE, closeConvertView, reasons, type CloseEstimate, typ
 import { adapterReadBack, askCircle, conversionFailure, effectsCanBeChecked } from "./fx/press";
 import { useCloseConvert } from "./fx/useConvert";
 import { BusyLabel, TxMessage, type TxState } from "./TxProgress";
-import { usdHint, useUsdPrice } from "./usdPrice";
+import { useUsdHint, useUsdPrice } from "./usdPrice";
 
 type Position = readonly [bigint, bigint, bigint];
 type MarketState = readonly [bigint, bigint, bigint, bigint, bigint, bigint];
@@ -59,7 +61,14 @@ type CloseConvertState = { kind: "loading" } | { kind: "unavailable" } | CloseVi
 
 export function LoanTicket(props: LoanTicketProps) {
   const { address, currency, position, cirBtc, loanTokenBalance, usdcBalance, canSign, blockedReason, onChanged } = props;
+  const t = useTranslations("loan");
+  const tc = useTranslations("common");
+  const tl = useLibText();
+  const usdHint = useUsdHint();
   const m = currency.marketId;
+  const sym = currency.symbol;
+  const fmt = (v: bigint) => formatUnitsExact(v, currency.decimals);
+  const nothingSent = tc("nothingWasSent");
   const reads = useReadContracts({
     allowFailure: true,
     contracts: [
@@ -138,7 +147,7 @@ export function LoanTicket(props: LoanTicketProps) {
         : { kind: "loading" };
 
   const add = parseAmountInput(addText, CIRBTC_DECIMALS);
-  const addError = !add.ok ? add.message : cirBtc.state === "ok" && add.value > cirBtc.value ? `Your wallet holds ${formatUnitsExact(cirBtc.value, CIRBTC_DECIMALS)} cirBTC.` : null;
+  const addError = !add.ok ? tl(add.message) : cirBtc.state === "ok" && add.value > cirBtc.value ? t("add.holdsOnly", { amount: formatUnitsExact(cirBtc.value, CIRBTC_DECIMALS) }) : null;
   const ltvAfterAdd: Cell<bigint> =
     add.ok && debt.state === "ok" && price.state === "ok" ? { state: "ok", value: ltvWad(debt.value, collateral + add.value, price.value) } : { state: "unavailable" };
 
@@ -178,11 +187,11 @@ export function LoanTicket(props: LoanTicketProps) {
   const repayCap = mv && accruedBorrow !== null ? repaySomeCap(shares, accruedBorrow, mv[3]) : null;
   const repay = parseAmountInput(repayText, currency.decimals);
   const repayError = !repay.ok
-    ? repay.message
+    ? tl(repay.message)
     : repayCap !== null && repay.value > repayCap
-      ? `The most you can repay this way is ${formatUnitsExact(repayCap, currency.decimals)} ${currency.symbol}. To repay everything, use Close loan.`
+      ? t("repay.mostIs", { amount: fmt(repayCap), symbol: sym })
       : loanTokenBalance.state === "ok" && repay.value + (isUsdc ? USDC_FEE_RESERVE : 0n) > loanTokenBalance.value
-        ? `Your wallet holds ${formatUnitsExact(loanTokenBalance.value, currency.decimals)} ${currency.symbol}${isUsdc ? ", and a little USDC also pays the network fee" : ""}.`
+        ? t("repay.holdsOnly", { amount: fmt(loanTokenBalance.value), symbol: sym, fee: isUsdc ? t("repay.andFee") : "" })
         : null;
   let afterRepay: Cell<{ ltv: bigint; drop: bigint }> = { state: "unavailable" };
   if (repay.ok && !repayError && debt.state === "ok" && price.state === "ok") {
@@ -231,14 +240,14 @@ export function LoanTicket(props: LoanTicketProps) {
         args: [currency.params, { totalSupplyAssets: mk[0], totalSupplyShares: mk[1], totalBorrowAssets: mk[2], totalBorrowShares: mk[3], lastUpdate: mk[4], fee: mk[5] }],
       });
     } catch {
-      return fail("Arc did not answer, so nothing was built. Try again.");
+      return fail(tc("arcNoAnswerNothingBuilt"));
     }
     const cap = repaySomeCap(before[1], accrueBorrowAssets(mk[2], ratePerSecond, now - mk[4]), mk[3]);
     let built;
     try {
       built = buildRepaySome(address, currency, assets, paramsFromTuple(tuple), cap);
     } catch (error) {
-      return fail(`${(error as Error).message} Nothing was sent.`);
+      return fail(`${(error as Error).message} ${nothingSent}`);
     }
     const out = await simulateAndSend({ account: address, to: built.to, data: built.data, onStep: step, usdcOut: isUsdc ? assets : 0n });
     if (!out.ok) return setTx(out.stage === "refused" ? { kind: "refused", error: out.error } : { kind: "failed", message: out.message, href: out.hash && `${EXPLORER}/tx/${out.hash}` });
@@ -253,14 +262,10 @@ export function LoanTicket(props: LoanTicketProps) {
       client.readContract({ address: MORPHO, abi: morphoAbi, functionName: "market", args: [m] }),
     ]).catch(() => [null, null, null] as const);
     if (repaid?.name !== "Repay" || repaid.assets !== assets || !after || after[1] >= before[1] || allowance !== 0n || !mkAfter) {
-      return fail("Arc confirmed the transaction, but Morpho's record does not show the repayment as expected. Check the transaction.", out.hash);
+      return fail(t("repay.notAsExpected"), out.hash);
     }
     const owed = debtFromShares(after[1], mkAfter[2], mkAfter[3]);
-    setDone({
-      kind: "repaid",
-      hash: out.hash,
-      text: `Repaid ${formatUnitsExact(assets, currency.decimals)} ${currency.symbol}. You now owe ${formatUnitsExact(owed, currency.decimals)} ${currency.symbol}.`,
-    });
+    setDone({ kind: "repaid", hash: out.hash, text: t("repay.done", { amount: fmt(assets), owed: fmt(owed), symbol: sym }) });
     setRepayText("");
     setTx({ kind: "idle" });
     onChanged();
@@ -278,22 +283,22 @@ export function LoanTicket(props: LoanTicketProps) {
         client.readContract({ address: MORPHO, abi: morphoAbi, functionName: "position", args: [m, address] }),
       ]);
     } catch {
-      return fail("Arc did not answer, so nothing was built. Try again.");
+      return fail(tc("arcNoAnswerNothingBuilt"));
     }
     let built;
     try {
       built = buildAddCollateral(address, currency, add.value, paramsFromTuple(tuple));
     } catch (error) {
-      return fail(`${(error as Error).message} Nothing was sent.`);
+      return fail(`${(error as Error).message} ${nothingSent}`);
     }
     const out = await simulateAndSend({ account: address, to: built.to, data: built.data, onStep: step, usdcOut: 0n });
     if (!out.ok) return setTx(out.stage === "refused" ? { kind: "refused", error: out.error } : { kind: "failed", message: out.message, href: out.hash && `${EXPLORER}/tx/${out.hash}` });
     const supplied = morphoEventsIn(out.receipt.logs).find((e) => e.name === "SupplyCollateral" && e.id.toLowerCase() === m.toLowerCase() && e.onBehalf.toLowerCase() === address.toLowerCase());
     const after = await client.readContract({ address: MORPHO, abi: morphoAbi, functionName: "position", args: [m, address] }).catch(() => null);
     if (!supplied || supplied.assets !== add.value || !after || after[2] !== before[2] + add.value) {
-      return fail("Arc confirmed the transaction, but Morpho's record does not show the pledge as expected. Check the transaction.", out.hash);
+      return fail(t("add.notAsExpected"), out.hash);
     }
-    setDone({ kind: "added", hash: out.hash, text: `Added ${formatUnitsExact(add.value, CIRBTC_DECIMALS)} cirBTC. Now pledged: ${formatUnitsExact(after[2], CIRBTC_DECIMALS)} cirBTC.` });
+    setDone({ kind: "added", hash: out.hash, text: t("add.done", { amount: formatUnitsExact(add.value, CIRBTC_DECIMALS), pledged: formatUnitsExact(after[2], CIRBTC_DECIMALS) }) });
     setAddText("");
     setTx({ kind: "idle" });
     onChanged();
@@ -324,14 +329,14 @@ export function LoanTicket(props: LoanTicketProps) {
       (liveShares === 0n || (repaid?.name === "Repay" && repaid.shares === liveShares)) &&
       (liveCollateral === 0n || (withdrawn?.name === "WithdrawCollateral" && withdrawn.assets === liveCollateral && withdrawn.receiver.toLowerCase() === address.toLowerCase())) &&
       after !== null && after[1] === 0n && after[2] === 0n && (liveShares === 0n || allowance === 0n) && guardStopped;
-    if (!proven || btcAfter === null) return fail("Arc confirmed the transaction, but Morpho does not read the loan as closed. Check the transaction.", out.hash);
+    if (!proven || btcAfter === null) return fail(t("close.notAsExpected"), out.hash);
     const back = btcAfter - btcBefore;
-    const returned = `${formatUnitsExact(back, CIRBTC_DECIMALS)} cirBTC is back in your wallet.`;
+    const returned = t("close.backInWallet", { amount: formatUnitsExact(back, CIRBTC_DECIMALS) });
     const more = c.extra ? ` ${await c.extra(repaid?.name === "Repay" ? repaid.assets : null)}` : "";
     setDone({
       kind: "closed",
       hash: out.hash,
-      text: `${liveShares > 0n ? `Loan closed. 0 owed, 0 pledged. ${returned}` : `Done. 0 pledged in this market, and ${returned}`}${stop.hasRule || stop.allowance > 0n ? " The loan guard for this loan is off: no rule, and its approval is 0." : ""}${more}`,
+      text: `${liveShares > 0n ? t("close.doneLoan", { returned }) : t("close.doneNoLoan", { returned })}${stop.hasRule || stop.allowance > 0n ? ` ${t("close.guardOff")}` : ""}${more}`,
     });
     setTx({ kind: "idle" });
     onChanged();
@@ -344,7 +349,7 @@ export function LoanTicket(props: LoanTicketProps) {
     if (!est) return;
     step("checking");
     const client = publicArc();
-    const failed = (message: string) => setTx({ kind: "failed", message: `${message} Nothing was sent.` });
+    const failed = (message: string) => setTx({ kind: "failed", message: `${message} ${nothingSent}` });
     let tuple: readonly [Hex, Hex, Hex, Hex, bigint];
     let live: Position;
     let mk: MarketState;
@@ -370,10 +375,10 @@ export function LoanTicket(props: LoanTicketProps) {
         args: [currency.params, { totalSupplyAssets: mk[0], totalSupplyShares: mk[1], totalBorrowAssets: mk[2], totalBorrowShares: mk[3], lastUpdate: mk[4], fee: mk[5] }],
       });
     } catch {
-      return failed("Arc did not answer, so the close was not built. Try again.");
+      return failed(t("close.notBuiltShort"));
     }
     const [, liveShares, liveCollateral] = live;
-    if (liveShares === 0n) return failed("There is no loan here to close with a conversion.");
+    if (liveShares === 0n) return failed(t("close.noLoanToConvert"));
     const liveApproval = closeApproval(liveShares, accrueBorrowAssets(mk[2], ratePerSecond, now - mk[4]), mk[3]);
     if (soldHeld < est.amountIn) return failed(reasons.closeShort(soldHeld, est.amountIn, sold.symbol));
     let stop: GuardStop;
@@ -381,7 +386,7 @@ export function LoanTicket(props: LoanTicketProps) {
     try {
       [stop, pre] = await Promise.all([readGuardStop(address, currency), checkAdapterPreflight(client, address, sold.address)]);
     } catch {
-      return failed("Arc did not answer about your loan guard, so the close was not built. Try again.");
+      return failed(t("close.guardNoAnswerShort"));
     }
     if (pre.state !== "clear") return failed(pre.state === "blocked" ? pre.blockers.join(" ") : pre.text);
     const asked = await askCircle(client, { payer: address, sell: sold, buy: currency, amountIn: est.amountIn, minOut: liveApproval });
@@ -413,9 +418,10 @@ export function LoanTicket(props: LoanTicketProps) {
       extra: async (repaidAssets) => {
         const outcome = conversionOutcome(out.receipt.logs, { token: currency.address, payer: address, spent: repaidAssets ?? liveApproval });
         const clear = await adapterReadBack(client, address).catch(() => null);
-        const left = outcome.surplus > 0n ? ` ${formatUnitsExact(outcome.surplus, currency.decimals)} ${currency.symbol} is left in your wallet.` : "";
-        const adapter = clear === true ? " Circle's adapter has no access to your wallet." : " Circle's adapter may still have access to your wallet: check it before converting again.";
-        return `Circle turned ${formatUnitsExact(est.amountIn, 6)} ${sold.symbol} into ${formatUnitsExact(outcome.converted, currency.decimals)} ${currency.symbol}.${left}${adapter}${out.effects === "unavailable" ? " Adag could not trace the swap's transfers before you signed." : ""}`;
+        const left = outcome.surplus > 0n ? ` ${t("close.leftInWallet", { amount: fmt(outcome.surplus), symbol: sym })}` : "";
+        const adapter = clear === true ? ` ${t("close.adapterClear")}` : ` ${t("close.adapterMaybe")}`;
+        const unchecked = out.effects === "unavailable" ? ` ${t("close.effectsUnchecked")}` : "";
+        return `${t("close.circleTurned", { from: `${formatUnitsExact(est.amountIn, 6)} ${sold.symbol}`, to: `${fmt(outcome.converted)} ${sym}` })}${left}${adapter}${unchecked}`;
       },
     });
   };
@@ -449,7 +455,7 @@ export function LoanTicket(props: LoanTicketProps) {
         args: [currency.params, { totalSupplyAssets: mk[0], totalSupplyShares: mk[1], totalBorrowAssets: mk[2], totalBorrowShares: mk[3], lastUpdate: mk[4], fee: mk[5] }],
       });
     } catch {
-      return fail("Arc did not answer, so nothing was built. Try again.");
+      return fail(tc("arcNoAnswerNothingBuilt"));
     }
     const [, liveShares, liveCollateral] = live;
     // Sized from the debt accrued to this block, as Morpho will count it; the 0.1% plus 1 covers the seconds until
@@ -458,19 +464,19 @@ export function LoanTicket(props: LoanTicketProps) {
     const liveApproval = liveShares > 0n ? closeApproval(liveShares, accrued, mk[3]) : 0n;
     const liveNeed = liveShares > 0n ? liveApproval + (isUsdc ? USDC_FEE_RESERVE : 0n) : 0n;
     if (tokenHeld < liveNeed) {
-      return fail(`Closing needs ${formatUnitsExact(liveNeed, currency.decimals)} ${currency.symbol} and your wallet holds ${formatUnitsExact(tokenHeld, currency.decimals)}. Add ${formatUnitsExact(liveNeed - tokenHeld, currency.decimals)} ${currency.symbol}, then try again. Nothing was sent.`);
+      return fail(t("close.needs", { need: fmt(liveNeed), symbol: sym, held: fmt(tokenHeld), add: fmt(liveNeed - tokenHeld) }));
     }
     let stop: GuardStop;
     try {
       stop = await readGuardStop(address, currency);
     } catch {
-      return fail("Arc did not answer about your loan guard, so the close was not built. Nothing was sent. Try again.");
+      return fail(t("close.guardNoAnswer"));
     }
     let built;
     try {
       built = buildCloseLoan(address, currency, { shares: liveShares, collateral: liveCollateral }, liveApproval, paramsFromTuple(tuple), stop);
     } catch (error) {
-      return fail(`${(error as Error).message} Nothing was sent.`);
+      return fail(`${(error as Error).message} ${nothingSent}`);
     }
     const out = await simulateAndSend({ account: address, to: built.to, data: built.data, onStep: step, usdcOut: isUsdc ? liveApproval : 0n });
     if (!out.ok) return setTx(out.stage === "refused" ? { kind: "refused", error: out.error } : { kind: "failed", message: out.message, href: out.hash && `${EXPLORER}/tx/${out.hash}` });
@@ -498,60 +504,59 @@ export function LoanTicket(props: LoanTicketProps) {
   const closed = done?.kind === "closed";
   const ltvPct = ltv.state === "ok" && ltv.value !== 2n ** 256n - 1n ? Number((ltv.value * 10_000n) / WAD) / 100 : null;
   const fresh = priceStatus.state === "ok" ? priceStatus.value[0] : null;
+  const tabLabel = (tab: "add" | "repay" | "close") => (tab === "add" ? t("tabs.add") : tab === "repay" ? t("tabs.repay") : shares > 0n ? t("tabs.close") : t("tabs.takeBack"));
 
   return (
     <RetryContext.Provider value={retryReads}>
     <article className="app-panel p-6 md:p-8" data-loan={currency.symbol} data-ltv={ltvPct ?? ""}>
       <div className="flex flex-wrap items-baseline justify-between gap-3">
-        <p className="type-label text-text">
-          {currency.symbol} <span className="text-muted">borrowed against</span> cirBTC
-        </p>
-        <p className="type-micro text-muted">Morpho market {shortAddress(m)}</p>
+        <p className="type-label text-text">{t.rich("borrowedAgainst", { symbol: sym, muted: (chunks) => <span className="text-muted">{chunks}</span> })}</p>
+        <p className="type-micro text-muted">{t("morphoMarket", { id: shortAddress(m) })}</p>
       </div>
 
       {closed ? (
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="mt-6" data-tx-result="closed">
           <p className="type-h3 text-text">{done.text}</p>
           <a href={`${EXPLORER}/tx/${done.hash}`} target="_blank" rel="noopener noreferrer" className="link-draw type-address mt-4 inline-block text-muted hover:text-gold">
-            Transaction {shortAddress(done.hash)} on the explorer
+            {tc("transactionOnExplorer", { hash: shortAddress(done.hash) })}
           </a>
         </motion.div>
       ) : (
         <>
           <dl className="mt-6 grid grid-cols-2 gap-x-6 gap-y-6">
             <Stat
-              label="Pledged"
+              label={t("stats.pledged")}
               cell={{ state: "ok", value: collateral }}
               render={(v) => `${formatUnitsExact(v, CIRBTC_DECIMALS)} cirBTC`}
-              note={usd !== null ? `about ${usdOfSats(collateral, usd)}, estimated` : undefined}
+              note={usd !== null ? t("stats.aboutEstimated", { usd: tl(usdOfSats(collateral, usd)) }) : undefined}
             />
-            <Stat label="You owe" cell={debt} render={(v) => `${formatUnitsExact(v, currency.decimals)} ${currency.symbol}`} note="exact, rounded up" />
-            <Stat label="Bitcoin can fall" cell={drop} render={(v) => (shares === 0n ? "no loan" : formatPercentWad(v))} note={`before Morpho may liquidate`} />
-            <Stat label="Borrow rate" cell={apyCell} render={(v) => `${(v * 100).toFixed(2)}% a year`} note="live, variable" />
+            <Stat label={t("stats.youOwe")} cell={debt} render={(v) => `${fmt(v)} ${sym}`} note={t("stats.exactRoundedUp")} />
+            <Stat label={t("stats.bitcoinCanFall")} cell={drop} render={(v) => (shares === 0n ? t("stats.noLoan") : formatPercentWad(v))} note={t("stats.beforeLiquidate")} />
+            <Stat label={t("stats.borrowRate")} cell={apyCell} render={(v) => tc("percentAYear", { pct: (v * 100).toFixed(2) })} note={tc("liveVariable")} />
           </dl>
 
           <Gauge ltv={ltv} lltv={currency.params.lltv} />
 
           <p className="type-body mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-text">
             <span aria-hidden="true" className={`diamond ${fresh === null ? "!bg-rule-strong" : fresh ? "!bg-success" : "!bg-danger"}`} />
-            {fresh === null ? <Value cell={priceStatus} render={() => ""} /> : fresh ? "Bitcoin price fresh." : "Bitcoin price paused for new loans."}
-            <span className="text-muted">Adag checks the 40% line only at the moment you pay. After that, only the loan guard below watches it, if you turn it on.</span>
+            {fresh === null ? <Value cell={priceStatus} render={() => ""} /> : fresh ? t("priceFresh") : t("pricePaused")}
+            <span className="text-muted">{t("checksOnlyAtPay")}</span>
           </p>
 
           <GuardSection address={address} currency={currency} position={position} canSign={canSign} blockedReason={blockedReason} onChanged={onChanged} />
 
           <div className="mt-7 border-t border-rule pt-6">
-            <div role="tablist" aria-label="Loan actions" className="flex flex-wrap gap-x-6 gap-y-2">
-              {(shares > 0n ? (["add", "repay", "close"] as const) : (["add", "close"] as const)).map((t) => (
+            <div role="tablist" aria-label={t("tabs.label")} className="flex flex-wrap gap-x-6 gap-y-2">
+              {(shares > 0n ? (["add", "repay", "close"] as const) : (["add", "close"] as const)).map((tab) => (
                 <button
-                  key={t}
+                  key={tab}
                   role="tab"
                   type="button"
-                  aria-selected={mode === t}
-                  onClick={() => setMode(t)}
-                  className={`type-label border-b-2 pb-2 transition-colors duration-200 ${mode === t ? "border-gold text-gold" : "border-transparent text-muted hover:text-text"}`}
+                  aria-selected={mode === tab}
+                  onClick={() => setMode(tab)}
+                  className={`type-label border-b-2 pb-2 transition-colors duration-200 ${mode === tab ? "border-gold text-gold" : "border-transparent text-muted hover:text-text"}`}
                 >
-                  {t === "add" ? "Add cirBTC" : t === "repay" ? "Repay some" : shares > 0n ? "Close loan" : "Take your bitcoin back"}
+                  {tabLabel(tab)}
                 </button>
               ))}
             </div>
@@ -563,12 +568,12 @@ export function LoanTicket(props: LoanTicketProps) {
                 <div className="flex flex-col gap-4 md:flex-row md:items-end">
                   <label className="flex-1">
                     <span className="type-micro text-muted">
-                      cirBTC to add · you hold <Value cell={cirBtc} render={(v) => `${formatUnitsExact(v, CIRBTC_DECIMALS)}${usdHint(v, usd)}`} />
+                      {t.rich("add.label", { held: () => <Value cell={cirBtc} render={(v) => `${formatUnitsExact(v, CIRBTC_DECIMALS)}${usdHint(v, usd)}`} /> })}
                     </span>
                     <input
                       inputMode="decimal"
                       autoComplete="off"
-                      placeholder="Amount in cirBTC"
+                      placeholder={tc("amountIn", { symbol: "cirBTC" })}
                       value={addText}
                       onChange={(e) => setAddText(e.target.value)}
                       className="app-input mt-1 !text-[2rem]"
@@ -576,16 +581,14 @@ export function LoanTicket(props: LoanTicketProps) {
                     />
                   </label>
                   <Button variant="primary" disabled={!add.ok || Boolean(addError) || Boolean(busy)} onClick={() => start("add")} data-action="add-collateral" className="w-full md:w-auto">
-                    {busy ? <BusyLabel step={busy.step} since={busy.since} /> : "Add cirBTC"}
+                    {busy ? <BusyLabel step={busy.step} since={busy.since} /> : t("tabs.add")}
                   </Button>
                 </div>
                 <p className="type-body mt-3 text-muted">
                   {addText && addError ? (
                     <span className="text-danger">{addError}</span>
                   ) : (
-                    <>
-                      Loan-to-value after: <Value cell={add.ok ? ltvAfterAdd : { state: "ok", value: ltv.state === "ok" ? ltv.value : 0n }} render={(v) => formatPercentWad(v)} className="text-text" />. No new debt, so no price check is needed.
-                    </>
+                    t.rich("add.after", { ltv: () => <Value cell={add.ok ? ltvAfterAdd : { state: "ok", value: ltv.state === "ok" ? ltv.value : 0n }} render={(v) => formatPercentWad(v)} className="text-text" /> })
                   )}
                 </p>
               </div>
@@ -593,14 +596,12 @@ export function LoanTicket(props: LoanTicketProps) {
               <div className="mt-5" data-repay-panel>
                 <div className="flex flex-col gap-4 md:flex-row md:items-end">
                   <label className="flex-1">
-                    <span className="type-micro text-muted">
-                      {currency.symbol} to repay · you owe <Value cell={debt} render={(v) => formatUnitsExact(v, currency.decimals)} />
-                    </span>
+                    <span className="type-micro text-muted">{t.rich("repay.label", { symbol: sym, owed: () => <Value cell={debt} render={(v) => fmt(v)} /> })}</span>
                     <span className="mt-1 flex items-end gap-3">
                       <input
                         inputMode="decimal"
                         autoComplete="off"
-                        placeholder={`Amount in ${currency.symbol}`}
+                        placeholder={tc("amountIn", { symbol: sym })}
                         value={repayText}
                         onChange={(e) => setRepayText(e.target.value)}
                         className="app-input !text-[2rem]"
@@ -613,71 +614,80 @@ export function LoanTicket(props: LoanTicketProps) {
                         className="type-micro mb-2 shrink-0 rounded-[6px] border border-rule-strong px-3 py-2 text-text transition-colors duration-200 hover:border-gold hover:text-gold disabled:opacity-40"
                         data-action="repay-max"
                       >
-                        Max
+                        {t("repay.max")}
                       </button>
                     </span>
                   </label>
                   <Button variant="primary" disabled={!repay.ok || Boolean(repayError) || Boolean(busy) || repayCap === null} onClick={() => start("repay")} data-action="repay-some" className="w-full md:w-auto">
-                    {busy ? <BusyLabel step={busy.step} since={busy.since} /> : "Repay"}
+                    {busy ? <BusyLabel step={busy.step} since={busy.since} /> : t("repay.button")}
                   </Button>
                 </div>
                 <p className="type-body mt-3 text-muted">
                   {repayText && repayError ? (
                     <span className="text-danger">{repayError}</span>
                   ) : (
-                    <>
-                      After this, loan-to-value <Value cell={repay.ok ? afterRepay : { state: "ok", value: { ltv: ltv.state === "ok" ? ltv.value : 0n, drop: drop.state === "ok" ? drop.value : 0n } }} render={(v) => formatPercentWad(v.ltv)} className="text-text" />, and bitcoin can fall{" "}
-                      <Value cell={repay.ok ? afterRepay : { state: "ok", value: { ltv: 0n, drop: drop.state === "ok" ? drop.value : 0n } }} render={(v) => formatPercentWad(v.drop)} className="text-text" /> before Morpho may liquidate.
-                    </>
+                    t.rich("repay.after", {
+                      ltv: () => <Value cell={repay.ok ? afterRepay : { state: "ok", value: { ltv: ltv.state === "ok" ? ltv.value : 0n, drop: drop.state === "ok" ? drop.value : 0n } }} render={(v) => formatPercentWad(v.ltv)} className="text-text" />,
+                      drop: () => <Value cell={repay.ok ? afterRepay : { state: "ok", value: { ltv: 0n, drop: drop.state === "ok" ? drop.value : 0n } }} render={(v) => formatPercentWad(v.drop)} className="text-text" />,
+                    })
                   )}
                 </p>
-                <p className="type-body mt-2 text-muted">Max leaves a few units of dust, because this repays by amount; Close loan clears the rest and returns your cirBTC.</p>
-                <FeeLine query={repayFee} className="mt-3" idle="The network fee shows once the amount is valid." />
+                <p className="type-body mt-2 text-muted">{t("repay.dust")}</p>
+                <FeeLine query={repayFee} className="mt-3" idle={t("repay.feeIdle")} />
               </div>
             ) : (
               <div className="mt-5">
                 {shares > 0n ? (
                   <p className="type-body text-text">
-                    Repay <Value cell={debt} render={(v) => `${formatUnitsExact(v, currency.decimals)} ${currency.symbol}`} className="font-semibold" /> by your exact loan shares, then take all {formatUnitsExact(collateral, CIRBTC_DECIMALS)} cirBTC back. The approval is{" "}
-                    {formatUnitsExact(approval, currency.decimals)} {currency.symbol} to cover interest until the block, and it is reset to 0 in the same signature.
+                    {t.rich("close.explain", {
+                      debt: () => <Value cell={debt} render={(v) => `${fmt(v)} ${sym}`} className="font-semibold" />,
+                      collateral: formatUnitsExact(collateral, CIRBTC_DECIMALS),
+                      approval: fmt(approval),
+                      symbol: sym,
+                    })}
                   </p>
                 ) : (
-                  <p className="type-body text-text">No debt here. Take all {formatUnitsExact(collateral, CIRBTC_DECIMALS)} cirBTC back to your wallet.</p>
+                  <p className="type-body text-text">{t("close.noDebt", { collateral: formatUnitsExact(collateral, CIRBTC_DECIMALS) })}</p>
                 )}
                 {short !== null && short > 0n ? (
                   <p className="type-body mt-3 text-danger" data-close-short>
-                    Your wallet holds <Value cell={loanTokenBalance} render={(v) => formatUnitsExact(v, currency.decimals)} /> {currency.symbol}; closing needs {formatUnitsExact(need, currency.decimals)}
-                    {isUsdc ? " including a little for the fee" : ""}. Add {formatUnitsExact(short, currency.decimals)} {currency.symbol} first.
+                    {t.rich("close.short", {
+                      held: () => <Value cell={loanTokenBalance} render={(v) => fmt(v)} />,
+                      symbol: sym,
+                      need: fmt(need),
+                      fee: isUsdc ? t("close.includingFee") : "",
+                      add: fmt(short),
+                    })}
                   </p>
                 ) : gasShort ? (
-                  <p className="type-body mt-3 text-danger">Keep a little USDC in this wallet for the network fee.</p>
+                  <p className="type-body mt-3 text-danger">{t("close.keepUsdc")}</p>
                 ) : (
                   <>
                     {stopsGuard && (
                       <p className="type-body mt-3 text-text" data-close-stops-guard>
-                        Closing also stops the loan guard for this loan: the rule is cleared and its approval set to 0.
+                        {t("close.stopsGuard")}
                       </p>
                     )}
                     <Button variant="primary" disabled={Boolean(busy) || (shares > 0n && short === null)} onClick={() => start("close")} data-action="close-loan" className="mt-5 w-full md:w-auto">
-                      {busy && !frozen ? <BusyLabel step={busy.step} since={busy.since} /> : shares > 0n ? "Close loan" : "Take your bitcoin back"}
+                      {busy && !frozen ? <BusyLabel step={busy.step} since={busy.since} /> : shares > 0n ? t("tabs.close") : t("tabs.takeBack")}
                     </Button>
-                    {shares > 0n && short === null && !busy && <p className="type-body mt-2 text-muted" data-blocked-reason>Reading your loan and balance on Arc.</p>}
+                    {shares > 0n && short === null && !busy && <p className="type-body mt-2 text-muted" data-blocked-reason>{t("close.reading")}</p>}
                     <FeeLine query={closeFee} className="mt-3" />
                   </>
                 )}
                 {shares > 0n && (
                   <div className="mt-6 border-t border-rule pt-5" data-close-convert>
-                    <p className="type-h4 text-text">Close with {sold.symbol}</p>
+                    <p className="type-h4 text-text">{t("close.withOther", { symbol: sold.symbol })}</p>
                     {closeConvert.kind === "loading" ? (
                       <p className="type-body mt-2 text-muted">
-                        Reading the euro price and your {sold.symbol} on Arc. <Reading />
+                        {t("close.readingEuro", { symbol: sold.symbol })} <Reading />
                       </p>
                     ) : closeConvert.kind === "unavailable" ? (
-                      <p className="type-body mt-2 text-muted">Adag could not read what a conversion needs, so it is off. Reload to try again.</p>
+                      <p className="type-body mt-2 text-muted">{tc("convertUnreadable")}</p>
                     ) : closeConvert.kind === "off" ? (
                       <>
                         <p className="type-body mt-2 text-text" data-close-convert-off>
-                          {closeConvert.reason}
+                          {tl(closeConvert.reason)}
                         </p>
                         {closeConvert.reset && <ConvertReset account={address} loanToken={sold.address} canSign={!busy} onDone={() => void closeRead.refetch()} className="mt-4" />}
                       </>
@@ -687,7 +697,7 @@ export function LoanTicket(props: LoanTicketProps) {
                           <CloseConvertEstimate e={closeConvert.estimate} />
                         </div>
                         <Button variant="secondary" disabled={Boolean(busy)} onClick={onCloseOther} data-action="close-other" className="mt-5 w-full md:w-auto">
-                          {busy && frozen ? <BusyLabel step={busy.step} since={busy.since} /> : `Close with ${sold.symbol}`}
+                          {busy && frozen ? <BusyLabel step={busy.step} since={busy.since} /> : t("close.withOther", { symbol: sold.symbol })}
                         </Button>
                       </>
                     )}
@@ -700,7 +710,7 @@ export function LoanTicket(props: LoanTicketProps) {
               <p className="type-body mt-4 text-success" data-tx-result={done.kind}>
                 {done.text}{" "}
                 <a href={`${EXPLORER}/tx/${done.hash}`} target="_blank" rel="noopener noreferrer" className="link-draw text-text hover:text-gold">
-                  View the transaction
+                  {tc("viewTheTransaction")}
                 </a>
               </p>
             )}
@@ -743,6 +753,7 @@ function Stat<T>({ label, cell, render, note }: { label: string; cell: Cell<T>; 
 
 // 0 to 100% of the pledge's value, with Adag's payment line at 40% and Morpho's liquidation line at 86%.
 function Gauge({ ltv, lltv }: { ltv: Cell<bigint>; lltv: bigint }) {
+  const t = useTranslations("loan.gauge");
   const pct = ltv.state === "ok" ? Math.min(100, ltv.value === 2n ** 256n - 1n ? 100 : Number((ltv.value * 10_000n) / WAD) / 100) : 0;
   const adag = Number((MAX_LTV_WAD * 100n) / WAD);
   const morpho = Number((lltv * 100n) / WAD);
@@ -750,12 +761,12 @@ function Gauge({ ltv, lltv }: { ltv: Cell<bigint>; lltv: bigint }) {
   return (
     <div className="mt-7">
       <div className="flex items-baseline justify-between">
-        <p className="type-micro text-muted">Loan-to-value</p>
+        <p className="type-micro text-muted">{t("loanToValue")}</p>
         <p className="font-display text-[1.75rem] leading-none font-medium tabular-nums text-text">
           <Value cell={ltv} render={(v) => formatPercentWad(v)} />
         </p>
       </div>
-      <div className="relative mt-3 h-3 rounded-[2px] border border-rule bg-bg/40" role="img" aria-label={`Loan-to-value ${pct.toFixed(2)}% of 100%, Adag's line at ${adag}%, Morpho liquidates at ${morpho}%`}>
+      <div className="relative mt-3 h-3 rounded-[2px] border border-rule bg-bg/40" role="img" aria-label={t("aria", { pct: pct.toFixed(2), adag: String(adag), morpho: String(morpho) })}>
         <motion.div
           className="absolute inset-y-0 left-0 rounded-[1px]"
           style={{ backgroundColor: tone }}

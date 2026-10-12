@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { arc } from "viem/chains";
 import { useReadContract } from "wagmi";
 import { oracleAbi } from "@/lib/pay/abi";
@@ -19,7 +20,8 @@ export function useUsdPrice(): bigint | null {
   return price.data ?? null;
 }
 
-// "0.00001098 cirBTC (about $0.92)" reads as money; the bare figure does not. Empty until the price arrives.
-export function usdHint(sats: bigint, price: bigint | null): string {
-  return price === null ? "" : ` (about ${usdOfSats(sats, price)}, estimated)`;
+// "0.00001098 cirBTC (about $0.92, estimated)" reads as money; the bare figure does not. Empty until the price arrives.
+export function useUsdHint(): (sats: bigint, price: bigint | null) => string {
+  const t = useTranslations("common");
+  return (sats, price) => (price === null ? "" : ` (${t("aboutEstimated", { usd: usdOfSats(sats, price) })})`);
 }

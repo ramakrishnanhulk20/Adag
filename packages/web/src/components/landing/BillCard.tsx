@@ -1,9 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { useLocale, useTranslations } from "next-intl";
 import { BillStamp } from "@/components/BillStamp";
 import { useLive } from "@/components/hero/LiveData";
-import { formatAmount, formatDate } from "@/lib/arc/present";
+import { dateIn } from "@/i18n/dates";
+import { localeOf } from "@/i18n/locales";
+import { formatAmount } from "@/lib/arc/present";
 import { billHref } from "@/lib/pay/billId";
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
@@ -23,13 +26,16 @@ function Frame({ children }: { children: React.ReactNode }) {
 // one, and the home page never carries a stranger's words (security pass 1, M2). The bill's own page shows it.
 export function BillCard() {
   const live = useLive();
+  const t = useTranslations("landing.billCard");
+  const tc = useTranslations("common");
+  const locale = localeOf(useLocale());
 
   if (live.status === "loading") {
     return (
       <Frame>
-        <div className="flex min-h-72 flex-col justify-center gap-3" aria-label="Reading Arc">
+        <div className="flex min-h-72 flex-col justify-center gap-3" aria-label={tc("readingArc")}>
           <span aria-hidden="true" className="live-shimmer block h-px w-2/3" />
-          {live.slow && <span className="type-micro text-muted">Reading Arc</span>}
+          {live.slow && <span className="type-micro text-muted">{tc("readingArc")}</span>}
         </div>
       </Frame>
     );
@@ -37,7 +43,7 @@ export function BillCard() {
   if (live.status === "failed" || !live.snapshot.latestBills.ok) {
     return (
       <Frame>
-        <p className="type-body text-muted">The latest payment is unavailable: Arc did not answer. Nothing is shown in its place.</p>
+        <p className="type-body text-muted">{t("unavailable")}</p>
       </Frame>
     );
   }
@@ -45,7 +51,7 @@ export function BillCard() {
   if (!entry) {
     return (
       <Frame>
-        <p className="type-body text-muted">No bill has been paid on Arc yet.</p>
+        <p className="type-body text-muted">{tc("noBillPaidYet")}</p>
       </Frame>
     );
   }
@@ -61,30 +67,30 @@ export function BillCard() {
       <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-4">
         <div>
           <p className="type-label text-gold">
-            Bill #{entry.id}
-            {entry.first ? <span className="ml-3 text-muted">First deployment</span> : null}
+            {tc("billNumber", { id: entry.id })}
+            {entry.first ? <span className="ml-3 text-muted">{tc("firstDeployment")}</span> : null}
           </p>
           <p className="type-number mt-3 whitespace-nowrap">{formatAmount(entry.amountBaseUnits, entry.currency)}</p>
         </div>
         <BillStamp status="paid" entrance="in-view" className="mt-1 shrink-0" />
       </div>
       <dl className="mt-7">
-        <Row label="Paid to">
+        <Row label={t("paidTo")}>
           <span className="type-address break-all text-text">{entry.payee}</span>
         </Row>
-        <Row label="Paid by">
+        <Row label={t("paidBy")}>
           <span className="type-address break-all text-text">{entry.payer}</span>
         </Row>
-        <Row label="Paid">
-          <span className="type-body text-text">{formatDate(entry.paidAt)}</span>
+        <Row label={t("paid")}>
+          <span className="type-body text-text">{entry.paidAt > 0 ? dateIn(locale, entry.paidAt) : ""}</span>
           <a href={entry.explorerUrl} target="_blank" rel="noopener noreferrer" className="link-draw type-label ml-4 text-gold">
-            Payment on Arc
+            {tc("paymentOnArc")}
           </a>
         </Row>
         {href && (
-          <Row label="The bill">
+          <Row label={t("theBill")}>
             <Link href={href} className="link-draw type-label text-gold">
-              Open it, with its invoice reference
+              {t("openIt")}
             </Link>
           </Row>
         )}

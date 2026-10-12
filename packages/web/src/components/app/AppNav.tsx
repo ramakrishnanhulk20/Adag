@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import { AnimatePresence, motion } from "motion/react";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { ThemeControl } from "@/components/ThemeControl";
 import { ConnectButton } from "./ConnectButton";
 import { WalletNotice } from "./WalletNotice";
@@ -11,14 +13,15 @@ import { WalletNotice } from "./WalletNotice";
 const SOLID_AFTER_PX = 24;
 
 const LINKS = [
-  { label: "Pay a bill", href: "/pay" },
-  { label: "Write a bill", href: "/bill/new" },
-  { label: "Your wallet", href: "/app" },
-  { label: "Loan guard", href: "/app/protect" },
-  { label: "Docs", href: "/docs" },
-];
+  { key: "payABill", href: "/pay" },
+  { key: "writeABill", href: "/bill/new" },
+  { key: "yourWallet", href: "/app" },
+  { key: "loanGuard", href: "/app/protect" },
+  { key: "docs", href: "/docs" },
+] as const;
 
 export function AppNav() {
+  const t = useTranslations("nav");
   const [solid, setSolid] = useState(false);
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
@@ -94,7 +97,7 @@ export function AppNav() {
           <Link href="/" className="inline-flex min-h-10 items-center font-display text-[22px] font-semibold tracking-[0.08em] text-text transition-colors duration-200 hover:text-gold">
             ADAG
           </Link>
-          <nav aria-label="App" className="hidden items-center gap-8 lg:flex">
+          <nav aria-label={t("app")} className="hidden items-center gap-8 lg:flex">
             {LINKS.map((l) => (
               <Link
                 key={l.href}
@@ -102,12 +105,13 @@ export function AppNav() {
                 aria-current={current(l.href) ? "page" : undefined}
                 className={`link-draw type-ui transition-colors duration-200 hover:text-text ${current(l.href) ? "text-gold" : "text-text/88"}`}
               >
-                {l.label}
+                {t(l.key)}
               </Link>
             ))}
           </nav>
         </div>
         <div className="flex items-center gap-2.5 max-[359px]:gap-2 md:gap-3">
+          <LanguageSwitcher variant="nav" />
           <ThemeControl variant="cycle" tipAlign="end" />
           <div className="hidden sm:block">
             <ConnectButton />
@@ -121,7 +125,7 @@ export function AppNav() {
             className="type-label inline-flex h-10 items-center rounded-[8px] border border-rule-strong px-4 text-text transition-colors duration-200 hover:border-gold hover:text-gold lg:hidden"
             data-action="menu"
           >
-            {open ? "Close" : "Menu"}
+            {open ? t("close") : t("menu")}
           </button>
         </div>
       </div>
@@ -136,14 +140,14 @@ export function AppNav() {
           id={sheetId}
           role="dialog"
           aria-modal="true"
-          aria-label="Menu"
+          aria-label={t("menu")}
           className="fixed inset-x-0 top-14 bottom-0 z-40 flex flex-col overflow-y-auto border-t border-rule bg-bg px-5 pt-10 pb-10 md:top-[72px] md:px-[6vw] lg:hidden"
           initial={{ opacity: 0, y: -12 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -12 }}
           transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
         >
-          <nav aria-label="App" className="flex flex-col gap-3">
+          <nav aria-label={t("app")} className="flex flex-col gap-3">
             {LINKS.map((l, i) => (
               <motion.div key={l.href} initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.05 + i * 0.06, ease: [0.16, 1, 0.3, 1] }}>
                 <Link
@@ -152,13 +156,16 @@ export function AppNav() {
                   aria-current={current(l.href) ? "page" : undefined}
                   className={`block py-2 font-display text-[clamp(2.75rem,12vw,4.5rem)] leading-[1] font-semibold tracking-[-0.02em] transition-colors duration-200 hover:text-gold ${current(l.href) ? "text-gold italic" : "text-text"}`}
                 >
-                  {l.label}
+                  {t(l.key)}
                 </Link>
               </motion.div>
             ))}
           </nav>
-          <div className="mt-auto pt-10 sm:hidden">
-            <ConnectButton beforeOpen={() => setOpen(false)} />
+          <div className="mt-auto flex flex-col gap-6 pt-10">
+            <LanguageSwitcher variant="row" onChosen={() => setOpen(false)} />
+            <div className="sm:hidden">
+              <ConnectButton beforeOpen={() => setOpen(false)} />
+            </div>
           </div>
         </motion.div>
       )}

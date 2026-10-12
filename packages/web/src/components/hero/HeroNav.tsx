@@ -1,20 +1,23 @@
 "use client";
 
 import { useEffect, useId, useState } from "react";
+import { useTranslations } from "next-intl";
 import { AnimatePresence, motion } from "motion/react";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { ThemeControl } from "@/components/ThemeControl";
 import { HeroAction } from "./HeroAction";
 
 const LINKS = [
-  { label: "How it works", href: "#how" },
-  { label: "Safety", href: "#safety" },
-  { label: "Proof", href: "#proof" },
-  { label: "Docs", href: "/docs" },
-];
+  { key: "howItWorks", href: "#how" },
+  { key: "safety", href: "#safety" },
+  { key: "proof", href: "#proof" },
+  { key: "docs", href: "/docs" },
+] as const;
 
 const SOLID_AFTER_PX = 80;
 
 export function HeroNav() {
+  const t = useTranslations("nav");
   const [solid, setSolid] = useState(false);
   const [open, setOpen] = useState(false);
   const menuId = useId();
@@ -57,24 +60,25 @@ export function HeroNav() {
           <a href="#top" className="inline-flex min-h-10 items-center font-display text-[22px] font-semibold tracking-[0.08em] text-text transition-colors duration-200 hover:text-gold">
             ADAG
           </a>
-          <nav aria-label="Main" className="hidden items-center gap-9 md:flex">
+          <nav aria-label={t("main")} className="hidden items-center gap-9 md:flex">
             {LINKS.map((link) => (
-              <a key={link.label} href={link.href} className="link-draw type-ui text-text/88 transition-colors duration-200 hover:text-text">
-                {link.label}
+              <a key={link.key} href={link.href} className="link-draw type-ui text-text/88 transition-colors duration-200 hover:text-text">
+                {t(link.key)}
               </a>
             ))}
           </nav>
         </div>
         <div className="flex items-center gap-3 max-[359px]:gap-2">
+          <LanguageSwitcher variant="nav" />
           <ThemeControl variant="cycle" tipAlign="end" />
           <HeroAction href="/app" variant="secondary" size="sm" className="hidden md:inline-flex">
-            Open app
+            {t("openApp")}
           </HeroAction>
           <button
             type="button"
             aria-expanded={open}
             aria-controls={menuId}
-            aria-label={open ? "Close menu" : "Open menu"}
+            aria-label={open ? t("closeMenu") : t("openMenu")}
             onClick={() => setOpen((o) => !o)}
             className="inline-flex h-10 w-10 items-center justify-center rounded-[8px] border border-rule-strong text-text transition-colors duration-200 hover:border-gold hover:text-gold md:hidden"
           >
@@ -96,10 +100,10 @@ export function HeroNav() {
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
           >
-            <nav aria-label="Main" className="flex flex-col gap-5">
+            <nav aria-label={t("main")} className="flex flex-col gap-5">
               {LINKS.map((link, i) => (
                 <motion.a
-                  key={link.label}
+                  key={link.key}
                   href={link.href}
                   onClick={() => setOpen(false)}
                   className="type-h3 text-text transition-colors duration-200 hover:text-gold"
@@ -107,18 +111,19 @@ export function HeroNav() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.5, delay: 0.04 + i * 0.06, ease: [0.16, 1, 0.3, 1] }}
                 >
-                  {link.label}
+                  {t(link.key)}
                 </motion.a>
               ))}
             </nav>
             <div className="mt-10 flex flex-col gap-3">
               <HeroAction href="/bill/new" variant="secondary" className="flex w-full">
-                Write a bill
+                {t("writeABill")}
               </HeroAction>
               <HeroAction href="/app" variant="secondary" className="flex w-full">
-                Open app
+                {t("openApp")}
               </HeroAction>
             </div>
+            <LanguageSwitcher variant="row" className="mt-8 border-t border-rule pt-4" onChosen={() => setOpen(false)} />
           </motion.div>
         )}
       </AnimatePresence>

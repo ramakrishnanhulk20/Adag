@@ -2,6 +2,7 @@ import type { PublicClient } from "viem";
 import { arcClient } from "@/lib/arc/client";
 import { safeAbi } from "@/lib/safe/abi";
 import { InputError, address, hash32 } from "@/lib/safe/parse";
+import { jsonError } from "@/i18n/server";
 import { NOT_CONFIGURED, json, safeService, serviceError, withTimeout } from "@/lib/safe/service";
 import { STORE_MISSING, storeFromEnv } from "@/lib/store/env";
 import { TOO_MANY, limitRoute } from "@/lib/store/limit";
@@ -13,11 +14,11 @@ export const dynamic = "force-dynamic";
 // comes from here (C53): the page reads bill(id) from AdagBills for that.
 export async function GET(request: Request) {
   const service = safeService();
-  if (!service) return json({ error: NOT_CONFIGURED }, 503);
+  if (!service) return jsonError(NOT_CONFIGURED, 503);
   const store = storeFromEnv();
-  if (!store) return json({ error: STORE_MISSING }, 503);
+  if (!store) return jsonError(STORE_MISSING, 503);
   // An open payment page polls every 6 seconds, 100 calls in ten minutes, so one client gets room for three.
-  if (!(await limitRoute(store, request, "safe-status", 300, 3_000))) return json({ error: TOO_MANY }, 429);
+  if (!(await limitRoute(store, request, "safe-status", 300, 3_000))) return jsonError(TOO_MANY, 429);
   let safe;
   let safeTxHash;
   try {
@@ -25,14 +26,14 @@ export async function GET(request: Request) {
     safe = address(url.searchParams.get("safe"), "The Safe");
     safeTxHash = hash32(url.searchParams.get("safeTxHash"), "The Safe transaction hash");
   } catch (error) {
-    return json({ error: error instanceof InputError ? error.message : "The request could not be read." }, 400);
+    return jsonError(error instanceof InputError ? error.message : "The request could not be read.", 400);
   }
   try {
     const [tx, chainNonce] = await Promise.all([
       withTimeout(service.getTransaction(safeTxHash)),
       withTimeout((arcClient as PublicClient).readContract({ address: safe, abi: safeAbi, functionName: "nonce" })),
     ]);
-    if (tx.safe.toLowerCase() !== safe.toLowerCase()) return json({ error: "That transaction belongs to another Safe." }, 422);
+    if (tx.safe.toLowerCase() !== safe.toLowerCase()) return jsonError("That transaction belongs to another Safe.", 422);
     return json({
       confirmations: tx.confirmations?.length ?? 0,
       threshold: tx.confirmationsRequired,
@@ -44,6 +45,6 @@ export async function GET(request: Request) {
     });
   } catch (error) {
     const e = serviceError(error);
-    return json({ error: e.message }, e.status);
+    return jsonError(e.message, e.status);
   }
 }

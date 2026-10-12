@@ -2,15 +2,19 @@
 
 import { useId, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { AnimatePresence, motion } from "motion/react";
 import { arc } from "viem/chains";
 import { usePublicClient } from "wagmi";
 import { Button } from "@/components/Button";
+import { useLibText } from "@/i18n/useLibText";
 import { adagAbi } from "@/lib/pay/abi";
 import { basketHref, billHref, parseBillList } from "@/lib/pay/billId";
 import { deploymentOf } from "@/lib/pay/constants";
 
 export function PayForm() {
+  const t = useTranslations("pay.form");
+  const tl = useLibText();
   const router = useRouter();
   const client = usePublicClient({ chainId: arc.id });
   const inputId = useId();
@@ -25,16 +29,16 @@ export function PayForm() {
     try {
       parsed = parseBillList(value);
     } catch (error) {
-      setNote((error as Error).message);
+      setNote(tl((error as Error).message));
       return;
     }
     const { refs, dropped } = parsed;
     if (refs.length === 0) {
-      setNote("Type a bill number, like 12, or paste the bill link your supplier sent. Several numbers pay together.");
+      setNote(t("typeANumber"));
       return;
     }
     if (dropped.length) {
-      setNote(`"${dropped[0]}" is not a bill number or a bill link. Fix it or take it out.`);
+      setNote(t("notABillNumber", { token: dropped[0]! }));
       return;
     }
     // Several bills open the basket; the page reads each one itself and says which cannot be paid.
@@ -56,8 +60,8 @@ export function PayForm() {
     }
     if (count !== null && ref.id > count) {
       setBusy(false);
-      const where = first ? "on the first AdagBills deployment" : "on Arc";
-      setNote(count === 0n ? `No bill #${ref.id} ${where} yet. No bills have been written so far.` : `No bill #${ref.id} ${where} yet. The newest bill is #${count}.`);
+      const where = first ? t("onFirstDeployment") : t("onArc");
+      setNote(count === 0n ? t("noBillYetNone", { id: ref.id.toString(), where }) : t("noBillYetNewest", { id: ref.id.toString(), where, newest: count.toString() }));
       return;
     }
     // When Arc did not answer, the bill page runs its own read and says plainly if the bill is missing.
@@ -67,7 +71,7 @@ export function PayForm() {
   return (
     <form onSubmit={onSubmit} noValidate className="w-full max-w-[44rem]">
       <label htmlFor={inputId} className="type-label text-muted">
-        Bill numbers or links
+        {t("label")}
       </label>
       <div className="mt-3 flex flex-col gap-5 md:flex-row md:items-end md:gap-6">
         <input
@@ -77,7 +81,7 @@ export function PayForm() {
           inputMode="text"
           autoComplete="off"
           spellCheck={false}
-          placeholder="For example 1, or paste a bill link"
+          placeholder={t("placeholder")}
           value={value}
           onChange={(e) => {
             setValue(e.target.value);
@@ -88,7 +92,7 @@ export function PayForm() {
           className="app-input app-input-hint"
         />
         <Button type="submit" variant="primary" disabled={busy} className="w-full shrink-0 md:w-auto">
-          {busy ? "Checking Arc" : "Open the bill"}
+          {busy ? t("checkingArc") : t("openTheBill")}
         </Button>
       </div>
       <div id={noteId} aria-live="polite" className="mt-4 min-h-[3.25rem]">

@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useState } from "react";
+import { useTranslations } from "next-intl";
 import { useElapsed } from "./TxProgress";
 
 export type Cell<T> = { state: "loading" } | { state: "unavailable" } | { state: "ok"; value: T };
@@ -12,25 +13,27 @@ export const RetryContext = createContext<(() => void) | null>(null);
 
 // Any wait past two seconds says what it is waiting for, and counts, instead of a bar that looks stuck.
 export function Reading({ className = "" }: { className?: string }) {
+  const t = useTranslations("common");
   const [since] = useState(() => Date.now());
   const seconds = useElapsed(since);
-  if (seconds < 2) return <span aria-label="Reading Arc" className={`live-shimmer inline-block h-[0.9em] w-24 rounded-[2px] align-middle ${className}`} />;
+  if (seconds < 2) return <span aria-label={t("readingArc")} className={`live-shimmer inline-block h-[0.9em] w-24 rounded-[2px] align-middle ${className}`} />;
   return (
     <span className={`type-micro whitespace-nowrap text-muted ${className}`} data-reading>
-      Reading Arc · {seconds}s
+      {t("readingArcSeconds", { seconds: String(seconds) })}
     </span>
   );
 }
 
 export function Unavailable() {
+  const t = useTranslations("common");
   const retry = useContext(RetryContext);
   return (
     <span className="inline-flex flex-wrap items-baseline gap-x-2">
       {/* C19: a failed read says so. It never falls back to zero. */}
-      <span className="type-label text-muted">unavailable</span>
+      <span className="type-label text-muted">{t("unavailable")}</span>
       {retry && (
         <button type="button" onClick={retry} className="type-micro text-gold underline-offset-4 transition-colors duration-200 hover:text-text hover:underline" data-retry>
-          Try again
+          {t("tryAgain")}
         </button>
       )}
     </span>

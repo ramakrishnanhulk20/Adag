@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 import { Hero } from "@/components/hero/Hero";
 import { LiveData } from "@/components/hero/LiveData";
 import { AfterYouPay } from "@/components/landing/AfterYouPay";
@@ -12,12 +13,10 @@ import { OneSignature } from "@/components/landing/OneSignature";
 import { PledgedNotSold } from "@/components/landing/PledgedNotSold";
 import { PledgeStage } from "@/components/pledge/PledgeStage";
 
-export const metadata: Metadata = {
-  title: { absolute: "Adag · Pay your bills with your bitcoin, without selling it" },
-  description:
-    "Pay your suppliers from your company's bitcoin without selling it: up to 10 bills in one signature on Arc, invoice numbers attached, and a loan Adag caps at 40%.",
-  alternates: { canonical: "/" },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("meta.home");
+  return { title: { absolute: t("title") }, description: t("description"), alternates: { canonical: "/" } };
+}
 
 export default function Home() {
   return (

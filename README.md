@@ -96,6 +96,7 @@ Under the hood it is two contracts and this web app. AdagBills is a public bill 
 - **Try to break it.** [/break](https://adag.site/break) runs 35 attacks against the live contracts in about a minute, simulated on current mainnet state, in three groups: paying bills (16), recording an existing loan (5) and the loan guard (14). Each row shows what should stop it and the chain's own answer, marked Refused (the call reverts), Held (it goes through and changes nothing it should not) or Allowed by design (a named residual). The two scripts in the repository, `attack.mjs` (23) and `guard-attack.mjs` (14), total 37: two of those need an RPC that lies, so they run only in the scripts, not on the page.
 - **Run the proof yourself.** One command, no keys: see the judge path below.
 - **Everything is on the record.** Every bill, payment, loan and protection is public on Arc and linked to its transaction on the explorer.
+- **Five languages.** Every screen, error message, Telegram alert and CSV header reads in English, Simplified Chinese, Korean, Japanese or Spanish, picked from the browser's language with a switcher in the top bar that remembers the choice. Amounts, percentages, addresses and hashes are written the same way in every language, the documentation stays in English, and the messages a wallet signs are the same English bytes in every language.
 
 ## Contracts on Arc mainnet
 
@@ -674,7 +675,7 @@ Paying from bitcoin costs about 209,000 gas more than paying from a balance: tha
 | Chain access | viem | 2.56.9 |
 | Wallet | wagmi with TanStack Query | 3.7.7, 5.103.2 |
 | Safe payments | Safe api-kit and protocol-kit, Safe v1.4.1 contracts on Arc | 5.0.3, 8.0.7 |
-| App | Next.js App Router, React, TypeScript | 16.3.6, 19.3.0, 5.9.3 |
+| App | Next.js App Router, React, TypeScript | 16.4.0, 19.3.0, 5.9.3 |
 | Server store | Upstash Redis, over its REST API | no client package |
 | Keeper wake-up | QuickNode webhook on Chainlink `AnswerUpdated`, with a daily Vercel cron as the fallback | as deployed |
 | Alerts | Telegram Bot API, plain text only | as deployed |

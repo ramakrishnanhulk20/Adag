@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 import { AppShell } from "@/components/app/AppShell";
 import { BillLive } from "@/components/app/BillLive";
 import { BillMissing } from "@/components/app/BillMissing";
@@ -16,10 +17,11 @@ import { readHowPaid } from "@/lib/pay/howPaid";
 
 // Shared by /bill/[id] (the current contract) and /bill/first/[id] (the first deployment). The route's segments go
 // through parseBillRoute once, and that one pair drives the read, the sheet, the wallet panel and the live poll (C33).
-export function billMetadata(segments: string[]): Metadata {
+export async function billMetadata(segments: string[]): Promise<Metadata> {
+  const t = await getTranslations("meta.bill");
   const ref = parseBillRoute(segments);
   const first = ref && deploymentOf(ref.contract)?.label === "first";
-  return { title: ref ? `Bill #${ref.id}${first ? " (first deployment)" : ""}` : "Bill", robots: { index: false, follow: false } };
+  return { title: ref ? (first ? t("titleFirst", { id: ref.id.toString() }) : t("title", { id: ref.id.toString() })) : t("fallback"), robots: { index: false, follow: false } };
 }
 
 export async function BillRoute({ segments }: { segments: string[] }) {

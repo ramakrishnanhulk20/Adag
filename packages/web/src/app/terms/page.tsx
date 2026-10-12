@@ -1,13 +1,15 @@
 import type { CSSProperties } from "react";
 import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 import { Hallmark } from "@/components/Hallmark";
 import { AppShell } from "@/components/app/AppShell";
 import { CONTRACTS } from "@/components/landing/contracts";
+import { getLocale } from "@/i18n/server";
 
-export const metadata: Metadata = {
-  title: "Terms of Use",
-  description: "The plain-English terms for using Adag, an interface to immutable bill contracts on Arc mainnet.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("meta.terms");
+  return { title: t("title"), description: t("description") };
+}
 
 const d = (n: number) => ({ "--d": n }) as CSSProperties;
 
@@ -15,10 +17,10 @@ const d = (n: number) => ({ "--d": n }) as CSSProperties;
 const REPO_URL = process.env.NEXT_PUBLIC_REPO_URL;
 
 const DOCS = [
-  { label: "Threat model and the standards the app is held to", path: "docs/security/threat-model.md" },
-  { label: "Attack suite simulated against the deployed contract", path: "packages/contracts/deployments/attacks-2026-09-25.md" },
-  { label: "Static analysis results", path: "packages/contracts/analysis/STATIC-ANALYSIS.md" },
-];
+  { key: "threatModel", path: "docs/security/threat-model.md" },
+  { key: "attackSuite", path: "packages/contracts/deployments/attacks-2026-09-25.md" },
+  { key: "staticAnalysis", path: "packages/contracts/analysis/STATIC-ANALYSIS.md" },
+] as const;
 
 function DocLink({ label, path }: { label: string; path: string }) {
   return (
@@ -35,114 +37,54 @@ function DocLink({ label, path }: { label: string; path: string }) {
   );
 }
 
-const SECTIONS: { title: string; body: React.ReactNode }[] = [
-  {
-    title: "What Adag is",
-    body: (
-      <>
-        Adag is a website that talks to one smart contract, AdagBills, on Arc mainnet. The contract is immutable: it has no owner and no
-        admin key, and no one, including the people who built it, can pause it, upgrade it or change its rules. The website is only an
-        interface to it.
-      </>
-    ),
-  },
-  {
-    title: "You sign everything",
-    body: (
-      <>
-        Every payment, loan and cancellation is a transaction you review and sign in your own wallet. Adag never holds your money, never
-        holds your keys, and cannot move anything without your signature. The contract passes the exact bill amount from the payer to the
-        supplier within the same transaction and keeps nothing.
-      </>
-    ),
-  },
-  {
-    title: "Borrowing can end in liquidation",
-    body: (
-      <>
-        Paying from bitcoin pledges your cirBTC on Morpho and borrows the bill amount against it. If bitcoin&apos;s price falls far enough,
-        Morpho can liquidate the loan and sell part of your pledge. Adag refuses a payment that would leave the loan above 40% of your
-        bitcoin&apos;s value, but it checks this only at the moment you pay. After that, interest and price keep moving, Adag does not watch
-        the loan, and Morpho can liquidate once the loan reaches 86%. Watching and repaying the loan is up to you.
-      </>
-    ),
-  },
-  {
-    title: "Tokens carry their issuers' risks",
-    body: (
-      <>
-        USDC, EURC and cirBTC are issued by third parties who can freeze addresses, pause transfers or change how their tokens behave. If
-        they do, a payment can fail or funds can become stuck. Adag cannot override any of that.
-      </>
-    ),
-  },
-  {
-    title: "No audit beyond our own review",
-    body: (
-      <>
-        The contract has not had a paid third-party audit. What exists is published: a threat model, a self-review with an attack suite simulated
-        against the deployed contract on live mainnet state, and static analysis. The source of every contract is verified on the Arc explorer:{" "}
-        {CONTRACTS.map((c, i) => (
-          <span key={c.address}>
-            {i > 0 ? (i === CONTRACTS.length - 1 ? " and " : ", ") : null}
-            <a href={c.explorer} target="_blank" rel="noopener noreferrer" className="link-draw text-gold">
-              {c.name}
-            </a>
-          </span>
-        ))}
-        .
-      </>
-    ),
-  },
-  {
-    title: "Not advice, not affiliated",
-    body: (
-      <>
-        Nothing on this site is financial, legal or tax advice. Adag is an independent project. It is not affiliated with, endorsed by or
-        operated by Circle, Arc or Morpho.
-      </>
-    ),
-  },
-  {
-    title: "Use at your own risk",
-    body: (
-      <>
-        Adag is provided as it is, with no warranty of any kind. You use it at your own risk, and you are responsible for checking every
-        bill, every address and every transaction before you sign.
-      </>
-    ),
-  },
-];
+const SECTIONS = ["whatAdagIs", "youSign", "liquidation", "tokens", "noAudit", "notAdvice", "ownRisk"] as const;
 
-export default function TermsPage() {
+export default async function TermsPage() {
+  const [t, tc, locale] = await Promise.all([getTranslations("terms"), getTranslations("common"), getLocale()]);
+  // The contract names and their explorer links, spelled out like "AdagBills, AdagGuard and AdagBills, first deployment".
+  const contractLinks = CONTRACTS.map((c, i) => (
+    <span key={c.address}>
+      {i > 0 ? (i === CONTRACTS.length - 1 ? t("and") : ", ") : null}
+      <a href={c.explorer} target="_blank" rel="noopener noreferrer" className="link-draw text-gold">
+        {tc(`contractNames.${c.key}`)}
+      </a>
+    </span>
+  ));
   return (
     <AppShell>
       <section className="relative px-5 pt-14 pb-24 md:px-[6vw] md:pt-[12vh]">
         <div className="app-rise" style={d(0)}>
-          <Hallmark>Terms of Use · Adag</Hallmark>
+          <Hallmark>{t("hallmark")}</Hallmark>
         </div>
         <h1 className="app-title app-rise mt-6 max-w-[12ch] text-text" style={d(1)}>
-          The plain <em className="font-semibold text-gold italic">terms</em>.
+          {t.rich("title", { em: (chunks) => <em className="font-semibold text-gold italic">{chunks}</em> })}
         </h1>
         <p className="type-lead app-rise mt-8 max-w-[40rem] text-text/88" style={d(2)}>
-          Short, because the contract does the talking. By using this website you accept the terms below.
+          {t("lead")}
         </p>
+        {locale !== "en" && (
+          <p className="type-body app-rise mt-4 max-w-[40rem] text-muted" style={d(2)} lang={locale} data-terms-english>
+            {t("englishApplies")}
+          </p>
+        )}
 
         <ol className="mt-16 grid gap-x-16 md:mt-24 md:grid-cols-12">
-          {SECTIONS.map((s, i) => (
-            <li key={s.title} className="app-rise border-t border-rule py-8 md:col-span-10 md:grid md:grid-cols-10 md:gap-8 md:py-10" style={d(3 + i)}>
+          {SECTIONS.map((key, i) => (
+            <li key={key} className="app-rise border-t border-rule py-8 md:col-span-10 md:grid md:grid-cols-10 md:gap-8 md:py-10" style={d(3 + i)}>
               <p className="type-micro text-gold md:col-span-1">{String(i + 1).padStart(2, "0")}</p>
-              <h2 className="type-h4 mt-2 text-text md:col-span-3 md:mt-0">{s.title}</h2>
-              <p className="type-body mt-4 max-w-[40rem] text-text/88 md:col-span-6 md:mt-0">{s.body}</p>
+              <h2 className="type-h4 mt-2 text-text md:col-span-3 md:mt-0">{t(`sections.${key}.title`)}</h2>
+              <p className="type-body mt-4 max-w-[40rem] text-text/88 md:col-span-6 md:mt-0">
+                {key === "noAudit" ? t.rich("sections.noAudit.body", { contracts: () => <>{contractLinks}</> }) : t(`sections.${key}.body`)}
+              </p>
             </li>
           ))}
         </ol>
 
         <div className="app-rise mt-6 md:max-w-[83%]" style={d(10)}>
-          <p className="type-label text-muted">The published review</p>
+          <p className="type-label text-muted">{t("publishedReview")}</p>
           <ul className="mt-4 border-b border-rule">
             {DOCS.map((doc) => (
-              <DocLink key={doc.path} {...doc} />
+              <DocLink key={doc.path} label={t(`docs.${doc.key}`)} path={doc.path} />
             ))}
           </ul>
         </div>

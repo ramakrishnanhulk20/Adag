@@ -1,12 +1,16 @@
 import "./landing.css";
 import Link from "next/link";
+import { getTranslations } from "next-intl/server";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { ThemeControl } from "@/components/ThemeControl";
 import { HeroAction } from "@/components/hero/HeroAction";
 import { CONTRACTS } from "./contracts";
 import { Reveal } from "./Reveal";
 
 // Section 8: the last ask, then the footer. "Powered by Morpho" is required by Morpho's UI rules (ARCHITECTURE.md section 8).
-export function CloseAndFooter() {
+export async function CloseAndFooter() {
+  const t = await getTranslations("landing.close");
+  const tc = await getTranslations("common");
   return (
     <>
       <section aria-labelledby="close-title" className="landing-section border-t border-rule bg-bg px-5 py-28 md:px-[6vw] md:py-40">
@@ -14,12 +18,12 @@ export function CloseAndFooter() {
           <div className="md:col-span-7">
             <Reveal>
               <h2 id="close-title" className="type-h2 max-w-[12ch]">
-                The bill is due. <em className="text-gold italic">The bitcoin stays pledged.</em>
+                {t.rich("title", { em: (chunks) => <em className="text-gold italic">{chunks}</em> })}
               </h2>
             </Reveal>
             <Reveal delay={0.08} className="mt-10">
               <HeroAction href="/pay" variant="primary">
-                Pay a bill
+                {tc("payABill")}
               </HeroAction>
             </Reveal>
           </div>
@@ -28,7 +32,7 @@ export function CloseAndFooter() {
               அடகு
             </p>
             <p className="type-micro mt-4 text-muted">
-              <span className="normal-case tracking-normal">adagu</span> · Tamil for a pledge
+              {t.rich("tamil", { word: (chunks) => <span className="normal-case tracking-normal">{chunks}</span> })}
             </p>
           </Reveal>
         </div>
@@ -38,24 +42,27 @@ export function CloseAndFooter() {
         <div className="flex flex-col gap-10 md:flex-row md:items-end md:justify-between">
           <div className="flex flex-col gap-4">
             <span className="font-display text-[22px] font-semibold tracking-[0.08em]">ADAG</span>
-            <p className="type-micro text-muted">Powered by Morpho · on Arc mainnet</p>
+            <p className="type-micro text-muted">{t("poweredBy")}</p>
           </div>
-          <nav aria-label="Footer" className="type-label flex flex-wrap gap-x-8 text-text/88">
+          <nav aria-label={t("footer")} className="type-label flex flex-wrap gap-x-8 text-text/88">
             <Link href="/docs" className="link-draw tap-target hover:text-gold">
-              Docs
+              {tc("docs")}
             </Link>
             <Link href="/terms" className="link-draw tap-target hover:text-gold">
-              Terms of Use
+              {tc("termsOfUse")}
             </Link>
           </nav>
           <ThemeControl variant="segmented" />
         </div>
-        <ul aria-label="Contracts on Arc mainnet" className="mt-10 flex flex-col border-t border-rule pt-3 md:flex-row md:flex-wrap md:gap-x-10">
+        <div className="mt-8 flex flex-col gap-3 border-t border-rule pt-3 md:flex-row md:items-center md:justify-between">
+          <LanguageSwitcher variant="row" />
+        </div>
+        <ul aria-label={t("contracts")} className="mt-6 flex flex-col border-t border-rule pt-3 md:flex-row md:flex-wrap md:gap-x-10">
           {CONTRACTS.map((c) => (
             <li key={c.address} className="type-micro flex flex-wrap items-center gap-x-3 text-muted">
-              <span className="text-text/88">{c.name}</span>
+              <span className="text-text/88">{tc(`contractNames.${c.key}`)}</span>
               <a href={c.explorer} target="_blank" rel="noopener noreferrer" className="link-draw tap-target hover:text-gold">
-                Explorer
+                {tc("explorer")}
               </a>
               <a href={c.sourcify} target="_blank" rel="noopener noreferrer" className="link-draw tap-target hover:text-gold">
                 Sourcify

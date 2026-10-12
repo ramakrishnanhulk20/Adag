@@ -26,6 +26,11 @@ registerHooks({
       throw error;
     }
   },
+  // The message catalog is a JSON module the bundler imports without attributes; bare Node wants `type: "json"`.
+  load(url, context, next) {
+    if (url.endsWith('.json')) return next(url, { ...context, importAttributes: { ...context.importAttributes, type: 'json' } });
+    return next(url, context);
+  },
 });
 
 const emitWarning = process.emitWarning.bind(process);

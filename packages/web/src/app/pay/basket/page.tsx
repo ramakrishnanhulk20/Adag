@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 import { AppShell } from "@/components/app/AppShell";
 import { Basket, type BasketItem } from "@/components/app/Basket";
 import { BillMissing } from "@/components/app/BillMissing";
@@ -7,11 +8,10 @@ import { billToJson } from "@/lib/pay/billJson";
 import { ADAG_BILLS } from "@/lib/pay/constants";
 import { readBill } from "@/lib/pay/read";
 
-export const metadata: Metadata = {
-  title: "Pay several bills",
-  description: "Pay up to ten bills on Arc with one signature, from your balance or from a loan against your cirBTC.",
-  robots: { index: false, follow: false },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("meta.basket");
+  return { title: t("title"), description: t("description"), robots: { index: false, follow: false } };
+}
 
 // Every visit reads the chain; a cached basket could show a paid bill as payable.
 export const dynamic = "force-dynamic";

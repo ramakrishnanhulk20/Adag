@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { adagAbi } from "@/lib/pay/abi";
 import { BILL_STATUS, requireDeployment } from "@/lib/pay/constants";
 import { publicArc } from "@/lib/wallet/send";
@@ -12,6 +13,7 @@ const EVERY_MS = 6_000;
 // pays or cancels it, the page re-renders from the server and the keyed stamp springs down, with nothing to reload.
 export function BillLive({ contract, id, status }: { contract: string; id: string; status: number }) {
   const router = useRouter();
+  const t = useTranslations("bill.live");
 
   useEffect(() => {
     if (status !== BILL_STATUS.Open) return;
@@ -24,7 +26,7 @@ export function BillLive({ contract, id, status }: { contract: string; id: strin
         const b = await publicArc().readContract({ address, abi: adagAbi, functionName: "bill", args: [billId] });
         if (stopped || b.status === BILL_STATUS.Open) return;
         stopped = true;
-        document.title = `${b.status === BILL_STATUS.Paid ? "Paid" : "Cancelled"} · Bill #${id} · Adag`;
+        document.title = b.status === BILL_STATUS.Paid ? t("titlePaid", { id }) : t("titleCancelled", { id });
         router.refresh();
       } catch {
         // A missed read is not an answer; the next tick tries again.
@@ -38,7 +40,7 @@ export function BillLive({ contract, id, status }: { contract: string; id: strin
       window.clearInterval(timer);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [contract, id, status, router]);
+  }, [contract, id, status, router, t]);
 
   return null;
 }

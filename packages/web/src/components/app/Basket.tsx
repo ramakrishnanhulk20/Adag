@@ -1,12 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import { motion } from "motion/react";
 import { useQuery } from "@tanstack/react-query";
 import { isAddressEqual, type Address, type Hex } from "viem";
 import { BillStamp, type BillStatus } from "@/components/BillStamp";
 import { Button } from "@/components/Button";
 import { Hallmark } from "@/components/Hallmark";
+import { useLibText } from "@/i18n/useLibText";
 import { adagAbi, erc20Abi, morphoAbi, oracleAbi } from "@/lib/pay/abi";
 import { billFromJson, type BillJson } from "@/lib/pay/billJson";
 import { buildPayMany, suggestPledge, type BasketPlan, type Bill } from "@/lib/pay/build";
@@ -51,7 +53,7 @@ import { estimateFee, publicArc, simulateAndSend, watchBills, type TxStep } from
 import { readyToSign, useWallet } from "@/lib/wallet/useWallet";
 import { Reading, RetryContext, Value, type Cell } from "./cells";
 import { ConnectButton } from "./ConnectButton";
-import { keepText } from "./fee";
+import { useFeeWords } from "./fee";
 import { FeeLine } from "./FeeLine";
 import { GetSetUp, type SetupNeed } from "./GetSetUp";
 import { MorphoDisclaimer } from "./MorphoDisclaimer";
@@ -59,17 +61,18 @@ import { FirstContractSafeNote, PayAsSwitch, usePayAsMode } from "./PayAs";
 import { SafePay } from "./SafePay";
 import { recallProposal, type RememberedProposal } from "./safeMemory";
 import { BusyLabel, TxMessage, type TxState } from "./TxProgress";
-import { ConvertEstimate, ConvertReset, convertTitle } from "./fx/ConvertParts";
+import { ConvertEstimate, ConvertReset, useConvertTitle } from "./fx/ConvertParts";
 import { EFFECTS_UNAVAILABLE, billConvertView, reasons, type ConvertView, type Estimate } from "./fx/figures";
 import { adapterReadBack, askCircle, conversionFailure, effectsCanBeChecked } from "./fx/press";
 import { useBillConvert } from "./fx/useConvert";
-import { usdHint, useUsdPrice } from "./usdPrice";
+import { useUsdHint, useUsdPrice } from "./usdPrice";
 
 export type BasketItem = { id: string; kind: "found"; bill: BillJson } | { id: string; kind: "none" | "unavailable" };
 
 type Position = readonly [bigint, bigint, bigint];
 type MarketState = readonly [bigint, bigint, bigint, bigint, bigint, bigint];
 type Choice = "balance" | "bitcoin" | "convert";
+type T = ReturnType<typeof useTranslations<"basket">>;
 
 // On Arc the fee comes out of the USDC balance, so a USDC group paid from balance keeps this much back for it.
 const USDC_FEE_RESERVE = 10_000n;
@@ -90,14 +93,14 @@ type Paid = {
 // A group's conversion option as the screen holds it: still reading, not readable, or a view that is ready or off.
 type ConvertState = { kind: "loading" } | { kind: "unavailable" } | ConvertView;
 
-function asideReason(item: BasketItem, bill: Bill | null, me: Address | null): string | null {
-  if (item.kind === "none") return "No bill with this number on Arc yet.";
-  if (item.kind === "unavailable") return "Arc did not answer for this bill, so it is left out. Reload to try again.";
+function asideReason(t: T, item: BasketItem, bill: Bill | null, me: Address | null): string | null {
+  if (item.kind === "none") return t("aside.none");
+  if (item.kind === "unavailable") return t("aside.unavailable");
   if (!bill) return null;
-  if (bill.status === BILL_STATUS.Paid) return "Already paid.";
-  if (bill.status === BILL_STATUS.Void) return "Cancelled by the supplier. It can never be paid.";
-  if (!currencyOf(bill.currency)) return "Not in USDC or EURC.";
-  if (me && isAddressEqual(bill.payee, me)) return "You wrote this bill, so you cannot pay it.";
+  if (bill.status === BILL_STATUS.Paid) return t("aside.paid");
+  if (bill.status === BILL_STATUS.Void) return t("aside.void");
+  if (!currencyOf(bill.currency)) return t("aside.notUsdcEurc");
+  if (me && isAddressEqual(bill.payee, me)) return t("aside.yours");
   return null;
 }
 
@@ -116,6 +119,11 @@ export function Basket({
   dropped: string[];
   droppedCount?: number;
 }) {
+  const t = useTranslations("basket");
+  const tc = useTranslations("common");
+  const tl = useLibText();
+  const { keepText } = useFeeWords();
+  const usdHint = useUsdHint();
   const wallet = useWallet();
   const me = wallet.status === "connected" ? wallet.address : null;
   const ready = readyToSign(wallet);
@@ -132,7 +140,7 @@ export function Basket({
     [items, contract],
   );
 
-  const rows = items.map((item, i) => ({ item, bill: bills[i] ?? null, reason: asideReason(item, bills[i] ?? null, me) }));
+  const rows = items.map((item, i) => ({ item, bill: bills[i] ?? null, reason: asideReason(t, item, bills[i] ?? null, me) }));
   const payable = rows.filter((r) => r.reason === null && r.bill).map((r) => r.bill!);
   const aside = rows.filter((r) => r.reason !== null);
   const groups: Group[] = CURRENCIES.map((c) => {
@@ -327,13 +335,14 @@ export function Basket({
     groups.forEach((g, gi) => {
       const d = groupData[gi]!;
       const current = choices[g.currency.symbol];
+      const symbol = g.currency.symbol;
       if (current === "bitcoin" && d.fresh.state === "ok" && !d.fresh.value) {
-        invalid[g.currency.symbol] = `New loans in ${g.currency.symbol} are paused until the bitcoin price updates, so paying these bills from bitcoin is off. Choose again.`;
+        invalid[symbol] = t("cleared.paused", { symbol });
       } else if (current === "bitcoin" && lendShortOf(g, d)) {
-        invalid[g.currency.symbol] = `Morpho's ${g.currency.symbol} market no longer has enough cash to lend for these bills, so paying from bitcoin is off. Choose again.`;
+        invalid[symbol] = t("cleared.noCash", { symbol });
       }
       if (current === "balance" && d.balance.state === "ok" && !balanceEnough(g, d)) {
-        invalid[g.currency.symbol] = `Your ${g.currency.symbol} balance no longer covers these bills${isAddressEqual(g.currency.address, USDC) ? " plus 0.01 USDC for the fee" : ""}, so paying from balance is off. Choose again.`;
+        invalid[symbol] = t("cleared.balance", { symbol, fee: isAddressEqual(g.currency.address, USDC) ? t("cleared.plusFee") : "" });
       }
     });
     if (Object.keys(invalid).length) setCleared((prev) => ({ ...prev, ...invalid }));
@@ -362,7 +371,7 @@ export function Basket({
     const state = convertStateOf(converting);
     if (state.kind !== "off") return;
     const sym = converting.currency.symbol;
-    setCleared((prev) => ({ ...prev, [sym]: `${state.reason} Choose again.` }));
+    setCleared((prev) => ({ ...prev, [sym]: t("cleared.chooseAgain", { reason: tl(state.reason) }) }));
     setChoices((prev) => {
       const next = { ...prev };
       delete next[sym];
@@ -460,21 +469,21 @@ export function Basket({
   const payBlocked: string | null = busy
     ? null
     : !me
-      ? "Connect a wallet first."
+      ? t("blocked.connect")
       : !ready
-        ? "Switch your wallet to Arc, or use an ordinary wallet, to pay."
+        ? t("blocked.switch")
         : data.isPending
-          ? "Reading your balances and the prices on Arc."
+          ? t("blocked.readingBalances")
           : unchosen
-            ? `Choose how to pay the ${unchosen.currency.symbol} bills.`
+            ? t("blocked.choose", { symbol: unchosen.currency.symbol })
             : guardNotReady === "pending"
-              ? "Reading your loan guard on Arc."
+              ? tc("readingGuard")
               : converting && convertingState?.kind === "loading"
-                ? "Reading the euro price and the loan market on Arc."
+                ? t("blocked.readingEuro")
                 : converting && convertingState?.kind === "unavailable"
-                  ? "Adag could not read what the conversion needs. Reload to try again."
+                  ? t("blocked.convertUnreadable")
                   : shortOfBtc
-              ? "This basket pledges more cirBTC than your wallet holds. Pay a group from balance instead."
+              ? t("blocked.shortOfBtc")
               : null;
   const setupNeeds: SetupNeed[] = [];
   if (shortOfBtc || groups.some((g, gi) => !balanceEnough(g, groupData[gi]!) && groupData[gi]!.balance.state === "ok" && pledgeOf(g, groupData[gi]!) !== null && cirBtc.state === "ok" && cirBtc.value < (pledgeOf(g, groupData[gi]!) ?? 0n)))
@@ -503,6 +512,7 @@ export function Basket({
   });
 
   const fail = (message: string, hash?: Hex) => setTx({ kind: "failed", message, href: hash && `${EXPLORER}/tx/${hash}` });
+  const nothingSent = tc("nothingWasSent");
 
   const pay = async () => {
     try {
@@ -526,12 +536,14 @@ export function Basket({
       const records = await Promise.all(ids.map((id) => client.readContract({ address: contract, abi: adagAbi, functionName: "bill", args: [id] })));
       const changed = records.map((r, i) => ({ r, b: payable[i]! })).filter(({ r, b }) => r.status !== b.status || r.amount !== b.amount || !isAddressEqual(r.payee, b.payee) || !isAddressEqual(r.currency, b.currency) || r.ref !== b.ref);
       if (changed.length) {
-        const words = changed.map(({ r, b }) => `#${b.id} is now ${r.status === BILL_STATUS.Paid ? "paid" : r.status === BILL_STATUS.Void ? "cancelled" : "different"}`).join(", ");
-        return fail(`Since this page loaded, bill ${words}. Nothing was sent. Reload the basket to pay the rest.`);
+        const words = changed
+          .map(({ r, b }) => t("fail.billIsNow", { id: b.id.toString(), state: r.status === BILL_STATUS.Paid ? t("fail.statePaid") : r.status === BILL_STATUS.Void ? t("fail.stateCancelled") : t("fail.stateDifferent") }))
+          .join(", ");
+        return fail(t("fail.sinceLoaded", { words }));
       }
       fresh = records.map((r, i) => ({ ...payable[i]!, status: r.status, amount: r.amount, payee: r.payee, currency: r.currency, ref: r.ref }));
     } catch {
-      return fail("Arc did not answer, so nothing was built. Try again.");
+      return fail(tc("arcNoAnswerNothingBuilt"));
     }
 
     // C45, read again at the moment of paying.
@@ -545,13 +557,14 @@ export function Basket({
       for (const g of groups) {
         const m = g.currency.marketId;
         const choice = choices[g.currency.symbol];
+        const symbol = g.currency.symbol;
         if (choice === "balance") {
           const bal = await client.readContract({ address: g.currency.address, abi: erc20Abi, functionName: "balanceOf", args: [me] });
           const guardPull = g.currency.symbol === "USDC" ? pendingNow.usdc : pendingNow.eurc;
           const need = g.total + (isAddressEqual(g.currency.address, USDC) ? USDC_FEE_RESERVE : 0n) + guardPull;
           if (bal < need) {
-            const why = guardPull > 0n ? `, including ${formatUnitsExact(guardPull, g.currency.decimals)} your loan guard is about to repay` : "";
-            return fail(`Paying the ${g.currency.symbol} bills from balance needs ${formatUnitsExact(need, g.currency.decimals)} ${g.currency.symbol}${why}; your wallet holds ${formatUnitsExact(bal, g.currency.decimals)}. Nothing was sent.`);
+            const why = guardPull > 0n ? t("fail.includingGuard", { amount: formatUnitsExact(guardPull, g.currency.decimals) }) : "";
+            return fail(t("fail.balanceNeeds", { symbol, need: formatUnitsExact(need, g.currency.decimals), why, held: formatUnitsExact(bal, g.currency.decimals) }));
           }
           plan[g.currency.symbol] = { from: "balance" };
           continue;
@@ -563,16 +576,16 @@ export function Basket({
           client.readContract({ address: MORPHO, abi: morphoAbi, functionName: "idToMarketParams", args: [m] }),
         ]);
         // C24: the bitcoin path needs a fresh price at the moment of paying, not only when the page loaded.
-        if (!status[0]) return fail(`New loans in ${g.currency.symbol} are paused until the bitcoin price updates. Pay those bills from balance, or wait. Nothing was sent.`);
+        if (!status[0]) return fail(t("fail.pausedAtPay", { symbol }));
         // C69: with the other group converting, this loan is in the conversion's market and its pledge covers both.
         const pledge = conv && conv.symbol !== g.currency.symbol ? 0n : suggestPledge(needed);
         pledged += pledge;
         plan[g.currency.symbol] = { from: "bitcoin", pledge, marketParams: paramsFromTuple(tuple) };
       }
       if (conv) pledged += conv.estimate.pledge;
-      if (pledged > held) return fail(`This basket pledges ${formatUnitsExact(pledged, CIRBTC_DECIMALS)} cirBTC and your wallet holds ${formatUnitsExact(held, CIRBTC_DECIMALS)}. Nothing was sent.`);
+      if (pledged > held) return fail(t("fail.pledgesMore", { pledge: formatUnitsExact(pledged, CIRBTC_DECIMALS), held: formatUnitsExact(held, CIRBTC_DECIMALS) }));
     } catch {
-      return fail("Arc did not answer, so nothing was built. Try again.");
+      return fail(tc("arcNoAnswerNothingBuilt"));
     }
 
     // The conversion, checked again at the moment of paying against the figures that were frozen: the loan market's
@@ -587,15 +600,15 @@ export function Basket({
           client.readContract({ address: MORPHO, abi: morphoAbi, functionName: "idToMarketParams", args: [est.loan.marketId] }),
           checkAdapterPreflight(client, me, est.loan.address),
         ]);
-        if (loanFresh === false) return fail(`${reasons.loanPaused(est.loan.symbol)} Nothing was sent.`);
-        if (loanFresh === null) return fail(`${reasons.loanUnknown(est.loan.symbol)} Nothing was sent.`);
-        if (pre.state !== "clear") return fail(`${pre.state === "blocked" ? pre.blockers.join(" ") : pre.text} Nothing was sent.`);
+        if (loanFresh === false) return fail(`${reasons.loanPaused(est.loan.symbol)} ${nothingSent}`);
+        if (loanFresh === null) return fail(`${reasons.loanUnknown(est.loan.symbol)} ${nothingSent}`);
+        if (pre.state !== "clear") return fail(`${pre.state === "blocked" ? pre.blockers.join(" ") : pre.text} ${nothingSent}`);
         const need = est.amountIn + est.sharedBorrow;
         const cash = readyToLend(mk);
-        if (!lendCovers(cash, need)) return fail(`${reasons.cash(cash, need, est.loan.symbol)} Nothing was sent.`);
+        if (!lendCovers(cash, need)) return fail(`${reasons.cash(cash, need, est.loan.symbol)} ${nothingSent}`);
         loanTuple = tuple;
       } catch {
-        return fail("Arc did not answer, so nothing was built. Try again.");
+        return fail(tc("arcNoAnswerNothingBuilt"));
       }
     }
 
@@ -656,7 +669,7 @@ export function Basket({
     }
     if (newTrips.length) {
       setCaught((prev) => [...prev, ...newTrips]);
-      return fail("Your loan guard changed since this page loaded: read the note above before paying. Nothing was sent.");
+      return fail(tc("guardChanged"));
     }
 
     // C73: Circle is asked here, for exactly the frozen amount, and only after every other check has passed (the identical
@@ -683,7 +696,7 @@ export function Basket({
     try {
       built = buildPayMany(fresh, me, plan);
     } catch (error) {
-      return fail(`${(error as Error).message} Nothing was sent.`);
+      return fail(`${(error as Error).message} ${nothingSent}`);
     }
     // C71, failing closed: a conversion is only signed when this connection can trace the transfers it makes.
     if (built.conversion && !(await effectsCanBeChecked(client))) return fail(EFFECTS_UNAVAILABLE);
@@ -700,7 +713,7 @@ export function Basket({
       // No receipt in time: the bills' own records say what happened, so nobody pays twice.
       step("watching");
       if (!(await watchBills(contract, ids, BILL_STATUS.Paid, me))) {
-        return fail("Arc has not confirmed it after two minutes. Do not pay again: check the transaction first.", out.hash);
+        return fail(tc("notConfirmedTwoMinutes"), out.hash);
       }
       logs = null;
       hash = out.hash;
@@ -716,7 +729,7 @@ export function Basket({
     const proofs = logs ? billsPaidIn(logs, contract, ids, me) : null;
     const after = await Promise.all(ids.map((id) => client.readContract({ address: contract, abi: adagAbi, functionName: "bill", args: [id] }))).catch(() => null);
     const missing = ids.filter((id, i) => (proofs !== null && !proofs.get(id)) || !after || after[i]!.status !== BILL_STATUS.Paid || !isAddressEqual(after[i]!.payer, me));
-    if (missing.length) return fail(`Arc confirmed the transaction, but bill #${missing.join(", #")} does not read as paid by you. Check the transaction.`, hash);
+    if (missing.length) return fail(t("fail.notPaidByYou", { ids: missing.join(", #") }), hash);
 
     const btcAfter = await pledgedNow().catch(() => null);
     const ltv = await Promise.all(
@@ -768,33 +781,24 @@ export function Basket({
     bills.length > 0 &&
     bills.every((b) => b !== null && b.status === BILL_STATUS.Paid && isAddressEqual(b.payer, safeMemo.safe));
   const shownAside = paidBySafe ? [] : aside;
+  const em = (chunks: React.ReactNode) => <em className="font-semibold text-gold italic">{chunks}</em>;
   return (
     <section className="relative px-5 pt-12 pb-24 md:px-[6vw] md:pt-[9vh]">
       <div className="app-rise" style={{ "--d": 0 } as React.CSSProperties}>
         <Hallmark>
-          Basket · {items.length} bills{aside.length > 0 ? ` · ${payable.length} payable` : ""}
-          {first ? " · First deployment" : ""}
-          <span className="hidden md:inline"> · Arc mainnet</span>
+          {t("hallmark", { n: String(items.length) })}
+          {aside.length > 0 ? ` · ${t("payable", { n: String(payable.length) })}` : ""}
+          {first ? ` · ${tc("firstDeployment")}` : ""}
+          <span className="hidden md:inline"> · {tc("arcMainnet")}</span>
         </Hallmark>
       </div>
       <h1 className="app-title app-rise mt-6 max-w-[14ch] text-text" style={{ "--d": 1 } as React.CSSProperties}>
-        {paidBySafe ? (
-          <>
-            Paid by your <em className="font-semibold text-gold italic">Safe</em>.
-          </>
-        ) : n === 0 ? (
-          "Nothing to pay."
-        ) : (
-          <>
-            {n > 1 ? `${n} bills.` : "One bill."} <em className="font-semibold text-gold italic">One</em> signature.
-          </>
-        )}
+        {paidBySafe ? t.rich("titlePaidBySafe", { em }) : n === 0 ? t("titleNothing") : t.rich("title", { count: n, n: String(n), em })}
       </h1>
       {droppedCount > 0 && (
         // L3: a link's text reaches this page only as a short sample and a count, never as sentences.
         <p className="type-body app-rise mt-6 text-muted" style={{ "--d": 2 } as React.CSSProperties} data-dropped>
-          Left out because {droppedCount === 1 ? "it is not a bill number" : "they are not bill numbers"}: {dropped.join(", ")}
-          {droppedCount > dropped.length ? ` and ${droppedCount - dropped.length} more` : ""}.
+          {t("leftOut", { count: droppedCount, list: dropped.join(", "), more: droppedCount > dropped.length ? t("andMore", { n: String(droppedCount - dropped.length) }) : "" })}
         </p>
       )}
 
@@ -805,20 +809,20 @@ export function Basket({
       </div>
       {paidBySafe && safeMemo && (
         <p className="type-body app-rise mt-6 text-muted" data-paid-by-safe>
-          Read from AdagBills: Safe {shortAddress(safeMemo.safe)} is the payer of record for {bills.length === 1 ? "this bill" : `all ${bills.length} bills`}.
+          {t("safePayerOfRecord", { safe: shortAddress(safeMemo.safe), count: bills.length, n: String(bills.length) })}
         </p>
       )}
 
       {shownAside.length > 0 && (
         <div className="mt-12" data-aside>
-          <p className="type-label text-muted">Not in this payment</p>
+          <p className="type-label text-muted">{t("notInThisPayment")}</p>
           <ul className="mt-4 border-t border-rule">
             {shownAside.map(({ item, bill, reason }) => (
               <li key={item.id} className="grid grid-cols-[5rem_1fr] items-center gap-4 border-b border-rule py-4 md:grid-cols-[5rem_12rem_1fr_auto]" data-aside-bill={item.id}>
                 <a href={billHref(contract, BigInt(item.id))} className="font-display text-[1.5rem] leading-none text-text transition-colors duration-200 hover:text-gold">
-                  No. {item.id}
+                  {tc("no", { id: item.id })}
                 </a>
-                <span className="type-ui tabular-nums text-muted">{bill ? money(bill) : "unknown"}</span>
+                <span className="type-ui tabular-nums text-muted">{bill ? money(bill) : tc("unknown")}</span>
                 <span className="type-body col-span-2 text-text md:col-span-1" data-reason>
                   {reason}
                 </span>
@@ -844,10 +848,10 @@ export function Basket({
       {n === 0 && !paid && !paidBySafe && !(safeMode && safeProposed) && (
         <div className="mt-10 flex flex-col gap-3 md:flex-row" data-next-steps>
           <Button href="/pay" variant="primary" className="w-full md:w-auto">
-            Pay a bill
+            {tc("payABill")}
           </Button>
           <Button href="/bill/new" variant="secondary" className="w-full md:w-auto">
-            Write a bill
+            {tc("writeABill")}
           </Button>
         </div>
       )}
@@ -858,7 +862,7 @@ export function Basket({
             {!me ? (
               <div className="app-panel p-6 md:p-8" data-blocked="true">
                 <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
-                  <p className="type-lead max-w-[30rem] text-text">Connect a wallet to see how each currency can be paid.</p>
+                  <p className="type-lead max-w-[30rem] text-text">{t("connectToSee")}</p>
                   <ConnectButton />
                 </div>
                 <GetSetUp needs={["arc", "cirbtc", "usdc"]} className="mt-6" />
@@ -900,28 +904,23 @@ export function Basket({
           </div>
           <div className="lg:col-span-4">
             <div className="app-panel p-6 md:p-8 lg:sticky lg:top-28">
-              <p className="type-label text-muted">One transaction</p>
+              <p className="type-label text-muted">{t("oneTransaction")}</p>
               <p className="type-body mt-3 text-text">
-                {groups.map((g) => `${formatUnitsExact(g.total, g.currency.decimals)} ${g.currency.symbol}`).join(" and ")} across {n} bill{n === 1 ? "" : "s"}. Every
-                step succeeds together or nothing moves.
+                {t("totals", { totals: groups.map((g) => `${formatUnitsExact(g.total, g.currency.decimals)} ${g.currency.symbol}`).join(t("and")), count: n, n: String(n) })}
               </p>
               <FeeLine
                 query={feeQuery}
-                idle={
-                  convertingEstimate
-                    ? `With a conversion the network fee is checked when you press pay: ${keepText(convertingEstimate.keepUpTo)}.`
-                    : "The network fee shows once each currency has a choice."
-                }
+                idle={convertingEstimate ? t("feeWithConversion", { keep: keepText(convertingEstimate.keepUpTo) }) : t("feeIdle")}
                 className="mt-3"
               />
-              {shownNotes.map((t) => (
-                <p key={t} className="type-body mt-4 text-text" data-guard-trigger>
-                  {t}
+              {shownNotes.map((note) => (
+                <p key={note} className="type-body mt-4 text-text" data-guard-trigger>
+                  {tl(note)}
                 </p>
               ))}
               {guardNotReady === "unreadable" && (
                 <p className="type-body mt-4 text-danger" data-guard-rule-unreadable>
-                  {GUARD_RULE_UNREADABLE}
+                  {tl(GUARD_RULE_UNREADABLE)}
                 </p>
               )}
               {showEnrol && me && (
@@ -944,14 +943,14 @@ export function Basket({
               {recorded && !showEnrol && (
                 <p className="type-body mt-6 flex items-center gap-3 text-text" data-enrol-recorded>
                   <span aria-hidden="true" className="diamond !bg-success" />
-                  Loan recorded ·{" "}
+                  {tc("loanRecorded")}{" "}
                   <a href={`${EXPLORER}/tx/${recorded}`} target="_blank" rel="noopener noreferrer" className="link-draw text-gold hover:text-text">
-                    view the transaction
+                    {tc("viewTheTransactionLower")}
                   </a>
                 </p>
               )}
               <Button variant="primary" disabled={!canPay} onClick={onPay} className="mt-6 w-full" data-action="pay-basket">
-                {busy ? <BusyLabel step={busy.step} since={busy.since} /> : `Pay ${n} bill${n === 1 ? "" : "s"} with one signature`}
+                {busy ? <BusyLabel step={busy.step} since={busy.since} /> : t("payButton", { count: n, n: String(n) })}
               </Button>
               {payBlocked && (
                 <p className={`type-body mt-3 ${shortOfBtc ? "text-danger" : "text-muted"}`} data-blocked-reason>
@@ -960,12 +959,12 @@ export function Basket({
               )}
               {pendingText && (
                 <p className="type-body mt-3 text-muted" data-guard-pending>
-                  {pendingText}
+                  {tl(pendingText)}
                 </p>
               )}
               {pending === null && (
                 <p className="type-body mt-3 text-danger" data-guard-unreadable>
-                  {GUARD_UNREADABLE}
+                  {tl(GUARD_UNREADABLE)}
                 </p>
               )}
               <div className="mt-4">
@@ -985,61 +984,57 @@ export function Basket({
           transition={{ duration: 0.6, delay: 0.7, ease: [0.16, 1, 0.3, 1] }}
           className="app-panel mt-14 p-6 md:p-10"
         >
-          <p className="type-label text-success">Confirmed on Arc</p>
+          <p className="type-label text-success">{tc("confirmedOnArc")}</p>
           <p className="mt-4 font-display text-[clamp(2.5rem,6vw,5rem)] leading-[0.95] font-semibold tracking-[-0.02em] text-text">
-            {paid.count} bills paid. <em className="text-gold italic">1</em> signature.
+            {t.rich("paidTitle", { n: String(paid.count), em: (chunks) => <em className="text-gold italic">{chunks}</em> })}
           </p>
           <dl className="mt-8 grid gap-x-10 gap-y-5 border-t border-rule pt-6 sm:grid-cols-2 lg:grid-cols-4">
             <div>
-              <dt className="type-micro text-muted">Transaction</dt>
+              <dt className="type-micro text-muted">{tc("transaction")}</dt>
               <dd className="mt-1">
                 <a href={`${EXPLORER}/tx/${paid.hash}`} target="_blank" rel="noopener noreferrer" className="link-draw type-address text-text hover:text-gold">
-                  {shortAddress(paid.hash)} on the explorer
+                  {tc("hashOnExplorer", { hash: shortAddress(paid.hash) })}
                 </a>
               </dd>
             </div>
             <div>
-              <dt className="type-micro text-muted">Bitcoin sold</dt>
+              <dt className="type-micro text-muted">{tc("bitcoinSold")}</dt>
               <dd className="type-body mt-1 text-text" data-sold>
-                {paid.sold === null ? "unavailable" : `${paid.sold === 0n ? "0" : formatUnitsExact(paid.sold, CIRBTC_DECIMALS)} cirBTC`}
+                {paid.sold === null ? tc("unavailable") : `${paid.sold === 0n ? "0" : formatUnitsExact(paid.sold, CIRBTC_DECIMALS)} cirBTC`}
               </dd>
             </div>
             {paid.ltv.map((l) => (
               <div key={l.symbol}>
-                <dt className="type-micro text-muted">{l.symbol} loan-to-value after</dt>
+                <dt className="type-micro text-muted">{t("ltvAfterSymbol", { symbol: l.symbol })}</dt>
                 <dd className="type-body mt-1 tabular-nums text-text" data-ltv-after={l.symbol}>
-                  {formatPercentWad(l.value)} <span className="text-muted">of Adag&apos;s {formatPercentWad(MAX_LTV_WAD)}</span>
+                  {formatPercentWad(l.value)} <span className="text-muted">{t("ofAdagsCap", { cap: formatPercentWad(MAX_LTV_WAD) })}</span>
                 </dd>
               </div>
             ))}
             {paid.convert && (
               <>
                 <div data-convert-paid>
-                  <dt className="type-micro text-muted">Converted by Circle</dt>
+                  <dt className="type-micro text-muted">{t("convertedByCircle")}</dt>
                   <dd className="type-body mt-1 tabular-nums text-text" data-converted>
                     {paid.convert.converted === null
-                      ? "unavailable"
-                      : `${formatUnitsExact(paid.convert.amountIn, 6)} ${paid.convert.loan.symbol} became ${formatUnitsExact(paid.convert.converted, 6)} ${paid.convert.bill.symbol}`}
+                      ? tc("unavailable")
+                      : tc("became", { from: `${formatUnitsExact(paid.convert.amountIn, 6)} ${paid.convert.loan.symbol}`, to: `${formatUnitsExact(paid.convert.converted, 6)} ${paid.convert.bill.symbol}` })}
                   </dd>
                 </div>
                 <div>
-                  <dt className="type-micro text-muted">Left in your wallet</dt>
+                  <dt className="type-micro text-muted">{tc("leftInWallet")}</dt>
                   <dd className="type-body mt-1 tabular-nums text-text" data-surplus>
-                    {paid.convert.surplus === null ? "unavailable" : `${formatUnitsExact(paid.convert.surplus, 6)} ${paid.convert.bill.symbol}`}
+                    {paid.convert.surplus === null ? tc("unavailable") : `${formatUnitsExact(paid.convert.surplus, 6)} ${paid.convert.bill.symbol}`}
                   </dd>
                 </div>
                 <div>
-                  <dt className="type-micro text-muted">Your debt</dt>
-                  <dd className="type-body mt-1 text-text">In {paid.convert.loan.symbol}. Its dollar cost moves with the euro.</dd>
+                  <dt className="type-micro text-muted">{tc("yourDebt")}</dt>
+                  <dd className="type-body mt-1 text-text">{tc("debtInCurrency", { symbol: paid.convert.loan.symbol })}</dd>
                 </div>
                 <div>
-                  <dt className="type-micro text-muted">Circle&apos;s adapter</dt>
+                  <dt className="type-micro text-muted">{tc("circlesAdapter")}</dt>
                   <dd className="type-body mt-1 text-text" data-adapter-clear={String(paid.convert.adapterClear)}>
-                    {paid.convert.adapterClear === true
-                      ? "No access to your wallet is left."
-                      : paid.convert.adapterClear === false
-                        ? "It still has access to your wallet."
-                        : "Its access could not be read."}
+                    {paid.convert.adapterClear === true ? tc("adapterNoAccess") : paid.convert.adapterClear === false ? tc("adapterStillAccess") : tc("adapterUnreadable")}
                     {paid.convert.adapterClear !== true && me && (
                       <ConvertReset account={me} loanToken={paid.convert.loan.address} canSign={ready} onDone={() => setPaid((p) => (p && p.convert ? { ...p, convert: { ...p.convert, adapterClear: true } } : p))} className="mt-2" />
                     )}
@@ -1050,7 +1045,7 @@ export function Basket({
           </dl>
           {paid.convert?.effectsUnchecked && (
             <p className="type-body mt-5 text-muted" data-effects-unchecked>
-              Adag could not trace this conversion&apos;s transfers before you signed, so only the payment&apos;s own balance check guarded it.
+              {tc("effectsUnchecked")}
             </p>
           )}
         </motion.div>
@@ -1074,8 +1069,10 @@ function money(b: Bill) {
   return c ? `${formatUnitsExact(b.amount, c.decimals)} ${c.symbol}` : b.amount.toString();
 }
 
-// Payee and amount come from bill(id), the record pay() uses (C15); the reference is text only (C14).
+// Payee and amount come from bill(id), the record pay() uses (C15); the reference is text only (C14), placed as a
+// React child and never as markup (I2).
 function BillCard({ bill, index, landed }: { bill: Bill; index: number; landed: boolean }) {
+  const tc = useTranslations("common");
   const c = currencyOf(bill.currency);
   const reference = referenceText(bill.ref);
   return (
@@ -1088,7 +1085,7 @@ function BillCard({ bill, index, landed }: { bill: Bill; index: number; landed: 
       data-landed={landed ? "paid" : "open"}
     >
       <div className="flex items-start justify-between gap-4">
-        <p className="font-display text-[2.25rem] leading-none font-semibold tracking-[-0.02em] text-text">No. {bill.id.toString()}</p>
+        <p className="font-display text-[2.25rem] leading-none font-semibold tracking-[-0.02em] text-text">{tc("no", { id: bill.id.toString() })}</p>
         <div className="-mt-1">
           {landed ? <BillStamp key="paid" status="paid" entrance="in-view" tilt={-9} /> : <BillStamp key="open" status="open" tilt={-6} />}
         </div>
@@ -1099,12 +1096,12 @@ function BillCard({ bill, index, landed }: { bill: Bill; index: number; landed: 
       </p>
       <dl className="mt-6 space-y-3 border-t border-rule pt-4">
         <div>
-          <dt className="type-micro text-muted">Pays</dt>
+          <dt className="type-micro text-muted">{tc("pays")}</dt>
           <dd className="type-address mt-1 break-all text-text">{fullAddress(bill.payee)}</dd>
         </div>
         <div>
-          <dt className="type-micro text-muted">Reference</dt>
-          <dd className="type-body mt-1 text-text">{reference ? <span className="app-reference">{reference}</span> : <span className="text-muted">None</span>}</dd>
+          <dt className="type-micro text-muted">{tc("reference")}</dt>
+          <dd className="type-body mt-1 text-text">{reference ? <span className="app-reference">{reference}</span> : <span className="text-muted">{tc("none")}</span>}</dd>
         </div>
       </dl>
     </motion.article>
@@ -1131,6 +1128,11 @@ type GroupPanelProps = {
 };
 
 function GroupPanel({ group, data, cirBtc, choice, balanceOk, disabled, notice, onChoose, usd, convert, sharedWith, extraBorrow, me, canSign, onResetDone }: GroupPanelProps) {
+  const t = useTranslations("basket.group");
+  const tc = useTranslations("common");
+  const tl = useLibText();
+  const usdHint = useUsdHint();
+  const convertTitle = useConvertTitle();
   const { currency, total, bills } = group;
   const loanCurrency = loanCurrencyFor(currency.symbol);
   const fresh = data.fresh.state === "ok" ? data.fresh.value : null;
@@ -1150,6 +1152,7 @@ function GroupPanel({ group, data, cirBtc, choice, balanceOk, disabled, notice, 
   const ready: Cell<bigint> = data.market.state === "ok" ? { state: "ok", value: readyToLend(data.market.value) } : data.market;
   const lendShort = ready.state === "ok" && !lendCovers(ready.value, total + extraBorrow);
   const readyText = (v: bigint) => `${formatUnitsExact(v, currency.decimals)} ${currency.symbol}`;
+  const readyValue = () => <Value cell={ready} render={readyText} className="text-text" />;
 
   const option = (c: Choice, title: string, enabled: boolean, body: React.ReactNode, wide = false) => (
     <button
@@ -1177,9 +1180,7 @@ function GroupPanel({ group, data, cirBtc, choice, balanceOk, disabled, notice, 
   return (
     <div className="app-panel p-6 md:p-8" data-group={currency.symbol}>
       <div className="flex flex-wrap items-baseline justify-between gap-3">
-        <p className="type-label text-text">
-          {bills.length} {currency.symbol} bill{bills.length === 1 ? "" : "s"}
-        </p>
+        <p className="type-label text-text">{t("groupTitle", { count: bills.length, n: String(bills.length), symbol: currency.symbol })}</p>
         <p className="font-display text-[1.75rem] leading-none font-medium tabular-nums text-text">
           {formatUnitsExact(total, currency.decimals)} <span className="text-[0.6em] italic text-gold">{currency.symbol}</span>
         </p>
@@ -1190,44 +1191,34 @@ function GroupPanel({ group, data, cirBtc, choice, balanceOk, disabled, notice, 
           {notice}
         </p>
       )}
-      <div role="radiogroup" aria-label={`Pay the ${currency.symbol} bills from`} className="mt-6 grid gap-4 md:grid-cols-2">
+      <div role="radiogroup" aria-label={t("payFrom", { symbol: currency.symbol })} className="mt-6 grid gap-4 md:grid-cols-2">
         {option(
           "bitcoin",
-          "From bitcoin",
+          t("fromBitcoin"),
           fresh === true && !lendShort,
           fresh === false ? (
-            "New loans are paused until the bitcoin price updates."
+            tc("stalePriceShort")
           ) : lendShort ? (
-            <>
-              Morpho has <Value cell={ready} render={readyText} className="text-text" /> ready to lend right now, less than{" "}
-              {extraBorrow > 0n ? "these bills together with the conversion you chose" : "these bills"}. Pay from your balance, or check back later.
-            </>
+            t.rich("lendShort", { what: extraBorrow > 0n ? t("theseBillsWithConversion") : t("theseBills"), ready: readyValue })
           ) : sharedWith ? (
-            <>
-              These bills are in the same Morpho market as the conversion chosen for the {sharedWith} bills, so one pledge covers both and is shown there. You pledge no extra cirBTC
-              here. Morpho has <Value cell={ready} render={readyText} className="text-text" /> ready to lend now.
-            </>
+            t.rich("sharedMarket", { other: sharedWith, ready: readyValue })
           ) : (
             <>
-              {pledge.state === "ok" && pledge.value === 0n ? (
-                <>You pledge no extra cirBTC: what you already pledged covers this.</>
-              ) : (
-                <>
-                  You pledge <Value cell={pledge} render={(v) => `${formatUnitsExact(v, CIRBTC_DECIMALS)} cirBTC${usdHint(v, usd)}`} className="text-text" /> and keep it.
-                </>
-              )}{" "}
-              Bitcoin can fall <Value cell={after} render={(v) => formatPercentWad(v.drop)} className="text-text" /> before Morpho may liquidate.{" "}
-              Morpho has <Value cell={ready} render={readyText} className="text-text" /> ready to lend now.
+              {pledge.state === "ok" && pledge.value === 0n
+                ? t("pledgeNothingExtra")
+                : t.rich("pledgeAndKeep", { pledge: () => <Value cell={pledge} render={(v) => `${formatUnitsExact(v, CIRBTC_DECIMALS)} cirBTC${usdHint(v, usd)}`} className="text-text" /> })}{" "}
+              {t.rich("canFall", { drop: () => <Value cell={after} render={(v) => formatPercentWad(v.drop)} className="text-text" /> })}{" "}
+              {t.rich("morphoReady", { ready: readyValue })}
             </>
           ),
         )}
         {option(
           "balance",
-          "From balance",
+          t("fromBalance"),
           balanceOk,
           <>
-            You hold <Value cell={data.balance} render={(v) => `${formatUnitsExact(v, currency.decimals)} ${currency.symbol}`} className="text-text" />.{" "}
-            {balanceOk ? "One exact approval, then each bill is paid." : isUsdc ? "Not enough for these bills and the network fee." : "Not enough for these bills."}
+            {t.rich("youHold", { balance: () => <Value cell={data.balance} render={(v) => `${formatUnitsExact(v, currency.decimals)} ${currency.symbol}`} className="text-text" /> })}{" "}
+            {balanceOk ? t("oneApproval") : isUsdc ? t("notEnoughFee") : t("notEnough")}
           </>,
         )}
         {option(
@@ -1236,12 +1227,12 @@ function GroupPanel({ group, data, cirBtc, choice, balanceOk, disabled, notice, 
           convert.kind === "ready",
           convert.kind === "loading" ? (
             <>
-              Reading the euro price and the {loanCurrency.symbol} market on Arc. <Reading />
+              {tc("readingEuroAndMarket", { symbol: loanCurrency.symbol })} <Reading />
             </>
           ) : convert.kind === "unavailable" ? (
-            <>Adag could not read what a conversion needs, so it is off. Reload to try again.</>
+            <>{tc("convertUnreadable")}</>
           ) : convert.kind === "off" ? (
-            <span data-convert-off>{convert.reason}</span>
+            <span data-convert-off>{tl(convert.reason)}</span>
           ) : (
             <ConvertEstimate e={convert.estimate} />
           ),
@@ -1251,10 +1242,12 @@ function GroupPanel({ group, data, cirBtc, choice, balanceOk, disabled, notice, 
       {convert.kind === "off" && convert.reset && me && <ConvertReset account={me} loanToken={loanCurrency.address} canSign={canSign} onDone={onResetDone} className="mt-4" />}
       {fresh !== false && !sharedWith && (
         <details className="group mt-4">
-          <summary className="type-micro cursor-pointer list-none text-muted transition-colors duration-200 hover:text-text">Details</summary>
+          <summary className="type-micro cursor-pointer list-none text-muted transition-colors duration-200 hover:text-text">{tc("details")}</summary>
           <p className="type-body mt-2 text-muted">
-            Loan-to-value after: <Value cell={after} render={(v) => formatPercentWad(v.ltv)} className="text-text" /> (Adag refuses anything over 40%). cirBTC in your wallet:{" "}
-            <Value cell={cirBtc} render={(v) => `${formatUnitsExact(v, CIRBTC_DECIMALS)}${usdHint(v, usd)}`} className="text-text" />. The pledge includes 5% for price moves.
+            {t.rich("details", {
+              ltv: () => <Value cell={after} render={(v) => formatPercentWad(v.ltv)} className="text-text" />,
+              btc: () => <Value cell={cirBtc} render={(v) => `${formatUnitsExact(v, CIRBTC_DECIMALS)}${usdHint(v, usd)}`} className="text-text" />,
+            })}
           </p>
         </details>
       )}

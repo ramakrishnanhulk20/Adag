@@ -1,18 +1,19 @@
 import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 import { Hallmark } from "@/components/Hallmark";
 import { AppShell } from "@/components/app/AppShell";
 import { PayForm } from "@/components/app/PayForm";
 import { readTotalBillCount } from "@/lib/pay/read";
 
-export const metadata: Metadata = {
-  title: "Pay a bill",
-  description: "Open a bill on Arc by its number or link, and see exactly who it pays and how much.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("meta.pay");
+  return { title: t("title"), description: t("description") };
+}
 
 export const dynamic = "force-dynamic";
 
 export default async function PayPage() {
-  const count = await readTotalBillCount();
+  const [count, t, tc] = await Promise.all([readTotalBillCount(), getTranslations("pay"), getTranslations("common")]);
 
   return (
     <AppShell>
@@ -26,14 +27,13 @@ export default async function PayPage() {
         </div>
 
         <div className="app-rise" style={{ "--d": 0 } as React.CSSProperties}>
-          <Hallmark>Pay a bill · Arc mainnet</Hallmark>
+          <Hallmark>{t("hallmark")}</Hallmark>
         </div>
         <h1 className="app-title app-rise mt-6 max-w-[11ch] text-text" style={{ "--d": 1 } as React.CSSProperties}>
-          Which <em className="font-semibold text-gold italic">bill</em>?
+          {t.rich("title", { em: (chunks) => <em className="font-semibold text-gold italic">{chunks}</em> })}
         </h1>
         <p className="type-lead app-rise mt-6 max-w-[40rem] text-text/88 md:mt-8" style={{ "--d": 2 } as React.CSSProperties}>
-          Type the number your supplier sent, or paste their link. Adag reads the bill straight from Arc: who it pays, how much, and
-          whether it is still open. Several numbers, up to ten, are paid together with one signature.
+          {t("lead")}
         </p>
 
         <div className="app-rise mt-10 md:mt-14" style={{ "--d": 3 } as React.CSSProperties}>
@@ -41,11 +41,11 @@ export default async function PayPage() {
         </div>
 
         <div className="app-rise mt-6 flex items-baseline gap-4 border-t border-rule pt-6 md:mt-10 md:max-w-[44rem]" style={{ "--d": 4 } as React.CSSProperties}>
-          <span className={count.ok ? "type-number text-text" : "type-label text-muted"}>{count.ok ? count.total.toString() : "unavailable"}</span>
+          <span className={count.ok ? "type-number text-text" : "type-label text-muted"}>{count.ok ? count.total.toString() : tc("unavailable")}</span>
           <span className="type-body text-muted">
             {count.ok
-              ? `bill${count.total === 1n ? "" : "s"} written on Arc so far: ${count.current} on the current AdagBills and ${count.first} on the first deployment, read just now.`
-              : "Arc did not answer, so the bill count is unknown right now."}
+              ? t("countNote", { count: Number(count.total), current: count.current.toString(), first: count.first.toString() })
+              : t("countUnknown")}
           </span>
         </div>
       </section>

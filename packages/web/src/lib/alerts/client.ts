@@ -26,7 +26,8 @@ export function newNonce(): string {
 // Five minutes to sign: well inside the server's fifteen-minute limit.
 export const expirySoon = () => Math.floor(Date.now() / 1000) + 300;
 
-export const issueCode = () => post<{ code: string; expiresAt: number; link: string }>("/api/alerts/code", {});
+// `lang` is the language the owner is reading Adag in; the server keeps it with the code (I4).
+export const issueCode = (lang?: string) => post<{ code: string; expiresAt: number; link: string }>("/api/alerts/code", lang ? { lang } : {});
 
 export const codeStatus = (code: string) => post<{ state: "waiting" } | { state: "pressed"; chatId: string; chatHandle: string | null }>("/api/alerts/code/status", { code });
 

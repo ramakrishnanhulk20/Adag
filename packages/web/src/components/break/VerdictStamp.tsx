@@ -1,27 +1,33 @@
 "use client";
 
 import { useId } from "react";
+import { useTranslations } from "next-intl";
 import { motion, useReducedMotion } from "motion/react";
 import type { Verdict } from "@/lib/break/catalogue";
 
 export type StampKind = Verdict | "armed" | "running";
 
 // The same double-ruled, ink-rough stamp as BillStamp, with the attack verdicts as its words.
-const LOOK: Record<StampKind, { word: string; ink: string; tilt: number }> = {
-  refused: { word: "Refused", ink: "stamp-paid", tilt: -7 },
-  held: { word: "Held", ink: "stamp-paid", tilt: -6 },
-  allowed: { word: "Allowed", ink: "stamp-paid", tilt: -5 },
-  "by-design": { word: "By design", ink: "stamp-open", tilt: -6 },
-  broken: { word: "Broken", ink: "stamp-void", tilt: -9 },
-  error: { word: "Not run", ink: "bk-stamp-quiet", tilt: -4 },
-  armed: { word: "Armed", ink: "bk-stamp-quiet", tilt: 0 },
-  running: { word: "Running", ink: "bk-stamp-quiet", tilt: 0 },
+const LOOK: Record<StampKind, { ink: string; tilt: number }> = {
+  refused: { ink: "stamp-paid", tilt: -7 },
+  held: { ink: "stamp-paid", tilt: -6 },
+  allowed: { ink: "stamp-paid", tilt: -5 },
+  "by-design": { ink: "stamp-open", tilt: -6 },
+  broken: { ink: "stamp-void", tilt: -9 },
+  error: { ink: "bk-stamp-quiet", tilt: -4 },
+  armed: { ink: "bk-stamp-quiet", tilt: 0 },
+  running: { ink: "bk-stamp-quiet", tilt: 0 },
 };
 
+// Catalog keys cannot carry a hyphen in their path, so "by-design" is spelled byDesign there.
+const KEY: Record<StampKind, string> = { refused: "refused", held: "held", allowed: "allowed", "by-design": "byDesign", broken: "broken", error: "error", armed: "armed", running: "running" };
+
 export function VerdictStamp({ kind }: { kind: StampKind }) {
+  const t = useTranslations("break.stamps");
   const filterId = `bk-ink-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
   const reduce = useReducedMotion();
   const look = LOOK[kind];
+  const word = t(KEY[kind]);
   const landed = kind !== "armed" && kind !== "running";
 
   return (
@@ -38,8 +44,8 @@ export function VerdictStamp({ kind }: { kind: StampKind }) {
           <feDisplacementMap in="SourceGraphic" in2="ink" scale="1.5" xChannelSelector="R" yChannelSelector="G" />
         </filter>
       </svg>
-      <span className={`stamp bk-stamp ${look.ink}`} style={landed ? { filter: `url(#${filterId})` } : undefined} role="img" aria-label={`Verdict: ${look.word}`}>
-        <span className="stamp-inner">{look.word}</span>
+      <span className={`stamp bk-stamp ${look.ink}`} style={landed ? { filter: `url(#${filterId})` } : undefined} role="img" aria-label={t("verdict", { word })}>
+        <span className="stamp-inner">{word}</span>
       </span>
     </motion.span>
   );

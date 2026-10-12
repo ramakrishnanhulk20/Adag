@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import { AnimatePresence, motion } from "motion/react";
 import type { EIP1193Provider } from "viem";
 import { useConnect, useConnection, useConnectors, useDisconnect } from "wagmi";
@@ -10,11 +11,11 @@ import { projectId } from "@/lib/wallet/config";
 import { switchToArc } from "@/lib/wallet/switchToArc";
 import { useWallet } from "@/lib/wallet/useWallet";
 import { shortAddress } from "@/lib/pay/format";
-import { networkName } from "@/lib/wallet/networks";
+import { useNetworkName } from "@/lib/wallet/networks";
 
 function firstLine(error: unknown) {
   const e = error as { shortMessage?: string; message?: string } | undefined;
-  return (e?.shortMessage || e?.message || "The wallet did not answer.").split("\n")[0]!.slice(0, 120);
+  return (e?.shortMessage || e?.message || "").split("\n")[0]!.slice(0, 120);
 }
 
 const pop = {
@@ -37,7 +38,10 @@ type Props = {
 const openModal = projectId ? (view: ModalView) => void appKit?.open({ view }) : null;
 
 export function ConnectButton({ beforeOpen }: Props) {
+  const t = useTranslations("connect");
+  const tc = useTranslations("common");
   const wallet = useWallet();
+  const networkName = useNetworkName();
   const { connector } = useConnection();
   const connectors = useConnectors();
   const connect = useConnect();
@@ -48,6 +52,8 @@ export function ConnectButton({ beforeOpen }: Props) {
   const [copied, setCopied] = useState(false);
   const menuId = useId();
   const root = useRef<HTMLDivElement>(null);
+  // The wallet's own first line stays as the wallet wrote it; only an empty answer gets Adag's sentence.
+  const walletLine = (error: unknown) => firstLine(error) || t("walletDidNotAnswer");
 
   useEffect(() => {
     if (!open) return;
@@ -77,14 +83,11 @@ export function ConnectButton({ beforeOpen }: Props) {
   const connectInjected = () => {
     const injected = connectors.find((c) => c.type === "injected");
     if (!injected || (typeof window !== "undefined" && !("ethereum" in window))) {
-      setNote("No wallet found in this browser. Open Adag in the browser inside MetaMask or Rabby, or add one to this browser.");
+      setNote(t("noWalletFound"));
       return;
     }
     setNote(null);
-    connect.mutate(
-      { connector: injected },
-      { onError: (error) => setNote(/reject|denied|cancel/i.test(firstLine(error)) ? "You closed the wallet request. Nothing was connected." : firstLine(error)) },
-    );
+    connect.mutate({ connector: injected }, { onError: (error) => setNote(/reject|denied|cancel/i.test(firstLine(error)) ? t("closedRequest") : walletLine(error)) });
   };
 
   const onSwitch = async () => {
@@ -95,7 +98,7 @@ export function ConnectButton({ beforeOpen }: Props) {
       const provider = (await connector.getProvider()) as EIP1193Provider;
       await switchToArc(provider);
     } catch (error) {
-      setNote(/reject|denied|cancel/i.test(firstLine(error)) ? "You declined the switch. Adag only works on Arc." : firstLine(error));
+      setNote(/reject|denied|cancel/i.test(firstLine(error)) ? t("declinedSwitch") : walletLine(error));
     } finally {
       setSwitching(false);
     }
@@ -117,7 +120,7 @@ export function ConnectButton({ beforeOpen }: Props) {
   if (wallet.status === "connected" && !wallet.onArc) {
     trigger = (
       <Button variant="primary" size="sm" onClick={onSwitch} disabled={switching} aria-live="polite">
-        {switching ? "Check your wallet" : "Switch to Arc"}
+        {switching ? t("checkYourWallet") : tc("switchToArc")}
       </Button>
     );
   } else if (wallet.status === "connected") {
@@ -138,7 +141,7 @@ export function ConnectButton({ beforeOpen }: Props) {
   } else {
     trigger = (
       <Button variant="secondary" size="sm" onClick={() => (openModal ? showModal("Connect") : connectInjected())} disabled={connecting} aria-haspopup={openModal ? "dialog" : undefined}>
-        {connecting ? "Check your wallet" : "Connect wallet"}
+        {connecting ? t("checkYourWallet") : tc("connectWallet")}
       </Button>
     );
   }
@@ -149,11 +152,11 @@ export function ConnectButton({ beforeOpen }: Props) {
       <AnimatePresence>
         {!openModal && open && wallet.status === "connected" && (
           <motion.div key="account" id={menuId} {...pop} className="absolute right-0 top-full z-50 mt-2 w-[min(88vw,22rem)] rounded-[8px] border border-rule bg-raised p-4 shadow-[0_24px_60px_-20px_rgb(0_0_0/0.5)]">
-            <p className="type-micro text-muted">Connected on {wallet.onArc ? "Arc mainnet" : networkName(wallet.chainId)}</p>
+            <p className="type-micro text-muted">{t("connectedOn", { network: wallet.onArc ? tc("arcMainnet") : networkName(wallet.chainId) })}</p>
             <p className="type-address mt-2 break-all text-text">{wallet.address}</p>
             <div className="mt-4 flex gap-2">
               <button type="button" onClick={() => copy(wallet.address)} className="type-micro rounded-[6px] border border-rule-strong px-3 py-2 text-text transition-colors duration-200 hover:border-gold hover:text-gold">
-                {copied ? "Copied" : "Copy address"}
+                {copied ? tc("copied") : t("copyAddress")}
               </button>
               <button
                 type="button"
@@ -163,7 +166,7 @@ export function ConnectButton({ beforeOpen }: Props) {
                 }}
                 className="type-micro rounded-[6px] border border-rule-strong px-3 py-2 text-text transition-colors duration-200 hover:border-danger hover:text-danger"
               >
-                Disconnect
+                {t("disconnect")}
               </button>
             </div>
           </motion.div>
