@@ -94,24 +94,33 @@ const record = (label, ok, detail = '') => {
   console.log(`  ${ok ? 'PASS' : 'FAIL'}  ${label}${detail ? `\n        ${detail}` : ''}`);
 };
 
-// WSL runs the fork and the compiler. The script goes in on stdin, so nothing is re-quoted on the way.
+// On Windows, WSL runs the fork and the compiler; on Linux, CI included, the same script runs in bash directly. The
+// script goes in on stdin, so nothing is re-quoted on the way.
+const ON_WINDOWS = process.platform === 'win32';
+let wslCalls = 0;
 function wsl(script) {
+  if (ON_WINDOWS) wslCalls++;
+  const [shell, args] = ON_WINDOWS ? ['wsl.exe', ['-d', 'Ubuntu', '--', 'bash', '-s']] : ['bash', ['-s']];
   // A bound on every call: a wedged WSL would otherwise hang the run with no word of why.
-  const r = spawnSync('wsl.exe', ['-d', 'Ubuntu', '--', 'bash', '-s'], { input: `export PATH="$HOME/.local/bin:$HOME/.foundry/bin:/usr/local/bin:/usr/bin:/bin"\n${script}`, encoding: 'utf8', timeout: 240_000 });
-  if (r.error) throw new Error(`WSL did not answer within four minutes (${r.error.code ?? r.error.message}).`);
+  const r = spawnSync(shell, args, { input: `export PATH="$HOME/.local/bin:$HOME/.foundry/bin:/usr/local/bin:/usr/bin:/bin"\n${script}`, encoding: 'utf8', timeout: 240_000 });
+  if (r.error) throw new Error(r.error.code === 'ETIMEDOUT' ? `${shell} did not answer within four minutes.` : `${shell} could not run: ${r.error.message}`);
   return { status: r.status, out: (r.stdout ?? '') + (r.stderr ?? '') };
 }
-const toWsl = (winPath) => `/mnt/${winPath[0].toLowerCase()}${winPath.slice(2).replace(/\\/g, '/')}`;
+const toWsl = (winPath) => (ON_WINDOWS ? `/mnt/${winPath[0].toLowerCase()}${winPath.slice(2).replace(/\\/g, '/')}` : winPath);
+
+const FORK_COMMAND = `arc-anvil --fork-url https://rpc.mainnet.arc.io --port ${FORK_PORT}`;
+const STOP_FORK = `[ -f /tmp/adag-guard-anvil.pid ] && kill "$(cat /tmp/adag-guard-anvil.pid)" 2>/dev/null; rm -f /tmp/adag-guard-anvil.pid; pkill -f "${FORK_COMMAND}" 2>/dev/null; true`;
 
 function startFork() {
-  stopFork();
+  // A fork left by an earlier run is stopped in this same call, because every wsl.exe call risks wedging WSL. Its port
+  // must be free before the new fork binds it, so the call waits up to ten seconds for it to exit.
   // stdin from /dev/null, or the fork dies with the pipe that carried this script in. A block every second, as on
   // Arc, because a receipt wait watches for new blocks and an automine-only fork would never make another one.
-  const r = wsl(`nohup arc-anvil --fork-url https://rpc.mainnet.arc.io --port ${FORK_PORT} --host 0.0.0.0 --block-time 1 > /tmp/adag-guard-anvil.log 2>&1 < /dev/null &\necho $! > /tmp/adag-guard-anvil.pid\nsleep 1`);
+  const r = wsl(`${STOP_FORK}\nfor _ in $(seq 1 20); do pgrep -f "${FORK_COMMAND}" > /dev/null || break; sleep 0.5; done\nnohup ${FORK_COMMAND} --host 0.0.0.0 --block-time 1 > /tmp/adag-guard-anvil.log 2>&1 < /dev/null &\necho $! > /tmp/adag-guard-anvil.pid\nsleep 1`);
   if (r.status !== 0) throw new Error(`could not start arc-anvil: ${r.out}`);
 }
 function stopFork() {
-  wsl(`[ -f /tmp/adag-guard-anvil.pid ] && kill "$(cat /tmp/adag-guard-anvil.pid)" 2>/dev/null; rm -f /tmp/adag-guard-anvil.pid; pkill -f "arc-anvil --fork-url https://rpc.mainnet.arc.io --port ${FORK_PORT}" 2>/dev/null; true`);
+  wsl(STOP_FORK);
 }
 
 const forkChain = defineChain({ id: 5042, name: 'Arc fork', nativeCurrency: { name: 'USDC', symbol: 'USDC', decimals: 18 }, rpcUrls: { default: { http: [FORK] } } });
@@ -270,7 +279,7 @@ async function connectIfShown(page) {
 
 async function openPage(borrower) {
   browser ??= await chromium.launch();
-  const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: 'dark' });
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: 'dark', locale: 'en-US' });
   await context.addCookies([{ name: 'adag-theme', value: 'dark', url: APP }]);
   await stubReown(context);
   await context.addInitScript(walletScript, { account: borrower.address, fork: FORK });
@@ -586,11 +595,12 @@ async function main() {
   const [a, b] = await Promise.all([post('/api/keeper/run', {}, auth), post('/api/keeper/run', {}, auth)]);
   const bodies = [await a.json(), await b.json()];
   const logs = await fork.getLogs({ address: guard, fromBlock, toBlock: 'latest' });
-  const protectedLogs = logs.map((l) => { try { return decodeEventLog({ abi: guardAbi, data: l.data, topics: l.topics }); } catch { return null; } }).filter((e) => e?.eventName === 'Protected');
+  const protectedLogs = logs.map((l) => { try { return { ...decodeEventLog({ abi: guardAbi, data: l.data, topics: l.topics }), blockNumber: l.blockNumber }; } catch { return null; } }).filter((e) => e?.eventName === 'Protected');
   const nonce1 = await keeperNonce();
   record('two concurrent runs send exactly one transaction', nonce1 === nonce0 + 1 && protectedLogs.length === 1, `states ${bodies.map((x) => x.state).join(' and ')}, keeper sent ${nonce1 - nonce0}`);
 
-  const [, , ltvAfter] = await fork.readContract({ address: guard, abi: guardAbi, functionName: 'quote', args: [borrower.address, MARKET_USDC] });
+  // quote() at the block protect landed in: read any later and the fork's interest has already moved the debt up.
+  const [, , ltvAfter] = await fork.readContract({ address: guard, abi: guardAbi, functionName: 'quote', args: [borrower.address, MARKET_USDC], blockNumber: protectedLogs[0]?.blockNumber });
   const event = protectedLogs[0]?.args;
   record('Protected landed and the loan is at or under the 45% target', !!event && event.ltvAfterWad <= TARGET && ltvAfter <= TARGET, event ? `repaid ${Number(event.repaid) / 1e6} USDC, ${Number(event.ltvBeforeWad) / 1e16}% to ${Number(event.ltvAfterWad) / 1e16}%` : 'no event');
   // The page's figure is quote() at the block it read; the keeper repays quote() at the block it lands in. Between the
@@ -730,7 +740,9 @@ try {
   record('the run finished', false, error.message.slice(0, 1500));
 } finally {
   await browser?.close().catch(() => {});
-  if (app?.pid) spawnSync('taskkill', ['/PID', String(app.pid), '/T', '/F'], { stdio: 'ignore' });
+  // next start serves from its own process, so one signal stops it on Linux; on Windows taskkill takes the whole tree.
+  if (app?.pid && ON_WINDOWS) spawnSync('taskkill', ['/PID', String(app.pid), '/T', '/F'], { stdio: 'ignore' });
+  else if (app?.pid) app.kill('SIGKILL');
   await upstash?.close();
   await telegram?.close();
   stopFork();
@@ -739,4 +751,5 @@ try {
 
 const failed = results.filter((r) => !r.ok).length;
 console.log(`\ne2e-guard: ${results.length - failed} passed, ${failed} failed`);
+console.log(`wsl.exe calls this run: ${wslCalls}`);
 process.exit(failed === 0 ? 0 : 1);

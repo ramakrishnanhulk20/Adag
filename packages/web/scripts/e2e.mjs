@@ -13,6 +13,7 @@ import { dirname, resolve } from 'node:path';
 import { createServer } from 'node:http';
 import { createPublicClient, decodeFunctionData, encodeFunctionData, formatUnits, getAddress, http, keccak256, parseAbi, parseAbiItem, parseEventLogs, parseUnits, recoverTypedDataAddress, stringToHex, toFunctionSelector } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
+import * as forkRpc from './e2e-fork-rpc.mjs';
 
 const WEB = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 // Screenshots are proof for review, not part of the product, so they land in an ignored folder unless told otherwise:
@@ -72,20 +73,20 @@ const record = (label, ok, detail = '') => {
   console.log(`  ${ok ? 'PASS' : 'FAIL'}  ${label}${detail ? `\n        ${detail}` : ''}`);
 };
 
-// The fork fetches Arc's state from the public RPC the first time anything touches it, and WSL's name lookup drops for a few
-// seconds now and then. A command that failed only for that reason is tried again; any other failure stops the run.
-const FORK_NETWORK_HICCUP = /dns error|failed to lookup address|error sending request for url \(https:\/\/rpc\.mainnet\.arc\.io/;
-function forkScript(...args) {
-  for (let attempt = 1; ; attempt++) {
-    const r = spawnSync('bash', [resolve(WEB, 'scripts/e2e-fork.sh'), ...args], { encoding: 'utf8', shell: false });
-    if (r.status === 0) return r.stdout.trim();
-    const said = r.stderr || r.stdout;
-    if (attempt >= 4 || args[0] === 'start' || !FORK_NETWORK_HICCUP.test(said)) throw new Error(`e2e-fork.sh ${args.join(' ')} failed: ${said}`);
-    console.log(`  the fork lost its network for a moment (${args[0]}, attempt ${attempt}); trying again`);
-    spawnSync('bash', ['-c', 'sleep 6']);
-  }
+// Only starting and stopping the fork go through WSL. A burst of wsl.exe calls under the test load wedged WSL on this
+// machine, so bills and transactions go to the fork's JSON-RPC from here (scripts/e2e-fork-rpc.mjs). On Linux, CI
+// included, e2e-fork.sh runs the fork itself and no wsl.exe call is made.
+const ON_WINDOWS = process.platform === 'win32';
+let wslCalls = 0;
+function forkScript(command) {
+  if (ON_WINDOWS) wslCalls++;
+  // A bound on every call, as in e2e-guard: a wedged WSL would otherwise hang the run with no word of why.
+  const r = spawnSync('bash', [resolve(WEB, 'scripts/e2e-fork.sh'), command], { encoding: 'utf8', shell: false, timeout: 240_000 });
+  if (r.error) throw new Error(`e2e-fork.sh ${command} ${r.error.code === 'ETIMEDOUT' ? 'did not answer within four minutes' : `could not run: ${r.error.message}`}`);
+  if (r.status === 0) return r.stdout.trim();
+  throw new Error(`e2e-fork.sh ${command} failed: ${r.stderr || r.stdout}`);
 }
-const newBill = (currency, amount, ref, contract = 'current') => BigInt(forkScript('bill', currency, String(amount), ref, contract).split('\n').at(-1));
+const newBill = (currency, amount, ref, contract = 'current') => forkRpc.bill(currency, String(amount), ref, contract);
 const rpc = (method, params = []) => fork.request({ method, params });
 // A transaction mined on Arc itself, long before this run, is fetched by the fork from Arc's own public RPC on demand, and that
 // RPC no longer returns receipts this old (checked on 7 October 2026: it answers null where dRPC returns the receipt). So the fork
@@ -113,26 +114,26 @@ async function resetPayer() {
   for (const [symbol, market, token, params] of [['USDC', MARKET_USDC, USDC, USDC_PARAMS], ['EURC', MARKET_EURC, EURC, EURC_PARAMS]]) {
     const [, shares, collateral] = await fork.readContract({ address: MORPHO, abi: morphoAbi, functionName: 'position', args: [market, PAYER] });
     if (shares > 0n) {
-      if (token === EURC) forkScript('fund-eurc', PAYER, '5000000');
+      if (token === EURC) await forkRpc.fundEurc(PAYER, '5000000');
       else await rpc('anvil_setBalance', [PAYER, `0x${START_USDC.toString(16)}`]);
-      forkScript('send', PAYER, token, 'approve(address,uint256)', MORPHO, '50000000');
-      forkScript('send', PAYER, MORPHO, `repay(${MP},uint256,uint256,address,bytes)`, params, '0', String(shares), PAYER, '0x');
-      forkScript('send', PAYER, token, 'approve(address,uint256)', MORPHO, '0');
+      await forkRpc.send(PAYER, token, 'approve(address,uint256)', MORPHO, '50000000');
+      await forkRpc.send(PAYER, MORPHO, `repay(${MP},uint256,uint256,address,bytes)`, params, '0', String(shares), PAYER, '0x');
+      await forkRpc.send(PAYER, token, 'approve(address,uint256)', MORPHO, '0');
       done.push(`${symbol} loan of ${shares} shares repaid`);
     }
     if (collateral > 0n) {
-      forkScript('send', PAYER, MORPHO, `withdrawCollateral(${MP},uint256,address,address)`, params, String(collateral), PAYER, PAYER);
+      await forkRpc.send(PAYER, MORPHO, `withdrawCollateral(${MP},uint256,address,address)`, params, String(collateral), PAYER, PAYER);
       done.push(`${collateral} sat of ${symbol} pledge withdrawn`);
     }
     const rule = await fork.readContract({ address: GUARD, abi: guardAbi, functionName: 'ruleOf', args: [PAYER, market] });
     if (rule.triggerWad !== 0n || rule.targetWad !== 0n) {
-      forkScript('send', PAYER, GUARD, 'clearRule(bytes32)', market);
+      await forkRpc.send(PAYER, GUARD, 'clearRule(bytes32)', market);
       done.push(`${symbol} guard rule cleared`);
     }
   }
   for (const [symbol, token] of [['USDC', USDC], ['EURC', EURC]]) {
     if ((await fork.readContract({ address: token, abi: tokenAbi, functionName: 'allowance', args: [PAYER, GUARD] })) > 0n) {
-      forkScript('send', PAYER, token, 'approve(address,uint256)', GUARD, '0');
+      await forkRpc.send(PAYER, token, 'approve(address,uint256)', GUARD, '0');
       done.push(`${symbol} approval to the guard zeroed`);
     }
   }
@@ -197,7 +198,9 @@ async function startApp() {
 
 function stopApp(child) {
   if (!child?.pid) return;
-  spawnSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
+  // next start serves from its own process, so one signal stops it on Linux; on Windows taskkill takes the whole tree.
+  if (ON_WINDOWS) spawnSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
+  else child.kill('SIGKILL');
 }
 
 // The wallet: every request goes to the fork as the impersonated account. The fork signs for it, so
@@ -358,7 +361,7 @@ async function moveWalletTo(page, chainHex) {
 
 let browser;
 async function openPage({ account, width = 1440, theme = 'dark', noWallet = false, addArcFlow = false, signer = null, expectCircleErrors = false }) {
-  const context = await browser.newContext({ viewport: { width, height: width < 600 ? 812 : 900 }, colorScheme: theme, hasTouch: width < 600 });
+  const context = await browser.newContext({ viewport: { width, height: width < 600 ? 812 : 900 }, colorScheme: theme, hasTouch: width < 600, locale: 'en-US' });
   await context.addCookies([{ name: 'adag-theme', value: theme, url: APP }]);
   await stubReown(context);
   if (!noWallet) await context.addInitScript(walletScript, { account, fork: FORK, addArcFlow });
@@ -607,18 +610,18 @@ async function fxScenarios({ safe, advanceStore, only }) {
   const FX_BTC = 100_000n;
   // resetPayer repays any EURC loan with 5 EURC it funds itself; these scenarios borrow more than that, so the payer gets more first.
   const resetWithEurc = async () => {
-    forkScript('fund-eurc', PAYER, '20000000');
+    await forkRpc.fundEurc(PAYER, '20000000');
     return resetPayer();
   };
-  if (run('a') || run('b') || run('g') || run('h')) console.log(`  fx: payer given ${FX_BTC} sat of cirBTC from Morpho: ${forkScript('send', MORPHO, CIRBTC, 'transfer(address,uint256)', PAYER, String(FX_BTC))}`);
+  if (run('a') || run('b') || run('g') || run('h')) console.log(`  fx: payer given ${FX_BTC} sat of cirBTC from Morpho: ${await forkRpc.send(MORPHO, CIRBTC, 'transfer(address,uint256)', PAYER, String(FX_BTC))}`);
 
   // (fx-a) One USDC bill paid from a EURC loan on the single bill page, with a real Circle plan. Circle's adapter first
   // holds a stray USDC approval, so the page offers to reset it; then the payment, with every figure checked against
   // what was signed.
   if (run('a')) {
     const BILL_A = 5_000_000n;
-    const A = newBill('USDC', BILL_A, 'E2E-FX-A');
-    forkScript('send', PAYER, USDC, 'approve(address,uint256)', CIRCLE_ADAPTER, '1000000');
+    const A = await newBill('USDC', BILL_A, 'E2E-FX-A');
+    await forkRpc.send(PAYER, USDC, 'approve(address,uint256)', CIRCLE_ADAPTER, '1000000');
     const payeeBefore = await tokenBalance(USDC, PAYEE);
     const { context, page, circle } = await openPage({ account: PAYER, expectCircleErrors: true });
     await connect(page, `/bill/${A}`);
@@ -709,8 +712,8 @@ async function fxScenarios({ safe, advanceStore, only }) {
     await resetWithEurc();
     const U_AMT = 5_000_000n;
     const E_AMT = 2_000_000n;
-    const U = newBill('USDC', U_AMT, 'E2E-FX-B-USDC');
-    const E = newBill('EURC', E_AMT, 'E2E-FX-B-EURC');
+    const U = await newBill('USDC', U_AMT, 'E2E-FX-B-USDC');
+    const E = await newBill('EURC', E_AMT, 'E2E-FX-B-EURC');
     const usdcBefore = await tokenBalance(USDC, PAYEE);
     const eurcBefore = await tokenBalance(EURC, PAYEE);
     const posBefore = await eurcPosition(PAYER);
@@ -762,7 +765,7 @@ async function fxScenarios({ safe, advanceStore, only }) {
   // (fx-c) Circle answers "no route", stubbed: the app repeats the identical request twice (three in all), then the page shows the
   // fixed sentence, never Circle's words, sends nothing and does not raise anything by itself.
   if (run('c')) {
-    const C = newBill('USDC', 1_000_000, 'E2E-FX-C');
+    const C = await newBill('USDC', 1_000_000, 'E2E-FX-C');
     const { context, page, circle } = await openPage({ account: PAYER, expectCircleErrors: true });
     const stubbed = [];
     await context.route('https://api.circle.com/**', (route) => {
@@ -795,7 +798,7 @@ async function fxScenarios({ safe, advanceStore, only }) {
     const euroMarket = await fork.readContract({ address: MORPHO, abi: parseAbi(['function market(bytes32 id) view returns (uint128 totalSupplyAssets, uint128 totalSupplyShares, uint128 totalBorrowAssets, uint128 totalBorrowShares, uint128 lastUpdate, uint128 fee)']), functionName: 'market', args: [MARKET_EURC] });
     const free = euroMarket[0] > euroMarket[2] ? euroMarket[0] - euroMarket[2] : 0n;
     const bigAmount = ((free + 1_000_000n) * 13n) / 10n;
-    const D = newBill('USDC', bigAmount, 'E2E-FX-D');
+    const D = await newBill('USDC', bigAmount, 'E2E-FX-D');
     const one = await openPage({ account: PAYER });
     await connect(one.page, `/bill/${D}`);
     const note = one.page.locator('[data-convert-off]');
@@ -825,8 +828,8 @@ async function fxScenarios({ safe, advanceStore, only }) {
 
   // (fx-e) Opposite conversions in one basket: once the USDC bills convert, the EURC bills cannot, and the other way round.
   if (run('e')) {
-    const U = newBill('USDC', 1_000_000, 'E2E-FX-E-USDC');
-    const E = newBill('EURC', 1_000_000, 'E2E-FX-E-EURC');
+    const U = await newBill('USDC', 1_000_000, 'E2E-FX-E-USDC');
+    const E = await newBill('EURC', 1_000_000, 'E2E-FX-E-EURC');
     const { context, page, circle } = await openPage({ account: PAYER });
     await openBasketFor(page, [U, E]);
     await page.locator('[data-choice="USDC-convert"]:not([disabled])').waitFor({ timeout: 60_000 });
@@ -854,7 +857,7 @@ async function fxScenarios({ safe, advanceStore, only }) {
   // (fx-f) A Safe payer: the conversion is shown, off, with the Safe line, and nothing can be proposed through Circle.
   if (safe && run('f')) {
     advanceStore();
-    const F = newBill('USDC', 1_000_000, 'E2E-FX-F');
+    const F = await newBill('USDC', 1_000_000, 'E2E-FX-F');
     const { context, page, circle } = await openPage({ account: safe.OWNER1.address, signer: safe.OWNER1 });
     await connect(page, `/bill/${F}`).catch(() => {});
     await page.locator('[data-safe-pay]').waitFor({ timeout: 60_000 });
@@ -883,13 +886,13 @@ async function fxScenarios({ safe, advanceStore, only }) {
     const euroPrice = await fork.readContract({ address: '0x6945246777DfdF4744D957323857F797Ec19Ca1e', abi: parseAbi(['function price() view returns (uint256)']), functionName: 'price' });
     const borrow = (((pledge * euroPrice) / 10n ** 36n) * 35n) / 100n;
     const setup = [
-      forkScript('send', PAYER, CIRBTC, 'approve(address,uint256)', MORPHO, String(pledge)),
-      forkScript('send', PAYER, MORPHO, `supplyCollateral(${MP},uint256,address,bytes)`, EURC_PARAMS, String(pledge), PAYER, '0x'),
-      forkScript('send', PAYER, MORPHO, `borrow(${MP},uint256,uint256,address,address)`, EURC_PARAMS, String(borrow), '0', PAYER, PAYER),
+      await forkRpc.send(PAYER, CIRBTC, 'approve(address,uint256)', MORPHO, String(pledge)),
+      await forkRpc.send(PAYER, MORPHO, `supplyCollateral(${MP},uint256,address,bytes)`, EURC_PARAMS, String(pledge), PAYER, '0x'),
+      await forkRpc.send(PAYER, MORPHO, `borrow(${MP},uint256,uint256,address,address)`, EURC_PARAMS, String(borrow), '0', PAYER, PAYER),
     ];
     // The borrowed EURC goes straight to the supplier, so the payer cannot close the loan with EURC and has to convert.
     const held = await tokenBalance(EURC, PAYER);
-    const moved = forkScript('send', PAYER, EURC, 'transfer(address,uint256)', PAYEE, String(held));
+    const moved = await forkRpc.send(PAYER, EURC, 'transfer(address,uint256)', PAYEE, String(held));
     const btcBefore = await cirBtcOf(PAYER);
     const { context, page, circle } = await openPage({ account: PAYER, expectCircleErrors: true });
     await connect(page, '/app').catch(() => {});
@@ -931,7 +934,7 @@ async function fxScenarios({ safe, advanceStore, only }) {
   if (run('h')) {
     await resetWithEurc();
     const BILL_H = 1_000_000n;
-    const H = newBill('USDC', BILL_H, 'E2E-FX-H');
+    const H = await newBill('USDC', BILL_H, 'E2E-FX-H');
     const payeeBefore = await tokenBalance(USDC, PAYEE);
     const { context, page, circle } = await openPage({ account: PAYER, expectCircleErrors: true });
     await connect(page, `/bill/${H}`);
@@ -969,8 +972,8 @@ async function fxScenarios({ safe, advanceStore, only }) {
   if (only && !safe) {
     await resetWithEurc();
     const left = await tokenBalance(EURC, PAYER);
-    if (left > 0n) forkScript('send', PAYER, EURC, 'transfer(address,uint256)', PAYEE, String(left));
-    forkScript('send', PAYER, CIRBTC, 'transfer(address,uint256)', MORPHO, String(FX_BTC));
+    if (left > 0n) await forkRpc.send(PAYER, EURC, 'transfer(address,uint256)', PAYEE, String(left));
+    await forkRpc.send(PAYER, CIRBTC, 'transfer(address,uint256)', MORPHO, String(FX_BTC));
     // Every connected pay page asks the Safe routes for a list, and they allow 20 calls per client per ten minutes; this block loaded
     // enough pages to use some of that, so the stand-in store's clock moves past the window before the other scenarios begin.
     advanceStore();
@@ -994,9 +997,9 @@ async function main() {
   if (chain !== '0x13b2') throw new Error(`the fork reports chain ${chain}, not 5042`);
   console.log(`  demo payer reset on the fork: ${await resetPayer()}; 10 USDC`);
 
-  const A = newBill('USDC', 400_000, 'E2E-A');
-  const B = newBill('USDC', 300_000, 'E2E-B');
-  const C = newBill('EURC', 200_000, 'E2E-C');
+  const A = await newBill('USDC', 400_000, 'E2E-A');
+  const B = await newBill('USDC', 300_000, 'E2E-B');
+  const C = await newBill('EURC', 200_000, 'E2E-C');
   console.log(`  payee wrote bills #${A} (0.40 USDC), #${B} (0.30 USDC), #${C} (0.20 EURC) on the fork`);
   console.log('  the EURC bill is only voided, so the payer needs no EURC');
 
@@ -1085,7 +1088,7 @@ async function main() {
     {
       await rpc('evm_increaseTime', [27 * 3600]);
       await rpc('evm_mine');
-      const D = newBill('USDC', 100_000, 'E2E-D');
+      const D = await newBill('USDC', 100_000, 'E2E-D');
       const { context, page } = await openPage({ account: PAYER });
       await connect(page, `/bill/${D}`);
       await page.locator('[data-price="stale"]').first().waitFor({ timeout: 60_000 });
@@ -1104,7 +1107,7 @@ async function main() {
     await rpc('evm_mine');
 
     // (e) The wallet says it is on Ethereum: Switch to Arc, and no transaction is requested.
-    const E = newBill('USDC', 100_000, 'E2E-E');
+    const E = await newBill('USDC', 100_000, 'E2E-E');
     {
       const { context, page } = await openPage({ account: PAYER });
       await page.goto(`${APP}/bill/${E}`, { waitUntil: 'networkidle', timeout: 120_000 });
@@ -1322,7 +1325,7 @@ async function main() {
 
     // (l) A EURC loan, round trip: pay a EURC bill from bitcoin, then close that loan from /app.
     {
-      const L = newBill('EURC', 200_000, 'E2E-L');
+      const L = await newBill('EURC', 200_000, 'E2E-L');
       const { context, page } = await openPage({ account: PAYER });
       // With the USDC loan closed in (i), both markets are empty: two quiet tickets.
       await connect(page, '/app').catch(() => {});
@@ -1338,7 +1341,7 @@ async function main() {
       const paidLog = await billPaidLog(L);
       const opened = await eurcPositionOf(PAYER);
       const pledge = opened[2];
-      console.log(`  (l) bill #${L} paid from bitcoin: EURC loan ${opened[1]} shares against ${pledge} sat; funding the payer with 1 EURC to repay: ${forkScript('fund-eurc', PAYER, '1000000')}`);
+      console.log(`  (l) bill #${L} paid from bitcoin: EURC loan ${opened[1]} shares against ${pledge} sat; funding the payer with 1 EURC to repay: ${await forkRpc.fundEurc(PAYER, '1000000')}`);
 
       await page.goto(`${APP}/app`, { waitUntil: 'networkidle', timeout: 120_000 });
       const ticket = page.locator('[data-loan="EURC"]');
@@ -1373,9 +1376,9 @@ async function main() {
     {
       const params = `(${USDC},${CIRBTC},0x2AA87fF48933Ce6aBA240BEE916Fc2e6Ec1e51Ab,0xF02615d094Fc02fC031C35fe705e175aA4653f20,860000000000000000)`;
       const steps = [
-        forkScript('send', PAYER, USDC, 'approve(address,uint256)', MORPHO, '5000000'),
-        forkScript('send', PAYER, CIRBTC, 'approve(address,uint256)', MORPHO, '1000'),
-        forkScript('send', PAYER, MORPHO, 'supplyCollateral((address,address,address,address,uint256),uint256,address,bytes)', params, '1000', PAYER, '0x'),
+        await forkRpc.send(PAYER, USDC, 'approve(address,uint256)', MORPHO, '5000000'),
+        await forkRpc.send(PAYER, CIRBTC, 'approve(address,uint256)', MORPHO, '1000'),
+        await forkRpc.send(PAYER, MORPHO, 'supplyCollateral((address,address,address,address,uint256),uint256,address,bytes)', params, '1000', PAYER, '0x'),
       ];
       const start = await positionOf(PAYER);
       const { context, page } = await openPage({ account: PAYER });
@@ -1461,7 +1464,7 @@ async function main() {
 
     // (o) Three bills, one in euros, all from bitcoin, typed on /pay.
     {
-      const ids = [newBill('USDC', 300_000, 'E2E-O-1'), newBill('USDC', 200_000, 'E2E-O-2'), newBill('EURC', 150_000, 'E2E-O-3')];
+      const ids = [await newBill('USDC', 300_000, 'E2E-O-1'), await newBill('USDC', 200_000, 'E2E-O-2'), await newBill('EURC', 150_000, 'E2E-O-3')];
       const { context, page } = await openPage({ account: PAYER });
       await page.goto(`${APP}/pay`, { waitUntil: 'networkidle', timeout: 120_000 });
       await page.getByLabel('Bill numbers or links').fill(`${ids[0]}, ${ids[1]} ${ids[2]}`);
@@ -1489,7 +1492,7 @@ async function main() {
 
     // (p) A mixed basket: the USDC bills from balance, the EURC bill from bitcoin.
     {
-      const ids = [newBill('USDC', 300_000, 'E2E-P-1'), newBill('USDC', 200_000, 'E2E-P-2'), newBill('EURC', 150_000, 'E2E-P-3')];
+      const ids = [await newBill('USDC', 300_000, 'E2E-P-1'), await newBill('USDC', 200_000, 'E2E-P-2'), await newBill('EURC', 150_000, 'E2E-P-3')];
       const usdcLoanBefore = await positionOf(PAYER);
       const { context, page } = await openPage({ account: PAYER });
       await openBasket(page, ids);
@@ -1511,7 +1514,7 @@ async function main() {
 
     // (q) A paid bill, a void bill and an open one: only the open one is paid.
     {
-      const Q = newBill('USDC', 100_000, 'E2E-Q');
+      const Q = await newBill('USDC', 100_000, 'E2E-Q');
       const { context, page } = await openPage({ account: PAYER });
       await openBasket(page, [A, C, Q]);
       const reasons = await page.locator('[data-aside-bill]').evaluateAll((els) => els.map((e) => [e.getAttribute('data-aside-bill'), e.querySelector('[data-reason]')?.textContent ?? '']));
@@ -1565,7 +1568,7 @@ async function main() {
 
     // (s) A wallet that cannot cover gas is stopped before the wallet is asked. Arc's gas is the native USDC balance.
     {
-      const S = newBill('USDC', 100_000, 'E2E-S');
+      const S = await newBill('USDC', 100_000, 'E2E-S');
       const original = await fork.getBalance({ address: PAYER });
       await rpc('anvil_setBalance', [PAYER, `0x${(10n ** 15n).toString(16)}`]);
       try {
@@ -1590,7 +1593,7 @@ async function main() {
 
     // (t) A payer's funding choice is never swapped. "Balance" that stops being covered is cleared, with the reason.
     {
-      const ids = [newBill('USDC', 300_000, 'E2E-T-1'), newBill('USDC', 200_000, 'E2E-T-2')];
+      const ids = [await newBill('USDC', 300_000, 'E2E-T-1'), await newBill('USDC', 200_000, 'E2E-T-2')];
       const original = await fork.getBalance({ address: PAYER });
       const { context, page } = await openPage({ account: PAYER });
       try {
@@ -1616,7 +1619,7 @@ async function main() {
 
     // (u) A wallet holding exactly a USDC bill's amount, nothing for the fee, is not offered pay from balance.
     {
-      const U = newBill('USDC', 100_000, 'E2E-U');
+      const U = await newBill('USDC', 100_000, 'E2E-U');
       const original = await fork.getBalance({ address: PAYER });
       await rpc('anvil_setBalance', [PAYER, `0x${(10n ** 17n).toString(16)}`]);
       try {
@@ -1643,7 +1646,7 @@ async function main() {
     // (v) Getting set up: the helper for a wallet with no cirBTC, the Reown wallet modal opening on a phone and on a
     // desktop with no wallet in the browser, and Switch to Arc adding Arc to a wallet that has never seen it.
     {
-      const V = newBill('USDC', 100_000, 'E2E-V');
+      const V = await newBill('USDC', 100_000, 'E2E-V');
       const FRESH = '0x00000000000000000000000000000000000a11ce';
       await rpc('anvil_setBalance', [FRESH, `0x${(5n * 10n ** 18n).toString(16)}`]);
       const one = await openPage({ account: FRESH });
@@ -1686,7 +1689,7 @@ async function main() {
 
     // (w) Live status: the supplier's open bill page stamps PAID on its own when the payer pays elsewhere.
     {
-      const W = newBill('USDC', 100_000, 'E2E-W');
+      const W = await newBill('USDC', 100_000, 'E2E-W');
       const payee = await openPage({ account: PAYEE });
       await connect(payee.page, `/bill/${W}`);
       await payee.page.getByRole('img', { name: 'Status: Open' }).first().waitFor({ timeout: 30_000 });
@@ -1789,7 +1792,7 @@ async function main() {
         return { name: dl.suggestedFilename(), rows: parseCsv(readFileSync(await dl.path(), 'utf8')) };
       };
       const header = ['contract address', 'bill number', 'status', 'written at', 'paid at', 'supplier', 'payer', 'amount', 'currency', 'reference', 'transaction link', '40% check ran'];
-      const Z = newBill('USDC', 50_000, `hex:${stringToHex('=HYPERLINK("x")')}`);
+      const Z = await newBill('USDC', 50_000, `hex:${stringToHex('=HYPERLINK("x")')}`);
 
       const one = await openPage({ account: PAYEE });
       await connect(one.page, '/app').catch(() => {});
@@ -1848,7 +1851,7 @@ async function main() {
     const SAFE = getAddress(`0x${(await rpc('eth_call', [{ from: PAYER, to: SAFE_FACTORY, data: create }, 'latest'])).slice(26)}`);
     const created = await sendFork(SAFE_FACTORY, create);
     await rpc('anvil_setBalance', [SAFE, `0x${(5n * 10n ** 18n).toString(16)}`]);
-    const funded = forkScript('send', PAYER, CIRBTC, 'transfer(address,uint256)', SAFE, '3000');
+    const funded = await forkRpc.send(PAYER, CIRBTC, 'transfer(address,uint256)', SAFE, '3000');
     mockSafe.owners.set(OWNER1.address.toLowerCase(), [SAFE]);
     mockSafe.owners.set(OWNER2.address.toLowerCase(), [SAFE]);
     mockSafe.thresholds.set(SAFE.toLowerCase(), 2);
@@ -1908,7 +1911,7 @@ async function main() {
 
     // (aa) A basket from the Safe's bitcoin: one owner proposes in the UI, the other confirms, the harness executes.
     {
-      const bills2 = [newBill('USDC', 100_000, 'E2E-AA-1'), newBill('USDC', 100_000, 'E2E-AA-2')];
+      const bills2 = [await newBill('USDC', 100_000, 'E2E-AA-1'), await newBill('USDC', 100_000, 'E2E-AA-2')];
       const { context, page } = await openPage({ account: OWNER1.address, signer: OWNER1 });
       await page.goto(`${APP}/pay/basket?bills=${bills2.join(',')}`, { waitUntil: 'networkidle', timeout: 120_000 });
       await clickConnect(page);
@@ -1968,7 +1971,7 @@ async function main() {
 
     // (bb) A bill someone else pays between proposal and execution: the whole execution reverts and the nonce survives.
     {
-      const BB = newBill('USDC', 100_000, 'E2E-BB');
+      const BB = await newBill('USDC', 100_000, 'E2E-BB');
       const { context, page } = await openPage({ account: OWNER1.address, signer: OWNER1 });
       await connect(page, `/bill/${BB}`).catch(() => {});
       await proposeFromUi(page, 'balance');
@@ -1976,8 +1979,8 @@ async function main() {
       await page.locator('[data-safe-status]').waitFor({ timeout: 120_000 });
       const proposal = lastProposal();
       const paidBySomeoneElse = [
-        forkScript('send', PAYER, USDC, 'approve(address,uint256)', ADAG, '100000'),
-        forkScript('send', PAYER, ADAG, 'pay(uint256)', String(BB)),
+        await forkRpc.send(PAYER, USDC, 'approve(address,uint256)', ADAG, '100000'),
+        await forkRpc.send(PAYER, ADAG, 'pay(uint256)', String(BB)),
       ];
       const nonceBefore = await safeNonce();
       const receipt = await confirmAndExecute(proposal);
@@ -1995,7 +1998,7 @@ async function main() {
 
     // (cc) A Safe the connected wallet does not own is refused before any signature is asked for.
     {
-      const CC = newBill('USDC', 100_000, 'E2E-CC');
+      const CC = await newBill('USDC', 100_000, 'E2E-CC');
       const { context, page } = await openPage({ account: PAYER });
       await connect(page, `/bill/${CC}`).catch(() => {});
       await page.locator('[data-action="safe-open"]').first().click();
@@ -2019,7 +2022,7 @@ async function main() {
     // (oo) F3: an owner whose Safe is listed by Safe's service lands on "Pay as: a Safe", with none of the personal
     // wallet's errors or its "Need cirBTC" box on screen.
     {
-      const OO = newBill('USDC', 100_000, 'E2E-OO');
+      const OO = await newBill('USDC', 100_000, 'E2E-OO');
       const { context, page } = await openPage({ account: OWNER1.address, signer: OWNER1 });
       await connect(page, `/bill/${OO}`).catch(() => {});
       await page.locator('[data-pay-as-switch="safe"]').waitFor({ timeout: 60_000 });
@@ -2039,7 +2042,7 @@ async function main() {
     // (pp) F5 and (qq) F4: a proposal comes back after a reload; at the threshold the card says to execute; a bill
     // paid by someone else meanwhile is named before anyone executes.
     {
-      const PQ = newBill('USDC', 100_000, 'E2E-PQ');
+      const PQ = await newBill('USDC', 100_000, 'E2E-PQ');
       const { context, page } = await openPage({ account: OWNER1.address, signer: OWNER1 });
       await connect(page, `/bill/${PQ}`).catch(() => {});
       await proposeFromUi(page, 'balance');
@@ -2063,8 +2066,8 @@ async function main() {
       const readyText = await readyNote.innerText();
       const stillWaiting = await page.getByText('Waiting for your other owners').count();
       const other = [
-        forkScript('send', PAYER, USDC, 'approve(address,uint256)', ADAG, '100000'),
-        forkScript('send', PAYER, ADAG, 'pay(uint256)', String(PQ)),
+        await forkRpc.send(PAYER, USDC, 'approve(address,uint256)', ADAG, '100000'),
+        await forkRpc.send(PAYER, ADAG, 'pay(uint256)', String(PQ)),
       ];
       const warn = page.locator('[data-safe-paid-by-other]');
       await warn.waitFor({ timeout: 30_000 });
@@ -2085,7 +2088,7 @@ async function main() {
       const guardWrite = parseAbi(['function setRule(bytes32 marketId, uint64 triggerWad, uint64 targetWad, uint64 expiry)', 'function clearRule(bytes32 marketId)']);
       const approved = await execSafe(USDC, encodeFunctionData({ abi: erc20, functionName: 'approve', args: [GUARD, 1_000_000n] }));
       const ruled = await execSafe(GUARD, encodeFunctionData({ abi: guardWrite, functionName: 'setRule', args: [MARKET_USDC, 3n * 10n ** 17n, 2n * 10n ** 17n, 0n] }));
-      const NN = newBill('USDC', 100_000, 'E2E-NN');
+      const NN = await newBill('USDC', 100_000, 'E2E-NN');
       const { context, page } = await openPage({ account: OWNER1.address, signer: OWNER1 });
       await connect(page, `/bill/${NN}`).catch(() => {});
       await proposeFromUi(page, 'bitcoin');
@@ -2107,7 +2110,7 @@ async function main() {
     // (dd) Two contracts, one number. A bill written on the first deployment opens at /bill/first/N and pays there,
     // while /bill/N shows the current contract's bill of the same number, untouched (C33).
     {
-      const F = newBill('USDC', 100_000, 'E2E-DD-FIRST', 'first');
+      const F = await newBill('USDC', 100_000, 'E2E-DD-FIRST', 'first');
       const currentBefore = await fork.readContract({ address: ADAG, abi: adagAbi, functionName: 'bill', args: [F] });
       const { context, page } = await openPage({ account: PAYER });
       await connect(page, `/bill/first/${F}`).catch(() => {});
@@ -2164,7 +2167,7 @@ async function main() {
       const BORROWER = getAddress('0x87367570B77D92AAC699475d2894539C6092ef24');
       await rpc('anvil_impersonateAccount', [BORROWER]);
       await setUsdc(BORROWER, 10_000_000n);
-      const EE = newBill('USDC', 100_000, 'E2E-EE');
+      const EE = await newBill('USDC', 100_000, 'E2E-EE');
       const ltv = await fork.readContract({ address: ADAG, abi: ltvAbi, functionName: 'loanToValue', args: [BORROWER, MARKET_USDC] });
       const { context, page } = await openPage({ account: BORROWER });
       await connect(page, `/bill/${EE}`).catch(() => {});
@@ -2205,14 +2208,14 @@ async function main() {
       if (held < pledge) throw new Error(`the payer holds ${held} sat of cirBTC, less than the ${pledge} this scenario pledges`);
       const borrow = (((pledge * price) / 10n ** 36n) * 35n) / 100n;
       const setup = [
-        forkScript('send', PAYER, CIRBTC, 'approve(address,uint256)', MORPHO, String(pledge)),
-        forkScript('send', PAYER, MORPHO, `supplyCollateral(${MP},uint256,address,bytes)`, USDC_PARAMS, String(pledge), PAYER, '0x'),
-        forkScript('send', PAYER, MORPHO, `borrow(${MP},uint256,uint256,address,address)`, USDC_PARAMS, String(borrow), '0', PAYER, PAYER),
-        forkScript('send', PAYER, USDC, 'approve(address,uint256)', GUARD, '1000000'),
-        forkScript('send', PAYER, GUARD, 'setRule(bytes32,uint64,uint64,uint64)', MARKET_USDC, '300000000000000000', '200000000000000000', '0'),
+        await forkRpc.send(PAYER, CIRBTC, 'approve(address,uint256)', MORPHO, String(pledge)),
+        await forkRpc.send(PAYER, MORPHO, `supplyCollateral(${MP},uint256,address,bytes)`, USDC_PARAMS, String(pledge), PAYER, '0x'),
+        await forkRpc.send(PAYER, MORPHO, `borrow(${MP},uint256,uint256,address,address)`, USDC_PARAMS, String(borrow), '0', PAYER, PAYER),
+        await forkRpc.send(PAYER, USDC, 'approve(address,uint256)', GUARD, '1000000'),
+        await forkRpc.send(PAYER, GUARD, 'setRule(bytes32,uint64,uint64,uint64)', MARKET_USDC, '300000000000000000', '200000000000000000', '0'),
       ];
       const [, fullAmount] = await fork.readContract({ address: GUARD, abi: quoteAbi, functionName: 'quote', args: [PAYER, MARKET_USDC] });
-      const FF = newBill('USDC', 100_000, 'E2E-FF');
+      const FF = await newBill('USDC', 100_000, 'E2E-FF');
       // Enough for the bill and its fee, not for the bill, the fee and what the guard is about to pull. The guard's
       // quote is capped by the wallet's balance, so it is read again once the balance is set.
       await setUsdc(PAYER, 100_000n + fullAmount / 2n);
@@ -2237,7 +2240,7 @@ async function main() {
 
     // (gg) Paying from bitcoin into that loan lands past the rule's 30% trigger: the page says so, with an amount.
     {
-      const GG = newBill('USDC', 200_000, 'E2E-GG');
+      const GG = await newBill('USDC', 200_000, 'E2E-GG');
       const { context, page } = await openPage({ account: PAYER });
       await connect(page, `/bill/${GG}`).catch(() => {});
       const note = page.locator('[data-guard-trigger]');
@@ -2293,7 +2296,7 @@ async function main() {
       const extra = (((sColl * price) / 10n ** 36n) * 60n) / 100n - debt;
       const borrowed = await execSafe(MORPHO, encodeFunctionData({ abi: borrowAbi, functionName: 'borrow', args: [usdcParamsObj, extra, 0n, SAFE, SAFE] }));
       const safeLtv = await fork.readContract({ address: ADAG, abi: ltvAbi, functionName: 'loanToValue', args: [SAFE, MARKET_USDC] });
-      const II = newBill('USDC', 100_000, 'E2E-II');
+      const II = await newBill('USDC', 100_000, 'E2E-II');
       const { context, page } = await openPage({ account: OWNER1.address, signer: OWNER1 });
       await connect(page, `/bill/${II}`).catch(() => {});
       await page.locator('[data-action="safe-open"]').first().click();
@@ -2328,7 +2331,7 @@ async function main() {
     // (jj) At 375 the wallet modal fits inside the screen with no sideways scroll, and the phone menu and the desktop
     // nav both carry Loan guard.
     {
-      const JJ = newBill('USDC', 100_000, 'E2E-JJ');
+      const JJ = await newBill('USDC', 100_000, 'E2E-JJ');
       const phone = await openPage({ account: PAYER, noWallet: true, width: 375, theme: 'light' });
       await phone.page.goto(`${APP}/bill/${JJ}`, { waitUntil: 'networkidle', timeout: 120_000 });
       const box = await openWalletModal(phone.page, 'last');
@@ -2355,10 +2358,10 @@ async function main() {
     // more straight from Morpho, outside Adag: that new debt is unrecorded and the loan is still far over 40%.
     {
       const BORROWER = getAddress('0x87367570B77D92AAC699475d2894539C6092ef24');
-      const more = forkScript('send', BORROWER, MORPHO, `borrow(${MP},uint256,uint256,address,address)`, USDC_PARAMS, '1000000', '0', BORROWER, BORROWER);
+      const more = await forkRpc.send(BORROWER, MORPHO, `borrow(${MP},uint256,uint256,address,address)`, USDC_PARAMS, '1000000', '0', BORROWER, BORROWER);
       await setUsdc(BORROWER, 10_000_000n);
-      const K1 = newBill('USDC', 100_000, 'E2E-KK-1');
-      const K2 = newBill('USDC', 150_000, 'E2E-KK-2');
+      const K1 = await newBill('USDC', 100_000, 'E2E-KK-1');
+      const K2 = await newBill('USDC', 150_000, 'E2E-KK-2');
       const { context, page } = await openPage({ account: BORROWER });
       await page.goto(`${APP}/pay/basket?bills=${K1},${K2}`, { waitUntil: 'networkidle', timeout: 120_000 });
       await clickConnect(page);
@@ -2434,7 +2437,7 @@ async function main() {
     {
       const code = await rpc('eth_getCode', [GUARD, 'latest']);
       await rpc('anvil_setCode', [GUARD, '0x60006000fd']);
-      const LL = newBill('USDC', 100_000, 'E2E-LL');
+      const LL = await newBill('USDC', 100_000, 'E2E-LL');
       let reason = '';
       let disabled = false;
       try {
@@ -2457,14 +2460,14 @@ async function main() {
     // (mm) A rule saved after the page loaded is caught at signing: the sentence shows and the wallet is never asked.
     {
       await setUsdc(PAYER, 10_000_000n);
-      const MM = newBill('USDC', 200_000, 'E2E-MM');
+      const MM = await newBill('USDC', 200_000, 'E2E-MM');
       const { context, page } = await openPage({ account: PAYER });
       await connect(page, `/bill/${MM}`).catch(() => {});
       await page.locator('[data-action="pay-bitcoin"]:not([disabled])').waitFor({ timeout: 60_000 });
       const shownBefore = await page.locator('[data-guard-trigger]').count();
       const saved = [
-        forkScript('send', PAYER, USDC, 'approve(address,uint256)', GUARD, '1000000'),
-        forkScript('send', PAYER, GUARD, 'setRule(bytes32,uint64,uint64,uint64)', MARKET_USDC, '300000000000000000', '200000000000000000', '0'),
+        await forkRpc.send(PAYER, USDC, 'approve(address,uint256)', GUARD, '1000000'),
+        await forkRpc.send(PAYER, GUARD, 'setRule(bytes32,uint64,uint64,uint64)', MARKET_USDC, '300000000000000000', '200000000000000000', '0'),
       ];
       await page.locator('[data-action="pay-bitcoin"]').click();
       const dialog = page.getByRole('dialog', { name: /Borrowing through Morpho/ });
@@ -2479,7 +2482,7 @@ async function main() {
       await shoot(page, 'a2d-mm-caught');
       const sent = await sends(page);
       await context.close();
-      const unsaved = [forkScript('send', PAYER, GUARD, 'clearRule(bytes32)', MARKET_USDC), forkScript('send', PAYER, USDC, 'approve(address,uint256)', GUARD, '0')];
+      const unsaved = [await forkRpc.send(PAYER, GUARD, 'clearRule(bytes32)', MARKET_USDC), await forkRpc.send(PAYER, USDC, 'approve(address,uint256)', GUARD, '0')];
       record(`(mm) a guard rule saved after bill #${MM}'s page loaded is caught at signing: the sentence shows and nothing reaches the wallet`,
         [...saved, ...unsaved].every((s) => s.includes('"status":"0x1"')) && shownBefore === 0 && /changed since this page loaded/.test(failText)
           && /at or past your guard's 30\.00% trigger/.test(note) && sent === 0,
@@ -2496,7 +2499,7 @@ async function main() {
       const readyShown = `${wholePart.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}.${fracPart.replace(/0+$/, '').padEnd(2, '0')} USDC`;
       const appears = (locator, timeout = 45_000) => locator.waitFor({ timeout }).then(() => true, () => false);
       const bigAmount = free + 1_000_000n;
-      const BIG = newBill('USDC', bigAmount, 'E2E-TT-BIG');
+      const BIG = await newBill('USDC', bigAmount, 'E2E-TT-BIG');
       const bigShown = formatUnits(bigAmount, 6);
 
       const one = await openPage({ account: PAYER });
@@ -2526,7 +2529,7 @@ async function main() {
       let coveredNote = `skipped: free cash ${readyShown} is under 0.10 USDC`;
       let coveredOk = true;
       if (free >= 100_000n) {
-        const SMALL = newBill('USDC', 100_000, 'E2E-TT-SMALL');
+        const SMALL = await newBill('USDC', 100_000, 'E2E-TT-SMALL');
         const three = await openPage({ account: PAYER });
         await connect(three.page, `/bill/${SMALL}`);
         const line = three.page.getByText(`Morpho has ${readyShown} ready to lend now.`).first();
@@ -2613,5 +2616,6 @@ try {
   } catch (error) {
     console.error(`could not stop the fork: ${error.message}`);
   }
+  console.log(`wsl.exe calls this run: ${wslCalls}`);
 }
 process.exit(code);
